@@ -327,9 +327,69 @@
   .waterfall-bar-label{font-family:'Helvetica Neue',Arial,sans-serif;}
   footer{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
   @media (max-width:720px){ .cards{grid-template-columns:repeat(2,1fr);} .sname{width:100px;} }
+  .wrap{display:none;}
+  body.pf-unlocked .wrap{display:block;}
+  #lockScreen{
+    position:fixed; inset:0; background:var(--paper); z-index:9999;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  body.pf-unlocked #lockScreen{display:none;}
+  #lockCard{width:min(320px, 100%); text-align:center;}
+  #lockCard h1{font-size:28px; font-weight:400; margin:0 0 4px;}
+  #lockCard p{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); margin:0 0 20px;}
+  #lockPasswordInput{
+    width:100%; padding:11px 14px; border:1px solid var(--line); background:var(--panel); color:var(--ink);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; text-align:center; margin-bottom:12px;
+  }
+  #lockPasswordInput:focus{outline:none; border-color:var(--accent);}
+  #lockSubmitBtn{
+    width:100%; padding:11px 14px; border:1px solid var(--accent); background:var(--accent); color:#fff;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; font-weight:600; cursor:pointer; border-radius:6px;
+  }
+  #lockSubmitBtn:hover{background:#7a5e30;}
+  #lockError{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5); margin-top:12px; min-height:16px;
+  }
 </style>
 </head>
 <body>
+<script>
+  if(localStorage.getItem('pf_unlocked') === '1'){ document.body.classList.add('pf-unlocked'); }
+</script>
+<div id="lockScreen">
+  <div id="lockCard">
+    <h1>Portfolio</h1>
+    <p>Enter password to continue</p>
+    <input type="password" id="lockPasswordInput" placeholder="Password" autocomplete="off">
+    <button id="lockSubmitBtn">Unlock</button>
+    <div id="lockError"></div>
+  </div>
+</div>
+<script>
+  const PF_LOCK_HASH = '535955cbb76c7f3961ee8240c0e7b9dff245c0b99b4d34f464c20f41ea274f34';
+  async function pfSha256Hex(str){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  async function pfTryUnlock(){
+    const input = document.getElementById('lockPasswordInput');
+    const errEl = document.getElementById('lockError');
+    const hash = await pfSha256Hex(input.value);
+    if(hash === PF_LOCK_HASH){
+      localStorage.setItem('pf_unlocked', '1');
+      document.body.classList.add('pf-unlocked');
+      errEl.textContent = '';
+    } else {
+      errEl.textContent = 'Wrong password.';
+      input.value = '';
+      input.focus();
+    }
+  }
+  document.getElementById('lockSubmitBtn').addEventListener('click', pfTryUnlock);
+  document.getElementById('lockPasswordInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') pfTryUnlock();
+  });
+</script>
 <div class="wrap">
   <header>
     <div>
