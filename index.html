@@ -1,0 +1,2606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfolio</title>
+<style>
+  :root{
+    --ink:#1a2332; --paper:#f7f5f0; --panel:#ffffff; --line:#e2ddd0; --muted:#6b6558;
+    --up-1:#eaf3de; --up-2:#c0dd97; --up-3:#97c459; --up-4:#639922; --up-5:#3b6d11;
+    --down-1:#fcebeb; --down-2:#f7c1c1; --down-3:#f09595; --down-4:#e24b4a; --down-5:#a32d2d;
+    --flat:#d9d4c7; --accent:#8a6d3b;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:'Iowan Old Style','Georgia',serif; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px; margin:0 auto; padding:48px 28px 80px;}
+  header{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:36px; border-bottom:1px solid var(--line); padding-bottom:24px; flex-wrap:wrap;}
+  h1{font-size:34px; font-weight:400; margin:0 0 4px; letter-spacing:-0.01em;}
+  .meta{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  #refreshBtn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; color:#fff; background:var(--accent);
+    border:1px solid var(--accent); border-radius:6px; padding:9px 16px; cursor:pointer; display:flex; align-items:center; gap:7px;
+    box-shadow:0 1px 2px rgba(26,35,50,0.08); transition:background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+  }
+  #refreshBtn:hover{background:#7a5e30; box-shadow:0 3px 10px rgba(26,35,50,0.16);}
+  #refreshBtn:active{transform:translateY(1px); box-shadow:0 1px 2px rgba(26,35,50,0.1);}
+  #refreshBtn:disabled{opacity:0.6; cursor:default; transform:none;}
+  #refreshBtn svg{width:12px; height:12px;}
+  #status{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-top:6px; min-height:14px;}
+  #status.err{color:var(--down-5);}
+  .btnrow{display:flex; gap:8px; align-items:center;}
+  #autoRefreshSelect{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color 0.15s ease, color 0.15s ease;
+  }
+  #autoRefreshSelect:hover{border-color:var(--accent); color:var(--ink);}
+  #universeBtn, #netWorthBtn, #settingsBtn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
+    border:1px solid var(--line); border-radius:6px; padding:9px 14px; cursor:pointer;
+    transition:border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  #universeBtn:hover, #netWorthBtn:hover, #settingsBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
+  #settingsPanel{
+    display:none; background:var(--panel); border:1px solid var(--line); padding:18px 20px; margin-bottom:36px;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
+  }
+  #settingsPanel.open{display:block;}
+  #settingsPanel h3{font-size:13px; font-weight:600; margin:0 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #settingsPanel p{color:var(--muted); margin:0 0 14px; line-height:1.6;}
+  .field{margin-bottom:12px;}
+  .field label{display:block; color:var(--muted); margin-bottom:4px;}
+  .field input{width:100%; max-width:480px; padding:8px 10px; border:1px solid var(--line); font-family:inherit; font-size:12px; background:var(--paper); color:var(--ink);}
+  .field .hint{color:var(--muted); font-size:11px; margin-top:4px;}
+  #saveCredsBtn, #clearCredsBtn{
+    font-family:inherit; font-size:12px; padding:8px 14px; cursor:pointer; border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  }
+  #saveCredsBtn{border-color:var(--accent); color:var(--accent);}
+  #digestBtn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+  }
+  #digestBtn:hover{background:var(--accent); color:#fff;}
+  #winloseAnalysisBtn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+  }
+  #winloseAnalysisBtn:hover{background:var(--accent); color:#fff;}
+  #digestBox{
+    display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
+    padding:16px 20px; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.7;
+  }
+  #digestBox.open{display:block;}
+  #digestBox p{margin:0 0 10px;}
+  #digestBox p:last-child{margin-bottom:0;}
+  #digestBox b{color:var(--ink);}
+  #digestBox .up{color:var(--up-5); font-weight:600;}
+  #digestBox .down{color:var(--down-5); font-weight:600;}
+  #universeModal{
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2000;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  #universeModal.open{display:flex;}
+  #marketDetailModal{
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2100;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  #marketDetailModal.open{display:flex;}
+  #marketDetailCard{
+    background:var(--paper); width:min(820px, 96vw); max-height:85vh; overflow:hidden;
+    display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease;
+  }
+  #marketDetailCard.wide{width:min(1120px, 96vw);}
+  #marketDetailHeader{
+    display:flex; justify-content:space-between; align-items:flex-start; padding:20px 24px 14px;
+    border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  #marketDetailHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
+  #marketDetailHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  #marketDetailClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #marketDetailClose:hover{color:var(--ink);}
+  #marketDetailBody{padding:20px 24px 24px; font-family:'Helvetica Neue',Arial,sans-serif; overflow:auto; flex:1; min-height:0;}
+  .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
+  .md-headline-label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:24px;}
+  .md-stat-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .md-stat-row:last-of-type{border-bottom:none;}
+  .md-stat-label{color:var(--muted);}
+  .md-stat-val{font-weight:600;}
+  .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  .md-holdings-table thead th{
+    position:sticky; top:0; background:var(--paper); z-index:1;
+    text-align:left; padding:6px 8px 10px; font-size:10.5px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:0.02em; border-bottom:2px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
+  }
+  .md-holdings-table thead th:hover{color:var(--accent);}
+  .md-holdings-table thead th.sorted{color:var(--accent);}
+  .md-holdings-table thead th.num{text-align:right;}
+  .md-holdings-table tbody td{padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top;}
+  .md-holdings-table tbody tr:last-child td{border-bottom:none;}
+  .md-holdings-table tbody tr:not(.pf-detail-row):hover td{background:var(--up-1);}
+  .md-holdings-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .md-th-symbol{font-weight:700; color:var(--ink);}
+  .md-th-sub{
+    color:var(--muted); font-size:11px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; margin-top:1px;
+  }
+  .md-th-pct{font-size:11px; margin-top:1px;}
+  .md-stat-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:18px 0 24px;}
+  .md-stat-tiles.cols-4{grid-template-columns:repeat(4,1fr);}
+  .md-stat-tile{background:var(--panel); padding:14px 16px;}
+  .md-stat-tile-label{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:7px;}
+  .md-stat-tile-val{font-size:18px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .md-stat-tile-sub{font-size:11.5px; color:var(--muted); margin-top:3px; font-variant-numeric:tabular-nums;}
+  .md-stat-tile-sub.up{color:var(--up-5);} .md-stat-tile-sub.down{color:var(--down-5);}
+  @media (max-width:520px){ .md-stat-tiles{grid-template-columns:1fr;} }
+  .md-split-bar{display:flex; width:100%; height:10px; border-radius:5px; overflow:hidden; margin-bottom:8px; box-shadow:0 0 0 1px var(--line) inset;}
+  .md-split-bar .seg{height:100%; cursor:help;}
+  .md-split-legend{
+    display:flex; gap:18px; flex-wrap:wrap; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px;
+    color:var(--muted); margin-bottom:20px;
+  }
+  .md-split-legend .dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px;}
+  .md-ticker-cards{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
+  @media (max-width:560px){ .md-ticker-cards{grid-template-columns:1fr;} }
+  .md-ticker-card{border:1px solid var(--line); background:var(--panel); padding:16px 18px;}
+  .md-tc-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px;}
+  .md-tc-symbol{font-size:15px; font-weight:700; color:var(--ink);}
+  .md-tc-price{font-size:15px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .md-tc-name{
+    font-size:11px; color:var(--muted); margin:1px 0 14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .md-tc-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  .md-tc-item-label{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
+  .md-tc-item-val{font-size:13px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .md-tc-item-sub{font-size:11px; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .md-pf-table th.expand-col, .md-pf-table td.expand-col{width:24px; padding-left:12px; padding-right:0;}
+  .pf-expand-btn{
+    background:none; border:none; cursor:pointer; font-size:14px; color:var(--muted); padding:2px 4px; line-height:1;
+    display:inline-block; transition:transform 0.15s ease;
+  }
+  .pf-expand-btn:hover{color:var(--accent);}
+  .pf-expand-btn.open{transform:rotate(90deg);}
+  .pf-detail-row td{background:var(--paper); padding:16px 16px 20px 36px; border-bottom:1px solid var(--line);}
+  .pf-detail-grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:14px 20px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  .pf-detail-grid .md-tc-item-val{font-weight:400;}
+  #universeCard{
+    background:var(--paper); width:min(1400px, 96vw); max-height:85vh; display:flex; flex-direction:column;
+    box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease, height 0.15s ease, max-height 0.15s ease;
+  }
+  #universeCard.maximized{width:100%; height:100%; max-height:100%;}
+  #universeModal.maximized-open{padding:0;}
+  #universeHeader{display:flex; justify-content:space-between; align-items:flex-start; padding:20px 24px 14px; border-bottom:1px solid var(--line);}
+  #universeHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
+  #universeHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  #universeHeaderBtns{display:flex; align-items:center; gap:4px; flex-shrink:0;}
+  #universeSearchWrap{padding:14px 24px 0;}
+  #universeSearch{
+    width:100%; max-width:280px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
+  }
+  #universeSearch:focus{outline:none; border-color:var(--accent);}
+  #marketDetailSearchWrap{margin-top:16px;}
+  #marketDetailSearch{
+    width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
+  }
+  #marketDetailSearch:focus{outline:none; border-color:var(--accent);}
+  #universeClose, #universeMaximize{background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 6px; line-height:1;}
+  #universeClose{font-size:26px;}
+  #universeMaximize{font-size:16px;}
+  #universeClose:hover, #universeMaximize:hover{color:var(--ink);}
+  #universeTableWrap{overflow:auto; padding:0 24px 20px; flex:1;}
+  #universeTable{width:100%; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; table-layout:fixed;}
+  #universeTable thead th{
+    position:sticky; top:0; background:var(--paper); text-align:left; padding:10px 12px; cursor:pointer;
+    font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
+    white-space:normal; user-select:none; vertical-align:bottom;
+  }
+  #universeTable thead th:hover{color:var(--accent);}
+  #universeTable thead th.sorted{color:var(--accent);}
+  #universeTable tbody td{
+    padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;
+    white-space:normal; word-wrap:break-word; overflow-wrap:break-word; line-height:1.5;
+  }
+  #universeTable tbody tr:hover{background:var(--up-1);}
+  #universeTable td.ticker{font-weight:600; white-space:nowrap;}
+  #universeTable td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  #universeTable th[data-key="ticker"], #universeTable td.ticker{width:70px;}
+  #universeTable th[data-key="name"], #universeTable td[data-col="name"]{width:190px;}
+  #universeTable th[data-key="sector"], #universeTable td[data-col="sector"],
+  #universeTable th[data-key="roleGroup"], #universeTable td[data-col="roleGroup"]{width:130px;}
+  #universeTable th[data-key="roleName"], #universeTable td[data-col="roleName"]{width:160px;}
+  #universeTable th[data-key="subtheme"], #universeTable td[data-col="subtheme"],
+  #universeTable th[data-key="category"], #universeTable td[data-col="category"]{width:170px;}
+  #universeTable th[data-key="simpleMeaning"], #universeTable td[data-col="simpleMeaning"],
+  #universeTable th[data-key="whenItHelps"], #universeTable td[data-col="whenItHelps"]{width:190px;}
+  #universeTable th[data-key="roleInPortfolio"], #universeTable td[data-col="roleInPortfolio"],
+  #universeTable th[data-key="overview"], #universeTable td[data-col="overview"]{width:260px;}
+  .cards{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line);
+    border-bottom:none; cursor:pointer; transition:box-shadow 0.18s ease;
+  }
+  .cards:hover{box-shadow:0 6px 22px rgba(26,35,50,0.10); position:relative; z-index:1;}
+  .card{background:var(--panel); padding:20px 22px; position:relative;}
+  .card::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--flat);}
+  .card.card-up::before{background:var(--up-4);}
+  .card.card-down::before{background:var(--down-4);}
+  .card .label{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
+  .card .value{font-size:26px; line-height:1.1;}
+  .card .sub{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:4px;}
+  .up{color:var(--up-5);} .down{color:var(--down-5);}
+  #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
+  #heroDivider{padding:18px 22px 0;}
+  #heroDivider h2{margin:0;}
+  #gaugePanel{display:flex; gap:36px; align-items:center; flex-wrap:wrap; padding:8px 28px 24px;}
+  .gauge-wrap{flex-shrink:0; width:200px;}
+  .gauge-clip{position:relative; width:200px; height:100px; overflow:hidden;}
+  .gauge-arc{position:absolute; top:0; left:0; width:200px; height:200px; border-radius:50%;
+    background: conic-gradient(from -90deg,
+      #a32d2d 0deg, #e2793a 45deg, #d9a441 90deg, #7a9c3f 135deg, #3b6d11 180deg, transparent 180deg 360deg);
+  }
+  .gauge-needle{
+    position:absolute; left:50%; bottom:0; width:3px; height:78px; background:#e2793a; transform-origin:bottom center;
+    border-radius:2px 2px 0 0; transition:transform 0.4s ease; filter:drop-shadow(0 1px 1.5px rgba(26,35,50,0.35));
+  }
+  .gauge-hub{position:absolute; left:50%; bottom:0; width:16px; height:16px; border-radius:50%; background:#2d6e63; transform:translate(-50%,50%); z-index:2; box-shadow:0 1px 2px rgba(26,35,50,0.3);}
+  .gauge-footer{display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; font-family:'Helvetica Neue',Arial,sans-serif;}
+  .gauge-value{font-size:20px; font-weight:700; color:var(--ink);}
+  .gauge-label{font-size:10px; color:var(--muted);}
+  #gaugeInfo{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:2.1; flex:1; min-width:220px;}
+  #gaugeInfo .glabel{color:var(--muted); margin-right:8px;}
+  #gaugeInfo .gval{font-weight:700; font-size:14.5px;}
+  #gaugeInfo .gval.up{color:var(--up-5);}
+  #gaugeInfo .gval.down{color:var(--down-5);}
+  #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
+  .market-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;}
+  .market-dot.open{background:#3b6d11;} .market-dot.closed{background:#a32d2d;}
+  section{margin-bottom:52px;}
+  h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em;}
+  .legend{display:flex; gap:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
+  .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .swatch{width:9px;height:9px;display:inline-block;}
+  #treemap{position:relative; width:100%; height:480px;}
+  .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #customTooltip{
+    display:none; position:fixed; z-index:2200; background:var(--panel); border:1px solid var(--line);
+    border-radius:5px; padding:11px 14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
+    line-height:1.65; white-space:normal; max-width:320px; box-shadow:0 3px 10px rgba(0,0,0,0.12); pointer-events:none;
+  }
+  #customTooltip b{display:block; font-size:13px; margin-bottom:2px; font-weight:600;}
+  #customTooltip .up{color:var(--up-5); font-weight:600;}
+  #customTooltip .down{color:var(--down-5); font-weight:600;}
+  .tile .t-name{font-weight:600; line-height:1.1;}
+  .srow{display:flex; align-items:center; margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
+  .segbar{display:flex; flex-wrap:nowrap; width:100%; border-radius:5px; overflow-x:auto; overflow-y:hidden; margin-bottom:12px; box-shadow:0 0 0 1px var(--line) inset;}
+  .segbar .seg{height:26px; min-width:22px; flex-shrink:0; cursor:pointer; transition:opacity 0.15s ease;}
+  .segbar .seg:hover{opacity:0.82;}
+  .legend-scroll-wrap{display:flex; align-items:center; gap:6px;}
+  .legend-strip{
+    display:flex; gap:6px; overflow-x:auto; scroll-behavior:smooth; flex:1; padding:2px 0;
+    scrollbar-width:none;
+  }
+  .legend-strip::-webkit-scrollbar{display:none;}
+  .legend-arrow{
+    flex-shrink:0; width:24px; height:24px; border-radius:50%; background:var(--panel); border:1px solid var(--line);
+    color:var(--muted); font-size:13px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .legend-arrow:hover{color:var(--ink); border-color:var(--accent);}
+  .legend-row{
+    display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer; flex-shrink:0;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; white-space:nowrap;
+    border:1px solid var(--line); border-radius:14px; background:var(--panel);
+  }
+  .legend-row:hover{background:var(--up-1); border-color:var(--up-3);}
+  .legend-swatch{width:9px; height:9px; border-radius:2px; flex-shrink:0;}
+  .legend-name{font-weight:500; color:var(--ink);}
+  .legend-val{color:var(--muted); font-variant-numeric:tabular-nums;}
+  .sname{width:150px; flex-shrink:0;}
+  .sbar-track{flex:1; background:var(--line); height:16px; position:relative;}
+  .sbar-fill{background:var(--accent); height:100%;}
+  .spct{width:56px; text-align:right; color:var(--muted); flex-shrink:0; padding-left:10px;}
+  #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
+  .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
+  .wlrow:last-child{margin-bottom:0;}
+  .wlname{width:70px; flex-shrink:0; font-weight:600;}
+  .wltrack{flex:1; height:16px; position:relative; background:var(--line);}
+  .wlbar{position:absolute; top:0; height:100%;}
+  .wlval{width:70px; flex-shrink:0; text-align:right; padding-left:8px;}
+  .chart-note{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin:-8px 0 14px; line-height:1.5;}
+  #winloseInsights{
+    display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.7; color:var(--ink);
+  }
+  #winloseInsights.open{display:block;}
+  #winloseInsights .wli-title{font-weight:600; margin-bottom:6px; display:block;}
+  #winloseInsights p{margin:0 0 8px;}
+  #winloseInsights p:last-of-type{margin-bottom:0;}
+  #winloseInsights .wli-caveat{color:var(--muted); font-size:11px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
+  .info-icon{
+    display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
+    background:var(--line); color:var(--muted); font-size:11px; font-weight:700; font-family:'Helvetica Neue',Arial,sans-serif;
+    cursor:help; flex-shrink:0;
+  }
+  .info-icon:hover{background:var(--accent); color:#fff;}
+  .waterfall-bar-label{font-family:'Helvetica Neue',Arial,sans-serif;}
+  footer{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
+  @media (max-width:720px){ .cards{grid-template-columns:repeat(2,1fr);} .sname{width:100px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Portfolio</h1>
+      <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
+      <div id="status"></div>
+    </div>
+    <div class="btnrow">
+      <select id="autoRefreshSelect" title="Auto-refresh interval">
+        <option value="0">Auto-refresh: Off</option>
+        <option value="5">Every 5 min</option>
+        <option value="15">Every 15 min</option>
+        <option value="30">Every 30 min</option>
+        <option value="60">Every 60 min</option>
+      </select>
+      <button id="universeBtn" title="Browse the full research watchlist">Market Universe</button>
+      <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension">Net Worth</button>
+      <button id="settingsBtn" title="Custom sheet CSV URLs">Sheet URL</button>
+      <button id="refreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        Refresh from sheet
+      </button>
+    </div>
+  </header>
+
+  <div id="settingsPanel">
+    <h3>Sheet CSV URL</h3>
+    <p>
+      Paste the published CSV URL from Google Sheets (File → Share → Publish to web → CSV). Stored only in
+      this browser (localStorage), sent only to Google, never to Claude. Leave blank to use the default URL
+      built into this file.
+    </p>
+    <div class="field">
+      <label for="csvUrlInput">Published CSV URL</label>
+      <input type="text" id="csvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv&gid=...">
+    </div>
+    <div class="field">
+      <label for="netWorthCsvUrlInput">Net Worth Sheet CSV URL</label>
+      <input type="text" id="netWorthCsvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv&gid=...">
+      <div class="hint">Used by the "Net Worth" button — study funds, assets, mortgage, equity loan, pension. Leave blank until you've set this sheet up.</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button id="saveCredsBtn">Save</button>
+      <button id="clearCredsBtn">Clear</button>
+    </div>
+  </div>
+
+  <div id="heroPanel">
+    <div class="cards" id="cards"></div>
+    <div id="heroDivider"><h2>Day gain</h2></div>
+    <div id="gaugePanel"></div>
+  </div>
+
+  <section>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
+      <div>
+        <h2 style="margin-bottom:2px; font-size:18px; font-weight:400; color:var(--ink);">Your investments visualized</h2>
+        <p style="margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
+      </div>
+      <button id="digestBtn">Daily Brief</button>
+    </div>
+    <div id="digestBox"></div>
+    <div class="legend" style="margin-top:16px;">
+      <span><span class="swatch" style="background:var(--down-4)"></span>Down today</span>
+      <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
+      <span><span class="swatch" style="background:var(--up-4)"></span>Up today</span>
+    </div>
+    <div id="treemap"></div>
+    <div id="customTooltip"></div>
+  </section>
+
+  <section>
+    <h2 style="display:inline-flex; align-items:center; gap:7px;">Sector allocation
+      <span id="sectorInfoIcon" class="info-icon">?</span>
+    </h2>
+    <div id="sectorsBar" class="segbar"></div>
+    <div class="legend-scroll-wrap">
+      <button class="legend-arrow" data-target="sectors" data-dir="-1">‹</button>
+      <div class="legend-strip" id="sectors"></div>
+      <button class="legend-arrow" data-target="sectors" data-dir="1">›</button>
+    </div>
+  </section>
+
+  <section>
+    <h2 style="display:inline-flex; align-items:center; gap:7px;">Role group breakdown — why each holding is in the portfolio
+      <span id="roleInfoIcon" class="info-icon">?</span>
+    </h2>
+    <div id="rolesBar" class="segbar"></div>
+    <div class="legend-scroll-wrap">
+      <button class="legend-arrow" data-target="roles" data-dir="-1">‹</button>
+      <div class="legend-strip" id="roles"></div>
+      <button class="legend-arrow" data-target="roles" data-dir="1">›</button>
+    </div>
+  </section>
+
+  <section>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
+      <h2 style="margin-bottom:0;">Winners &amp; losers — total return since purchase</h2>
+      <button id="winloseAnalysisBtn">Analysis</button>
+    </div>
+    <div id="winlose"></div>
+    <div id="winloseInsights"></div>
+  </section>
+
+  <section>
+    <div style="background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); padding:14px 18px; margin-bottom:24px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.7; color:var(--ink);">
+      <b>Historical Contribution</b> looks backward — based on money originally invested, it measures which holdings generated your profits over time.<br>
+      <b>Current Weighted Contribution</b> looks at today — based on current market value, it measures which holdings currently have the biggest influence on your portfolio's performance.<br>
+      <span style="color:var(--muted);">Analogy: Historical = "who scored the goals during the season?" Current weighted = "who's on the field influencing the game right now?"</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Historical contribution to total return — cost-weighted</h2>
+    <p class="chart-note" id="waterfallCostNote">Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return.</p>
+    <div id="waterfallCost"></div>
+  </section>
+
+  <section>
+    <h2 style="display:inline-flex; align-items:center; gap:7px;">Current weighted contribution to total return %
+      <span id="whyDiffersIcon" class="info-icon" title="">?</span>
+    </h2>
+    <p class="chart-note">Each bar is a holding's own total return %, weighted by how large it is in the portfolio today — this reflects today's sizing, not your original cost, so it won't sum to the same total as the chart above.</p>
+    <div id="waterfallCurrent"></div>
+  </section>
+
+  <footer>
+    "Refresh from sheet" fetches your published CSV directly from your browser — it requires the sheet's
+    "Publish to web" (CSV) setting to stay on, and works only while you have internet access. If refresh
+    fails, re-publish the sheet or paste an updated CSV URL under Credentials. Nothing is sent to Claude or
+    any third party when you refresh — the request goes straight from this page to Google.
+  </footer>
+</div>
+
+<div id="marketDetailModal">
+  <div id="marketDetailCard">
+    <div id="marketDetailHeader">
+      <div>
+        <h3 id="marketDetailTitle">Holdings Summary</h3>
+        <p id="marketDetailSubtitle"></p>
+      </div>
+      <button id="marketDetailClose" aria-label="Close">&times;</button>
+    </div>
+    <div id="marketDetailBody"></div>
+  </div>
+</div>
+
+<div id="universeModal">
+  <div id="universeCard">
+    <div id="universeHeader">
+      <div>
+        <h3>Market Universe</h3>
+        <p>Sector, category, and role notes for each holding — click a column header to sort.</p>
+      </div>
+      <div id="universeHeaderBtns">
+        <button id="universeMaximize" aria-label="Maximize" title="Maximize">⛶</button>
+        <button id="universeClose" aria-label="Close">&times;</button>
+      </div>
+    </div>
+    <div id="universeSearchWrap">
+      <input type="text" id="universeSearch" placeholder="Search ticker…">
+    </div>
+    <div id="universeTableWrap">
+      <table id="universeTable">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+const SHEET_ID = "1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g";
+const DEFAULT_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=1447063285`;
+
+function getCsvUrl(){
+  return localStorage.getItem('pf_csvUrl') || DEFAULT_CSV_URL;
+}
+function getNetWorthCsvUrl(){
+  return localStorage.getItem('pf_netWorthCsvUrl') || '';
+}
+function setStatus(msg, isErr){
+  const status = document.getElementById('status');
+  status.className = isErr ? 'err' : '';
+  status.textContent = msg;
+}
+
+document.getElementById('settingsBtn').addEventListener('click', ()=>{
+  document.getElementById('settingsPanel').classList.toggle('open');
+});
+(function initCredsUI(){
+  document.getElementById('csvUrlInput').value = localStorage.getItem('pf_csvUrl') || '';
+  document.getElementById('netWorthCsvUrlInput').value = localStorage.getItem('pf_netWorthCsvUrl') || '';
+})();
+document.getElementById('saveCredsBtn').addEventListener('click', ()=>{
+  localStorage.setItem('pf_csvUrl', document.getElementById('csvUrlInput').value.trim());
+  localStorage.setItem('pf_netWorthCsvUrl', document.getElementById('netWorthCsvUrlInput').value.trim());
+  setStatus('URL saved in this browser.', false);
+});
+document.getElementById('clearCredsBtn').addEventListener('click', ()=>{
+  localStorage.removeItem('pf_csvUrl');
+  localStorage.removeItem('pf_netWorthCsvUrl');
+  document.getElementById('csvUrlInput').value='';
+  document.getElementById('netWorthCsvUrlInput').value='';
+  setStatus('Cleared. Refresh will use the default URL built into this file.', false);
+});
+
+async function fetchTableViaCsv(){
+  const res = await fetch(getCsvUrl(), {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
+  const text = await res.text();
+  return Papa.parse(text, {skipEmptyLines:false}).data;
+}
+
+function parseTableToRows(table){
+  let headerIdx = -1;
+  for(let i=0;i<table.length;i++){
+    if(table[i].includes('Ticker') && table[i].includes('Shares')){ headerIdx = i; break; }
+  }
+  if(headerIdx === -1) throw new Error('Could not find the holdings table header in the sheet');
+  const headers = table[headerIdx].map(h=>String(h).trim());
+  const col = name => headers.indexOf(name);
+
+  // USD/ILS is always read from the Tracker sheet's fixed cell Q4 (row 4, column Q),
+  // independent of where the holdings header row lands.
+  const fxCellRaw = table[3] ? table[3][16] : undefined;
+  const fxCellVal = num(fxCellRaw);
+  window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
+
+  const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
+        cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
+        cSector = col('Sector'), cCostILS = col('Total Cost (ILS)'), cRole = col('Role Group'),
+        cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price');
+  if([cTicker,cValueILS,cChange,cRet,cSector,cCostILS].some(i=>i===-1)){
+    throw new Error('Sheet columns have changed — expected headers not found');
+  }
+  const rows = [];
+  for(let i=headerIdx+1; i<table.length; i++){
+    const r = table[i];
+    const ticker = (r[cTicker]||'').trim();
+    if(!ticker) break;
+    const value = num(r[cValueILS]);
+    const cost = num(r[cCostILS]);
+    if(isNaN(value)) continue;
+    rows.push({
+      name: ticker, value: value, change: num(r[cChange]), ret: num(r[cRet]),
+      sector: ((r[cSector]||'Other').trim() || 'Other').split('/')[0].trim(),
+      role: cRole>=0 ? ((r[cRole]||'Other').trim() || 'Other') : 'Other',
+      cost: isNaN(cost) ? value : cost,
+      buyDate: cBuyDate>=0 ? (r[cBuyDate]||'').trim() || null : null,
+      shares: cShares>=0 ? num(r[cShares]) : NaN,
+      price: cPrice>=0 ? num(r[cPrice]) : NaN
+    });
+  }
+  if(!rows.length) throw new Error('No holding rows parsed from the sheet');
+  return rows;
+}
+
+// last-known snapshot, shown until a refresh succeeds
+window.lastFxRate = 3.0314;
+let currentData = [["AIQ",20740.86,-0.33,35.77,"Technology","Growth"],["ASGI",669.11,-0.45,-0.98,"Infrastructure","Alternatives"],["BAM",577.14,-2.35,-0.15,"Financials","Alternatives"],["BLK",9724.01,-2.13,-8.56,"Financials","Financial System"],["BN",7570.36,-1.91,-15.97,"Technology","Real Assets / Infrastructure"],["BOTZ",15742.54,-1.21,2.75,"Technology","Growth"],["BRK.B",13788.84,0.18,2.64,"Financials","Value / Diversified"],["CEG",888.62,-1.72,11.58,"Utilities","Commodities / Real Assets"],["CGGO",243.52,-0.76,-2.33,"Global Equities","Growth / Global"],["COIN",528.27,-2.36,16.6,"Financials","Speculative / Thematic"],["COWZ",2311.5,-0.66,8.32,"Equities","Real Assets / Income"],["CRNT",6.2,0.0,-28.82,"Technology","Energy & Resources"],["DBC",397.29,1.39,23.45,"Commodities","Value"],["DBMF",94.73,0.55,2.72,"Alternatives","Speculative"],["DYNF",420.82,-0.27,-0.69,"Equities","Growth / Active Core"],["ENB",758.16,-0.65,-2.58,"Energy","Real Assets / Infrastructure / Income"],["FIGB",21948.19,-0.25,-2.24,"Fixed Income","Income"],["FRFHF",9646.52,-1.16,-1.13,"Financials","Financial System"],["GDX",16240.64,1.08,226.67,"Materials","Commodities / Macro"],["GLD",1219.55,0.91,3.69,"Commodities","Commodities / Macro"],["GS",3110.57,-0.75,12.8,"Financials","Financial System"],["IBI.F35",62411.42,0.42,20.8,"Financials","Local Market (Israel)"],["IBI.FK4",61609.36,-0.29,23.24,"Broad Market","Local Market (Israel)"],["IVV",34745.12,-0.4,13.96,"Equities","Core"],["IXJ",2146.12,-0.5,-2.13,"Healthcare","Defensive Growth / Sector"],["JEPI",2735.22,-0.58,-1.99,"Equities","Income / Defensive Growth"],["JPM",2144.97,0.34,9.14,"Financials","Financial System"],["L",8214.99,0.4,9.17,"Financials","Insurance / Diversified"],["MCO",1434.89,-1.39,8.84,"Financials","Financial System"],["MKL",10798.55,0.0,-6.19,"Financials","Financial System"],["MS",651.12,-0.41,10.62,"Financials","Financial System"],["MSCI",1676.68,0.57,-1.28,"Financials","Financial System"],["O",363.49,-1.49,-2.48,"Real Estate","Real Estate"],["OWL",361.19,-3.21,12.66,"Financials","Real Assets / Infrastructure"],["PFF",456.25,-0.69,-3.15,"Fixed Income","Income"],["POWR",310.94,-1.61,-3.56,"Utilities","Real Assets / Infrastructure"],["QNDX",16870.8,-0.33,-0.29,"Equities","Growth / Core"],["QQQ",60642.37,-0.29,25.01,"Equities","Growth / Core"],["QTUM",11619.68,-0.74,28.6,"Technology","Growth"],["RTH",776.12,-1.11,-4.81,"Consumer Discretionary","Consumer Exposure"],["SCHD",1958.38,-0.93,4.92,"Equities","Income"],["SCHY",1186.08,-0.79,0.12,"Equities","Global"],["SIVR",386.23,2.29,7.13,"Commodities","Commodities / Macro"],["SMH",29518.71,0.1,3.11,"Technology","Growth"],["SPGI",1264.93,-2.55,2.79,"Financials","Financial System"],["SPY",34577.32,-0.46,14.97,"Equities","Core"],["TCAF",8459.11,-0.68,4.56,"Equity","Active Layer"],["URA",141.68,-1.35,13.88,"Materials","Energy & Resources"],["VB",38235.42,-1.23,3.28,"Equities","Small / Mid Cap"],["VCSH",3777.26,-0.08,-0.94,"Fixed Income","Income"],["VFVA",25006.57,-0.85,8.19,"Equities","Value"],["VGHY",4252.26,-0.11,-2.03,"Fixed Income","Income"],["VNQ",287.06,-1.03,-2.39,"Real Estate","Real Estate"],["VO",4170.62,-0.82,0.43,"Equities","Small / Mid Cap"],["VOO",65692.58,-0.45,15.4,"Equities","Core"],["VTV",2031.1,-0.32,4.31,"Equities","Core"],["VWO",184.04,-0.59,3.38,"Equities","Value"],["VXUS",3964.33,-0.76,0.23,"Equities","Global"],["VYMI",955.59,-0.8,0.59,"International Equities","Income / International"],["WPC",2114.97,-0.86,-0.89,"Real Estate","Real Assets / Income"],["XAR",17155.93,-2.59,11.77,"Industrials","Defense / Industrial"],["XLE",789.87,0.83,21.55,"Energy","Energy & Resources"],["XLP",1004.42,-1.15,-2.65,"Consumer Staples","Consumer Exposure"],["XLU",1687.81,-1.17,-2.98,"Utilities","Utilities / Defensive"],["XLV",2014.65,-0.33,8.61,"Healthcare","Utilities / Defensive"]];
+
+function num(s){
+  if(typeof s === 'number') return s;
+  if(s===undefined || s===null) return NaN;
+  const cleaned = String(s).replace(/[₪$,%\s]/g,'').replace(/^\((.*)\)$/,'-$1');
+  return parseFloat(cleaned);
+}
+
+function computeTotals(rows){
+  // rows: {value, change, cost}
+  const totalValue = rows.reduce((a,r)=>a+r.value,0);
+  const totalCost = rows.reduce((a,r)=>a+(r.cost||0),0);
+  const dayGain = rows.reduce((a,r)=>{
+    if(isNaN(r.change)) return a;
+    return a + (r.value - r.value/(1+r.change/100));
+  },0);
+  const totalGain = totalValue-totalCost;
+  const totalGainPct = totalCost ? totalGain/totalCost*100 : 0;
+  const dayBase = totalValue-dayGain;
+  const dayGainPct = dayBase ? dayGain/dayBase*100 : 0;
+  return {totalValue, totalGain, totalGainPct, dayGain, dayGainPct};
+}
+
+const TICKER_NAME_MAP = {"AIQ":"Global X Artificial Intelligence & Technology ETF","ASGI":"Abrdn Global Infrastructure Income Fund","BAM":"BROOKFIELD ASSET MANAGEMENT LTD","BLK":"BlackRock Inc","BN":"Brookfield Corp","BOTZ":"Global X Robotics and Artificial Intelligence ETF","BRK.B":"Berkshire Hathaway Inc Class B","CEG":"Constellation Energy Corp","CGGO":"Capital Group Global Growth Equity ETF","COIN":"Coinbase Global Inc","COWZ":"Pacer US Cash Cows 100 ETF","CRNT":"Ceragon Networks Ltd","DBC":"Invesco DB Commodity Index Tracking Fund","DBMF":"iMGP DBi Managed Futures Strategy ETF","DYNF":"Ishares US Equity Factor Rotation Active ETF","ENB":"Enbridge Inc.","FIGB":"Fidelity Investment Grade Bond ETF","FRFHF":"Fairfax Financial Holdings Ltd","GDX":"VanEck Gold Miners ETF","GLD":"SPDR Gold Trust","GS":"The Goldman Sachs Group, Inc.","IBI.F35":"IBI SAL (4A) Index Israel Banks IL ETF","IBI.FK4":"IBI SAL (4A) Kosher TA-125 IL ETF","IVV":"iShares Core S&P 500 ETF","IXJ":"iShares Global Healthcare ETF","JEPI":"JPMorgan Equity Premium Income ETF","JPM":"JPMorgan Chase & Co","L":"Loews Corp","MCO":"Moody's Corp","MKL":"Markel Group Inc","MS":"Morgan Stanley","MSCI":"Msci Inc","O":"Realty Income Corp","OWL":"Blue Owl Capital Inc","PFF":"iShares Preferred and Income Securities ETF","POWR":"iShares US Power Infrastructure ETF","QNDX":"State Street SPDR Portfolio Nasdaq 100 ETF","QQQ":"Invesco QQQ Trust, Series 1","QTUM":"Defiance Quantum ETF","RTH":"VanEck Retail ETF","SCHD":"Schwab US Dividend Equity ETF","SCHY":"Schwab International Dividend Equity ETF","SIVR":"abrdn Physical Silver Shares ETF","SMH":"VanEck Semiconductor ETF","SPGI":"S&P Global Inc","SPY":"State Street SPDR S&P 500 ETF Trust","TCAF":"T Rowe Price Capital Appreciation Equity ETF","URA":"Global X Uranium ETF","VB":"Vanguard Morningstar Small-Cap Index Fund ETF","VCSH":"Vanguard Short-Term Corporate Bond Idx Fd ETF","VFVA":"Vanguard US Value Factor ETF","VGHY":"Vanguard High Yield Active ETF","VNQ":"Vanguard Real Estate Index Fund ETF","VO":"Vanguard Morningstar Mid-Cap Index Fund ETF","VOO":"Vanguard S&P 500 ETF","VTV":"Vanguard Morningstar Value Index Fund ETF","VWO":"Vanguard Emerging Markets Stock Index Fund ETF","VXUS":"Vanguard Total International Stock Index Fund ETF","VYMI":"Vanguard Internatl High Div Yield Index Fund ETF","WPC":"W.p. Carey Inc","XAR":"State Street SPDR S&P Aerospace & Defense ETF","XLE":"State Street Energy Select Sector SPDR ETF","XLP":"State Street Consumer Staples Sel Sect SPDR ETF","XLU":"State Street Utilities Select Sector SPDR ETF","XLV":"State Street Health Care Select Sector SPDR ETF"};
+const ISRAELI_TICKERS = ['IBI.F35','IBI.FK4'];
+
+function splitByMarket(rows){
+  const isIL = r => ISRAELI_TICKERS.includes(r.name);
+  const ilAll = rows.filter(isIL);
+  const usAll = rows.filter(r=>!isIL(r));
+  const il = ilAll.filter(r=>!isNaN(r.change));
+  const us = usAll.filter(r=>!isNaN(r.change));
+  const calc = (arr, allArr) => {
+    const value = arr.reduce((a,r)=>a+r.value,0);
+    const gain = arr.reduce((a,r)=>a + (r.value - r.value/(1+r.change/100)), 0);
+    const base = value - gain;
+    const pct = base ? gain/base*100 : 0;
+    const cost = allArr.reduce((a,r)=>a+(r.cost||0),0);
+    const allValue = allArr.reduce((a,r)=>a+r.value,0);
+    const totalGain = allValue - cost;
+    const totalGainPct = cost ? totalGain/cost*100 : 0;
+    return {value: allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr};
+  };
+  return {il: calc(il, ilAll), us: calc(us, usAll)};
+}
+
+function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+  }).formatToParts(new Date());
+  const get = t => parts.find(p=>p.type===t).value;
+  const weekday = get('weekday');
+  const hour = parseInt(get('hour'), 10);
+  const minute = parseInt(get('minute'), 10);
+  const nowMins = hour*60 + minute;
+  const isOpenDay = openWeekdays.includes(weekday);
+  const isOpen = isOpenDay && nowMins >= openMins && nowMins < closeMins;
+  return isOpen;
+}
+
+// ---- Live quotes (Yahoo Finance via public CORS proxy, + Frankfurter for FX) ----
+// Yahoo Finance doesn't send CORS headers for browser fetches, so this routes
+// through a free public CORS proxy (allorigins). These proxies are convenient
+// but not fully reliable — if they're down or rate-limited, live prices will
+// show "—" while the rest of the modal (sourced from your sheet) still works.
+const YAHOO_SYMBOL_MAP = {'IBI.F35':'IBI-F35.TA', 'IBI.FK4':'IBI-FK4.TA'};
+const TICKER_DISPLAY_NAME = {
+  'IBI.F35': 'IBI SAL (4A) Index Israel Banks',
+  'IBI.FK4': 'IBI SAL (4A) Kosher TA-125 IL ETF'
+};
+
+async function fetchYahooQuote(symbol){
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
+  const res = await fetch(proxyUrl, {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const json = await res.json();
+  const result = json.chart && json.chart.result && json.chart.result[0];
+  if(!result || !result.meta) throw new Error('No data for '+symbol);
+  const meta = result.meta;
+  const price = meta.regularMarketPrice;
+  const prevClose = meta.previousClose != null ? meta.previousClose : meta.chartPreviousClose;
+  const change = price - prevClose;
+  const changePct = prevClose ? (change/prevClose*100) : 0;
+  return {symbol, price, prevClose, change, changePct};
+}
+
+let marketDetailLiveTimer = null;
+let marketDetailState = {marketKey:null, tickers:[], sortKey:'value', sortDir:-1, filter:''};
+
+async function refreshMarketDetailLiveRow(rowEl, symbol){
+  const priceEl = rowEl.querySelector('.md-live-price');
+  if(!priceEl) return;
+  try{
+    const q = await fetchYahooQuote(symbol);
+    priceEl.textContent = q.price.toLocaleString('en-US',{maximumFractionDigits:2});
+  } catch(e){
+    // Keep whatever price is already showing (sheet value or last successful
+    // live fetch) rather than blanking it out on a failed/rate-limited proxy call.
+    if(priceEl.textContent === '…') priceEl.textContent = '—';
+  }
+}
+
+const MD_COLS = [
+  {key:'name', label:'Symbol'},
+  {key:'price', label:'Price'},
+  {key:'shares', label:'Quantity'},
+  {key:'dayGain', label:'Day change'},
+  {key:'totalGain', label:'Total gain/loss'},
+  {key:'value', label:'Value'}
+];
+
+const PF_COLS = [
+  {key:'name', label:'Symbols'},
+  {key:'price', label:'Price'},
+  {key:'shares', label:'Quantity'},
+  {key:'dayGain', label:'Day change'},
+  {key:'totalGain', label:'Total gain/loss'},
+  {key:'value', label:'Market value'},
+  {key:'avgCost', label:'Avg cost basis'}
+];
+
+const IL_SPLIT_PALETTE = ['#8a6d3b', '#4f8fd9'];
+
+function renderIlTickerCards(enriched){
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const totalValue = enriched.reduce((a,r)=>a+r.value,0) || 1;
+  const sorted = enriched.slice().sort((a,b)=>b.value-a.value);
+
+  const barHtml = sorted.map((r,i)=>
+    `<div class="seg" style="width:${(r.value/totalValue*100)}%; background:${IL_SPLIT_PALETTE[i%IL_SPLIT_PALETTE.length]}"></div>`
+  ).join('');
+  const legendHtml = sorted.map((r,i)=>
+    `<span><span class="dot" style="background:${IL_SPLIT_PALETTE[i%IL_SPLIT_PALETTE.length]}"></span>${r.name} — ${(r.value/totalValue*100).toFixed(2)}%</span>`
+  ).join('');
+
+  const cardsHtml = sorted.map(r=>{
+    const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
+    const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
+    const subtitle = TICKER_NAME_MAP[r.name] || '';
+    const ySym = YAHOO_SYMBOL_MAP[r.name];
+    return `
+      <div class="md-ticker-card" ${ySym?`data-symbol="${ySym}"`:''}>
+        <div class="md-tc-head">
+          <span class="md-tc-symbol">${r.name}</span>
+          <span class="md-tc-price"><b class="md-live-price">${!isNaN(r.price)?r.price.toLocaleString('en-US',{maximumFractionDigits:2}):'…'}</b></span>
+        </div>
+        <div class="md-tc-name" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
+        <div class="md-tc-grid">
+          <div>
+            <div class="md-tc-item-label">Quantity</div>
+            <div class="md-tc-item-val">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</div>
+          </div>
+          <div>
+            <div class="md-tc-item-label">Value</div>
+            <div class="md-tc-item-val">${fmt(r.value)}</div>
+          </div>
+          <div>
+            <div class="md-tc-item-label">Day change</div>
+            <div class="md-tc-item-val ${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmtIlsSmart(r.dayGain):'n/a'}</div>
+            <div class="md-tc-item-sub ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+          </div>
+          <div>
+            <div class="md-tc-item-label">Total gain/loss</div>
+            <div class="md-tc-item-val ${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmtIlsSmart(r.totalGain):'n/a'}</div>
+            <div class="md-tc-item-sub ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('marketDetailTableArea').innerHTML = `
+    <div class="md-split-bar">${barHtml}</div>
+    <div class="md-split-legend">${legendHtml}</div>
+    <div class="md-ticker-cards" id="ilTickerCards">${cardsHtml}</div>
+  `;
+
+  startIsraelLiveRefresh();
+}
+
+function renderPortfolioTable(enriched){
+  const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  // "Total Cost (ILS)" from the sheet is always in ILS, regardless of the ticker's own
+  // trading currency — converting straight to a per-share figure and labeling it with
+  // the ticker's currency ($ or ILA) would silently mix units. Use the cost/value ratio
+  // (both ILS) against the native-currency price to get a true native-currency cost.
+  const withAvgCost = enriched.map(r=>{
+    const nativeRatio = (!isNaN(r.cost) && !isNaN(r.value) && r.value && !isNaN(r.price)) ? r.cost / r.value : NaN;
+    const avgCost = !isNaN(nativeRatio) ? r.price * nativeRatio : NaN;
+    const totalCostNative = (!isNaN(avgCost) && !isNaN(r.shares)) ? avgCost * r.shares : NaN;
+    return {...r, avgCost, totalCostNative};
+  });
+
+  const q = marketDetailState.filter.trim().toLowerCase();
+  const filtered = q ? withAvgCost.filter(r =>
+    r.name.toLowerCase().includes(q) || (TICKER_NAME_MAP[r.name] || '').toLowerCase().includes(q)
+  ) : withAvgCost;
+
+  const {sortKey, sortDir} = marketDetailState;
+  const sorted = filtered.slice().sort((a,b)=>{
+    let av = a[sortKey], bv = b[sortKey];
+    if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
+    if(isNaN(av)) return 1;
+    if(isNaN(bv)) return -1;
+    return (av - bv) * sortDir;
+  });
+
+  let html = `<div id="marketDetailSearchWrap"><input type="text" id="marketDetailSearch" placeholder="Search ticker…" value="${marketDetailState.filter}"></div>`;
+  html += `
+    <table class="md-holdings-table md-pf-table">
+      <thead><tr>
+        <th class="expand-col"></th>
+        ${PF_COLS.map(c=>`<th class="${c.key==='name'?'':'num'} ${sortKey===c.key?'sorted':''}" data-key="${c.key}">${c.label}${sortKey===c.key?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+  if(!sorted.length){
+    html += `<tr><td colspan="${PF_COLS.length+1}" style="text-align:center; color:var(--muted); padding:24px;">No tickers match "${marketDetailState.filter}"</td></tr>`;
+  }
+
+  sorted.forEach(r=>{
+    const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
+    const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
+    const subtitle = TICKER_NAME_MAP[r.name] || '';
+    const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
+    const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
+    const priceStr = !isNaN(r.price)
+      ? `<span class="${vsCostCls}" title="${!isNaN(r.avgCost)?'vs. avg cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+      : '—';
+    const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
+    const holdingPeriod = formatHoldingPeriod(r.buyDate);
+
+    html += `
+      <tr class="pf-row" data-ticker="${r.name}">
+        <td class="expand-col"><button class="pf-expand-btn" aria-label="Expand ${r.name}">›</button></td>
+        <td>
+          <div class="md-th-symbol">${r.name}</div>
+          <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
+        </td>
+        <td class="num">${priceStr}</td>
+        <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
+        <td class="num">
+          <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">
+          <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmt2(r.totalGain):'n/a'}</div>
+          <div class="md-th-pct ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">${fmt2(r.value)}</td>
+        <td class="num">${avgCostStr}</td>
+      </tr>
+      <tr class="pf-detail-row" data-ticker-detail="${r.name}" style="display:none;">
+        <td></td>
+        <td colspan="${PF_COLS.length}">
+          <div class="pf-detail-grid">
+            <div>
+              <div class="md-tc-item-label">Purchase date</div>
+              <div class="md-tc-item-val">${r.buyDate || '—'}</div>
+              <div class="md-tc-item-sub">${holdingPeriod ? `held ${holdingPeriod}` : ''}</div>
+            </div>
+            <div>
+              <div class="md-tc-item-label">Purchase price</div>
+              <div class="md-tc-item-val">${avgCostStr}</div>
+            </div>
+            <div>
+              <div class="md-tc-item-label">Quantity</div>
+              <div class="md-tc-item-val">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</div>
+            </div>
+            <div>
+              <div class="md-tc-item-label">Total cost basis</div>
+              <div class="md-tc-item-val">${
+                priceCcy === 'ILA'
+                  ? (!isNaN(r.cost) ? fmt2(r.cost) : '—')
+                  : (!isNaN(r.totalCostNative) ? `${priceCcy}${r.totalCostNative.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—')
+              }</div>
+            </div>
+          </div>
+        </td>
+      </tr>`;
+  });
+
+  html += `</tbody></table>`;
+
+  document.getElementById('marketDetailTableArea').innerHTML = html;
+
+  const searchInput = document.getElementById('marketDetailSearch');
+  if(searchInput){
+    searchInput.addEventListener('input', (e)=>{
+      marketDetailState.filter = e.target.value;
+      renderMarketDetailTable();
+    });
+  }
+  document.querySelectorAll('.md-pf-table thead th[data-key]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if(marketDetailState.sortKey === key){ marketDetailState.sortDir *= -1; }
+      else { marketDetailState.sortKey = key; marketDetailState.sortDir = key==='name' ? 1 : -1; }
+      renderMarketDetailTable();
+    });
+  });
+  document.querySelectorAll('.pf-expand-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ticker = btn.closest('tr').dataset.ticker;
+      const detailRow = document.querySelector(`.pf-detail-row[data-ticker-detail="${ticker}"]`);
+      if(!detailRow) return;
+      const isOpen = detailRow.style.display !== 'none';
+      detailRow.style.display = isOpen ? 'none' : 'table-row';
+      btn.classList.toggle('open', !isOpen);
+    });
+  });
+}
+
+function renderMarketDetailTable(){
+  const marketKey = marketDetailState.marketKey;
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+
+  // enrich each row with derived sort fields, computed once
+  const enriched = marketDetailState.tickers.map(r=>{
+    const dayGain = !isNaN(r.change) ? (r.value - r.value/(1+r.change/100)) : NaN;
+    const totalGain = !isNaN(r.cost) && r.cost ? (r.value - r.cost) : NaN;
+    return {...r, dayGain, totalGain};
+  });
+
+  if(marketKey === 'il'){
+    renderIlTickerCards(enriched);
+    return;
+  }
+  if(marketKey === 'all'){
+    renderPortfolioTable(enriched);
+    return;
+  }
+
+  const q = marketDetailState.filter.trim().toLowerCase();
+  const filtered = q ? enriched.filter(r => r.name.toLowerCase().includes(q)) : enriched;
+
+  const {sortKey, sortDir} = marketDetailState;
+  const sorted = filtered.slice().sort((a,b)=>{
+    let av = a[sortKey], bv = b[sortKey];
+    if(typeof av === 'string') return av.localeCompare(bv) * sortDir;
+    if(isNaN(av)) return 1;
+    if(isNaN(bv)) return -1;
+    return (av - bv) * sortDir;
+  });
+
+  let html = `<div id="marketDetailSearchWrap"><input type="text" id="marketDetailSearch" placeholder="Search ticker…" value="${marketDetailState.filter}"></div>`;
+  html += `
+    <table class="md-holdings-table">
+      <thead><tr>
+        ${MD_COLS.map(c=>`<th class="${c.key==='name'?'':'num'} ${sortKey===c.key?'sorted':''}" data-key="${c.key}">${c.label}${sortKey===c.key?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+  if(!sorted.length){
+    html += `<tr><td colspan="${MD_COLS.length}" style="text-align:center; color:var(--muted); padding:24px;">No tickers match "${marketDetailState.filter}"</td></tr>`;
+  }
+
+  sorted.forEach(r=>{
+    const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
+    const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
+    const subtitle = TICKER_NAME_MAP[r.name] || '';
+    const ySym = YAHOO_SYMBOL_MAP[r.name];
+    const priceCell = !isNaN(r.price) ? `$${r.price.toLocaleString('en-US',{maximumFractionDigits:2})}` : '—';
+
+    html += `
+      <tr ${ySym?`data-symbol="${ySym}"`:''}>
+        <td>
+          <div class="md-th-symbol">${r.name}</div>
+          <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
+        </td>
+        <td class="num">${priceCell}</td>
+        <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
+        <td class="num">
+          <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmtIlsSmart(r.dayGain):'n/a'}</div>
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">
+          <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmtIlsSmart(r.totalGain):'n/a'}</div>
+          <div class="md-th-pct ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">${fmt(r.value)}</td>
+      </tr>`;
+  });
+
+  html += `</tbody></table>`;
+
+  document.getElementById('marketDetailTableArea').innerHTML = html;
+
+  const searchInput = document.getElementById('marketDetailSearch');
+  if(searchInput){
+    searchInput.addEventListener('input', (e)=>{
+      marketDetailState.filter = e.target.value;
+      renderMarketDetailTable();
+    });
+  }
+  document.querySelectorAll('.md-holdings-table thead th').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if(marketDetailState.sortKey === key){ marketDetailState.sortDir *= -1; }
+      else { marketDetailState.sortKey = key; marketDetailState.sortDir = key==='name' ? 1 : -1; }
+      renderMarketDetailTable();
+    });
+  });
+}
+
+function openMarketDetail(marketKey){
+  const rows = window.lastRows || [];
+  const split = splitByMarket(rows);
+  const seg = marketKey === 'il' ? split.il : split.us;
+  const title = marketKey === 'il' ? 'Israeli (TASE) Holdings' : 'USA Holdings';
+
+  document.getElementById('marketDetailTitle').textContent = title;
+  document.getElementById('marketDetailSubtitle').textContent = 'Holdings Summary';
+
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const body = document.getElementById('marketDetailBody');
+
+  const statsHtml = marketKey === 'il' ? `
+    <div class="md-stat-tiles">
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Day Change</div>
+        <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
+        <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Total Gain</div>
+        <div class="md-stat-tile-val ${seg.totalGain>=0?'up':'down'}">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)}</div>
+        <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}">${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">USD/ILS</div>
+        <div class="md-stat-tile-val" id="ilsxTileVal">…</div>
+        <div class="md-stat-tile-sub" id="ilsxTileSub"></div>
+      </div>
+    </div>` : `
+    <div class="md-stat-row"><span class="md-stat-label">Day Change</span><span class="md-stat-val ${seg.gain>=0?'up':'down'}">${seg.gain>=0?'+':'-'}${fmt(seg.gain)} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)</span></div>
+    <div class="md-stat-row"><span class="md-stat-label">Total Gain</span><span class="md-stat-val ${seg.totalGain>=0?'up':'down'}">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)} (${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%)</span></div>`;
+
+  body.innerHTML = `
+    <div class="md-headline">${fmt(seg.value)}</div>
+    <div class="md-headline-label">Market Value</div>
+    ${statsHtml}
+    <div id="marketDetailTableArea"></div>
+  `;
+
+  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
+
+  const defaultSortKey = marketKey === 'us' ? 'dayGain' : 'value';
+  marketDetailState = {marketKey, tickers: seg.tickers, sortKey: defaultSortKey, sortDir:-1, filter:''};
+  renderMarketDetailTable();
+
+  document.getElementById('marketDetailModal').classList.add('open');
+}
+
+function populateIlFxTile(){
+  const valEl = document.getElementById('ilsxTileVal');
+  const subEl = document.getElementById('ilsxTileSub');
+  if(!valEl) return;
+  const rate = window.lastFxRate;
+  if(!rate){
+    valEl.textContent = 'unavailable';
+    if(subEl) subEl.textContent = '';
+    return;
+  }
+  const {change, changePct} = getFxDayChange(rate);
+  const cls = change >= 0 ? 'up' : 'down';
+  const arrow = change >= 0 ? '▲' : '▼';
+  valEl.className = 'md-stat-tile-val ' + cls;
+  valEl.textContent = rate.toFixed(4);
+  if(subEl){
+    subEl.className = 'md-stat-tile-sub ' + cls;
+    subEl.textContent = `${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})`;
+  }
+}
+
+function startIsraelLiveRefresh(){
+  populateIlFxTile();
+  const refreshLive = async ()=>{
+    const cardEls = document.querySelectorAll('#ilTickerCards [data-symbol]');
+    for(const cardEl of cardEls){
+      const sym = cardEl.dataset.symbol;
+      if(sym) await refreshMarketDetailLiveRow(cardEl, sym);
+    }
+  };
+  refreshLive();
+  if(marketDetailLiveTimer) clearInterval(marketDetailLiveTimer);
+  marketDetailLiveTimer = setInterval(refreshLive, 60000);
+}
+
+function closeMarketDetail(){
+  document.getElementById('marketDetailModal').classList.remove('open');
+  document.getElementById('marketDetailCard').classList.remove('wide');
+  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
+}
+
+function openPortfolioDetail(){
+  const rows = window.lastRows || [];
+  const totals = window.lastTotals;
+  if(!rows.length || !totals) return;
+
+  document.getElementById('marketDetailTitle').textContent = 'Portfolio';
+  document.getElementById('marketDetailSubtitle').textContent = 'All Holdings';
+
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const body = document.getElementById('marketDetailBody');
+
+  body.innerHTML = `
+    <div class="md-headline">${fmt(totals.totalValue)}</div>
+    <div class="md-headline-label">Market Value</div>
+    <div class="md-stat-tiles">
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Day Change</div>
+        <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
+        <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Total Gain</div>
+        <div class="md-stat-tile-val ${totals.totalGain>=0?'up':'down'}">${totals.totalGain>=0?'+':'-'}${fmt(totals.totalGain)}</div>
+        <div class="md-stat-tile-sub ${totals.totalGain>=0?'up':'down'}">${totals.totalGainPct>=0?'+':''}${totals.totalGainPct.toFixed(2)}%</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Positions</div>
+        <div class="md-stat-tile-val">${rows.length}</div>
+        <div class="md-stat-tile-sub">holdings</div>
+      </div>
+    </div>
+    <div id="marketDetailTableArea"></div>
+  `;
+
+  document.getElementById('marketDetailCard').classList.add('wide');
+
+  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
+
+  marketDetailState = {marketKey:'all', tickers: rows, sortKey:'dayGain', sortDir:-1, filter:''};
+  renderMarketDetailTable();
+
+  document.getElementById('marketDetailModal').classList.add('open');
+}
+
+// Fixed shape of the Net Worth sheet: one header row (category names, with a blank
+// header for each category's paired "change" column), then one row per month.
+// "Portfolio" and "Pension" are themselves totals of other columns in the same sheet
+// (verified against the live data), so only the leaf accounts are listed here to avoid
+// double-counting; group totals are derived by summing each group's leaves.
+// "Assets" (=Securities+3 Study Funds) and "Equity" (=Assets-Mortgage-Loan) are computed
+// subtotals in the sheet itself, not independent leaf values — confirmed from the sheet's
+// own formulas. Including them here would double-count. Only true leaf accounts are listed;
+// "Portfolio" and "Pension" are likewise subtotals of the leaves below and are left out.
+const NW_ASSET_ITEMS = [
+  {key:'securities', label:'Securities', group:'Portfolio', match: h => h === 'Securities'},
+  {key:'kfir', label:'Kfir (SPY)', group:'Portfolio', match: h => h.startsWith('Kfir')},
+  {key:'agam', label:'Agam (IVV)', group:'Portfolio', match: h => h.startsWith('Agam')},
+  {key:'studyClal', label:'Study Fund — Clal', group:'Study Funds', match: h => h.startsWith('Study fund Clal')},
+  {key:'studyAnalyst', label:'Study Fund — Analyst', group:'Study Funds', match: h => h.startsWith('Study fund Analyst')},
+  {key:'studyMeitav', label:'Study Fund — Meitav', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
+  {key:'insurance', label:'Clal Manager Insurance', group:'Pension', match: h => h.startsWith('Manager Insurance') || h.startsWith("Managers'")},
+  {key:'pensionClal', label:'Pension Fund — Clal (S&P 500)', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
+  {key:'pensionMenora', label:'Pension Fund — Menora', group:'Pension', match: h => h.startsWith('Pension Fund Menora')}
+];
+const NW_LIABILITY_ITEMS = [
+  {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
+  {key:'loan', label:'Equity Loan', match: h => h === 'Loan'}
+];
+const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#118a7e'};
+
+// "Assets" — and therefore Net Worth — means the same thing everywhere in this view:
+// Securities + the 3 Study Funds. Kfir/Agam (small side accounts) and Pension (its own
+// tile) are deliberately excluded from this figure everywhere it's used (the Assets tile,
+// the Net Worth total, and the trend chart), so the numbers always agree.
+const NW_CORE_KEYS = ['securities','studyClal','studyAnalyst','studyMeitav'];
+const NW_PORTFOLIO_KEYS = ['securities'];
+const NW_STUDY_KEYS = ['studyClal','studyAnalyst','studyMeitav'];
+const NW_PENSION_KEYS = ['insurance','pensionClal','pensionMenora'];
+function nwSum(assets, keys){
+  return keys.reduce((a,k)=> a + (isNaN(assets[k]) ? 0 : assets[k]), 0);
+}
+function nwHasIncompleteHistory(months, keys){
+  const countPopulated = m => keys.filter(k => !isNaN(m.assets[k])).length;
+  const maxPopulated = Math.max(...months.map(countPopulated));
+  return months.some(m => countPopulated(m) < maxPopulated);
+}
+
+function parseNetWorthTable(table){
+  const normHeader = h => String(h || '').replace(/\s+/g, ' ').trim();
+  let headerIdx = -1;
+  for(let i=0;i<table.length;i++){
+    const norm = table[i].map(normHeader);
+    if(norm.includes('Portfolio') && norm.includes('Mortgage')){ headerIdx = i; break; }
+  }
+  if(headerIdx === -1) throw new Error('Could not find the category header row in the sheet');
+  const headers = table[headerIdx].map(normHeader);
+  const findCol = pred => headers.findIndex(pred);
+
+  const assetItems = NW_ASSET_ITEMS.map(it => ({...it, col: findCol(it.match)}));
+  const liabilityItems = NW_LIABILITY_ITEMS.map(it => ({...it, col: findCol(it.match)}));
+
+  const months = [];
+  for(let i=headerIdx+1;i<table.length;i++){
+    const r = table[i];
+    const month = (r[0] || '').trim();
+    if(!month) continue;
+    const hasData = assetItems.some(it => it.col>=0 && r[it.col] !== undefined && String(r[it.col]).trim() !== '');
+    if(!hasData) continue;
+    const assets = {}, liabilities = {};
+    assetItems.forEach(it => { assets[it.key] = it.col>=0 ? num(r[it.col]) : NaN; });
+    liabilityItems.forEach(it => { liabilities[it.key] = it.col>=0 ? num(r[it.col]) : NaN; });
+    // "assetsTotal" = the same Assets definition used everywhere else (Securities + Study
+    // Funds only) — see NW_CORE_KEYS. Kfir, Agam and Pension are excluded from Net Worth.
+    const assetsTotal = nwSum(assets, NW_CORE_KEYS);
+    const liabilitiesTotal = liabilityItems.reduce((a,it)=>a + (isNaN(liabilities[it.key])?0:liabilities[it.key]), 0);
+    months.push({month, assets, liabilities, assetsTotal, liabilitiesTotal, netWorth: assetsTotal - liabilitiesTotal});
+  }
+  return {assetItems, liabilityItems, months};
+}
+
+function nwFmt(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
+
+function nwGroupBreakdownLines(nw, m){
+  const groupTotals = {};
+  nw.assetItems.forEach(it=>{
+    if(!NW_CORE_KEYS.includes(it.key)) return; // Kfir, Agam, Pension excluded from Net Worth
+    const v = m.assets[it.key];
+    if(isNaN(v)) return;
+    groupTotals[it.group] = (groupTotals[it.group] || 0) + v;
+  });
+  const assetLine = Object.entries(groupTotals).map(([g,v])=>`${g} ${nwFmt(v)}`).join(' + ');
+  const liabLine = nw.liabilityItems
+    .filter(it=>!isNaN(m.liabilities[it.key]))
+    .map(it=>`${it.label} ${nwFmt(m.liabilities[it.key])}`).join(' + ');
+  return {assetLine, liabLine};
+}
+
+function buildNetWorthMonthTooltip(nw, m, idx){
+  const cls = m.netWorth>=0 ? 'up' : 'down';
+  const prev = idx > 0 ? nw.months[idx-1] : null;
+  const change = prev ? m.netWorth - prev.netWorth : NaN;
+  const changePct = prev && prev.netWorth ? change/prev.netWorth*100 : NaN;
+  const changeLine = !isNaN(change)
+    ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
+    : '';
+  return `<b>${m.month}</b>`
+    + `<div style="margin-top:6px;">Assets ${nwFmt(m.assetsTotal)} − Total Liabilities ${nwFmt(m.liabilitiesTotal)}<br>= <span class="${cls}">${nwFmt(m.netWorth)}</span></div>`
+    + changeLine;
+}
+
+function buildNetWorthTileTooltip(kind, nw, m){
+  const {liabLine} = nwGroupBreakdownLines(nw, m);
+  const coreAssets = nwSum(m.assets, NW_CORE_KEYS);
+  const pensionTotal = nwSum(m.assets, NW_PENSION_KEYS);
+
+  if(kind === 'assets'){
+    const line = nw.assetItems
+      .filter(it => NW_CORE_KEYS.includes(it.key) && !isNaN(m.assets[it.key]))
+      .map(it => `${it.label} ${nwFmt(m.assets[it.key])}`).join(' + ');
+    return `<b>Assets</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(coreAssets)}</b></div>`
+      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px;">Excludes Kfir, Agam and Pension — those aren't counted here.</div>`;
+  }
+  if(kind === 'liabilities'){
+    return `<b>Total Liabilities</b><div style="margin-top:6px;">${liabLine || '—'}<br>= <b>${nwFmt(m.liabilitiesTotal)}</b></div>`;
+  }
+  if(kind === 'pension'){
+    const line = nw.assetItems
+      .filter(it => NW_PENSION_KEYS.includes(it.key) && !isNaN(m.assets[it.key]))
+      .map(it => `${it.label} ${nwFmt(m.assets[it.key])}`).join(' + ');
+    return `<b>Pension</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(pensionTotal)}</b></div>`;
+  }
+  const pct = coreAssets ? (m.liabilitiesTotal/coreAssets*100) : 0;
+  return `<b>Debt-to-Asset</b>`
+    + `<div style="margin-top:6px;">Liabilities ${nwFmt(m.liabilitiesTotal)} ÷ Assets ${nwFmt(coreAssets)} × 100</div>`
+    + `<div style="margin-top:4px; padding-top:4px; border-top:1px solid var(--line);">= <b>${pct.toFixed(1)}%</b></div>`;
+}
+
+function buildNwTrendChart(opts){
+  const {title, svgId, color, months, getValue, hasIncompleteHistory} = opts;
+  const w = 780, h = 150, pad = 30;
+  const vals = months.map(getValue);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || 1;
+  const stepX = months.length>1 ? (w - 2*pad)/(months.length-1) : 0;
+  const points = months.map((m,i)=>({
+    x: pad + i*stepX,
+    y: h - pad - ((getValue(m) - min)/range)*(h - 2*pad),
+    m,
+    idx: i
+  }));
+  const path = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const areaPath = path
+    + ` L${points[points.length-1].x.toFixed(1)},${(h-pad).toFixed(1)}`
+    + ` L${points[0].x.toFixed(1)},${(h-pad).toFixed(1)} Z`;
+  const dots = points.map(p=>`
+    <circle class="nw-trend-hit" data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" style="cursor:help;"/>
+    <circle data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}" style="pointer-events:none;"/>
+  `).join('');
+  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="10" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
+  return `
+    <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
+    <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+      <path d="${areaPath}" fill="${color}" opacity="0.12"/>
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+      ${dots}
+      ${labels}
+    </svg>
+    ${hasIncompleteHistory ? `<div style="font-size:11px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+  `;
+}
+
+// Total + several sub-series together on one set of axes, with a shared per-month hover
+// column (rather than one hit target per dot) so a single hover shows every series' value.
+function buildNwMultiTrendChart(opts){
+  const {title, svgId, months, series, hasIncompleteHistory} = opts;
+  const w = 780, h = 170, pad = 30;
+  const allVals = series.flatMap(s => months.map(s.getValue));
+  const min = Math.min(...allVals), max = Math.max(...allVals);
+  const range = (max - min) || 1;
+  const stepX = months.length>1 ? (w - 2*pad)/(months.length-1) : 0;
+  const xFor = i => pad + i*stepX;
+  const yFor = v => h - pad - ((v - min)/range)*(h - 2*pad);
+
+  const seriesSvg = series.map(s=>{
+    const pts = months.map((m,i)=>({x: xFor(i), y: yFor(s.getValue(m))}));
+    const path = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+    const dots = pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${s.bold?3:2.5}" fill="${s.color}"/>`).join('');
+    return `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.bold?2.5:1.75}"/>${dots}`;
+  }).join('');
+
+  const hitWidth = months.length>1 ? stepX : 40;
+  const hits = months.map((m,i)=>
+    `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
+  ).join('');
+  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="10" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
+  const legend = series.map(s=>
+    `<span style="display:inline-flex; align-items:center; gap:5px; margin-right:16px;"><span style="width:9px; height:9px; border-radius:2px; background:${s.color}; display:inline-block;"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`
+  ).join('');
+
+  return `
+    <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
+    <div style="margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
+    <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+      ${seriesSvg}
+      ${hits}
+      ${labels}
+    </svg>
+    ${hasIncompleteHistory ? `<div style="font-size:11px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+  `;
+}
+
+function buildMultiSeriesMonthTooltip(months, idx, series){
+  const m = months[idx];
+  const prev = idx > 0 ? months[idx-1] : null;
+  const sortedSeries = series.slice().sort((a,b)=>b.getValue(m)-a.getValue(m));
+  const rows = sortedSeries.map(s=>{
+    const v = s.getValue(m);
+    const prevV = prev ? s.getValue(prev) : NaN;
+    const change = prev ? v - prevV : NaN;
+    const changePct = prev && prevV ? change/prevV*100 : NaN;
+    const changeLine = !isNaN(change)
+      ? `<div style="font-size:11px; margin:1px 0 0;" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
+      : '';
+    return `<div style="margin-top:${s.bold?8:6}px; ${s.bold?'padding-top:6px; border-top:1px solid var(--line);':''}">`
+      + `<div style="display:flex; justify-content:space-between; gap:18px; ${s.bold?'font-weight:700;':''}">`
+      + `<span><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:${s.color}; margin-right:6px;"></span>${s.label}</span>`
+      + `<span>${nwFmt(v)}</span></div>`
+      + changeLine
+      + `</div>`;
+  }).join('');
+  return `<b>${m.month}</b><div style="margin-top:6px;">${rows}</div>`;
+}
+
+function buildCategoryMonthTooltip(months, idx, title, keys){
+  const m = months[idx];
+  const value = nwSum(m.assets, keys);
+  const line = keys
+    .filter(k => !isNaN(m.assets[k]))
+    .map(k => {
+      const item = NW_ASSET_ITEMS.find(it=>it.key===k);
+      return `${item ? item.label : k} ${nwFmt(m.assets[k])}`;
+    }).join(' + ');
+  const prev = idx > 0 ? months[idx-1] : null;
+  const prevValue = prev ? nwSum(prev.assets, keys) : NaN;
+  const change = prev ? value - prevValue : NaN;
+  const changePct = prev && prevValue ? change/prevValue*100 : NaN;
+  const changeLine = !isNaN(change)
+    ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
+    : '';
+  return `<b>${m.month}</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(value)}</b></div>` + changeLine;
+}
+
+function attachHoverTooltip(el, htmlFn){
+  const tt = document.getElementById('customTooltip');
+  el.addEventListener('mouseenter', ()=>{
+    tt.innerHTML = htmlFn();
+    tt.style.display = 'block';
+  });
+  el.addEventListener('mousemove', (e)=>{
+    const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+    if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+    tt.style.left = x + 'px';
+    tt.style.top = y + 'px';
+  });
+  el.addEventListener('mouseleave', ()=>{
+    tt.style.display = 'none';
+  });
+}
+
+function wireNwTrendTooltips(svgId, buildTooltip){
+  const svg = document.getElementById(svgId);
+  if(!svg) return;
+  svg.querySelectorAll('.nw-trend-hit').forEach(hit=>{
+    const idx = +hit.dataset.idx;
+    attachHoverTooltip(hit, () => buildTooltip(idx));
+  });
+}
+
+function wireNetWorthTileTooltips(nw, latest){
+  const assetsTile = document.getElementById('nwTileAssets');
+  const liabilitiesTile = document.getElementById('nwTileLiabilities');
+  const debtTile = document.getElementById('nwTileDebt');
+  const pensionTile = document.getElementById('nwTilePension');
+  if(assetsTile) attachHoverTooltip(assetsTile, () => buildNetWorthTileTooltip('assets', nw, latest));
+  if(liabilitiesTile) attachHoverTooltip(liabilitiesTile, () => buildNetWorthTileTooltip('liabilities', nw, latest));
+  if(debtTile) attachHoverTooltip(debtTile, () => buildNetWorthTileTooltip('debt', nw, latest));
+  if(pensionTile) attachHoverTooltip(pensionTile, () => buildNetWorthTileTooltip('pension', nw, latest));
+}
+
+function renderNetWorth(nw){
+  const area = document.getElementById('marketDetailTableArea');
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const latest = nw.months[nw.months.length-1];
+
+  const groupTotals = {};
+  nw.assetItems.forEach(it=>{
+    if(!NW_CORE_KEYS.includes(it.key)) return; // Kfir, Agam, Pension excluded from Net Worth
+    const v = latest.assets[it.key] || 0;
+    groupTotals[it.group] = (groupTotals[it.group] || 0) + v;
+  });
+  const groupEntries = Object.entries(groupTotals).sort((a,b)=>b[1]-a[1]);
+  const totalForBar = latest.assetsTotal || 1;
+  const barHtml = groupEntries.map(([g,v])=>
+    `<div class="seg" data-group="${g}" style="width:${(v/totalForBar*100)}%; background:${NW_GROUP_COLORS[g]||'#8a6d3b'}"></div>`
+  ).join('');
+  const legendHtml = groupEntries.map(([g,v])=>
+    `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'#8a6d3b'}"></span>${g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
+  ).join('');
+
+  const netWorthTrendHtml = nw.months.length>1
+    ? buildNwTrendChart({
+        title: 'Net Worth Trend', svgId: 'nwTrendSvg', color: '#8a6d3b', months: nw.months,
+        getValue: m => m.netWorth, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_CORE_KEYS)
+      })
+    : '';
+
+  // Pension wasn't tracked before June, so its chart only plots months that actually have
+  // pension data rather than showing a misleading flat ₪0 before then.
+  const pensionMonths = nw.months.filter(m => NW_PENSION_KEYS.some(k => !isNaN(m.assets[k])));
+  const portfolioTrendHtml = nw.months.length>1
+    ? buildNwTrendChart({
+        title: 'Portfolio Trend', svgId: 'nwPortfolioTrendSvg', color: NW_GROUP_COLORS['Portfolio'], months: nw.months,
+        getValue: m => nwSum(m.assets, NW_PORTFOLIO_KEYS), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_PORTFOLIO_KEYS)
+      })
+    : '';
+  // Total + each individual fund together as one multi-line chart, not separate ones.
+  const studyFundSeries = [
+    {key:'total', label:'Total', color:'#d1495b', bold:true, getValue: m => nwSum(m.assets, NW_STUDY_KEYS)},
+    {key:'studyClal', label:'Clal', sub:'Stocks 1350', color:'#d9a441', getValue: m => nwSum(m.assets, ['studyClal'])},
+    {key:'studyAnalyst', label:'Analyst', sub:'Stocks 963', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['studyAnalyst'])},
+    {key:'studyMeitav', label:'Meitav', sub:'Stocks 883', color:'#3fae82', getValue: m => nwSum(m.assets, ['studyMeitav'])}
+  ];
+  const studyTrendHtml = nw.months.length>1
+    ? buildNwMultiTrendChart({
+        title: 'Study Funds Trend', svgId: 'nwStudyTrendSvg', months: nw.months,
+        series: studyFundSeries, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
+      })
+    : '';
+  const pensionSeries = [
+    {key:'total', label:'Total', color: NW_GROUP_COLORS['Pension'], bold:true, getValue: m => nwSum(m.assets, NW_PENSION_KEYS)},
+    {key:'insurance', label:'Clal Manager Insurance', color:'#d9a441', getValue: m => nwSum(m.assets, ['insurance'])},
+    {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
+    {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])}
+  ];
+  const pensionTrendHtml = pensionMonths.length>1
+    ? buildNwMultiTrendChart({
+        title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
+        series: pensionSeries, hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
+      })
+    : '';
+
+  const itemRows = [
+    ...nw.assetItems.map(it=>({label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
+    ...nw.liabilityItems.map(it=>({label:it.label, group:'Liabilities', isLiability:true, value:latest.liabilities[it.key]}))
+  ].filter(r=>!isNaN(r.value)).sort((a,b)=>b.value-a.value);
+
+  const rowsHtml = itemRows.map(r=>`
+    <tr>
+      <td>
+        <div class="md-th-symbol">${r.label}</div>
+        <div class="md-th-sub">${r.group}</div>
+      </td>
+      <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
+    </tr>`).join('');
+
+  area.innerHTML = `
+    <div class="md-split-bar">${barHtml}</div>
+    <div class="md-split-legend">${legendHtml}</div>
+    ${netWorthTrendHtml}
+    ${portfolioTrendHtml}
+    ${studyTrendHtml}
+    ${pensionTrendHtml}
+    <table class="md-holdings-table" style="margin-top:22px;">
+      <thead><tr><th>Item</th><th class="num">Value</th></tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+  `;
+  wireNwTrendTooltips('nwTrendSvg', idx => buildNetWorthMonthTooltip(nw, nw.months[idx], idx));
+  wireNwTrendTooltips('nwPortfolioTrendSvg', idx => buildCategoryMonthTooltip(nw.months, idx, 'Portfolio', NW_PORTFOLIO_KEYS));
+  wireNwTrendTooltips('nwStudyTrendSvg', idx => buildMultiSeriesMonthTooltip(nw.months, idx, studyFundSeries));
+  wireNwTrendTooltips('nwPensionTrendSvg', idx => buildMultiSeriesMonthTooltip(pensionMonths, idx, pensionSeries));
+  wireNetWorthGroupTooltips(nw, latest, totalForBar);
+}
+
+function buildNetWorthGroupTooltip(nw, latest, group, totalForBar){
+  const items = nw.assetItems.filter(it => NW_CORE_KEYS.includes(it.key) && it.group === group);
+  const line = items
+    .filter(it => !isNaN(latest.assets[it.key]))
+    .map(it => `${it.label} ${nwFmt(latest.assets[it.key])}`).join(' + ');
+  const value = items.reduce((a,it)=>a + (isNaN(latest.assets[it.key])?0:latest.assets[it.key]), 0);
+  const pct = totalForBar ? (value/totalForBar*100) : 0;
+  return `<b>${group}</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(value)}</b></div>`
+    + `<div style="margin-top:4px; padding-top:4px; border-top:1px solid var(--line);">${pct.toFixed(2)}% of Assets</div>`;
+}
+
+function wireNetWorthGroupTooltips(nw, latest, totalForBar){
+  document.querySelectorAll('.md-split-bar .seg[data-group], .nw-legend-row[data-group]').forEach(el=>{
+    const group = el.dataset.group;
+    attachHoverTooltip(el, () => buildNetWorthGroupTooltip(nw, latest, group, totalForBar));
+  });
+}
+
+function renderNetWorthBody(nw){
+  const body = document.getElementById('marketDetailBody');
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const latest = nw.months[nw.months.length-1];
+  const prev = nw.months.length>1 ? nw.months[nw.months.length-2] : null;
+  const netChange = prev ? latest.netWorth - prev.netWorth : NaN;
+  const netChangePct = prev && prev.netWorth ? netChange/prev.netWorth*100 : NaN;
+
+  const coreAssets = nwSum(latest.assets, NW_CORE_KEYS);
+  const pensionTotal = nwSum(latest.assets, NW_PENSION_KEYS);
+  const debtToAsset = coreAssets ? (latest.liabilitiesTotal/coreAssets*100) : 0;
+
+  body.innerHTML = `
+    <div class="md-headline" id="nwHeadline" style="cursor:help; display:inline-block;">${fmt(latest.netWorth)}</div>
+    <div class="md-headline-label">Net Worth — ${latest.month}</div>
+    ${!isNaN(netChange) ? `
+      <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; font-weight:700; margin:-18px 0 20px;" class="${netChange>=0?'up':'down'}">
+        ${netChange>=0?'▲':'▼'} ${fmt(netChange)} (${netChangePct>=0?'+':''}${netChangePct.toFixed(2)}%) vs previous month
+      </div>` : '<div style="margin-bottom:20px;"></div>'
+    }
+    <div class="md-stat-tiles cols-4">
+      <div class="md-stat-tile" id="nwTileAssets" style="cursor:help;">
+        <div class="md-stat-tile-label">Assets</div>
+        <div class="md-stat-tile-val up">${fmt(coreAssets)}</div>
+      </div>
+      <div class="md-stat-tile" id="nwTileLiabilities" style="cursor:help;">
+        <div class="md-stat-tile-label">Total Liabilities</div>
+        <div class="md-stat-tile-val down">${fmt(latest.liabilitiesTotal)}</div>
+      </div>
+      <div class="md-stat-tile" id="nwTileDebt" style="cursor:help;">
+        <div class="md-stat-tile-label">Debt-to-Asset</div>
+        <div class="md-stat-tile-val">${debtToAsset.toFixed(1)}%</div>
+      </div>
+      <div class="md-stat-tile" id="nwTilePension" style="cursor:help;">
+        <div class="md-stat-tile-label">Pension</div>
+        <div class="md-stat-tile-val up">${fmt(pensionTotal)}</div>
+      </div>
+    </div>
+    <div id="marketDetailTableArea"></div>
+  `;
+  wireNetWorthTileTooltips(nw, latest);
+  const headlineEl = document.getElementById('nwHeadline');
+  if(headlineEl) attachHoverTooltip(headlineEl, () => buildNetWorthMonthTooltip(nw, latest, nw.months.length-1));
+  renderNetWorth(nw);
+}
+
+async function openNetWorthDetail(){
+  document.getElementById('marketDetailTitle').textContent = 'Net Worth';
+  document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
+  document.getElementById('marketDetailCard').classList.add('wide');
+  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
+  marketDetailState = {marketKey:'networth', tickers:[], sortKey:'', sortDir:1, filter:''};
+
+  const body = document.getElementById('marketDetailBody');
+  const url = getNetWorthCsvUrl();
+
+  if(!url){
+    body.innerHTML = `
+      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--muted); font-size:13px; line-height:1.8; padding:12px 0 24px;">
+        No Net Worth sheet connected yet. Add a published CSV URL for your net worth sheet (study funds,
+        other assets, mortgage, equity loan, pension) under <b style="color:var(--ink);">Sheet URL</b> in
+        the header, then reopen this.
+      </div>
+    `;
+    document.getElementById('marketDetailModal').classList.add('open');
+    return;
+  }
+
+  body.innerHTML = `
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--muted); font-size:13px; padding:12px 0;">Loading…</div>
+  `;
+  document.getElementById('marketDetailModal').classList.add('open');
+
+  try{
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
+    const text = await res.text();
+    const table = Papa.parse(text, {skipEmptyLines:false}).data;
+    const nw = parseNetWorthTable(table);
+    if(!nw.months.length) throw new Error('No monthly rows with data found in the sheet');
+    renderNetWorthBody(nw);
+  } catch(err){
+    body.innerHTML = `
+      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--down-5); font-size:13px; line-height:1.8; padding:12px 0 24px;">
+        Could not load the Net Worth sheet (${err.message}).
+      </div>
+    `;
+  }
+}
+
+function renderGauge(rows, totals){
+  const panel = document.getElementById('gaugePanel');
+  if(!panel) return;
+
+  const value = totals.dayGainPct;
+  const maxAbs = 3;
+  const clamped = Math.max(-maxAbs, Math.min(maxAbs, value));
+  const angle = (clamped / maxAbs) * 90; // -90..+90, CSS rotate() clockwise-positive
+  const gaugeCls = value >= 0 ? 'up' : 'down';
+
+  const split = splitByMarket(rows);
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+
+  const taseOpen = getMarketStatus('Asia/Jerusalem', 10*60, 17*60+30, ['Sun','Mon','Tue','Wed','Thu']);
+  const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+
+  panel.innerHTML = `
+    <div class="gauge-wrap">
+      <div class="gauge-clip">
+        <div class="gauge-arc"></div>
+        <div class="gauge-hub"></div>
+        <div class="gauge-needle" style="transform: translateX(-50%) rotate(${angle}deg)"></div>
+      </div>
+      <div class="gauge-footer">
+        <span class="gauge-label">-3%</span>
+        <span class="gauge-value ${value>=0?'up':'down'}">${value>=0?'+':''}${value.toFixed(2)}%</span>
+        <span class="gauge-label">+3%</span>
+      </div>
+    </div>
+    <div id="gaugeInfo">
+      <div>
+        <span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE: <b>${taseOpen?'OPEN':'CLOSED'}</b>
+        &nbsp;&nbsp;
+        <span class="market-dot ${usOpen?'open':'closed'}"></span>USA: <b>${usOpen?'OPEN':'CLOSED'}</b>
+      </div>
+      <div id="portfolioDetailTrigger" style="cursor:pointer;"><span class="glabel">Portfolio day change:</span> <span class="gval ${gaugeCls}">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub">Market Value: ${fmt(totals.totalValue)}</span></div>
+      <div id="ilDetailTrigger" style="cursor:pointer;"><span class="glabel">Israeli (TASE) day change:</span> <span class="gval ${split.il.gain>=0?'up':'down'}">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub">Market Value: ${fmt(split.il.value)}</span></div>
+      <div id="usDetailTrigger" style="cursor:pointer;"><span class="glabel">USA day change:</span> <span class="gval ${split.us.gain>=0?'up':'down'}">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub">Market Value: ${fmt(split.us.value)}</span></div>
+      <div><span class="glabel">USD/ILS:</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></div>
+    </div>
+  `;
+  document.getElementById('portfolioDetailTrigger').addEventListener('click', ()=> openPortfolioDetail());
+  document.getElementById('ilDetailTrigger').addEventListener('click', ()=> openMarketDetail('il'));
+  document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
+}
+
+function getFxDayChange(rate){
+  const todayStr = new Date().toISOString().slice(0,10);
+  let baseline = null;
+  try{ baseline = JSON.parse(localStorage.getItem('pf_fxDayBaseline') || 'null'); } catch(e){}
+  if(!baseline || baseline.date !== todayStr){
+    baseline = {date: todayStr, rate: rate};
+    try{ localStorage.setItem('pf_fxDayBaseline', JSON.stringify(baseline)); } catch(e){}
+  }
+  const change = rate - baseline.rate;
+  const changePct = baseline.rate ? change/baseline.rate*100 : 0;
+  return {change, changePct};
+}
+
+function formatFxLine(rate){
+  const {change, changePct} = getFxDayChange(rate);
+  const cls = change >= 0 ? 'up' : 'down';
+  const arrow = change >= 0 ? '▲' : '▼';
+  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">Today</span>`;
+}
+
+function render(rows, totals){
+  window.lastRows = rows;
+  window.lastTotals = totals;
+  renderGauge(rows, totals);
+  const fmt = n => "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
+  const cardsEl = document.getElementById('cards');
+  cardsEl.innerHTML = '';
+  const cards = [
+    {label:"Total value (NIS)", value: fmt(totals.totalValue), sub:""},
+    {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)+"% overall", cls: totals.totalGain>=0?"up":"down"},
+    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:totals.dayGainPct.toFixed(2)+"% vs previous close", cls: totals.dayGain>=0?"up":"down"},
+    {label:"Holdings", value:String(rows.length), sub:"positions"}
+  ];
+  cards.forEach(c=>{
+    const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '');
+    el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}`;
+    cardsEl.appendChild(el);
+  });
+  cardsEl.title = 'View all holdings';
+  cardsEl.onclick = () => openPortfolioDetail();
+
+  function colorFor(c){
+    const g = ["var(--up-1)","var(--up-2)","var(--up-3)","var(--up-4)","var(--up-5)"];
+    const r = ["var(--down-1)","var(--down-2)","var(--down-3)","var(--down-4)","var(--down-5)"];
+    if(isNaN(c)) return "var(--flat)";
+    const a = Math.min(Math.abs(c)/2.5,1);
+    const idx = Math.min(Math.floor(a*4),4);
+    return c >= 0 ? g[idx] : r[idx];
+  }
+  function textColorFor(c){
+    if(isNaN(c)) return "#4a463c";
+    const a = Math.min(Math.abs(c)/2.5,1);
+    if(a < 0.5) return c >= 0 ? "#27500a" : "#791f1f";
+    return "#ffffff";
+  }
+  function fmtShort(n){
+    return "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
+  }
+
+  const tmEl = document.getElementById('treemap');
+  tmEl.innerHTML = '';
+  const tmW = tmEl.clientWidth, tmH = 480;
+  const root = d3.hierarchy({children: rows}).sum(d => d.value).sort((a,b) => b.value - a.value);
+  d3.treemap().size([tmW, tmH]).paddingInner(2).paddingOuter(1)(root);
+  root.leaves().forEach(n=>{
+    const w = n.x1 - n.x0, h = n.y1 - n.y0;
+    const div = document.createElement('div');
+    div.className = 'tile';
+    div.style.left = n.x0+'px'; div.style.top = n.y0+'px';
+    div.style.width = Math.max(w,0)+'px'; div.style.height = Math.max(h,0)+'px';
+    div.style.background = colorFor(n.data.change);
+    const tt = document.getElementById('customTooltip');
+    const changeHtml = isNaN(n.data.change)
+      ? 'n/a'
+      : `<span class="${n.data.change>=0?'up':'down'}">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${n.data.change>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.change/100))})</span>`;
+    const retHtml = isNaN(n.data.ret)
+      ? 'n/a'
+      : `<span class="${n.data.ret>=0?'up':'down'}">${n.data.ret>=0?'+':''}${n.data.ret.toFixed(2)}% (${n.data.ret>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.ret/100))})</span>`;
+    const tName = TICKER_NAME_MAP[n.data.name];
+    const tooltipHtml = `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+    div.addEventListener('mouseenter', ()=>{
+      tt.innerHTML = tooltipHtml;
+      tt.style.display = 'block';
+    });
+    div.addEventListener('mousemove', (e)=>{
+      const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+      let x = e.clientX + 14, y = e.clientY + 14;
+      if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+      if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+      tt.style.left = x + 'px';
+      tt.style.top = y + 'px';
+    });
+    div.addEventListener('mouseleave', ()=>{
+      tt.style.display = 'none';
+    });
+    const tc = textColorFor(n.data.change);
+    let inner = '';
+    if(w>26 && h>16){
+      inner += `<div class="t-name" style="color:${tc}; font-size:${Math.min(13,Math.max(9,w/6))}px">${n.data.name}</div>`;
+      if(w>64 && h>32 && !isNaN(n.data.change)){
+        const dayGainAmt = n.data.value - n.data.value/(1+n.data.change/100);
+        inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
+      }
+      if(w>72 && h>44){
+        inner += `<div style="color:${tc}; opacity:0.85; font-size:${Math.min(10,Math.max(7,w/9))}px; white-space:nowrap;">${fmtShort(n.data.value)}</div>`;
+      }
+    }
+    div.innerHTML = inner;
+    tmEl.appendChild(div);
+  });
+
+  const GROUP_PALETTE = ['#4f8fd9','#d1495b','#118a7e','#7b4fd9','#c48fd9','#d9a441','#e2707a','#3fae82','#5470c6','#e2793a','#4fb0d9','#9fca3c','#a3866b','#8a6d3b','#6b7a8f'];
+
+  function showTickerPopover(anchorEl, label, tickerList){
+    const tt = document.getElementById('customTooltip');
+    tt.innerHTML = `<b>${label}</b>${tickerList.join(', ')}`;
+    const rect = anchorEl.getBoundingClientRect();
+    tt.style.display = 'block';
+    let x = rect.left, y = rect.bottom + 8;
+    // measure after showing
+    requestAnimationFrame(()=>{
+      const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+      if(x + ttW > window.innerWidth) x = window.innerWidth - ttW - 10;
+      if(y + ttH > window.innerHeight) y = rect.top - ttH - 8;
+      tt.style.left = x + 'px';
+      tt.style.top = y + 'px';
+    });
+  }
+
+  function renderGroupBar(containerId, groupFn){
+    const map = {};
+    const tickers = {};
+    rows.forEach(d=>{
+      const k = groupFn(d) || 'Other';
+      map[k] = (map[k]||0) + d.value;
+      (tickers[k] = tickers[k] || []).push(d.name);
+    });
+    const data = Object.keys(map).map(k=>({label:k, value:map[k], tickers:tickers[k].sort()})).sort((a,b)=>b.value-a.value);
+    data.forEach((d,i) => d.color = GROUP_PALETTE[i % GROUP_PALETTE.length]);
+
+    const barEl = document.getElementById(containerId+'Bar');
+    if(barEl){
+      barEl.innerHTML = '';
+      data.forEach(d=>{
+        const pct = d.value/totals.totalValue*100;
+        const seg = document.createElement('div');
+        seg.className = 'seg';
+        seg.style.width = pct + '%';
+        seg.style.background = d.color;
+        seg.title = `${d.label} — ${pct.toFixed(2)}% (click for tickers)`;
+        seg.addEventListener('click', (e)=> showTickerPopover(seg, d.label, d.tickers));
+        barEl.appendChild(seg);
+      });
+    }
+
+    const el = document.getElementById(containerId);
+    el.innerHTML = '';
+    data.forEach(d=>{
+      const row = document.createElement('div'); row.className='legend-row';
+      const pct = (d.value/totals.totalValue*100).toFixed(2);
+      row.innerHTML = `<span class="legend-swatch" style="background:${d.color}"></span>`
+        + `<span class="legend-name">${d.label}</span>`
+        + `<span class="legend-val">${fmt(d.value)} (${pct}%)</span>`;
+      row.addEventListener('click', ()=> showTickerPopover(row, d.label, d.tickers));
+      el.appendChild(row);
+    });
+  }
+  renderGroupBar('sectors', d => d.sector);
+  renderGroupBar('roles', d => d.role);
+
+  const wlEl = document.getElementById('winlose');
+  wlEl.innerHTML = '';
+  const ranked = rows.filter(d => !isNaN(d.ret)).slice().sort((a,b)=>b.ret-a.ret);
+  const tt = document.getElementById('customTooltip');
+  const maxAbsRet = Math.max(...ranked.map(d=>Math.abs(d.ret)), 1);
+  ranked.forEach(d=>{
+    const row = document.createElement('div'); row.className='wlrow';
+    const barPct = (Math.abs(d.ret)/maxAbsRet*50).toFixed(1);
+    const isUp = d.ret >= 0;
+    const barStyle = isUp
+      ? `left:50%; width:${barPct}%; background:${colorFor(2.5)};`
+      : `right:50%; width:${barPct}%; background:${colorFor(-2.5)};`;
+    row.innerHTML = `<div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'#3b6d11':'#a32d2d'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+    if(!isNaN(d.cost) && d.cost){
+      const gain = d.value - d.cost;
+      const holdingPeriod = formatHoldingPeriod(d.buyDate);
+      const tooltipHtml = `<b>${d.name}</b>`
+        + (TICKER_NAME_MAP[d.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[d.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + `Current value: ${fmtIls3(d.value)}<br>`
+        + `Cost basis: ${fmtIls3(d.cost)}`
+        + (holdingPeriod ? `<br>Bought: ${d.buyDate} (held ${holdingPeriod})` : '')
+        + `</div>`
+        + `Return = (${fmtIls3(d.value)} \u2212 ${fmtIls3(d.cost)}) \u00f7 ${fmtIls3(d.cost)}<br>`
+        + `= ${gain>=0?'+':'\u2212'}${fmtIls3(Math.abs(gain))} \u00f7 ${fmtIls3(d.cost)}<br>`
+        + `= <span class="${isUp?'up':'down'}">${isUp?'+':''}${d.ret.toFixed(2)}%</span>`
+        + (holdingPeriod ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px;">That's ${isUp?'+':''}${d.ret.toFixed(2)}% over ${holdingPeriod}.</div>` : '');
+      row.style.cursor = 'help';
+      row.addEventListener('mouseenter', ()=>{
+        tt.innerHTML = tooltipHtml;
+        tt.style.display = 'block';
+      });
+      row.addEventListener('mousemove', (e)=>{
+        const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+        let x = e.clientX + 14, y = e.clientY + 14;
+        if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+        if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+        tt.style.left = x + 'px';
+        tt.style.top = y + 'px';
+      });
+      row.addEventListener('mouseleave', ()=>{
+        tt.style.display = 'none';
+      });
+    }
+    wlEl.appendChild(row);
+  });
+
+  renderWinLoseInsights(rows, totals);
+  renderContributionWaterfalls(rows);
+}
+
+function fmtIls3(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
+function fmtIlsSmart(n){
+  const abs = Math.abs(n);
+  if(abs < 10) return "₪" + abs.toFixed(2);
+  return "₪" + Math.round(abs).toLocaleString('en-US');
+}
+
+function formatHoldingPeriod(buyDateStr){
+  if(!buyDateStr) return null;
+  const buyDate = new Date(buyDateStr);
+  if(isNaN(buyDate.getTime())) return null;
+  const days = Math.floor((Date.now() - buyDate.getTime()) / (1000*60*60*24));
+  if(days < 0) return null;
+  if(days < 31) return `${days} day${days!==1?'s':''}`;
+  const months = days / 30.44;
+  if(months < 24) return `~${Math.round(months)} month${Math.round(months)!==1?'s':''}`;
+  const years = days / 365.25;
+  const wholeYears = Math.floor(years);
+  const remMonths = Math.round((years - wholeYears) * 12);
+  return remMonths > 0 ? `~${wholeYears}y ${remMonths}m` : `~${wholeYears} year${wholeYears!==1?'s':''}`;
+}
+
+function renderWinLoseInsights(rows, totals){
+  const el = document.getElementById('winloseInsights');
+  if(!el) return;
+  const withRet = rows.filter(r => !isNaN(r.ret));
+  if(!withRet.length){ el.innerHTML = ''; return; }
+
+  const sorted = withRet.slice().sort((a,b)=>b.ret-a.ret);
+  const winners = withRet.filter(r=>r.ret > 0);
+  const losers = withRet.filter(r=>r.ret < 0);
+  const bigWinner = sorted[0];
+  const bigLoser = sorted[sorted.length-1];
+
+  const notes = [];
+
+  // Concentration risk from big winners appreciating into oversized positions
+  const outsizedWinners = winners
+    .filter(r => r.ret > 30)
+    .map(r => ({...r, weight: r.value/totals.totalValue*100}))
+    .filter(r => r.weight > 3)
+    .sort((a,b)=>b.weight-a.weight);
+  if(outsizedWinners.length){
+    const list = outsizedWinners.slice(0,3).map(r=>`${r.name} (+${r.ret.toFixed(2)}%, now ${r.weight.toFixed(2)}% of the book)`).join(', ');
+    notes.push(`<b>Winners have grown into sizeable positions:</b> ${list}. Strong performance is good, but it's worth asking whether these sizes still match your original conviction, or whether some profit-taking / rebalancing is warranted to avoid unintentional concentration.`);
+  }
+
+  // Loss cluster / potential harvesting candidates
+  if(losers.length){
+    const lossValue = losers.reduce((a,r)=>a + (r.value - (r.cost||r.value)), 0);
+    const worstFew = losers.slice().sort((a,b)=>a.ret-b.ret).slice(0,3).map(r=>`${r.name} (${r.ret.toFixed(2)}%)`).join(', ');
+    notes.push(`<b>${losers.length} position${losers.length>1?'s are':' is'} currently underwater</b> for a combined unrealized loss of about ${fmtIls3(lossValue)}, led by ${worstFew}. Worth reviewing whether the original thesis for these still holds, and — if you're in a taxable context — whether any qualify for tax-loss harvesting.`);
+  }
+
+  // Best vs worst spread
+  if(bigWinner && bigLoser && bigWinner !== bigLoser){
+    notes.push(`<b>Widest spread:</b> ${bigWinner.name} (+${bigWinner.ret.toFixed(2)}%) vs ${bigLoser.name} (${bigLoser.ret.toFixed(2)}%) — a ${(bigWinner.ret-bigLoser.ret).toFixed(2)} point gap. Large dispersion like this is normal for a diversified book, but it's a reminder that the average return hides very different stories underneath.`);
+  }
+
+  // Overall tilt
+  if(winners.length && losers.length){
+    const winRate = winners.length/withRet.length*100;
+    notes.push(`Overall, ${winners.length} of ${withRet.length} positions (${winRate.toFixed(2)}%) are profitable — ${winRate>=60?'a healthy hit rate suggesting your selection process is working more often than not':'a reminder that a meaningful share of individual picks are underwater even while the total portfolio is up, since a few big winners are carrying the average'}.`);
+  }
+
+  if(!notes.length){ el.innerHTML = ''; return; }
+
+  el.innerHTML = `<span class="wli-title">Analysis</span>`
+    + notes.map(n=>`<p>${n}</p>`).join('')
+    + `<div class="wli-caveat">Rule-based pattern analysis generated in your browser from the numbers above — not personalized financial advice, and not a live AI reading your portfolio.</div>`;
+}
+
+function bucketizeContributions(items, maxPositive, bucketTooltipFn){
+  const positives = items.filter(i=>i.value > 0).sort((a,b)=>b.value-a.value);
+  const negatives = items.filter(i=>i.value <= 0);
+
+  const topPositives = positives.slice(0, maxPositive);
+  const otherPositives = positives.slice(maxPositive);
+  const bars = [...topPositives];
+  if(otherPositives.length){
+    const sum = otherPositives.reduce((a,i)=>a+i.value,0);
+    bars.push({
+      label:`Other gains (${otherPositives.length})`,
+      value: sum,
+      tooltip: bucketTooltipFn ? bucketTooltipFn(otherPositives, sum, 'Other gains') : null
+    });
+  }
+  if(negatives.length){
+    const sum = negatives.reduce((a,i)=>a+i.value,0);
+    bars.push({
+      label:`Losses (${negatives.length})`,
+      value: sum,
+      tooltip: bucketTooltipFn ? bucketTooltipFn(negatives, sum, 'Losses') : null
+    });
+  }
+  return bars;
+}
+
+function renderWaterfall(containerId, items, totalTooltip){
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  const margin = {top:24, right:20, bottom:76, left:52};
+  const width = Math.max(container.clientWidth, 320) - margin.left - margin.right;
+  const height = 280 - margin.top - margin.bottom;
+
+  let cum = 0;
+  const bars = items.map(it => {
+    const start = cum;
+    cum += it.value;
+    return {label: it.label, value: it.value, start, end: cum, isTotal:false, tooltip: it.tooltip};
+  });
+  const total = cum;
+  bars.push({label:'Total', value: total, start:0, end: total, isTotal:true, tooltip: totalTooltip ? totalTooltip(total) : null});
+
+  const svg = d3.select('#'+containerId).append('svg')
+    .attr('width', width+margin.left+margin.right)
+    .attr('height', height+margin.top+margin.bottom);
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleBand().domain(bars.map(b=>b.label)).range([0,width]).padding(0.28);
+  const allVals = bars.flatMap(b=>[b.start,b.end]);
+  const yMin = Math.min(0, ...allVals), yMax = Math.max(0, ...allVals);
+  const pad = (yMax-yMin)*0.15 || 1;
+  const y = d3.scaleLinear().domain([yMin-pad, yMax+pad]).range([height,0]);
+
+  g.append('line')
+    .attr('x1',0).attr('x2',width).attr('y1',y(0)).attr('y2',y(0))
+    .attr('stroke','var(--line)').attr('stroke-width',1);
+
+  const tt = document.getElementById('customTooltip');
+  function attachTooltip(sel){
+    sel.on('mouseenter', function(event, b){
+      if(!b.tooltip) return;
+      tt.innerHTML = b.tooltip;
+      tt.style.display = 'block';
+    })
+    .on('mousemove', function(event){
+      if(!tt.style.display || tt.style.display === 'none') return;
+      const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+      let x2 = event.clientX + 14, y2 = event.clientY + 14;
+      if(x2 + ttW > window.innerWidth) x2 = event.clientX - ttW - 14;
+      if(y2 + ttH > window.innerHeight) y2 = event.clientY - ttH - 14;
+      tt.style.left = x2 + 'px';
+      tt.style.top = y2 + 'px';
+    })
+    .on('mouseleave', function(){
+      tt.style.display = 'none';
+    });
+  }
+
+  const rects = g.selectAll('rect').data(bars).enter().append('rect')
+    .attr('x', b=>x(b.label))
+    .attr('width', x.bandwidth())
+    .attr('y', b=> y(Math.max(b.start,b.end)))
+    .attr('height', b=> Math.max(Math.abs(y(b.start)-y(b.end)),1.5))
+    .attr('fill', b=> b.isTotal ? '#8a6d3b' : (b.value>=0 ? '#3b6d11' : '#a32d2d'))
+    .style('cursor', b => b.tooltip ? 'help' : 'default');
+  attachTooltip(rects);
+
+  g.selectAll('.val-label').data(bars).enter().append('text')
+    .attr('x', b=>x(b.label)+x.bandwidth()/2)
+    .attr('y', b=> y(Math.max(b.start,b.end)) - 5)
+    .attr('text-anchor','middle')
+    .attr('font-size','10px')
+    .attr('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .attr('fill','var(--ink)')
+    .text(b => (b.value>=0?'+':'')+b.value.toFixed(2)+'%');
+
+  g.append('g').attr('transform',`translate(0,${height})`)
+    .call(d3.axisBottom(x).tickSize(0))
+    .call(sel => sel.select('.domain').attr('stroke','var(--line)'))
+    .selectAll('text')
+    .attr('transform','rotate(-35)')
+    .style('text-anchor','end')
+    .style('font-size','10px')
+    .style('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .style('fill','var(--muted)');
+
+  g.append('g')
+    .call(d3.axisLeft(y).ticks(5).tickFormat(d=>d.toFixed(2)+'%').tickSize(0))
+    .call(sel => sel.select('.domain').remove())
+    .selectAll('text')
+    .style('font-size','10px')
+    .style('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .style('fill','var(--muted)');
+}
+
+function fmtIls2(n){ return "₪" + Math.round(n).toLocaleString('en-US'); }
+
+function renderContributionWaterfalls(rows){
+  const totalCost = rows.reduce((a,r)=>a+(r.cost||0),0);
+  const totalValue = rows.reduce((a,r)=>a+r.value,0);
+
+  // Cost-weighted contribution only needs value & cost — must NOT filter by
+  // Total Return validity, or holdings with a blank/odd return cell get
+  // silently dropped and the bars stop summing to the true total return.
+  const costItems = rows
+    .filter(r => !isNaN(r.cost) && r.cost && totalCost)
+    .map(r => {
+      const gain = r.value - r.cost;
+      const pct = gain / totalCost * 100;
+      const tooltip = `<b>${r.name}</b>`
+        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + `Current value: ${fmtIls2(r.value)}<br>`
+        + `Cost basis: ${fmtIls2(r.cost)}<br>`
+        + `Total portfolio cost: ${fmtIls2(totalCost)}`
+        + `</div>`
+        + `Step 1 — Profit: ${fmtIls2(r.value)} \u2212 ${fmtIls2(r.cost)} = ${gain>=0?'+':'\u2212'}${fmtIls2(Math.abs(gain))}<br>`
+        + `Step 2 — Share of total cost: ${fmtIls2(Math.abs(gain))} \u00f7 ${fmtIls2(totalCost)} = ${(pct/100).toFixed(4)}<br>`
+        + `Step 3 — As a percent: ${(pct/100).toFixed(4)} \u00d7 100 = <span class="${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>`
+        + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
+        + `<b>${r.name}</b> ${gain>=0?'added':'subtracted'} <span class="${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span> to your portfolio's overall return.`
+        + `</div>`;
+      return {label: r.name, value: pct, tooltip};
+    });
+
+  const costBucketTooltip = (items, sum, label) =>
+    `<b>${label} (${items.length} holdings)</b>`
+    + `Combined (value \u2212 cost) \u00f7 total cost for: ${items.map(i=>i.label).slice(0,8).join(', ')}${items.length>8?', \u2026':''}<br>`
+    + `= <span class="${sum>=0?'up':'down'}">${sum>=0?'+':''}${sum.toFixed(2)}%</span> of total return`;
+
+  const costBars = bucketizeContributions(costItems, 15, costBucketTooltip);
+  const costTotal = costItems.reduce((a,i)=>a+i.value,0);
+  renderWaterfall('waterfallCost', costBars, (total) =>
+    `<b>Total</b>Sum of every bar above<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span> \u2014 your actual overall total return`
+  );
+  const costNote = document.getElementById('waterfallCostNote');
+  if(costNote) costNote.textContent = `Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%). Hover a bar to see the exact calculation.`;
+
+  const currentItems = rows
+    .filter(r => !isNaN(r.ret) && totalValue)
+    .map(r => {
+      const weight = r.value / totalValue * 100;
+      const contrib = (r.value/totalValue) * r.ret;
+      const tooltip = `<b>${r.name}</b>`
+        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + `Current value: ${fmtIls2(r.value)}<br>`
+        + `Total portfolio value: ${fmtIls2(totalValue)}<br>`
+        + `${r.name}'s own total return: ${r.ret>=0?'+':''}${r.ret.toFixed(2)}%`
+        + `</div>`
+        + `Step 1 — Today's weight: ${fmtIls2(r.value)} \u00f7 ${fmtIls2(totalValue)} = ${(weight/100).toFixed(4)} (${weight.toFixed(2)}%)<br>`
+        + `Step 2 — Weight \u00d7 own return: ${(weight/100).toFixed(4)} \u00d7 ${r.ret.toFixed(2)}%<br>`
+        + `Step 3 — Result: <span class="${contrib>=0?'up':'down'}">${contrib>=0?'+':''}${contrib.toFixed(2)}%</span>`
+        + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
+        + `${r.name} is ${weight.toFixed(2)}% of your portfolio today and contributes <span class="${contrib>=0?'up':'down'}">${contrib>=0?'+':''}${contrib.toFixed(2)}%</span> to the current-weighted return.`
+        + `</div>`;
+      return {label: r.name, value: contrib, tooltip};
+    });
+
+  const currentBucketTooltip = (items, sum, label) =>
+    `<b>${label} (${items.length} holdings)</b>`
+    + `Combined (weight \u00d7 own return) for: ${items.map(i=>i.label).slice(0,8).join(', ')}${items.length>8?', \u2026':''}<br>`
+    + `= <span class="${sum>=0?'up':'down'}">${sum>=0?'+':''}${sum.toFixed(2)}%</span>`;
+
+  const currentBars = bucketizeContributions(currentItems, 15, currentBucketTooltip);
+  const currentTotal = currentItems.reduce((a,i)=>a+i.value,0);
+  renderWaterfall('waterfallCurrent', currentBars, (total) =>
+    `<b>Total</b>Sum of every bar above (each = today's weight \u00d7 that holding's own return)<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span><br>`
+    + `<span style="color:var(--muted); font-size:11px;">This won't match the cost-weighted total (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%) \u2014 different weighting basis, both are valid.</span>`
+  );
+}
+
+function toRows(raw){
+  return raw.map(d => ({
+    name:d[0], value:d[1], change:d[2], ret:d[3], sector:d[4], role:d[5],
+    cost: d[1] / (1 + (d[3]||0)/100)
+  }));
+}
+
+function renderFromRaw(raw){
+  const rows = toRows(raw);
+  const totals = computeTotals(rows);
+  render(rows, totals);
+}
+
+function saveCache(rows, totals, asOfText){
+  try{
+    localStorage.setItem('pf_cache', JSON.stringify({rows, totals, fxRate: window.lastFxRate, asOfText}));
+  } catch(e){ /* storage full or unavailable — ignore, cache is a nice-to-have */ }
+}
+function loadCache(){
+  try{
+    const raw = localStorage.getItem('pf_cache');
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+
+const cached = loadCache();
+if(cached && cached.rows && cached.rows.length){
+  window.lastFxRate = cached.fxRate || window.lastFxRate;
+  render(cached.rows, cached.totals);
+  document.getElementById('asOf').textContent = cached.asOfText || 'Showing last saved data';
+} else {
+  renderFromRaw(currentData);
+}
+
+async function refresh(){
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  try{
+    setStatus('Fetching latest from Google Sheet…', false);
+    const table = await fetchTableViaCsv();
+    const rows = parseTableToRows(table);
+    const totals = computeTotals(rows);
+    render(rows, totals);
+    const asOfText = 'Last refreshed ' + new Date().toLocaleString();
+    document.getElementById('asOf').textContent = asOfText;
+    setStatus('Up to date.', false);
+    saveCache(rows, totals, asOfText);
+  } catch(err){
+    setStatus('Refresh failed (' + err.message + '). Check the CSV URL under Credentials, or that the sheet is still published to the web.', true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Try a quiet background refresh on load — if it fails (e.g. opened by
+// double-click instead of via the local server), the cached/snapshot view
+// above stays put and no error is shown.
+(async function autoRefreshOnLoad(){
+  try{
+    const table = await fetchTableViaCsv();
+    const rows = parseTableToRows(table);
+    const totals = computeTotals(rows);
+    render(rows, totals);
+    const asOfText = 'Last refreshed ' + new Date().toLocaleString();
+    document.getElementById('asOf').textContent = asOfText;
+    saveCache(rows, totals, asOfText);
+  } catch(e){ /* silent — cached view already shown */ }
+})();
+document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+let autoRefreshTimer = null;
+function applyAutoRefreshSetting(minutes){
+  if(autoRefreshTimer){ clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
+  if(minutes > 0){
+    autoRefreshTimer = setInterval(refresh, minutes*60*1000);
+  }
+}
+
+(function initAutoRefresh(){
+  const saved = parseInt(localStorage.getItem('pf_autoRefreshMin') || '0', 10);
+  const select = document.getElementById('autoRefreshSelect');
+  select.value = String(saved);
+  applyAutoRefreshSetting(saved);
+  select.addEventListener('change', ()=>{
+    const minutes = parseInt(select.value, 10);
+    localStorage.setItem('pf_autoRefreshMin', String(minutes));
+    applyAutoRefreshSetting(minutes);
+    setStatus(minutes > 0 ? `Auto-refresh set to every ${minutes} min.` : 'Auto-refresh turned off.', false);
+  });
+})();
+
+function fmtIls(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
+function pct(n){ return (n>=0?'+':'') + n.toFixed(2) + '%'; }
+
+function buildDigest(){
+  const rows = window.lastRows, totals = window.lastTotals;
+  if(!rows || !totals) return '<p>No data loaded yet.</p>';
+
+  const withChange = rows.filter(d => !isNaN(d.change));
+  const gainers = withChange.slice().sort((a,b)=>b.change-a.change);
+  const losers = withChange.slice().sort((a,b)=>a.change-b.change);
+  const topGainers = gainers.filter(d=>d.change>0).slice(0,3);
+  const topLosers = losers.filter(d=>d.change<0).slice(0,3);
+
+  const contrib = withChange.map(d => ({
+    name: d.name,
+    ils: d.value - d.value/(1+d.change/100)
+  })).sort((a,b)=>b.ils-a.ils);
+  const topUpContrib = contrib.filter(c=>c.ils>0).slice(0,3);
+  const topDownContrib = contrib.slice().sort((a,b)=>a.ils-b.ils).filter(c=>c.ils<0).slice(0,3);
+
+  const dayCls = totals.dayGain >= 0 ? 'up' : 'down';
+  const overallCls = totals.totalGain >= 0 ? 'up' : 'down';
+
+  let html = '';
+  html += `<p><b>Portfolio: ₪${Math.round(totals.totalValue).toLocaleString('en-US')}</b> — `
+        + `today's move is <span class="${dayCls}">${totals.dayGain>=0?'+':'-'}${fmtIls(totals.dayGain)} (${pct(totals.dayGainPct)})</span>, `
+        + `overall gain since purchase stands at <span class="${overallCls}">${totals.totalGain>=0?'+':'-'}${fmtIls(totals.totalGain)} (${pct(totals.totalGainPct)})</span>.</p>`;
+
+  if(window.lastFxRate){
+    html += `<p style="display:flex; align-items:center; gap:10px;">USD/NIS: <b>${window.lastFxRate.toFixed(4)}</b> <span id="fxSparkline" style="display:inline-flex; align-items:center;"></span></p>`;
+  }
+
+  const heaviest = rows.slice().sort((a,b)=>b.value-a.value).slice(0,5);
+  html += `<p><b>Heaviest holdings:</b> ` + heaviest.map(d=>{
+    const w = (d.value/totals.totalValue*100).toFixed(2);
+    const chg = isNaN(d.change) ? 'n/a' : `<span class="${d.change>=0?'up':'down'}">${pct(d.change)}</span>`;
+    return `${d.name} (${w}%, ${fmtIls(d.value)}, ${chg} today)`;
+  }).join(', ') + `.</p>`;
+
+  if(topGainers.length){
+    html += `<p><b>Leading gains today:</b> ` + topGainers.map(d=>`${d.name} (<span class="up">${pct(d.change)}</span>)`).join(', ') + `.</p>`;
+  }
+  if(topLosers.length){
+    html += `<p><b>Leading losses today:</b> ` + topLosers.map(d=>`${d.name} (<span class="down">${pct(d.change)}</span>)`).join(', ') + `.</p>`;
+  }
+  if(topUpContrib.length || topDownContrib.length){
+    const upPart = topUpContrib.map(c=>`${c.name} +${fmtIls(c.ils)}`).join(', ');
+    const downPart = topDownContrib.map(c=>`${c.name} -${fmtIls(c.ils)}`).join(', ');
+    html += `<p><b>Biggest ₪ swings:</b> ` + [upPart, downPart].filter(Boolean).join(' &nbsp;|&nbsp; ') + `.</p>`;
+  }
+
+  const flatCount = rows.length - withChange.length;
+  if(flatCount > 0){
+    html += `<p style="color:var(--muted)">${flatCount} holding${flatCount>1?'s':''} had no valid day-change data and were excluded from this digest.</p>`;
+  }
+
+  html += `<div style="margin-top:18px; padding-top:14px; border-top:1px dashed var(--line);">`
+        + `<p style="font-weight:600; margin-bottom:8px;">Insights</p>`
+        + buildInsights(rows, totals, withChange)
+        + `</div>`;
+
+  return html;
+}
+
+function buildInsights(rows, totals, withChange){
+  const notes = [];
+
+  // Market breadth — how many positions moved up vs down today
+  const up = withChange.filter(d=>d.change>0).length;
+  const down = withChange.filter(d=>d.change<0).length;
+  const flat = withChange.length - up - down;
+  if(withChange.length){
+    if(up > down * 1.5){
+      notes.push(`Breadth was positive today — ${up} of ${withChange.length} holdings rose versus ${down} that fell, so the gain looks broad-based rather than driven by one or two names.`);
+    } else if(down > up * 1.5){
+      notes.push(`Breadth was weak today — ${down} of ${withChange.length} holdings fell versus only ${up} that rose, suggesting a broad pullback rather than an isolated dip in one position.`);
+    } else {
+      notes.push(`Today was fairly mixed — ${up} holdings up, ${down} down${flat?`, ${flat} flat`:''} — no strong one-sided move across the book.`);
+    }
+  }
+
+  // Concentration
+  const sorted = rows.slice().sort((a,b)=>b.value-a.value);
+  const top1Pct = sorted[0] ? sorted[0].value/totals.totalValue*100 : 0;
+  const top5Pct = sorted.slice(0,5).reduce((a,d)=>a+d.value,0)/totals.totalValue*100;
+  if(top5Pct > 55){
+    notes.push(`Your top 5 holdings (${sorted.slice(0,5).map(d=>d.name).join(', ')}) make up ${top5Pct.toFixed(2)}% of the portfolio — this book is fairly concentrated at the top, so those few names will dominate how your total value moves day to day.`);
+  } else {
+    notes.push(`The top 5 holdings account for ${top5Pct.toFixed(2)}% of the portfolio, with ${sorted[0].name} the single largest position at ${top1Pct.toFixed(2)}% — reasonably spread out rather than riding on one or two names.`);
+  }
+
+  // Sector / role tilt
+  const sectorMap = {}, roleMap = {};
+  rows.forEach(d=>{
+    sectorMap[d.sector] = (sectorMap[d.sector]||0) + d.value;
+    roleMap[d.role] = (roleMap[d.role]||0) + d.value;
+  });
+  const topSector = Object.entries(sectorMap).sort((a,b)=>b[1]-a[1])[0];
+  const topRole = Object.entries(roleMap).sort((a,b)=>b[1]-a[1])[0];
+  if(topSector){
+    const sp = (topSector[1]/totals.totalValue*100).toFixed(2);
+    notes.push(`${topSector[0]} is your biggest sector tilt at ${sp}% of the book, and by role, "${topRole[0]}" is the largest single purpose at ${(topRole[1]/totals.totalValue*100).toFixed(2)}% — worth asking whether that matches how much growth-vs-stability exposure you actually want right now.`);
+  }
+
+  // Dispersion between best and worst total-return position
+  const withRet = rows.filter(d=>!isNaN(d.ret));
+  if(withRet.length){
+    const best = withRet.slice().sort((a,b)=>b.ret-a.ret)[0];
+    const worst = withRet.slice().sort((a,b)=>a.ret-b.ret)[0];
+    notes.push(`Performance since purchase is wide-ranging — ${best.name} is up ${best.ret.toFixed(2)}% while ${worst.name} is down ${Math.abs(worst.ret).toFixed(2)}%, which is normal for a diversified book but worth keeping an eye on if any single laggard has grown far past its original thesis.`);
+  }
+
+  // Overall vs today direction (resilience / consistency check)
+  if(totals.totalGain >= 0 && totals.dayGain < 0){
+    notes.push(`Even with today's dip, the portfolio is still comfortably in the green overall (+${totals.totalGainPct.toFixed(2)}% since purchase) — one red day on a winning book is rarely worth acting on by itself.`);
+  } else if(totals.totalGain < 0 && totals.dayGain >= 0){
+    notes.push(`Today's gain is a bright spot, though the portfolio is still net negative overall — worth watching whether this is a genuine turn or a single good day.`);
+  }
+
+  return notes.map(n => `<p>${n}</p>`).join('');
+}
+
+async function renderFxSparkline(){
+  const el = document.getElementById('fxSparkline');
+  if(!el) return;
+  el.innerHTML = '<span style="font-size:11px; color:var(--muted)">loading trend…</span>';
+  try{
+    const end = new Date();
+    const start = new Date(end.getTime() - 7*24*3600*1000);
+    const fmt = d => d.toISOString().slice(0,10);
+    const url = `https://api.frankfurter.dev/v1/${fmt(start)}..${fmt(end)}?base=USD&symbols=ILS`;
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const json = await res.json();
+
+    // Response shape can vary by API version — handle the common ones defensively.
+    let dates, values;
+    if(json.rates && typeof json.rates === 'object'){
+      const firstVal = Object.values(json.rates)[0];
+      if(firstVal && typeof firstVal === 'object'){
+        // { rates: { "2026-08-01": { ILS: 3.01 }, ... } }
+        dates = Object.keys(json.rates).sort();
+        values = dates.map(d => json.rates[d].ILS);
+      } else {
+        // { rates: { "2026-08-01": 3.01, ... } }
+        dates = Object.keys(json.rates).sort();
+        values = dates.map(d => json.rates[d]);
+      }
+    }
+    if(!values || values.some(v => typeof v !== 'number' || isNaN(v))){
+      throw new Error('unexpected response shape');
+    }
+    if(values.length < 2) throw new Error('not enough data');
+
+    const w = 90, h = 24, pad = 2;
+    const min = Math.min(...values), max = Math.max(...values);
+    const span = (max - min) || 1;
+    const pts = values.map((v,i) => {
+      const x = pad + (i/(values.length-1)) * (w - pad*2);
+      const y = h - pad - ((v - min)/span) * (h - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const trendUp = values[values.length-1] >= values[0];
+    const color = trendUp ? '#3b6d11' : '#a32d2d';
+    el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
+      + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`
+      + `</svg>`
+      + `<span style="font-size:11px; color:${color}; margin-left:4px;">${trendUp?'▲':'▼'} 7d</span>`;
+  } catch(e){
+    el.innerHTML = '<span style="font-size:11px; color:var(--muted)">trend unavailable</span>';
+  }
+}
+
+const whyDiffersHtml = `<b>Why this total is usually higher than the cost-weighted one</b>`
+  + `Winners grow into bigger positions <i>because</i> they performed well, so weighting by today's size gives your best performers extra influence — while shrunken losers count for less than what you actually put into them. The cost-weighted chart avoids this bias since it weights by what you originally invested, so it always matches your true realized return.`
+  + `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); color:var(--muted);">`
+  + `Example: put ₪50 into A (now +100%, worth ₪100) and ₪50 into B (now 0%, worth ₪50).<br>`
+  + `Cost-weighted: (₪50 + ₪0) \u00f7 ₪100 total cost = <b style="color:var(--ink)">+50%</b> — your actual return.<br>`
+  + `Current-weighted: A is now \u2154 of the book, B is \u2153 \u2192 (\u2154 \u00d7 100%) + (\u2153 \u00d7 0%) = <b style="color:var(--ink)">+67%</b> — inflated, because the winner's outsized current weight pulls the average up.`
+  + `</div>`;
+
+function wireInfoIcon(iconId, html){
+  const icon = document.getElementById(iconId);
+  if(!icon) return;
+  const tt = document.getElementById('customTooltip');
+  icon.addEventListener('mouseenter', ()=>{
+    tt.innerHTML = html;
+    tt.style.display = 'block';
+  });
+  icon.addEventListener('mousemove', (e)=>{
+    const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+    if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+    tt.style.left = x + 'px';
+    tt.style.top = y + 'px';
+  });
+  icon.addEventListener('mouseleave', ()=>{
+    tt.style.display = 'none';
+  });
+}
+
+wireInfoIcon('whyDiffersIcon', whyDiffersHtml);
+
+const sectorInfoHtml = `<b>Sector allocation</b>`
+  + `The standard industry classification (Technology, Financials, Healthcare, Energy, etc.) \u2014 tells you what the underlying companies actually <i>do</i>.`;
+
+const roleInfoHtml = `<b>Role group breakdown</b>`
+  + `A custom classification from your sheet describing what <i>job</i> each holding does in your strategy (Growth, Income, Core, Value, Real Assets/Infrastructure, etc.) \u2014 regardless of industry.`
+  + `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); color:var(--muted);">`
+  + `They often diverge for the same ticker \u2014 e.g. GDX is Sector: Materials, but Role Group: Commodities/Macro ("Protection Layer"); QQQ is Sector: Technology, but Role Group: Growth/Core.<br><br>`
+  + `Sector answers "what industry is this?" \u2014 Role Group answers "why do I own this?"`
+  + `</div>`;
+
+wireInfoIcon('sectorInfoIcon', sectorInfoHtml);
+wireInfoIcon('roleInfoIcon', roleInfoHtml);
+
+document.querySelectorAll('.legend-arrow').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const strip = document.getElementById(btn.dataset.target);
+    const dir = parseInt(btn.dataset.dir, 10);
+    if(strip) strip.scrollBy({left: dir * 220, behavior: 'smooth'});
+  });
+});
+
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('.seg, .legend-row, #customTooltip')){
+    const tt = document.getElementById('customTooltip');
+    if(tt) tt.style.display = 'none';
+  }
+});
+
+document.getElementById('winloseAnalysisBtn').addEventListener('click', ()=>{
+  document.getElementById('winloseInsights').classList.toggle('open');
+});
+
+document.getElementById('digestBtn').addEventListener('click', ()=>{
+  const box = document.getElementById('digestBox');
+  const isOpen = box.classList.contains('open');
+  if(isOpen){
+    box.classList.remove('open');
+  } else {
+    box.innerHTML = buildDigest();
+    box.classList.add('open');
+    renderFxSparkline();
+  }
+});
+
+const UNIVERSE_DATA = [["AIQ","Technology / Information Technology","Artificial Intelligence & Big Data","Thematic Equity ETF (AI & Technology)","Provides targeted exposure to companies developing and utilizing AI, big data, robotics, and related technologies; captures high-growth innovation in the AI ecosystem with higher volatility and beta to tech/AI sectors.","The Global X Artificial Intelligence & Technology ETF (AIQ) seeks to track the Indxx Artificial Intelligence & Big Data Index, investing in companies involved in AI development, hardware, big data analytics, and adopters across sectors. It offers a concentrated play on AI innovation rather than broad tech","Growth","Growth Engine","Fast-growing tech & AI companies","Bull markets, innovation cycles"],["ASGI","Infrastructure / Utilities / Real Assets","Global Infrastructure & Utilities Income","Income / Alternatives (Closed-End Fund - CEF)","Provides exposure to global infrastructure assets, generates income, and adds diversification through assets with lower correlation to equities and AI-driven growth sectors","ASGI (abrdn Global Infrastructure Income Fund) is a closed-end fund investing in global infrastructure companies such as utilities, transportation, energy infrastructure, and communications networks. These businesses typically generate stable cash flows and pay regular dividends. The fund may use leverage and can trade at a discount or premium to its net asset value (NAV), which makes it behave differently from traditional ETFs","Alternatives","Real Assets Layer","Infrastructure & real economy","Inflation, low correlation periods"],["BAM","Financials / Asset Management","Alternative Asset Management (Real Assets & Infrastructure)","Financial / Alternatives","Exposure to a leading global alternative asset manager with focus on infrastructure, real estate, renewable power, private equity, and credit; benefits from long-term capital deployment and fee-based revenue stability","Brookfield Asset Management Ltd. (BAM) is a major global alternative asset manager with over $1 trillion in AUM, specializing in infrastructure, real assets, private equity, and credit strategies. It serves institutional and high-net-worth clients with a focus on value creation in real assets","Alternatives","Alternative Asset Manager","Invests in real assets like infrastructure, real estate, and private equity","Inflation, long-term capital growth"],["BLK","Financials / Asset Management","Global Asset Management & ETFs","Large-Cap Financial Stock","Provides exposure to the world's largest asset manager, benefiting from scale in ETFs (iShares), index funds, and advisory services; steady fee income with growth tied to overall market AUM expansion.","BlackRock, Inc. (BLK) is a leading investment management firm offering a wide range of products including iShares ETFs, mutual funds, and risk management solutions. It manages trillions in assets across equities, fixed income, and alternatives for institutional and retail clients","Financial System","Market Infrastructure","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["BN","Technology / Industrials","Multi-Asset Alternative Investments & Operating Businesses","Diversified Holding Company","Broad exposure to Brookfield's asset management platform plus operating businesses in real assets; complements BAM with ownership in infrastructure and other hard assets","Brookfield Corporation (BN) is a global investment firm focused on asset management, wealth solutions, and operating businesses in infrastructure, renewable power, real estate, and private equity. It holds significant ownership in Brookfield Asset Management","Real Assets / Infrastructure","Diversified Holding Platform","Owns real assets and operating businesses across sectors","Economic growth, real asset cycles"],["BOTZ","Technology","Robotics & Artificial Intelligence","Thematic Growth ETF","Captures growth from automation, robotics adoption, and AI integration in manufacturing, logistics, and other sectors; higher growth potential with tech/industrial cyclicality","The Global X Robotics & Artificial Intelligence ETF (BOTZ) invests in companies involved in robotics, automation, AI, and autonomous vehicles, tracking the Indxx Global Robotics & Artificial Intelligence Thematic Index","Growth","Growth Engine","Fast-growing tech & AI companies","Bull markets, innovation cycles"],["BRK.B","Financials / Insurance & Diversified Holdings","Value Investing & Conglomerate","Diversified Holding Company","Long-term core holding for stability, insurance float leverage, and diversified exposure across insurance, railroads, utilities, manufacturing, and more; acts as a defensive equity with low correlation in some cycles","Berkshire Hathaway Inc. (BRK.B) is a multinational conglomerate, with major operations in insurance, utilities/energy (Berkshire Hathaway Energy), railroads (BNSF), and a wide array of manufacturing, retail, and service businesses","Value / Diversified","Conglomerate Compounder","Diversified insurance-led conglomerate","Economic growth, rising rates"],["CEG","Utilities","Clean Energy / Nuclear Power","Utility Stock (Independent Power Producer)","Exposure to reliable energy generation with growing demand for carbon-free power (nuclear, renewables); benefits from data center/AI electricity demand and provides income/dividends with defensive characteristics","Constellation Energy Corporation (CEG) is a major U.S. producer of clean, carbon-free energy, operating a large fleet of nuclear, hydro, wind, and solar assets while supplying energy products and services nationwide","Commodities / Real Assets","Broad Commodity Exposure","The main \"raw materials\" building block of the portfolio.","During periods of high inflation, supply disruptions, or when traditional stocks and bonds fall together (commodities often rise in those environments)"],["CGGO","Global Equities (Growth)","Global Large-Cap Growth","Active Global Growth Equity ETF","Actively managed exposure to high-growth companies worldwide (U.S. + international).","Actively managed by Capital Group. Seeks long-term capital growth by investing in companies around the world that the managers believe have strong growth potential. Typically holds a mix of U.S. and non-U.S. stocks (often ~50/50), with a heavy tilt toward technology and semiconductors (TSMC, Micron, SK Hynix, Broadcom, ASML, etc.).","Growth / Global","Active Global Growth Engine","An active global version of a growth portfolio that includes both U.S. and international leaders.","When global growth stocks (especially tech/semiconductors) outperform, and when active management adds value over pure index funds"],["COIN","Financials / Technology","Cryptocurrency Exchange & Digital Asset Platform","Speculative Growth Stock (Fintech / Crypto)","High-risk, high-reward exposure to the cryptocurrency ecosystem through the leading U.S. crypto exchange and digital asset platform","Coinbase Global is the largest U.S.-based cryptocurrency exchange. It provides trading, custody, staking, and institutional services for crypto assets, and has expanded into equities, prediction markets, and on-chain infrastructure. Revenue is heavily tied to crypto trading volumes and market activity","Speculative / Thematic","Crypto Ecosystem Play","A pure-play bet on the growth of cryptocurrency adoption and trading activity","Rising crypto prices, increased trading volumes, regulatory clarity favorable to crypto, and periods of strong retail/institutional demand for digital assets"],["COWZ","Equities (Broad Market / Value)","High Free Cash Flow / Quality Value","Smart Beta / Factor ETF (Large/Mid-Cap Value)","Focuses on high-quality U.S. companies with strong free cash flow yields (\"cash cows\"); provides value tilt, lower volatility, and potential downside protection relative to growth-heavy indices","The Pacer US Cash Cows 100 ETF (COWZ) selects and weights the top 100 large/mid-cap U.S. companies from the Russell 1000 based on high free cash flow yields using a rules-based methodology","Real Assets / Income","Broad REIT Exposure","The main \"real estate\" building block of the portfolio","During periods of moderate inflation, when real estate performs well, or when you want more income and lower correlation to pure tech stocks"],["CRNT","Technology / Communication Equipment","Wireless Networks / 5G Backhaul","Small-cap / Speculative","Niche exposure to wireless transport solutions for mobile networks and private networks; growth tied to 4G/5G/6G infrastructure rollout, particularly in emerging markets","Ceragon Networks Ltd. (CRNT) provides wireless backhaul and fronthaul solutions, including IP-based products for mobile network operators and private networks, supporting high-capacity data transport globally","Energy & Resources","Clean Energy Producer","Oil, gas, nuclear energy","Inflation, energy demand growth"],["DBC","Commodities","Broad Commodities (Energy, Metals, Agriculture)","Broad Commodity ETF (Futures-Based)","Provides diversified exposure to physical commodities as an inflation hedge and portfolio diversifier.","The Invesco DB Commodity Index Tracking Fund (DBC) tracks the DBIQ Optimum Yield Diversified Commodity Index Excess Return, offering broad exposure to 14 commodities across energy (crude oil, natural gas), precious and industrial metals (gold, silver, copper), and agriculture (corn, soybeans, wheat). It uses futures contracts to track commodity prices.","Value","Balance Layer","Cheap, strong companies","When growth slows / rotation to value"],["DBMF","Alternatives / Managed Futures","Trend-Following / Managed Futures","Alternative Strategy ETF (Managed Futures)","Acts as a non-correlated diversifier and volatility stabilizer that can perform well when traditional stocks and bonds struggle","The iMGP DBi Managed Futures Strategy ETF (DBMF) is an actively managed ETF that seeks to deliver returns similar to top managed futures hedge funds by using systematic trend-following strategies across commodities, currencies, interest rates, and equity indices. It provides broad commodity exposure with low correlation to traditional assets","Speculative","Optional Upside","Small, high-risk idea","Only if it succeeds (high risk)"],["DYNF","Equities (U.S. Large & Mid Cap)","Multi-Factor Rotation (Value, Quality, Momentum, Size, Growth, Min Volatility)","Active Equity ETF (Factor-Based)","Actively rotates exposure across different equity style factors in an attempt to outperform the broad U.S. equity market by emphasizing factors that currently have favorable tailwinds","The iShares U.S. Equity Factor Rotation Active ETF (DYNF) is an actively managed fund that dynamically allocates across historically rewarded style factors (value, quality, momentum, size, growth, and minimum volatility). It invests primarily in large- and mid-capitalization U.S. stocks selected by BlackRock's proprietary factor rotation model","Growth / Active Core","Factor Rotation Engine","An active fund that tries to shift between different stock styles (value, momentum, quality, etc.) depending on what is working in the market","When factor leadership rotates (e.g., from growth to value or momentum), and when active factor timing successfully captures shifting market regimes"],["ENB","Energy","Midstream Energy Infrastructure (Pipelines & Utilities)","Energy Infrastructure Stock (Dividend Growth)","Provides stable income and exposure to North American energy transportation infrastructure (oil & natural gas pipelines, gas utilities, and some renewables) with lower volatility than pure upstream energy companies","Enbridge is one of North America's largest energy infrastructure companies. It operates extensive liquids (crude oil) and natural gas pipeline systems, natural gas utilities, and has a growing renewable power portfolio. The company generates the majority of its cash flow from long-term, fee-based contracts, making it relatively defensive within the energy sector","Real Assets / Infrastructure / Income","Midstream Energy Ballast","A high-quality pipeline and energy delivery company that pays a solid dividend","Rising energy demand, stable or rising commodity volumes, periods when investors seek income and lower-volatility energy exposure, and as a diversifier against pure upstream oil & gas stocks"],["FIGB","Fixed Income","Investment-Grade Bonds","Bond ETF (Core / Intermediate)","Core fixed-income holding for income, diversification from equities, and ballast during risk-off periods; lower duration risk than long bonds","The Fidelity Investment Grade Bond ETF (FIGB) seeks high current income by investing primarily in investment-grade debt securities of varying maturities, including corporate bonds","Income","Income Engine","Generates dividends & interest","Stability, sideways markets"],["FRFHF","Financials / Insurance","Property & Casualty Insurance & Investments","Insurance Holding Company (International)","Exposure to a value-oriented insurance and reinsurance operator with significant investment portfolio; opportunistic underwriting and equity-like returns from investments","Fairfax Financial Holdings Ltd. (FRFHF) is a Canadian holding company engaged in property, casualty, and life insurance/reinsurance, along with investment management, known for its concentrated value investing approach","Financial System","Insurance Compounder","Insurance company investing premiums into long-term assets","Stable growth, market volatility"],["GDX","Materials / Precious Metals","Gold Mining","Commodity Equity ETF","Leveraged exposure to gold prices via miners; acts as an inflation hedge, safe-haven, and diversifier with higher volatility and beta to gold","The VanEck Gold Miners ETF (GDX) tracks companies primarily involved in gold (and silver) mining, providing equity exposure to the gold mining industry","Commodities / Macro","Protection Layer","Gold & metals exposure","Inflation, crisis, uncertainty"],["GLD","Commodities","Gold / Precious Metals","Commodity ETF (Physical Gold)","Direct exposure to physical gold prices for inflation protection, currency hedging, and portfolio diversification; lower volatility than mining equities","SPDR Gold Shares (GLD) is a physically backed ETF that holds gold bullion, aiming to track the price of gold (less expenses), making it a convenient way to invest in gold without physical storage","Commodities / Macro","Protection Layer","Gold & metals exposure","Inflation, crisis, uncertainty"],["GS","Financials / Capital Markets","Investment Banking & Markets","Large-Cap Investment Bank","Exposure to global investment banking, trading, asset/wealth management; benefits from M&A activity, capital markets, and economic cycles","The Goldman Sachs Group, Inc. (GS) is a leading global investment banking, securities, and investment management firm offering services across banking, markets, and asset management","Financial System","Investment & Commercial Banking","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["IBI.F35","Financials (Banks / Financial Sector)","Israeli banking sector exposure (concentrated on major Israeli banks)","Equity ETF – Sector-specific (Banks), Passive index tracker","Provides targeted exposure to the Israeli banking industry for diversification within the financial sector or as a tactical bet on domestic banks/economy. Higher volatility and sector concentration compared to broad market ETFs","This is a passive ETF that seeks to replicate the performance of the Tel Aviv Bankim5 Index (TA-Banks5) by investing primarily in the largest Israeli banks. It offers cost-efficient access to the Israeli financial sector (TER around 0.65%). Listed on TASE, traded in ILS, physical replication","Local Market (Israel)","Domestic Exposure","Israeli economy & banks","Local growth / diversification"],["IBI.FK4","Broad Market / Multi-Sector (Large Cap Israeli equities)","Kosher-compliant (Sharia/kosher screened) broad Israeli equity market","Equity ETF – Broad Market / Large Cap, Passive index tracker (Kosher version)","Core holding for broad exposure to the Israeli large-cap equity market with kosher compliance. Suitable for diversified domestic equity allocation, often used as a benchmark-like component. Lower concentration risk than sector ETFs","This passive ETF aims to track the TA-125 Index (with kosher filtering) by holding a portfolio of large-cap Israeli companies. It provides comprehensive exposure to the Israeli stock market in a kosher-compliant format (TER around 0.18%). Listed on TASE, traded in ILS, physical replication. Launched around late 2018","Local Market (Israel)","Domestic Exposure","Israeli economy & banks","Local growth / diversification"],["IVV","Equities (Broad Market)","U.S. Large-Cap","Broad Market ETF (S&P 500)","Core U.S. equity holding for market-beta exposure; low-cost, tax-efficient way to capture overall U.S. large-cap performance","iShares Core S&P 500 ETF (IVV) seeks to track the S&P 500 Index, providing exposure to 500 leading U.S. large-cap companies across sectors","Core","Market Foundation","Own the whole U.S. market","Always — long-term growth"],["IXJ","Healthcare","Global Healthcare","Sector Equity ETF (Global)","Provides diversified exposure to healthcare companies worldwide, combining U.S. giants with international pharmaceutical and healthcare names for broader geographic diversification within the sector","The iShares Global Healthcare ETF tracks a global healthcare index and invests in companies involved in pharmaceuticals, biotechnology, healthcare equipment, providers, and related services across both developed and some emerging markets. It includes major U.S. holdings (Eli Lilly, Johnson & Johnson, AbbVie, UnitedHealth, etc.) plus significant international names such as Roche, Novartis, AstraZeneca, Novo Nordisk, and Sanofi","Defensive Growth / Sector","Global Healthcare Layer","A worldwide version of a healthcare sector fund","Periods of healthcare innovation, aging demographics, defensive market environments, and when investors want international diversification beyond pure U.S. healthcare exposure (such as XLV)"],["JEPI","Equities (U.S. Large Cap)","Covered-Call / Equity Premium Income","Active Equity Income ETF (Derivative Income)","Generates high monthly income while providing equity market exposure with lower volatility than a pure S&P 500 investment","JPMorgan Equity Premium Income ETF is an actively managed fund that holds a diversified portfolio of U.S. large-cap stocks and systematically sells call options (via equity-linked notes) on the S&P 500 to generate option premiums. The strategy aims to deliver monthly income and reduce volatility compared to the broader equity market, while still participating in a portion of upside","Income / Defensive Growth","Equity Income Generator","A lower-volatility stock portfolio that pays high monthly dividends by selling call options","Sideways or moderately rising markets, periods when investors prioritize income and reduced volatility over maximum capital growth, and as a complement to pure growth holdings"],["JPM","Financials / Banking","Global Banking & Consumer Finance","Large-Cap Bank Stock","Exposure to a leading U.S. bank with diversified revenue from consumer, corporate, and investment banking; benefits from interest rates and economic growth","JPMorgan Chase & Co. (JPM) is one of the largest banks in the U.S., offering banking, asset management, and investment services globally","Financial System","Investment & Commercial Banking","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["L","Financials / Insurance & Diversified","Property & Casualty / Energy Infrastructure","Diversified Holding Company","Stable insurance operations plus holdings in energy (e.g., pipelines) and hotels; value-oriented with lower volatility","Loews Corporation (L) is a diversified holding company with subsidiaries in insurance (CNA Financial), energy infrastructure, and lodging","Insurance / Diversified","Insurance Compounder","Diversified holding company with insurance and real assets","Economic growth, rising rates"],["MCO","Financials / Capital Markets","Credit Ratings & Analytics","Financial Data & Analytics Stock","High-quality growth from essential credit rating services and data analytics; recurring revenue with strong margins","Moody's Corporation (MCO) provides credit ratings, research, and analytics tools for financial markets and risk assessment","Financial System","Credit Ratings & Analytics","Credit ratings and financial analytics business","Economic growth, rising rates"],["MKL","Financials / Insurance","Specialty Insurance & Investments","Insurance Stock","Exposure to a value-driven insurer with significant investment portfolio; focuses on underwriting discipline and long-term compounding","Markel Group Inc. (MKL) operates as a specialty insurance company with a large investment portfolio, often compared to a mini-Berkshire Hathaway","Financial System","Insurance Compounder","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["MS","Financials / Capital Markets","Investment Banking & Wealth Management","Large-Cap Investment Bank","Diversified financial services with strength in wealth management and institutional trading.","Morgan Stanley (MS) is a global financial services firm providing investment banking, securities, wealth management, and investment management services","Financial System","Investment & Commercial Banking","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["MSCI","Financials / Capital Markets","Index Provider & Analytics","Financial Data & Analytics Stock","High-margin, recurring revenue from index licensing and ESG/analytics tools; benefits from ETF and passive investing growth","MSCI Inc. (MSCI) is a leading provider of investment decision support tools, including global equity indices used by ETFs and institutional investors","Financial System","Market Infrastructure","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["O","Real Estate","Retail / Commercial REIT","Equity REIT","Monthly dividend income from single-tenant commercial properties; defensive real estate with retail and essential services focus","Realty Income Corporation (O) is a REIT specializing in single-tenant commercial real estate, known as \"The Monthly Dividend Company.\"","Real Estate","Income REIT","Owns properties and pays monthly rent income","Income generation, stable markets"],["OWL","Financials / Asset Management","Alternative Investments (Credit & GP Stakes)","Alternative Asset Manager","Exposure to growing alternatives platform with focus on direct lending and GP stakes; fee income stability","Blue Owl Capital Inc. (OWL) is an alternative asset manager focused on credit, GP strategic capital, and real estate strategies","Real Assets / Infrastructure","Alternative Credit Platform","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["PFF","Fixed Income / Hybrids","Preferred Stocks","Preferred Stock ETF","Higher-yielding income from preferred securities; hybrid equity/fixed income characteristics with some rate sensitivity","iShares Preferred and Income Securities ETF (PFF) provides exposure to U.S. preferred stocks and hybrid securities for income generation","Income","Income Engine","Generates dividends & interest","Stability, sideways markets"],["POWR","Utilities / Industrials / Energy Infrastructure","U.S. Power Infrastructure (Generation, Transmission, Distribution & Equipment)","Infrastructure / Thematic Equity ETF","Provides targeted exposure to companies building and operating the U.S. electricity grid and power systems, benefiting from rising electricity demand driven by AI data centers, electrification, and grid modernization","The iShares U.S. Power Infrastructure ETF tracks an index of U.S. companies involved in the power infrastructure value chain. It includes utilities, electrical equipment manufacturers, construction & engineering firms, and related energy companies. Typical top holdings include GE Vernova, Eaton, Quanta Services, NextEra Energy, Southern Company, Duke Energy, and Constellation Energy","Real Assets / Infrastructure","Power Infrastructure Layer","Plays the \"electrification + AI power demand\" theme across utilities and industrial suppliers.","Rising electricity demand, grid modernization spending, AI data-center buildout, and periods when utilities and power-related industrials outperform pure growth stocks"],["QNDX","Equities (Tech-Heavy)","Nasdaq-100 / Large-Cap Growth","Broad Market ETF (Nasdaq-100)","Low-cost core holding for exposure to leading non-financial Nasdaq companies, serving as a high-growth engine.","The State Street SPDR Portfolio Nasdaq 100 ETF (QNDX) seeks to track the performance of the Nasdaq-100 Index, providing exposure to 100 of the largest non-financial companies listed on Nasdaq. It offers similar exposure to QQQ but at a lower expense ratio.","Growth / Core","Nasdaq-100 Core","A cheaper version of your QQQ holding for big tech and growth companies","In strong bull markets driven by technology and innovation, or when you want to reduce fees on your Nasdaq exposure without changing the underlying investments"],["QQQ","Equities (Tech-Heavy)","Nasdaq-100 / Large-Cap Growth","Broad Market ETF (Nasdaq-100)","Core high-growth holding providing concentrated exposure to leading technology and innovative companie","Invesco QQQ Trust (QQQ) tracks the Nasdaq-100 Index, representing the largest 100 non-financial companies on Nasdaq","Growth / Core","Nasdaq-100 Growth Engine","Main engine for fast-growing big tech and innovation companies","During bull markets, periods of technological advancement, and when innovation leaders outperform the broader market"],["QTUM","Technology / Equities","Quantum Computing & AI/Machine Learning","Thematic ETF","Niche exposure to quantum computing, AI, and machine learning enablers; high-growth speculative thematic play","Defiance Quantum ETF (QTUM) invests in companies involved in quantum computing, machine learning, and related technologies","Growth","Growth Engine","Fast-growing tech & AI companies","Bull markets, innovation cycles"],["RTH","Consumer Discretionary","Retail / Consumer Staples","Sector ETF (Retail)","Targeted exposure to retail sector companies, including e-commerce and traditional retailers","VanEck Retail ETF (RTH) tracks companies primarily engaged in retail activities","Consumer Exposure","Demand Layer","Retail & essential consumption","Strong economy / recession protection (XLP)"],["SCHD","Equities (U.S. Large-Cap)","Dividend Growth / Quality","Dividend ETF","High-quality dividend-paying U.S. companies for income and relative stability; value/dividend factor exposure","Schwab U.S. Dividend Equity ETF (SCHD) tracks the Dow Jones U.S. Dividend 100 Index, focusing on high dividend yield and quality metrics","Income","Income Engine","Generates dividends & interest","Stability, sideways markets"],["SCHY","Equities (International)","International Dividend","International Dividend ETF","Diversified ex-U.S. developed markets exposure with a focus on dividends for income and international diversification","Schwab International Dividend Equity ETF (SCHY) provides exposure to high-dividend-paying companies in international developed markets","Global","Global Diversifier","Companies outside the U.S.","When US underperforms"],["SIVR","Commodities","Silver","Commodity ETF (Physical Silver)","Direct silver price exposure as an industrial/precious metal hedge; complements gold holdings","abrdn Physical Silver Shares ETF (SIVR) tracks the price of physical silver bullion","Commodities / Macro","Protection Layer","Gold & metals exposure","Inflation, crisis, uncertainty"],["SMH","Technology / Semiconductors","Semiconductors","Sector ETF","Concentrated bet on semiconductor industry growth, driven by AI, computing, and electronics demand","VanEck Semiconductor ETF (SMH) tracks companies involved in semiconductor production and equipment","Growth","Growth Engine","Fast-growing tech & AI companies","Bull markets, innovation cycles"],["SPGI","Financials / Capital Markets","Financial Data, Ratings & Indices","Financial Information Services","Essential market infrastructure business with strong moats in ratings (S&P), indices, and data","S&P Global Inc. (SPGI) provides credit ratings, benchmarks, data, and analytics through brands like S&P Ratings and Dow Jones","Financial System","Market Infrastructure","Banks, asset managers, financial infrastructure","Economic growth, rising rates"],["SPY","Equities (Broad Market)","U.S. Large-Cap","Broad Market ETF (S&P 500)","The original and most liquid S&P 500 ETF for core U.S. equity market exposure","SPDR S&P 500 ETF Trust (SPY) tracks the S&P 500 Index","Core","Market Foundation","Own the whole U.S. market","Always — long-term growth"],["TCAF","Equity (U.S.)","Active Core Allocation / Multi-Factor Equity","Active ETF (Core / Factor Blended)","Complements passive core holdings by providing actively managed exposure to U.S. equities, aiming to enhance returns through factor tilts and tactical positioning while maintaining broad market alignment","TCAF (Taft Capital Alpha ETF) is an actively managed ETF that seeks to outperform the broad U.S. equity market through a combination of factor-based investing and tactical allocation. It typically incorporates exposure to factors such as value, quality, and momentum, while maintaining diversification similar to major benchmarks like the S&P 500. Unlike passive ETFs (VOO/SPY), TCAF allows for strategic adjustments based on market conditions, making it a flexible complement to your core holdings","Active Layer","Alpha Layer","Active management","When active strategy outperforms"],["URA","Materials / Energy","Uranium / Nuclear Energy","Commodity Equity ETF","Exposure to uranium mining and nuclear fuel cycle companies; thematic play on nuclear renaissance and clean energy","Global X Uranium ETF (URA) invests in companies involved in uranium mining, exploration, and production.","Energy & Resources","Real Economy Layer","Oil, gas, nuclear energy","Inflation, energy demand growth"],["VB","Equities","U.S. Small-Cap","Small-Cap ETF","Diversified small-cap U.S. equity exposure for growth and higher potential returns (with higher risk)","Vanguard Small-Cap ETF (VB) tracks the CRSP US Small Cap Index","Small / Mid Cap","Size Diversifier","Smaller companies","Early economic recovery"],["VCSH","Fixed Income","Short-Term Corporate Bonds","Short-Term Bond ETF","High-quality short-duration corporate bonds for income with lower interest rate risk","Vanguard Short-Term Corporate Bond ETF (VCSH) invests in investment-grade corporate bonds with short maturities","Income","Income Engine","Generates dividends & interest","Stability, sideways markets"],["VFVA","Equities","U.S. Value Factor","Factor ETF (Value)","Targeted value factor exposure within U.S. equities for potential outperformance in value regimes","Vanguard U.S. Value Factor ETF (VFVA) uses a factor-based approach to select undervalued U.S. stocks","Value","Balance Layer","Cheap, strong companies","When growth slows / rotation to value"],["VGHY","Fixed Income","Global High-Yield Bonds","High-Yield Bond ETF","Higher income from global high-yield debt with increased credit risk","Provides exposure to higher-yielding bonds globally","Income","Global High-Yield Credit","Lower-rated bonds with higher interest payments","Income-focused markets, low-rate environments"],["VNQ","Real Estate","U.S. Real Estate Investment Trusts (REITs)","Equity REIT ETF","Provides broad exposure to the U.S. real estate market and acts as an income-generating real asset diversifier","The Vanguard Real Estate ETF (VNQ) tracks the MSCI US Investable Market Real Estate 25/50 Index, offering diversified exposure to U.S. REITs across sectors including residential, retail, office, industrial, healthcare, and data centers. It delivers relatively high dividend income and serves as an inflation hedge","International Diversification","Emerging Markets Core","Exposure to the \"rest of the world's growth story\" (especially Asia)","When emerging markets outperform developed markets, during periods of U.S. dollar weakness, or when you want true global diversification beyond U.S. and European stocks"],["VO","Equities","U.S. Mid-Cap","Mid-Cap ETF","Balanced mid-cap U.S. equity exposure between small and large caps","Vanguard Mid-Cap ETF (VO) tracks the CRSP US Mid Cap Index","Small / Mid Cap","Size Diversifier","Smaller companies","Early economic recovery"],["VOO","Equities (Broad Market)","U.S. Large-Cap","Broad Market ETF (S&P 500)","Low-cost core S&P 500 exposure, highly similar to SPY/IVV","Vanguard S&P 500 ETF (VOO) tracks the S&P 500 Index","Alternatives / Hedge","Portfolio Stabilizer & Commodity Hedge","The \"crisis hedge / diversification engine\" of the portfolio","During high inflation, rising interest rates, market crashes, or periods of high volatility when stocks and bonds fall together"],["VTV","Equities","U.S. Large-Cap Value","Value ETF","Large-cap value tilt for income and defensive characteristics","Vanguard Value ETF (VTV) tracks large-cap value stocks in the CRSP US Large Cap Value Index","Core","Market Foundation","Own the whole U.S. market","Always — long-term growth"],["VWO","Equities (International)","Emerging Markets","Emerging Markets ETF","Adds dedicated exposure to faster-growing economies outside the developed world, improving geographic diversification","The Vanguard FTSE Emerging Markets ETF (VWO) tracks the FTSE Emerging Markets All Cap China A Inclusion Index, providing broad exposure to large, mid, and small-cap stocks in emerging markets including China, India, Taiwan, Brazil, and others. It offers higher long-term growth potential than developed markets with increased volatility","Value","Balance Layer","Cheap, strong companies","When growth slows / rotation to value"],["VXUS","Equities (International)","International / Ex-U.S.","International Stock ETF","Broad developed and emerging markets ex-U.S. equity diversification","Vanguard Total International Stock ETF (VXUS) provides exposure to stocks outside the U.S.","Global","Global Diversifier","Companies outside the U.S.","When US underperforms"],["VYMI","International Equities","International High Dividend Yield","International Equity Income ETF","Provides diversified exposure to high-dividend-paying companies outside the United States (developed and emerging markets), increasing geographic diversification and generating higher income","The Vanguard International High Dividend Yield ETF tracks the FTSE All-World ex US High Dividend Yield Index. It holds a large number of international stocks (approximately 1,500–1,600) expected to pay above-average dividends. The portfolio is heavily weighted toward Financials, with significant exposure to Europe, Japan, Canada, Australia, and some Emerging Markets. It has a very low expense ratio of 0.07%","Income / International","International Dividend Layer","A low-cost fund focused on higher-yielding stocks from outside the U.S.","When international markets outperform U.S. equities, during periods favoring value and dividend stocks, and when investors seek additional income and geographic diversification"],["WPC","Real Estate","Diversified Net-Lease REIT (Industrial, Warehouse, Retail)","Real Estate Investment Trust (REIT) – Income","Provides high-quality real estate exposure and reliable dividend income with built-in rent escalations, filling the significant real estate gap in the portfolio","W. P. Carey is one of the largest diversified net-lease REITs. It owns a large portfolio of single-tenant, operationally critical commercial properties (primarily industrial, warehouse, and retail) located in the U.S. and Europe. Properties are leased under long-term net leases that typically include contractual rent increases, generating stable and growing cash flow","Real Assets / Income","Real Estate Income Core","A high-quality landlord that collects steady, rising rents from long-term commercial tenants","Periods of inflation (due to rent escalations), rising interest-rate environments that favor quality REITs, and when investors seek diversification away from pure equities with dependable income"],["XAR","Industrials / Defense","Aerospace & Defense","Sector ETF","Exposure to defense contractors and aerospace, benefiting from government spending and geopolitical tensions","SPDR S&P Aerospace & Defense ETF (XAR) tracks U.S. aerospace and defense companies","Defense / Industrial","Geopolitical Hedge","Aerospace & defense companies","War, geopolitical tension, rising defense budgets"],["XLE","Energy","Oil & Gas / Energy Producers","Sector ETF (Cyclical / Commodity-Linked)","Provides exposure to the energy sector and commodity cycles, benefiting from rising oil and gas prices while adding diversification tied to inflation and macroeconomic conditions","XLE (Energy Select Sector SPDR Fund) tracks major U.S. energy companies such as ExxonMobil and Chevron. The ETF is heavily influenced by oil and gas prices and tends to perform well during periods of inflation, supply constraints, or strong global demand for energy. It offers high cash flow industries but is cyclical and sensitive to commodity price fluctuations","Energy & Resources","Real Economy Layer","Oil, gas, nuclear energy","Inflation, energy demand growth"],["XLP","Consumer Staples","Defensive Consumer Goods / Essential Spending","Sector ETF (Defensive / Dividend-Oriented)","Provides stability during economic downturns by investing in companies that produce essential goods, helping reduce volatility and maintain steady performance","XLP (Consumer Staples Select Sector SPDR Fund) focuses on companies like Procter & Gamble, Coca-Cola, and Walmart. These businesses sell everyday products with consistent demand, making the ETF resilient in recessions. It typically offers moderate dividend income and lower volatility compared to the broader market","Consumer Exposure","Demand Layer","Retail & essential consumption","Strong economy / recession protection (XLP)"],["XLU","Utilities","Electricity / Water / Regulated Utilities","Sector ETF (Defensive / Income)","Adds stability and income through regulated utility companies, often acting as a low-volatility component and partial bond substitute","XLU (Utilities Select Sector SPDR Fund) invests in utility companies that provide essential services like electricity and water. These firms generate stable cash flows and pay consistent dividends. The ETF is sensitive to interest rates but performs well during market stress due to its defensive nature","Utilities / Defensive","Utilities Stability","Essential services & healthcare","Market downturns"],["XLV","Healthcare","Pharmaceuticals / Biotechnology / Healthcare Services","Sector ETF (Defensive Growth)","Provides a balance between stability and growth through exposure to healthcare innovation and essential medical services","XLV (Health Care Select Sector SPDR Fund) includes major healthcare companies like Johnson & Johnson, UnitedHealth, and Pfizer. It combines defensive characteristics (non-cyclical demand) with long-term growth potential driven by innovation, demographics, and increasing healthcare demand","Utilities / Defensive","Healthcare Stability","Essential services & healthcare","Market downturns"]];
+
+const UNIVERSE_BY_TICKER = {};
+UNIVERSE_DATA.forEach(d=>{
+  UNIVERSE_BY_TICKER[d[0]] = {sector:d[1], subtheme:d[2], category:d[3]};
+});
+
+const UNIVERSE_COLS = [
+  {key:'ticker', label:'Ticker', type:'text'},
+  {key:'name', label:'Name', type:'text'},
+  {key:'sector', label:'Sector', type:'text'},
+  {key:'subtheme', label:'Sub Theme', type:'text'},
+  {key:'category', label:'Category', type:'text'},
+  {key:'roleInPortfolio', label:'Role in Portfolio', type:'text'},
+  {key:'overview', label:'Overview', type:'text'},
+  {key:'roleGroup', label:'Role Group', type:'text'},
+  {key:'roleName', label:'Role Name', type:'text'},
+  {key:'simpleMeaning', label:'Simple Meaning', type:'text'},
+  {key:'whenItHelps', label:'When It Helps', type:'text'}
+];
+const universeRows = UNIVERSE_DATA.map(d => ({
+  ticker:d[0], name: TICKER_NAME_MAP[d[0]] || '', sector:d[1], subtheme:d[2], category:d[3], roleInPortfolio:d[4],
+  overview:d[5], roleGroup:d[6], roleName:d[7], simpleMeaning:d[8], whenItHelps:d[9]
+}));
+let universeSort = {key:'ticker', dir:1};
+let universeFilter = '';
+
+function fmtUniverseCell(v, type){
+  if(v === null || v === undefined || v === '') return '—';
+  if(type === 'num') return typeof v === 'number' ? v.toLocaleString('en-US',{maximumFractionDigits:2}) : v;
+  return v;
+}
+
+function renderUniverseTable(){
+  const theadRow = document.querySelector('#universeTable thead tr');
+  theadRow.innerHTML = UNIVERSE_COLS.map(c =>
+    `<th data-key="${c.key}" class="${universeSort.key===c.key?'sorted':''}">${c.label}${universeSort.key===c.key ? (universeSort.dir===1?' ▲':' ▼') : ''}</th>`
+  ).join('');
+
+  const q = universeFilter.trim().toLowerCase();
+  const filtered = q ? universeRows.filter(r => r.ticker.toLowerCase().includes(q)) : universeRows;
+
+  const sorted = filtered.slice().sort((a,b)=>{
+    let av = a[universeSort.key], bv = b[universeSort.key];
+    if(av === null) return 1;
+    if(bv === null) return -1;
+    if(typeof av === 'string') return av.localeCompare(bv) * universeSort.dir;
+    return (av - bv) * universeSort.dir;
+  });
+
+  const tbody = document.querySelector('#universeTable tbody');
+  if(!sorted.length){
+    tbody.innerHTML = `<tr><td colspan="${UNIVERSE_COLS.length}" style="text-align:center; color:var(--muted); padding:24px;">No tickers match "${universeFilter}"</td></tr>`;
+  } else {
+    tbody.innerHTML = sorted.map(r => {
+      return '<tr>' + UNIVERSE_COLS.map(c => {
+        const cls = c.type==='num' ? 'num' : (c.key==='ticker' ? 'ticker' : '');
+        return `<td class="${cls}" data-col="${c.key}">${fmtUniverseCell(r[c.key], c.type)}</td>`;
+      }).join('') + '</tr>';
+    }).join('');
+  }
+
+  theadRow.querySelectorAll('th').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const key = th.dataset.key;
+      if(universeSort.key === key){ universeSort.dir *= -1; }
+      else { universeSort = {key, dir:1}; }
+      renderUniverseTable();
+    });
+  });
+}
+
+document.getElementById('universeSearch').addEventListener('input', (e)=>{
+  universeFilter = e.target.value;
+  renderUniverseTable();
+});
+
+document.getElementById('universeBtn').addEventListener('click', ()=>{
+  renderUniverseTable();
+  document.getElementById('universeModal').classList.add('open');
+});
+document.getElementById('netWorthBtn').addEventListener('click', openNetWorthDetail);
+document.getElementById('marketDetailClose').addEventListener('click', closeMarketDetail);
+document.getElementById('marketDetailModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'marketDetailModal') closeMarketDetail();
+});
+
+document.getElementById('universeClose').addEventListener('click', ()=>{
+  document.getElementById('universeModal').classList.remove('open');
+  document.getElementById('universeCard').classList.remove('maximized');
+  document.getElementById('universeModal').classList.remove('maximized-open');
+  document.getElementById('universeMaximize').textContent = '⛶';
+});
+document.getElementById('universeMaximize').addEventListener('click', ()=>{
+  const card = document.getElementById('universeCard');
+  const modal = document.getElementById('universeModal');
+  const isMax = card.classList.toggle('maximized');
+  modal.classList.toggle('maximized-open', isMax);
+  document.getElementById('universeMaximize').textContent = isMax ? '🗗' : '⛶';
+  document.getElementById('universeMaximize').title = isMax ? 'Restore' : 'Maximize';
+});
+document.getElementById('universeModal').addEventListener('click', (e)=>{
+  if(e.target.id === 'universeModal'){
+    document.getElementById('universeModal').classList.remove('open');
+    document.getElementById('universeCard').classList.remove('maximized');
+    document.getElementById('universeModal').classList.remove('maximized-open');
+    document.getElementById('universeMaximize').textContent = '⛶';
+  }
+});
+</script>
+</body>
+</html>
