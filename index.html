@@ -569,12 +569,13 @@
 <script>
 const SHEET_ID = "1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g";
 const DEFAULT_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=1447063285`;
+const DEFAULT_NET_WORTH_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vTBPKjD7GLedKDODUC5Pnle_Czgt7X1XDGjU9WrKjkgjWrr_TSnGwP0ylYP3xwtaQ/pub?output=csv`;
 
 function getCsvUrl(){
   return localStorage.getItem('pf_csvUrl') || DEFAULT_CSV_URL;
 }
 function getNetWorthCsvUrl(){
-  return localStorage.getItem('pf_netWorthCsvUrl') || '';
+  return localStorage.getItem('pf_netWorthCsvUrl') || DEFAULT_NET_WORTH_CSV_URL;
 }
 function setStatus(msg, isErr){
   const status = document.getElementById('status');
