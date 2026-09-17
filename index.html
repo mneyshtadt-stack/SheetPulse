@@ -216,19 +216,15 @@
     white-space:normal; word-wrap:break-word; overflow-wrap:break-word; line-height:1.5;
   }
   #universeTable tbody tr:hover{background:var(--up-1);}
-  #universeTable td.ticker{font-weight:600; white-space:nowrap;}
+  #universeTable td.ticker{font-weight:600; white-space:nowrap; cursor:help;}
   #universeTable td.num{text-align:right; font-variant-numeric:tabular-nums;}
-  #universeTable th[data-key="ticker"], #universeTable td.ticker{width:70px;}
-  #universeTable th[data-key="name"], #universeTable td[data-col="name"]{width:190px;}
-  #universeTable th[data-key="sector"], #universeTable td[data-col="sector"],
-  #universeTable th[data-key="roleGroup"], #universeTable td[data-col="roleGroup"]{width:130px;}
-  #universeTable th[data-key="roleName"], #universeTable td[data-col="roleName"]{width:160px;}
+  #universeTable th[data-key="ticker"], #universeTable td.ticker{width:75px;}
+  #universeTable th[data-key="name"], #universeTable td[data-col="name"]{width:220px;}
+  #universeTable th[data-key="sector"], #universeTable td[data-col="sector"]{width:170px;}
+  #universeTable th[data-key="roleName"], #universeTable td[data-col="roleName"]{width:180px;}
   #universeTable th[data-key="subtheme"], #universeTable td[data-col="subtheme"],
-  #universeTable th[data-key="category"], #universeTable td[data-col="category"]{width:170px;}
-  #universeTable th[data-key="simpleMeaning"], #universeTable td[data-col="simpleMeaning"],
-  #universeTable th[data-key="whenItHelps"], #universeTable td[data-col="whenItHelps"]{width:190px;}
-  #universeTable th[data-key="roleInPortfolio"], #universeTable td[data-col="roleInPortfolio"],
-  #universeTable th[data-key="overview"], #universeTable td[data-col="overview"]{width:260px;}
+  #universeTable th[data-key="category"], #universeTable td[data-col="category"]{width:210px;}
+  #universeTable th[data-key="whenItHelps"], #universeTable td[data-col="whenItHelps"]{width:260px;}
   .cards{
     display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line);
     border-bottom:none; cursor:pointer; transition:box-shadow 0.18s ease;
@@ -2769,16 +2765,14 @@ const UNIVERSE_COLS = [
   {key:'sector', label:'Sector', type:'text'},
   {key:'subtheme', label:'Sub Theme', type:'text'},
   {key:'category', label:'Category', type:'text'},
-  {key:'roleInPortfolio', label:'Role in Portfolio', type:'text'},
-  {key:'overview', label:'Overview', type:'text'},
-  {key:'roleGroup', label:'Role Group', type:'text'},
   {key:'roleName', label:'Role Name', type:'text'},
-  {key:'simpleMeaning', label:'Simple Meaning', type:'text'},
   {key:'whenItHelps', label:'When It Helps', type:'text'}
 ];
+// roleInPortfolio and overview aren't table columns — they're shown in hover tooltips on the
+// ticker and name cells respectively (see renderUniverseTable).
 const universeRows = UNIVERSE_DATA.map(d => ({
   ticker:d[0], name: TICKER_NAME_MAP[d[0]] || '', sector:d[1], subtheme:d[2], category:d[3], roleInPortfolio:d[4],
-  overview:d[5], roleGroup:d[6], roleName:d[7], simpleMeaning:d[8], whenItHelps:d[9]
+  overview:d[5], roleName:d[7], whenItHelps:d[9]
 }));
 let universeSort = {key:'ticker', dir:1};
 let universeFilter = '';
@@ -2816,6 +2810,18 @@ function renderUniverseTable(){
         return `<td class="${cls}" data-col="${c.key}">${fmtUniverseCell(r[c.key], c.type)}</td>`;
       }).join('') + '</tr>';
     }).join('');
+    tbody.querySelectorAll('tr').forEach((tr, i) => {
+      const r = sorted[i];
+      const tickerCell = tr.querySelector('td.ticker');
+      if(tickerCell && r.roleInPortfolio){
+        attachHoverTooltip(tickerCell, () => `<b>${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.roleInPortfolio}</div>`);
+      }
+      const nameCell = tr.querySelector('td[data-col="name"]');
+      if(nameCell && r.overview){
+        nameCell.style.cursor = 'help';
+        attachHoverTooltip(nameCell, () => `<b>${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.overview}</div>`);
+      }
+    });
   }
 
   theadRow.querySelectorAll('th').forEach(th=>{
