@@ -2012,7 +2012,13 @@ function render(rows, totals){
 
   const tmEl = document.getElementById('treemap');
   tmEl.innerHTML = '';
-  const tmW = tmEl.clientWidth, tmH = 480;
+  const tmW = tmEl.clientWidth;
+  // On a narrow (mobile) screen, the same fixed 480px height leaves far too little total
+  // area for the smaller holdings to be visible at all — they'd shrink to invisible slivers.
+  // Scale the height up for narrow widths so small holdings keep roughly the same on-screen
+  // area they'd get on a ~1100px-wide desktop, capped so it doesn't get absurdly tall.
+  const tmH = Math.min(1800, Math.max(480, Math.round(480 * 1100 / Math.max(tmW, 1))));
+  tmEl.style.height = tmH + 'px';
   const root = d3.hierarchy({children: rows}).sum(d => d.value).sort((a,b) => b.value - a.value);
   d3.treemap().size([tmW, tmH]).paddingInner(2).paddingOuter(1)(root);
   root.leaves().forEach(n=>{
