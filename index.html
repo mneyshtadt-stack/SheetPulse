@@ -2027,7 +2027,13 @@ function render(rows, totals){
       ? 'n/a'
       : `<span class="${n.data.ret>=0?'up':'down'}">${n.data.ret>=0?'+':''}${n.data.ret.toFixed(2)}% (${n.data.ret>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.ret/100))})</span>`;
     const tName = TICKER_NAME_MAP[n.data.name];
-    const tooltipHtml = `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+    // The tile itself shows a logo badge once it's big enough (see below) — only fall back to
+    // showing it in the tooltip when the tile is too small for that badge to fit.
+    const tileFitsBadge = w>44 && h>30;
+    const logoImgHtml = (n.data.logoUrl && !tileFitsBadge)
+      ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
+      : '';
+    const tooltipHtml = `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
     div.addEventListener('mouseenter', ()=>{
       tt.innerHTML = tooltipHtml;
       tt.style.display = 'block';
@@ -2056,7 +2062,7 @@ function render(rows, totals){
       }
     }
     div.innerHTML = inner;
-    if(n.data.logoUrl && w>44 && h>30){
+    if(n.data.logoUrl && tileFitsBadge){
       const logoSize = Math.max(18, Math.min(28, Math.floor(Math.min(w,h)/3)));
       const badge = document.createElement('img');
       badge.className = 'tile-logo';
@@ -2846,7 +2852,8 @@ async function fetchUniverseRows(){
   const col = name => headers.indexOf(name);
   const cTicker = col('Ticker'), cName = col('Name'), cSector = col('Sector'), cSubtheme = col('Sub Theme'),
         cCategory = col('Category'), cRoleInPortfolio = col('Role in Portfolio'), cOverview = col('Overview'),
-        cRoleName = col('Role Name'), cWhenItHelps = col('When It Helps');
+        cRoleName = col('Role Name'), cWhenItHelps = col('When It Helps'),
+        cLogo = headers.findIndex(h => h.toLowerCase() === 'logo');
   if(cTicker === -1) throw new Error('Could not find the Ticker column');
   const rows = [];
   for(let i=1;i<table.length;i++){
@@ -2862,7 +2869,8 @@ async function fetchUniverseRows(){
       roleInPortfolio: cRoleInPortfolio>=0 ? (r[cRoleInPortfolio]||'').trim() : '',
       overview: cOverview>=0 ? (r[cOverview]||'').trim() : '',
       roleName: cRoleName>=0 ? (r[cRoleName]||'').trim() : '',
-      whenItHelps: cWhenItHelps>=0 ? (r[cWhenItHelps]||'').trim() : ''
+      whenItHelps: cWhenItHelps>=0 ? (r[cWhenItHelps]||'').trim() : '',
+      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : ''
     });
   }
   if(!rows.length) throw new Error('No ticker rows found in the sheet');
