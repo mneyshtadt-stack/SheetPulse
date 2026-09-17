@@ -316,6 +316,8 @@
   .sbar-track{flex:1; background:var(--line); height:16px; position:relative;}
   .sbar-fill{background:var(--accent); height:100%;}
   .spct{width:56px; text-align:right; color:var(--muted); flex-shrink:0; padding-left:10px;}
+  #winloseHeadline{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink); margin:2px 0 12px;}
+  #winloseHeadline b{font-weight:600;}
   #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
@@ -505,6 +507,7 @@
       <h2 style="margin-bottom:0;">Winners &amp; losers — total return since purchase</h2>
       <button id="winloseAnalysisBtn">Analysis</button>
     </div>
+    <div id="winloseHeadline"></div>
     <div id="winlose"></div>
     <div id="winloseInsights"></div>
   </section>
@@ -2181,6 +2184,7 @@ function render(rows, totals){
     wlEl.appendChild(row);
   });
 
+  renderWinLoseHeadline(rows);
   renderWinLoseInsights(rows, totals);
   renderContributionWaterfalls(rows);
 }
@@ -2205,6 +2209,27 @@ function formatHoldingPeriod(buyDateStr){
   const wholeYears = Math.floor(years);
   const remMonths = Math.round((years - wholeYears) * 12);
   return remMonths > 0 ? `~${wholeYears}y ${remMonths}m` : `~${wholeYears} year${wholeYears!==1?'s':''}`;
+}
+
+// The headline takeaway, always visible above the bar list — the detailed narrative
+// in #winloseInsights stays behind the "Analysis" toggle for whoever wants the full read.
+function renderWinLoseHeadline(rows){
+  const el = document.getElementById('winloseHeadline');
+  if(!el) return;
+  const withRet = rows.filter(r => !isNaN(r.ret));
+  if(!withRet.length){ el.innerHTML = ''; return; }
+
+  const sorted = withRet.slice().sort((a,b)=>b.ret-a.ret);
+  const winners = withRet.filter(r=>r.ret > 0);
+  const winRate = winners.length/withRet.length*100;
+  const bigWinner = sorted[0];
+  const bigLoser = sorted[sorted.length-1];
+
+  let html = `<b>${winners.length} of ${withRet.length}</b> holdings are profitable (${winRate.toFixed(1)}%)`;
+  if(bigWinner && bigLoser && bigWinner !== bigLoser){
+    html += ` — best: <b class="up">${bigWinner.name} ${bigWinner.ret>=0?'+':''}${bigWinner.ret.toFixed(2)}%</b>, worst: <b class="down">${bigLoser.name} ${bigLoser.ret.toFixed(2)}%</b>`;
+  }
+  el.innerHTML = html;
 }
 
 function renderWinLoseInsights(rows, totals){
@@ -2505,6 +2530,11 @@ async function retryFxIfLoading(attempt){
   } catch(e){ /* silent — keep last known rate */ }
 }
 
+function formatRefreshTimestamp(d){
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 async function refresh(){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
@@ -2515,7 +2545,7 @@ async function refresh(){
     await applyTickerLogos(rows);
     const totals = computeTotals(rows);
     render(rows, totals);
-    const asOfText = 'Last refreshed ' + new Date().toLocaleString();
+    const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
     document.getElementById('asOf').textContent = asOfText;
     setStatus('Up to date.', false);
     saveCache(rows, totals, asOfText);
@@ -2538,7 +2568,7 @@ async function refresh(){
     await applyTickerLogos(rows);
     const totals = computeTotals(rows);
     render(rows, totals);
-    const asOfText = 'Last refreshed ' + new Date().toLocaleString();
+    const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
     document.getElementById('asOf').textContent = asOfText;
     saveCache(rows, totals, asOfText);
     retryFxIfLoading();
