@@ -1066,7 +1066,11 @@ function renderMarketDetailTable(){
   });
 }
 
-function openMarketDetail(marketKey){
+// Builds the header (title + hero + stat tiles) for the 'il'/'us' detail modal from
+// whatever window.lastRows currently holds. Separated from openMarketDetail so a
+// background refresh can re-render just the numbers without resetting the user's
+// current search/sort state in the table below.
+function renderMarketDetailHeader(marketKey){
   const rows = window.lastRows || [];
   const split = splitByMarket(rows);
   const seg = marketKey === 'il' ? split.il : split.us;
@@ -1105,6 +1109,11 @@ function openMarketDetail(marketKey){
     ${statsHtml}
     <div id="marketDetailTableArea"></div>
   `;
+  return seg;
+}
+
+function openMarketDetail(marketKey){
+  const seg = renderMarketDetailHeader(marketKey);
 
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 
@@ -1156,10 +1165,13 @@ function closeMarketDetail(){
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 }
 
-function openPortfolioDetail(){
+// Same split as renderMarketDetailHeader: builds the header from current window.lastRows
+// / window.lastTotals without touching marketDetailState, so a background refresh can
+// call this to update the numbers while preserving the user's search/sort in the table.
+function renderPortfolioHeader(){
   const rows = window.lastRows || [];
   const totals = window.lastTotals;
-  if(!rows.length || !totals) return;
+  if(!rows.length || !totals) return false;
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
   document.getElementById('marketDetailSubtitle').textContent = 'All Holdings';
@@ -1189,15 +1201,39 @@ function openPortfolioDetail(){
     </div>
     <div id="marketDetailTableArea"></div>
   `;
+  return true;
+}
+
+function openPortfolioDetail(){
+  if(!renderPortfolioHeader()) return;
 
   document.getElementById('marketDetailCard').classList.add('wide');
 
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 
-  marketDetailState = {marketKey:'all', tickers: rows, sortKey:'dayGain', sortDir:-1, filter:''};
+  marketDetailState = {marketKey:'all', tickers: window.lastRows, sortKey:'dayGain', sortDir:-1, filter:''};
   renderMarketDetailTable();
 
   document.getElementById('marketDetailModal').classList.add('open');
+}
+
+// Called after every successful background/manual portfolio refresh. If the market-detail
+// modal (Israeli/USA/full Portfolio) is currently open, re-render its header and table in
+// place with the fresh numbers, preserving whatever search/sort the user had set — instead
+// of the numbers silently going stale until the user closes and reopens the window.
+function refreshOpenMarketDetailIfNeeded(){
+  if(!document.getElementById('marketDetailModal').classList.contains('open')) return;
+  const key = marketDetailState.marketKey;
+  if(key === 'il' || key === 'us'){
+    const seg = renderMarketDetailHeader(key);
+    marketDetailState.tickers = seg.tickers;
+    renderMarketDetailTable();
+  } else if(key === 'all'){
+    if(!renderPortfolioHeader()) return;
+    marketDetailState.tickers = window.lastRows;
+    renderMarketDetailTable();
+  }
+  // 'networth' is intentionally excluded — it only refreshes on its own button click.
 }
 
 // Fixed shape of the Net Worth sheet: one header row (category names, with a blank
@@ -2270,6 +2306,7 @@ async function retryFxIfLoading(attempt){
       window.lastFxRate = fxCellVal;
       window.lastFxWasLoading = false;
       if(window.lastRows && window.lastTotals) renderGauge(window.lastRows, window.lastTotals);
+      refreshOpenMarketDetailIfNeeded();
     } else {
       await retryFxIfLoading(attempt + 1);
     }
@@ -2290,6 +2327,7 @@ async function refresh(){
     setStatus('Up to date.', false);
     saveCache(rows, totals, asOfText);
     retryFxIfLoading();
+    refreshOpenMarketDetailIfNeeded();
   } catch(err){
     setStatus('Refresh failed (' + err.message + '). Check the CSV URL under Credentials, or that the sheet is still published to the web.', true);
   } finally {
@@ -2310,6 +2348,7 @@ async function refresh(){
     document.getElementById('asOf').textContent = asOfText;
     saveCache(rows, totals, asOfText);
     retryFxIfLoading();
+    refreshOpenMarketDetailIfNeeded();
   } catch(e){ /* silent — cached view already shown */ }
 })();
 document.getElementById('refreshBtn').addEventListener('click', refresh);
