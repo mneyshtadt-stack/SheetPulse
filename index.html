@@ -97,6 +97,14 @@
   #marketDetailHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
   #marketDetailHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
   #marketDetailClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #nwYearSwitcher{display:none; gap:6px; margin-top:10px;}
+  #nwYearSwitcher.open{display:flex; flex-wrap:wrap;}
+  .nw-year-btn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; padding:5px 12px; cursor:pointer;
+    border:1px solid var(--line); background:var(--paper); color:var(--muted); border-radius:2px;
+  }
+  .nw-year-btn:hover{color:var(--ink); border-color:var(--accent);}
+  .nw-year-btn.active{border-color:var(--accent); color:var(--accent); font-weight:600;}
   #marketDetailClose:hover{color:var(--ink);}
   #marketDetailBody{padding:20px 24px 24px; font-family:'Helvetica Neue',Arial,sans-serif; overflow:auto; flex:1; min-height:0;}
   .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
@@ -431,8 +439,8 @@
     </div>
     <div class="field">
       <label for="netWorthCsvUrlInput">Net Worth Sheet CSV URL</label>
-      <input type="text" id="netWorthCsvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv&gid=...">
-      <div class="hint">Used by the "Net Worth" button — study funds, assets, mortgage, equity loan, pension. Leave blank until you've set this sheet up.</div>
+      <input type="text" id="netWorthCsvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
+      <div class="hint">Publish the whole workbook (File → Share → Publish to web → select "Entire Document" → CSV), then paste that one URL here. Used by the "Net Worth" button — study funds, assets, mortgage, equity loan, pension. The year tabs in that workbook (2026, 2027, …) show up automatically as a switcher in the Net Worth window.</div>
     </div>
     <div style="display:flex; gap:8px;">
       <button id="saveCredsBtn">Save</button>
@@ -533,6 +541,7 @@
       <div>
         <h3 id="marketDetailTitle">Holdings Summary</h3>
         <p id="marketDetailSubtitle"></p>
+        <div id="nwYearSwitcher"></div>
       </div>
       <button id="marketDetailClose" aria-label="Close">&times;</button>
     </div>
@@ -577,6 +586,52 @@ function getCsvUrl(){
 function getNetWorthCsvUrl(){
   return localStorage.getItem('pf_netWorthCsvUrl') || DEFAULT_NET_WORTH_CSV_URL;
 }
+// Year → sheet tab (gid) within the single published workbook. Maintained in code — when a new
+// year's tab is added in Google Sheets, add its year and gid here (find the gid by clicking that
+// tab and copying the number after #gid= in the address bar).
+// Fallback only — used if live discovery (below) can't reach Google or finds nothing.
+const NET_WORTH_YEAR_GIDS = {'2026': '884622855', '2027': '760785439'};
+const NET_WORTH_FIRST_YEAR = 2026; // ignore any older year tabs (2025, 2024, ...) in the workbook
+
+// Every published Google Sheet exposes a "pubhtml" listing of all its tabs (name + gid), which is
+// fetchable cross-origin. We parse that to auto-detect year tabs (2026, 2027, 2028, ...) as they're
+// added in the sheet, so no code change is needed here when a new year starts — just fill in the sheet.
+async function discoverNetWorthYearGids(){
+  try{
+    const base = getNetWorthCsvUrl();
+    const m = base.match(/\/spreadsheets\/d\/e\/([^/]+)\//);
+    if(!m) return null;
+    const res = await fetch(`https://docs.google.com/spreadsheets/d/e/${m[1]}/pubhtml`, {cache:'no-store'});
+    if(!res.ok) return null;
+    const html = await res.text();
+    const gids = {};
+    const re = /items\.push\(\{name:\s*"([^"]+)"[^}]*?gid:\s*"(\d+)"/g;
+    let match;
+    while((match = re.exec(html))){
+      if(/^\d{4}$/.test(match[1]) && Number(match[1]) >= NET_WORTH_FIRST_YEAR) gids[match[1]] = match[2];
+    }
+    return Object.keys(gids).length ? gids : null;
+  } catch(e){
+    return null;
+  }
+}
+let _nwGidsPromise = null;
+function getNetWorthGids(){
+  if(!_nwGidsPromise){
+    _nwGidsPromise = discoverNetWorthYearGids().then(discovered => discovered || NET_WORTH_YEAR_GIDS);
+  }
+  return _nwGidsPromise;
+}
+function sortedNetWorthYears(map){
+  return Object.keys(map).sort((a,b)=> Number(b) - Number(a));
+}
+function netWorthUrlForYear(year, gids){
+  const base = getNetWorthCsvUrl();
+  const gid = gids[year];
+  if(!gid) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}gid=${encodeURIComponent(gid)}`;
+}
 function setStatus(msg, isErr){
   const status = document.getElementById('status');
   status.className = isErr ? 'err' : '';
@@ -598,6 +653,7 @@ document.getElementById('saveCredsBtn').addEventListener('click', ()=>{
 document.getElementById('clearCredsBtn').addEventListener('click', ()=>{
   localStorage.removeItem('pf_csvUrl');
   localStorage.removeItem('pf_netWorthCsvUrl');
+  localStorage.removeItem('pf_netWorthLastYear');
   document.getElementById('csvUrlInput').value='';
   document.getElementById('netWorthCsvUrlInput').value='';
   setStatus('Cleared. Refresh will use the default URL built into this file.', false);
@@ -1078,6 +1134,7 @@ function renderMarketDetailHeader(marketKey){
 
   document.getElementById('marketDetailTitle').textContent = title;
   document.getElementById('marketDetailSubtitle').textContent = 'Holdings Summary';
+  hideNwYearSwitcher();
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
@@ -1175,6 +1232,7 @@ function renderPortfolioHeader(){
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
   document.getElementById('marketDetailSubtitle').textContent = 'All Holdings';
+  hideNwYearSwitcher();
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
@@ -1314,6 +1372,21 @@ function parseNetWorthTable(table){
 
 function nwFmt(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
 
+// A single "▲ ₪X (+Y%) vs <label>" line, reused for both "vs previous month" and
+// "vs <first tracked month>" (year-to-date) comparisons across the hero and every
+// trend chart's tooltip.
+function nwChangeLine(value, refValue, refLabel, opts){
+  opts = opts || {};
+  if(refValue === undefined || refValue === null || isNaN(refValue)) return '';
+  const change = value - refValue;
+  const changePct = refValue ? change/refValue*100 : NaN;
+  if(isNaN(changePct)) return '';
+  const cls = change>=0 ? 'up' : 'down';
+  const arrow = change>=0 ? '▲' : '▼';
+  const size = opts.big ? 'font-size:12.5px; font-weight:700;' : 'font-size:11px;';
+  return `<div style="${size} margin:2px 0 0;" class="${cls}">${arrow} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs ${refLabel}</div>`;
+}
+
 function nwGroupBreakdownLines(nw, m){
   const groupTotals = {};
   nw.assetItems.forEach(it=>{
@@ -1329,17 +1402,16 @@ function nwGroupBreakdownLines(nw, m){
   return {assetLine, liabLine};
 }
 
-function buildNetWorthMonthTooltip(nw, m, idx){
+function buildNetWorthMonthTooltip(nw, m, idx, crossYearPrev){
   const cls = m.netWorth>=0 ? 'up' : 'down';
-  const prev = idx > 0 ? nw.months[idx-1] : null;
-  const change = prev ? m.netWorth - prev.netWorth : NaN;
-  const changePct = prev && prev.netWorth ? change/prev.netWorth*100 : NaN;
-  const changeLine = !isNaN(change)
-    ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
-    : '';
+  const prev = idx > 0 ? nw.months[idx-1] : (crossYearPrev || null);
+  const first = nw.months[0];
+  const momLine = prev ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">${nwChangeLine(m.netWorth, prev.netWorth, 'previous month')}</div>` : '';
+  const ytdLine = idx > 0 ? nwChangeLine(m.netWorth, first.netWorth, first.month) : '';
   return `<b>${m.month}</b>`
     + `<div style="margin-top:6px;">Assets ${nwFmt(m.assetsTotal)} − Total Liabilities ${nwFmt(m.liabilitiesTotal)}<br>= <span class="${cls}">${nwFmt(m.netWorth)}</span></div>`
-    + changeLine;
+    + momLine
+    + ytdLine;
 }
 
 function buildNetWorthTileTooltip(kind, nw, m){
@@ -1443,29 +1515,27 @@ function buildNwMultiTrendChart(opts){
   `;
 }
 
-function buildMultiSeriesMonthTooltip(months, idx, series){
+function buildMultiSeriesMonthTooltip(months, idx, series, crossYearPrev){
   const m = months[idx];
-  const prev = idx > 0 ? months[idx-1] : null;
+  const prev = idx > 0 ? months[idx-1] : (crossYearPrev || null);
+  const first = months[0];
   const sortedSeries = series.slice().sort((a,b)=>b.getValue(m)-a.getValue(m));
   const rows = sortedSeries.map(s=>{
     const v = s.getValue(m);
-    const prevV = prev ? s.getValue(prev) : NaN;
-    const change = prev ? v - prevV : NaN;
-    const changePct = prev && prevV ? change/prevV*100 : NaN;
-    const changeLine = !isNaN(change)
-      ? `<div style="font-size:11px; margin:1px 0 0;" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
-      : '';
+    const momLine = prev ? nwChangeLine(v, s.getValue(prev), 'previous month') : '';
+    const ytdLine = idx > 0 ? nwChangeLine(v, s.getValue(first), first.month) : '';
     return `<div style="margin-top:${s.bold?8:6}px; ${s.bold?'padding-top:6px; border-top:1px solid var(--line);':''}">`
       + `<div style="display:flex; justify-content:space-between; gap:18px; ${s.bold?'font-weight:700;':''}">`
       + `<span><span style="display:inline-block; width:8px; height:8px; border-radius:2px; background:${s.color}; margin-right:6px;"></span>${s.label}</span>`
       + `<span>${nwFmt(v)}</span></div>`
-      + changeLine
+      + momLine
+      + ytdLine
       + `</div>`;
   }).join('');
   return `<b>${m.month}</b><div style="margin-top:6px;">${rows}</div>`;
 }
 
-function buildCategoryMonthTooltip(months, idx, title, keys){
+function buildCategoryMonthTooltip(months, idx, title, keys, crossYearPrev){
   const m = months[idx];
   const value = nwSum(m.assets, keys);
   const line = keys
@@ -1474,14 +1544,11 @@ function buildCategoryMonthTooltip(months, idx, title, keys){
       const item = NW_ASSET_ITEMS.find(it=>it.key===k);
       return `${item ? item.label : k} ${nwFmt(m.assets[k])}`;
     }).join(' + ');
-  const prev = idx > 0 ? months[idx-1] : null;
-  const prevValue = prev ? nwSum(prev.assets, keys) : NaN;
-  const change = prev ? value - prevValue : NaN;
-  const changePct = prev && prevValue ? change/prevValue*100 : NaN;
-  const changeLine = !isNaN(change)
-    ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);" class="${change>=0?'up':'down'}">${change>=0?'▲':'▼'} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs previous month</div>`
-    : '';
-  return `<b>${m.month}</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(value)}</b></div>` + changeLine;
+  const prev = idx > 0 ? months[idx-1] : (crossYearPrev || null);
+  const first = months[0];
+  const momLine = prev ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">${nwChangeLine(value, nwSum(prev.assets, keys), 'previous month')}</div>` : '';
+  const ytdLine = idx > 0 ? nwChangeLine(value, nwSum(first.assets, keys), first.month) : '';
+  return `<b>${m.month}</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(value)}</b></div>` + momLine + ytdLine;
 }
 
 function attachHoverTooltip(el, htmlFn){
@@ -1523,7 +1590,7 @@ function wireNetWorthTileTooltips(nw, latest){
   if(pensionTile) attachHoverTooltip(pensionTile, () => buildNetWorthTileTooltip('pension', nw, latest));
 }
 
-function renderNetWorth(nw){
+function renderNetWorth(nw, crossYearPrev){
   const area = document.getElementById('marketDetailTableArea');
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const latest = nw.months[nw.months.length-1];
@@ -1543,7 +1610,7 @@ function renderNetWorth(nw){
     `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'#8a6d3b'}"></span>${g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
   ).join('');
 
-  const netWorthTrendHtml = nw.months.length>1
+  const netWorthTrendHtml = nw.months.length>=1
     ? buildNwTrendChart({
         title: 'Net Worth Trend', svgId: 'nwTrendSvg', color: '#8a6d3b', months: nw.months,
         getValue: m => m.netWorth, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_CORE_KEYS)
@@ -1553,7 +1620,7 @@ function renderNetWorth(nw){
   // Pension wasn't tracked before June, so its chart only plots months that actually have
   // pension data rather than showing a misleading flat ₪0 before then.
   const pensionMonths = nw.months.filter(m => NW_PENSION_KEYS.some(k => !isNaN(m.assets[k])));
-  const portfolioTrendHtml = nw.months.length>1
+  const portfolioTrendHtml = nw.months.length>=1
     ? buildNwTrendChart({
         title: 'Portfolio Trend', svgId: 'nwPortfolioTrendSvg', color: NW_GROUP_COLORS['Portfolio'], months: nw.months,
         getValue: m => nwSum(m.assets, NW_PORTFOLIO_KEYS), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_PORTFOLIO_KEYS)
@@ -1566,7 +1633,7 @@ function renderNetWorth(nw){
     {key:'studyAnalyst', label:'Analyst', sub:'Stocks 963', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['studyAnalyst'])},
     {key:'studyMeitav', label:'Meitav', sub:'Stocks 883', color:'#3fae82', getValue: m => nwSum(m.assets, ['studyMeitav'])}
   ];
-  const studyTrendHtml = nw.months.length>1
+  const studyTrendHtml = nw.months.length>=1
     ? buildNwMultiTrendChart({
         title: 'Study Funds Trend', svgId: 'nwStudyTrendSvg', months: nw.months,
         series: studyFundSeries, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
@@ -1578,7 +1645,7 @@ function renderNetWorth(nw){
     {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
     {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])}
   ];
-  const pensionTrendHtml = pensionMonths.length>1
+  const pensionTrendHtml = pensionMonths.length>=1
     ? buildNwMultiTrendChart({
         title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
         series: pensionSeries, hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
@@ -1611,10 +1678,10 @@ function renderNetWorth(nw){
       <tbody>${rowsHtml}</tbody>
     </table>
   `;
-  wireNwTrendTooltips('nwTrendSvg', idx => buildNetWorthMonthTooltip(nw, nw.months[idx], idx));
-  wireNwTrendTooltips('nwPortfolioTrendSvg', idx => buildCategoryMonthTooltip(nw.months, idx, 'Portfolio', NW_PORTFOLIO_KEYS));
-  wireNwTrendTooltips('nwStudyTrendSvg', idx => buildMultiSeriesMonthTooltip(nw.months, idx, studyFundSeries));
-  wireNwTrendTooltips('nwPensionTrendSvg', idx => buildMultiSeriesMonthTooltip(pensionMonths, idx, pensionSeries));
+  wireNwTrendTooltips('nwTrendSvg', idx => buildNetWorthMonthTooltip(nw, nw.months[idx], idx, crossYearPrev));
+  wireNwTrendTooltips('nwPortfolioTrendSvg', idx => buildCategoryMonthTooltip(nw.months, idx, 'Portfolio', NW_PORTFOLIO_KEYS, crossYearPrev));
+  wireNwTrendTooltips('nwStudyTrendSvg', idx => buildMultiSeriesMonthTooltip(nw.months, idx, studyFundSeries, crossYearPrev));
+  wireNwTrendTooltips('nwPensionTrendSvg', idx => buildMultiSeriesMonthTooltip(pensionMonths, idx, pensionSeries, crossYearPrev));
   wireNetWorthGroupTooltips(nw, latest, totalForBar);
 }
 
@@ -1636,13 +1703,18 @@ function wireNetWorthGroupTooltips(nw, latest, totalForBar){
   });
 }
 
-function renderNetWorthBody(nw){
+function renderNetWorthBody(nw, crossYearPrev, crossYearAgo){
   const body = document.getElementById('marketDetailBody');
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const latest = nw.months[nw.months.length-1];
-  const prev = nw.months.length>1 ? nw.months[nw.months.length-2] : null;
-  const netChange = prev ? latest.netWorth - prev.netWorth : NaN;
-  const netChangePct = prev && prev.netWorth ? netChange/prev.netWorth*100 : NaN;
+  const first = nw.months[0];
+  const prev = nw.months.length>1 ? nw.months[nw.months.length-2] : (crossYearPrev || null);
+
+  const momLine = prev ? nwChangeLine(latest.netWorth, prev.netWorth, 'previous month', {big:true}) : '';
+  const ytdLine = nw.months.length > 1 ? nwChangeLine(latest.netWorth, first.netWorth, first.month, {big:true}) : '';
+  // Year-over-year comparison, only relevant for January's own point (where the in-year YTD line
+  // above is empty since there's nothing before it yet this year).
+  const yearlyLine = (nw.months.length === 1 && crossYearAgo) ? nwChangeLine(latest.netWorth, crossYearAgo.netWorth, crossYearAgo.month, {big:true}) : '';
 
   const coreAssets = nwSum(latest.assets, NW_CORE_KEYS);
   const pensionTotal = nwSum(latest.assets, NW_PENSION_KEYS);
@@ -1651,11 +1723,11 @@ function renderNetWorthBody(nw){
   body.innerHTML = `
     <div class="md-headline" id="nwHeadline" style="cursor:help; display:inline-block;">${fmt(latest.netWorth)}</div>
     <div class="md-headline-label">Net Worth — ${latest.month}</div>
-    ${!isNaN(netChange) ? `
-      <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; font-weight:700; margin:-18px 0 20px;" class="${netChange>=0?'up':'down'}">
-        ${netChange>=0?'▲':'▼'} ${fmt(netChange)} (${netChangePct>=0?'+':''}${netChangePct.toFixed(2)}%) vs previous month
-      </div>` : '<div style="margin-bottom:20px;"></div>'
-    }
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif; margin-top:-18px; margin-bottom:${(momLine||ytdLine||yearlyLine)?'14px':'20px'};">
+      ${momLine}
+      ${ytdLine}
+      ${yearlyLine}
+    </div>
     <div class="md-stat-tiles cols-4">
       <div class="md-stat-tile" id="nwTileAssets" style="cursor:help;">
         <div class="md-stat-tile-label">Assets</div>
@@ -1678,19 +1750,48 @@ function renderNetWorthBody(nw){
   `;
   wireNetWorthTileTooltips(nw, latest);
   const headlineEl = document.getElementById('nwHeadline');
-  if(headlineEl) attachHoverTooltip(headlineEl, () => buildNetWorthMonthTooltip(nw, latest, nw.months.length-1));
-  renderNetWorth(nw);
+  if(headlineEl) attachHoverTooltip(headlineEl, () => buildNetWorthMonthTooltip(nw, latest, nw.months.length-1, crossYearPrev));
+  renderNetWorth(nw, crossYearPrev);
 }
 
-async function openNetWorthDetail(){
+function renderNwYearSwitcher(currentYear, years){
+  const el = document.getElementById('nwYearSwitcher');
+  if(years.length <= 1){ el.classList.remove('open'); el.innerHTML=''; return; }
+  el.classList.add('open');
+  el.innerHTML = years.map(y =>
+    `<button type="button" class="nw-year-btn${y===currentYear?' active':''}" data-year="${y}">${y}</button>`
+  ).join('');
+  el.querySelectorAll('.nw-year-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> loadNetWorthYear(btn.dataset.year));
+  });
+}
+function hideNwYearSwitcher(){
+  const el = document.getElementById('nwYearSwitcher');
+  el.classList.remove('open');
+  el.innerHTML = '';
+}
+
+async function fetchNetWorthTable(url){
+  const res = await fetch(url, {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
+  const text = await res.text();
+  const table = Papa.parse(text, {skipEmptyLines:false}).data;
+  return parseNetWorthTable(table);
+}
+
+async function loadNetWorthYear(year){
+  const gids = await getNetWorthGids();
+  const years = sortedNetWorthYears(gids);
+  const url = year ? netWorthUrlForYear(year, gids) : getNetWorthCsvUrl();
+
   document.getElementById('marketDetailTitle').textContent = 'Net Worth';
   document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
   document.getElementById('marketDetailCard').classList.add('wide');
+  renderNwYearSwitcher(year, years);
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
   marketDetailState = {marketKey:'networth', tickers:[], sortKey:'', sortDir:1, filter:''};
 
   const body = document.getElementById('marketDetailBody');
-  const url = getNetWorthCsvUrl();
 
   if(!url){
     body.innerHTML = `
@@ -1710,20 +1811,53 @@ async function openNetWorthDetail(){
   document.getElementById('marketDetailModal').classList.add('open');
 
   try{
-    const res = await fetch(url, {cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
-    const text = await res.text();
-    const table = Papa.parse(text, {skipEmptyLines:false}).data;
-    const nw = parseNetWorthTable(table);
-    if(!nw.months.length) throw new Error('No monthly rows with data found in the sheet');
-    renderNetWorthBody(nw);
+    const nw = await fetchNetWorthTable(url);
+    if(!nw.months.length) throw new Error(`No monthly rows with data found in the${year?' '+year:''} sheet`);
+
+    // January has no "previous month" within this year's own data — borrow December from the
+    // prior year's tab so the "vs previous month" line still has something to compare against.
+    // It also has no meaningful "vs January" YTD line (that would just be 0%), so instead borrow
+    // the prior year's January for a "yearly" (year-over-year) comparison in that same slot.
+    let crossYearPrev = null;
+    let crossYearAgo = null;
+    if(year && nw.months.length === 1){
+      const prevGid = gids[String(Number(year) - 1)];
+      if(prevGid){
+        try{
+          const prevYear = String(Number(year) - 1);
+          const prevNw = await fetchNetWorthTable(netWorthUrlForYear(prevYear, gids));
+          if(prevNw.months.length){
+            const prevLatest = prevNw.months[prevNw.months.length-1];
+            crossYearPrev = {...prevLatest, month: `${prevLatest.month} ${prevYear}`};
+          }
+          const janPrevYear = prevNw.months.find(m => m.month === nw.months[0].month);
+          if(janPrevYear) crossYearAgo = {...janPrevYear, month: `${janPrevYear.month} ${prevYear}`};
+        } catch(e){ /* no prior-year reference available — fall back to no comparison */ }
+      }
+    }
+
+    renderNetWorthBody(nw, crossYearPrev, crossYearAgo);
   } catch(err){
     body.innerHTML = `
       <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--down-5); font-size:13px; line-height:1.8; padding:12px 0 24px;">
-        Could not load the Net Worth sheet (${err.message}).
+        Could not load the${year?' '+year:''} Net Worth sheet (${err.message}).
       </div>
     `;
   }
+}
+
+async function openNetWorthDetail(){
+  const gids = await getNetWorthGids();
+  const years = sortedNetWorthYears(gids);
+  if(!years.length){
+    await loadNetWorthYear(null);
+    return;
+  }
+  // Default to the real current year (not just the highest tab found) — future years like 2028/2029
+  // may exist as placeholders long before they're the year you actually want to see on open.
+  const realYear = String(new Date().getFullYear());
+  const year = years.includes(realYear) ? realYear : years[0];
+  await loadNetWorthYear(year);
 }
 
 function renderGauge(rows, totals){
