@@ -192,16 +192,20 @@
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
   }
   #universeSearch:focus{outline:none; border-color:var(--accent);}
+  #universeStatus{margin-left:12px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--down-5);}
   #marketDetailSearchWrap{margin-top:16px;}
   #marketDetailSearch{
     width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
   }
   #marketDetailSearch:focus{outline:none; border-color:var(--accent);}
-  #universeClose, #universeMaximize{background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 6px; line-height:1;}
+  #universeClose, #universeMaximize, #universeRefresh{background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 6px; line-height:1;}
   #universeClose{font-size:26px;}
   #universeMaximize{font-size:16px;}
-  #universeClose:hover, #universeMaximize:hover{color:var(--ink);}
+  #universeRefresh svg{width:17px; height:17px; display:block;}
+  #universeRefresh.spinning svg{animation:universeSpin 0.9s linear infinite;}
+  @keyframes universeSpin{to{transform:rotate(360deg);}}
+  #universeClose:hover, #universeMaximize:hover, #universeRefresh:hover{color:var(--ink);}
   #universeTableWrap{overflow:auto; padding:0 24px 20px; flex:1;}
   #universeTable{width:100%; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; table-layout:fixed;}
   #universeTable thead th{
@@ -271,6 +275,10 @@
   .swatch{width:9px;height:9px;display:inline-block;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  .tile-logo{
+    position:absolute; top:5px; right:5px; border-radius:50%; background:rgba(255,255,255,0.88);
+    box-shadow:0 1px 3px rgba(0,0,0,0.18); object-fit:contain; padding:3px; box-sizing:border-box;
+  }
   #customTooltip{
     display:none; position:fixed; z-index:2200; background:var(--panel); border:1px solid var(--line);
     border-radius:5px; padding:11px 14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
@@ -553,12 +561,16 @@
         <p>Sector, category, and role notes for each holding — click a column header to sort.</p>
       </div>
       <div id="universeHeaderBtns">
+        <button id="universeRefresh" aria-label="Refresh from sheet" title="Refresh from sheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+        </button>
         <button id="universeMaximize" aria-label="Maximize" title="Maximize">⛶</button>
         <button id="universeClose" aria-label="Close">&times;</button>
       </div>
     </div>
     <div id="universeSearchWrap">
       <input type="text" id="universeSearch" placeholder="Search ticker…">
+      <span id="universeStatus"></span>
     </div>
     <div id="universeTableWrap">
       <table id="universeTable">
@@ -575,6 +587,38 @@
 const SHEET_ID = "1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g";
 const DEFAULT_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=1447063285`;
 const DEFAULT_NET_WORTH_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vTBPKjD7GLedKDODUC5Pnle_Czgt7X1XDGjU9WrKjkgjWrr_TSnGwP0ylYP3xwtaQ/pub?output=csv`;
+// Same workbook as the Tracker sheet, "Investment Universe" tab — its "logo" column is looked up
+// by ticker and merged onto the holdings rows, so a logo only needs to be entered in one place.
+const INVESTMENT_UNIVERSE_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=840865265`;
+let _tickerLogosCache = null;
+async function getTickerLogos(){
+  if(_tickerLogosCache) return _tickerLogosCache;
+  try{
+    const res = await fetch(INVESTMENT_UNIVERSE_CSV_URL, {cache:'no-store'});
+    if(!res.ok) return {};
+    const text = await res.text();
+    const table = Papa.parse(text, {skipEmptyLines:false}).data;
+    const headers = (table[0]||[]).map(h=>String(h).trim());
+    const cTicker = headers.indexOf('Ticker');
+    const cLogo = headers.findIndex(h => h.toLowerCase() === 'logo');
+    if(cTicker===-1 || cLogo===-1) return {};
+    const map = {};
+    for(let i=1;i<table.length;i++){
+      const r = table[i];
+      const ticker = (r[cTicker]||'').trim();
+      const logo = (r[cLogo]||'').trim();
+      if(ticker && logo) map[ticker] = logo;
+    }
+    _tickerLogosCache = map;
+    return map;
+  } catch(e){
+    return {};
+  }
+}
+async function applyTickerLogos(rows){
+  const logos = await getTickerLogos();
+  rows.forEach(r => { if(logos[r.name]) r.logoUrl = logos[r.name]; });
+}
 
 function getCsvUrl(){
   return localStorage.getItem('pf_csvUrl') || DEFAULT_CSV_URL;
@@ -684,7 +728,8 @@ function parseTableToRows(table){
   const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
         cSector = col('Sector'), cCostILS = col('Total Cost (ILS)'), cRole = col('Role Group'),
-        cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price');
+        cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price'),
+        cLogo = col('Logo');
   if([cTicker,cValueILS,cChange,cRet,cSector,cCostILS].some(i=>i===-1)){
     throw new Error('Sheet columns have changed — expected headers not found');
   }
@@ -703,7 +748,8 @@ function parseTableToRows(table){
       cost: isNaN(cost) ? value : cost,
       buyDate: cBuyDate>=0 ? (r[cBuyDate]||'').trim() || null : null,
       shares: cShares>=0 ? num(r[cShares]) : NaN,
-      price: cPrice>=0 ? num(r[cPrice]) : NaN
+      price: cPrice>=0 ? num(r[cPrice]) : NaN,
+      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : ''
     });
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
@@ -2010,6 +2056,16 @@ function render(rows, totals){
       }
     }
     div.innerHTML = inner;
+    if(n.data.logoUrl && w>44 && h>30){
+      const logoSize = Math.max(18, Math.min(28, Math.floor(Math.min(w,h)/3)));
+      const badge = document.createElement('img');
+      badge.className = 'tile-logo';
+      badge.src = n.data.logoUrl;
+      badge.style.width = logoSize+'px';
+      badge.style.height = logoSize+'px';
+      badge.onerror = () => badge.remove();
+      div.appendChild(badge);
+    }
     tmEl.appendChild(div);
   });
 
@@ -2450,6 +2506,7 @@ async function refresh(){
     setStatus('Fetching latest from Google Sheet…', false);
     const table = await fetchTableViaCsv();
     const rows = parseTableToRows(table);
+    await applyTickerLogos(rows);
     const totals = computeTotals(rows);
     render(rows, totals);
     const asOfText = 'Last refreshed ' + new Date().toLocaleString();
@@ -2472,6 +2529,7 @@ async function refresh(){
   try{
     const table = await fetchTableViaCsv();
     const rows = parseTableToRows(table);
+    await applyTickerLogos(rows);
     const totals = computeTotals(rows);
     render(rows, totals);
     const asOfText = 'Last refreshed ' + new Date().toLocaleString();
@@ -2770,12 +2828,62 @@ const UNIVERSE_COLS = [
 ];
 // roleInPortfolio and overview aren't table columns — they're shown in hover tooltips on the
 // ticker and name cells respectively (see renderUniverseTable).
-const universeRows = UNIVERSE_DATA.map(d => ({
+// Shown immediately on open (no fetch delay); refreshUniverseRows() then pulls the live version
+// from the Investment Universe sheet, same tab used for treemap logo lookups.
+let universeRows = UNIVERSE_DATA.map(d => ({
   ticker:d[0], name: TICKER_NAME_MAP[d[0]] || '', sector:d[1], subtheme:d[2], category:d[3], roleInPortfolio:d[4],
   overview:d[5], roleName:d[7], whenItHelps:d[9]
 }));
 let universeSort = {key:'ticker', dir:1};
 let universeFilter = '';
+
+async function fetchUniverseRows(){
+  const res = await fetch(INVESTMENT_UNIVERSE_CSV_URL, {cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const text = await res.text();
+  const table = Papa.parse(text, {skipEmptyLines:false}).data;
+  const headers = (table[0]||[]).map(h=>String(h).trim());
+  const col = name => headers.indexOf(name);
+  const cTicker = col('Ticker'), cName = col('Name'), cSector = col('Sector'), cSubtheme = col('Sub Theme'),
+        cCategory = col('Category'), cRoleInPortfolio = col('Role in Portfolio'), cOverview = col('Overview'),
+        cRoleName = col('Role Name'), cWhenItHelps = col('When It Helps');
+  if(cTicker === -1) throw new Error('Could not find the Ticker column');
+  const rows = [];
+  for(let i=1;i<table.length;i++){
+    const r = table[i];
+    const ticker = (r[cTicker]||'').trim();
+    if(!ticker) continue;
+    rows.push({
+      ticker,
+      name: cName>=0 ? (r[cName]||'').trim() : (TICKER_NAME_MAP[ticker]||''),
+      sector: cSector>=0 ? (r[cSector]||'').trim() : '',
+      subtheme: cSubtheme>=0 ? (r[cSubtheme]||'').trim() : '',
+      category: cCategory>=0 ? (r[cCategory]||'').trim() : '',
+      roleInPortfolio: cRoleInPortfolio>=0 ? (r[cRoleInPortfolio]||'').trim() : '',
+      overview: cOverview>=0 ? (r[cOverview]||'').trim() : '',
+      roleName: cRoleName>=0 ? (r[cRoleName]||'').trim() : '',
+      whenItHelps: cWhenItHelps>=0 ? (r[cWhenItHelps]||'').trim() : ''
+    });
+  }
+  if(!rows.length) throw new Error('No ticker rows found in the sheet');
+  return rows;
+}
+
+async function refreshUniverseRows(){
+  const btn = document.getElementById('universeRefresh');
+  const statusEl = document.getElementById('universeStatus');
+  if(btn){ btn.disabled = true; btn.classList.add('spinning'); }
+  if(statusEl) statusEl.textContent = '';
+  try{
+    universeRows = await fetchUniverseRows();
+    renderUniverseTable();
+  } catch(e){
+    console.error('Market Universe refresh failed:', e.message);
+    if(statusEl) statusEl.textContent = 'Could not refresh from sheet (' + e.message + ')';
+  } finally {
+    if(btn){ btn.disabled = false; btn.classList.remove('spinning'); }
+  }
+}
 
 function fmtUniverseCell(v, type){
   if(v === null || v === undefined || v === '') return '—';
@@ -2842,7 +2950,9 @@ document.getElementById('universeSearch').addEventListener('input', (e)=>{
 document.getElementById('universeBtn').addEventListener('click', ()=>{
   renderUniverseTable();
   document.getElementById('universeModal').classList.add('open');
+  refreshUniverseRows();
 });
+document.getElementById('universeRefresh').addEventListener('click', refreshUniverseRows);
 document.getElementById('netWorthBtn').addEventListener('click', openNetWorthDetail);
 document.getElementById('marketDetailClose').addEventListener('click', closeMarketDetail);
 document.getElementById('marketDetailModal').addEventListener('click', (e)=>{
