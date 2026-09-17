@@ -620,9 +620,13 @@ function parseTableToRows(table){
   const col = name => headers.indexOf(name);
 
   // USD/ILS is always read from the Tracker sheet's fixed cell Q4 (row 4, column Q),
-  // independent of where the holdings header row lands.
+  // independent of where the holdings header row lands. That cell is a live/volatile
+  // formula and sometimes still shows "Loading..." at the exact moment Google generates
+  // the CSV snapshot — flag that so the caller can retry shortly instead of settling
+  // for a stale rate.
   const fxCellRaw = table[3] ? table[3][16] : undefined;
   const fxCellVal = num(fxCellRaw);
+  window.lastFxWasLoading = isNaN(fxCellVal);
   window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
 
   const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
@@ -2251,6 +2255,27 @@ if(cached && cached.rows && cached.rows.length){
   renderFromRaw(currentData);
 }
 
+// Q4 (the live USD/ILS cell) sometimes reads as "Loading..." at the exact moment
+// Google generates the CSV snapshot. When that happens, quietly re-fetch just to pick
+// up the resolved rate, a few times with a short gap, instead of settling for whatever
+// was last cached. Never blocks the main render — runs in the background.
+async function retryFxIfLoading(attempt){
+  attempt = attempt || 1;
+  if(!window.lastFxWasLoading || attempt > 3) return;
+  await new Promise(r=>setTimeout(r, 2500));
+  try{
+    const table = await fetchTableViaCsv();
+    const fxCellVal = num(table[3] ? table[3][16] : undefined);
+    if(!isNaN(fxCellVal)){
+      window.lastFxRate = fxCellVal;
+      window.lastFxWasLoading = false;
+      if(window.lastRows && window.lastTotals) renderGauge(window.lastRows, window.lastTotals);
+    } else {
+      await retryFxIfLoading(attempt + 1);
+    }
+  } catch(e){ /* silent — keep last known rate */ }
+}
+
 async function refresh(){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
@@ -2264,6 +2289,7 @@ async function refresh(){
     document.getElementById('asOf').textContent = asOfText;
     setStatus('Up to date.', false);
     saveCache(rows, totals, asOfText);
+    retryFxIfLoading();
   } catch(err){
     setStatus('Refresh failed (' + err.message + '). Check the CSV URL under Credentials, or that the sheet is still published to the web.', true);
   } finally {
@@ -2283,6 +2309,7 @@ async function refresh(){
     const asOfText = 'Last refreshed ' + new Date().toLocaleString();
     document.getElementById('asOf').textContent = asOfText;
     saveCache(rows, totals, asOfText);
+    retryFxIfLoading();
   } catch(e){ /* silent — cached view already shown */ }
 })();
 document.getElementById('refreshBtn').addEventListener('click', refresh);
