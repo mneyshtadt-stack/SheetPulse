@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789744510";
+const BUILD_ID = "1789745579";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -1332,7 +1332,7 @@ function renderMarketDetailHeader(marketKey){
     <div id="marketDetailTableArea"></div>
   `;
   if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
-    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs}]);
+    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs}], true);
   if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
     [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs}]);
   return seg;
@@ -1438,7 +1438,7 @@ function renderPortfolioHeader(){
   renderIntradayChart(totals.totalValue - totals.dayGain, fetchCombinedIntradayLogRaw, getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs},
     {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs}
-  ]);
+  ], true);
   return true;
 }
 
@@ -2168,6 +2168,37 @@ function zonedTimeToMs(y, m, d, hh, mm, timeZone){
   );
   return naiveUtc - (zonedAsIfUtc - naiveUtc);
 }
+// Ticks every stepMinutes, landing on round clock marks (e.g. 10:00, 11:30, 13:00 for a 90-minute
+// step) between t0 and t1 inclusive, as seen in the given timezone — used for intraday chart
+// x-axis ticks so labels read like a clock instead of landing on arbitrary times from evenly
+// slicing the session into N segments.
+function roundTicksInZone(t0, t1, timeZone, stepMinutes){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false
+  }).formatToParts(new Date(t0));
+  const get = t => parts.find(p=>p.type===t).value;
+  const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10);
+  const minsSinceMidnight = parseInt(get('hour'),10)*60 + parseInt(get('minute'),10);
+  const firstTickMins = Math.ceil(minsSinceMidnight / stepMinutes) * stepMinutes;
+  const ticks = [];
+  for(let i=0; i<48; i++){
+    const mins = firstTickMins + i*stepMinutes;
+    if(mins >= 24*60) break;
+    const ms = zonedTimeToMs(y, m, d, Math.floor(mins/60), mins%60, timeZone);
+    if(ms > t1) break;
+    if(ms >= t0) ticks.push(ms);
+  }
+  return ticks;
+}
+function roundTimeLabelToHour(t, timeZone){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone, hour:'2-digit', minute:'2-digit', hour12:false
+  }).formatToParts(new Date(t));
+  const get = k => parts.find(p=>p.type===k).value;
+  let hh = parseInt(get('hour'),10);
+  if(parseInt(get('minute'),10) >= 30) hh = (hh+1) % 24;
+  return String(hh).padStart(2,'0') + ':00';
+}
 function getTaseDayRangeMs(){
   const {y,m,d,weekday} = todayInZone('Asia/Jerusalem');
   return weekday === 'Fri'
@@ -2300,7 +2331,7 @@ function syncHeaderToIntraday(latest, prevClose, cost){
     if(tgSubEl){ tgSubEl.textContent = (totalGainPct>=0?'+':'')+totalGainPct.toFixed(2)+'%'; tgSubEl.className = 'md-stat-tile-sub '+tgCls; }
   }
 }
-async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges){
+async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel){
   const el = document.getElementById('intradayChart');
   if(!el) return;
   el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Loading today's chart…</div>`;
@@ -2369,15 +2400,33 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
   }).join('');
 
-  // Fewer x-axis ticks on narrow (mobile) widths — 5 labels (2 of them carrying a date suffix)
-  // collide with each other once the plot area drops much below ~500px wide.
-  const xTicks = w < 500 ? 2 : 4;
-  const xLabels = Array.from({length: xTicks+1}, (_,i)=>{
-    const t = t0 + tRange * (i/xTicks);
+  // Middle ticks land on round clock marks every 90 minutes (10:00, 11:30, 13:00, ...) rather than
+  // arbitrary times from evenly slicing the session — then greedily thinned by actual pixel spacing
+  // so they never crowd each other (or the real open/close endpoints) on narrow widths.
+  // The open/close endpoint labels carry a date suffix ("23:00 Sep 18") and so are noticeably
+  // wider than a plain mid-tick ("21:00") — they need a bigger exclusion zone or a neighboring
+  // mid-tick's text collides with them even though the tick marks themselves are well spaced.
+  const minTickGapPx = 50, endpointGapPx = 95;
+  let lastTickX = xFor(t0);
+  const midTicks = [];
+  for(const ms of roundTicksInZone(t0, t1, 'Asia/Jerusalem', 90)){
+    const x = xFor(ms);
+    const gapNeeded = midTicks.length === 0 ? endpointGapPx : minTickGapPx;
+    if(x - lastTickX < gapNeeded) continue;
+    if(xFor(t1) - x < endpointGapPx) continue;
+    midTicks.push(ms);
+    lastTickX = x;
+  }
+  const tickTimes = [t0, ...midTicks, t1];
+  const xLabels = tickTimes.map((t,i)=>{
     const x = xFor(t);
     const d = new Date(t);
-    const timeLabel = d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
-    const isFirst = i === 0, isLast = i === xTicks;
+    const isFirst = i === 0, isLast = i === tickTimes.length-1;
+    // TASE's real open is 09:55 on its shortened Friday session — but the axis reads cleaner
+    // rounded to the nearest hour (10:00) like every other tick, rather than the odd 5-minute mark.
+    const timeLabel = (isFirst && roundStartLabel)
+      ? roundTimeLabelToHour(t, 'Asia/Jerusalem')
+      : d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
     const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
     const label = (isFirst || isLast) ? `${timeLabel} ${dateStr}` : timeLabel;
     const anchor = isFirst ? 'start' : (isLast ? 'end' : 'middle');
