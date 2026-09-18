@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789745579";
+const BUILD_ID = "1789755588";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -2190,6 +2190,25 @@ function roundTicksInZone(t0, t1, timeZone, stepMinutes){
   }
   return ticks;
 }
+// Drops an isolated glitched reading (one ticker's price feed misfiring for a single log) that
+// shows up as a sharp V-shaped spike bounded by two normal, mutually-consistent points. Only the
+// last-resort case — sole point flanked by two agreeing neighbors — gets dropped, so a genuine
+// fast move (whose neighbors keep trending, not snapping back) is never touched.
+function removeIntradaySpikes(points, thresholdPct){
+  thresholdPct = thresholdPct || 0.02;
+  if(points.length < 3) return points;
+  const cleaned = [points[0]];
+  for(let i = 1; i < points.length - 1; i++){
+    const prev = points[i-1], cur = points[i], next = points[i+1];
+    const devPrev = prev.v ? Math.abs(cur.v - prev.v) / prev.v : 0;
+    const devNext = next.v ? Math.abs(cur.v - next.v) / next.v : 0;
+    const neighborsAgree = prev.v ? Math.abs(next.v - prev.v) / prev.v <= thresholdPct : true;
+    if(devPrev > thresholdPct && devNext > thresholdPct && neighborsAgree) continue;
+    cleaned.push(cur);
+  }
+  cleaned.push(points[points.length-1]);
+  return cleaned;
+}
 function roundTimeLabelToHour(t, timeZone){
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone, hour:'2-digit', minute:'2-digit', hour12:false
@@ -2362,6 +2381,13 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     }
   }
 
+  // Secondary safety net for a single glitched reading already sitting in the sheet (the backend
+  // logger guards against new ones, but this also protects anything logged before that guard was
+  // added). Drop a point only when it deviates sharply from BOTH neighbors AND those neighbors
+  // agree with each other — that's the signature of an isolated bad read, not a real fast move
+  // (a genuine move keeps trending, so its neighbors wouldn't agree with each other either).
+  log = removeIntradaySpikes(log);
+
   if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost);
   if(log.length < 2){
     el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Building up today's chart — logged ${log.length} point${log.length===1?'':'s'} so far today.</div>`;
@@ -2487,7 +2513,12 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     defaultDot.style.display = 'none';
     updateHeadlineDisplay(p.v, prevClose);
 
-    tt.innerHTML = new Date(p.t).toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+    const ttDate = new Date(p.t).toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+    const ttDiff = p.v - prevClose;
+    const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
+    const ttCls = ttDiff >= 0 ? 'var(--up-5)' : 'var(--down-5)';
+    const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
+    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
     const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
