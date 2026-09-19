@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789793431";
+const BUILD_ID = "1789795357";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -759,9 +759,11 @@ function parseTableToRows(table){
   const headers = table[headerIdx].map(h=>String(h).trim());
   const col = name => headers.indexOf(name);
 
-  // USD/ILS is always read from the Tracker sheet's fixed cell Q4 (row 4, column Q),
-  // independent of where the holdings header row lands.
-  applyFxCell(table[3] ? table[3][16] : undefined);
+  // USD/ILS rate comes from the fast, reliable Q1 (row 1, column Q); the slower Google-Finance-
+  // scraped day change comes from Q2 (row 2, column Q) — independent of where the holdings
+  // header row lands, and independent of each other, so Q2 being slow to resolve never affects
+  // the rate itself.
+  applyFxCell(table[0] ? table[0][16] : undefined, table[1] ? table[1][16] : undefined);
 
   const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
@@ -798,6 +800,10 @@ function parseTableToRows(table){
 window.lastFxRate = 3.0314;
 let currentData = [["AIQ",20740.86,-0.33,35.77,"Technology","Growth"],["ASGI",669.11,-0.45,-0.98,"Infrastructure","Alternatives"],["BAM",577.14,-2.35,-0.15,"Financials","Alternatives"],["BLK",9724.01,-2.13,-8.56,"Financials","Financial System"],["BN",7570.36,-1.91,-15.97,"Technology","Real Assets / Infrastructure"],["BOTZ",15742.54,-1.21,2.75,"Technology","Growth"],["BRK.B",13788.84,0.18,2.64,"Financials","Value / Diversified"],["CEG",888.62,-1.72,11.58,"Utilities","Commodities / Real Assets"],["CGGO",243.52,-0.76,-2.33,"Global Equities","Growth / Global"],["COIN",528.27,-2.36,16.6,"Financials","Speculative / Thematic"],["COWZ",2311.5,-0.66,8.32,"Equities","Real Assets / Income"],["CRNT",6.2,0.0,-28.82,"Technology","Energy & Resources"],["DBC",397.29,1.39,23.45,"Commodities","Value"],["DBMF",94.73,0.55,2.72,"Alternatives","Speculative"],["DYNF",420.82,-0.27,-0.69,"Equities","Growth / Active Core"],["ENB",758.16,-0.65,-2.58,"Energy","Real Assets / Infrastructure / Income"],["FIGB",21948.19,-0.25,-2.24,"Fixed Income","Income"],["FRFHF",9646.52,-1.16,-1.13,"Financials","Financial System"],["GDX",16240.64,1.08,226.67,"Materials","Commodities / Macro"],["GLD",1219.55,0.91,3.69,"Commodities","Commodities / Macro"],["GS",3110.57,-0.75,12.8,"Financials","Financial System"],["IBI.F35",62411.42,0.42,20.8,"Financials","Local Market (Israel)"],["IBI.FK4",61609.36,-0.29,23.24,"Broad Market","Local Market (Israel)"],["IVV",34745.12,-0.4,13.96,"Equities","Core"],["IXJ",2146.12,-0.5,-2.13,"Healthcare","Defensive Growth / Sector"],["JEPI",2735.22,-0.58,-1.99,"Equities","Income / Defensive Growth"],["JPM",2144.97,0.34,9.14,"Financials","Financial System"],["L",8214.99,0.4,9.17,"Financials","Insurance / Diversified"],["MCO",1434.89,-1.39,8.84,"Financials","Financial System"],["MKL",10798.55,0.0,-6.19,"Financials","Financial System"],["MS",651.12,-0.41,10.62,"Financials","Financial System"],["MSCI",1676.68,0.57,-1.28,"Financials","Financial System"],["O",363.49,-1.49,-2.48,"Real Estate","Real Estate"],["OWL",361.19,-3.21,12.66,"Financials","Real Assets / Infrastructure"],["PFF",456.25,-0.69,-3.15,"Fixed Income","Income"],["POWR",310.94,-1.61,-3.56,"Utilities","Real Assets / Infrastructure"],["QNDX",16870.8,-0.33,-0.29,"Equities","Growth / Core"],["QQQ",60642.37,-0.29,25.01,"Equities","Growth / Core"],["QTUM",11619.68,-0.74,28.6,"Technology","Growth"],["RTH",776.12,-1.11,-4.81,"Consumer Discretionary","Consumer Exposure"],["SCHD",1958.38,-0.93,4.92,"Equities","Income"],["SCHY",1186.08,-0.79,0.12,"Equities","Global"],["SIVR",386.23,2.29,7.13,"Commodities","Commodities / Macro"],["SMH",29518.71,0.1,3.11,"Technology","Growth"],["SPGI",1264.93,-2.55,2.79,"Financials","Financial System"],["SPY",34577.32,-0.46,14.97,"Equities","Core"],["TCAF",8459.11,-0.68,4.56,"Equity","Active Layer"],["URA",141.68,-1.35,13.88,"Materials","Energy & Resources"],["VB",38235.42,-1.23,3.28,"Equities","Small / Mid Cap"],["VCSH",3777.26,-0.08,-0.94,"Fixed Income","Income"],["VFVA",25006.57,-0.85,8.19,"Equities","Value"],["VGHY",4252.26,-0.11,-2.03,"Fixed Income","Income"],["VNQ",287.06,-1.03,-2.39,"Real Estate","Real Estate"],["VO",4170.62,-0.82,0.43,"Equities","Small / Mid Cap"],["VOO",65692.58,-0.45,15.4,"Equities","Core"],["VTV",2031.1,-0.32,4.31,"Equities","Core"],["VWO",184.04,-0.59,3.38,"Equities","Value"],["VXUS",3964.33,-0.76,0.23,"Equities","Global"],["VYMI",955.59,-0.8,0.59,"International Equities","Income / International"],["WPC",2114.97,-0.86,-0.89,"Real Estate","Real Assets / Income"],["XAR",17155.93,-2.59,11.77,"Industrials","Defense / Industrial"],["XLE",789.87,0.83,21.55,"Energy","Energy & Resources"],["XLP",1004.42,-1.15,-2.65,"Consumer Staples","Consumer Exposure"],["XLU",1687.81,-1.17,-2.98,"Utilities","Utilities / Defensive"],["XLV",2014.65,-0.33,8.61,"Healthcare","Utilities / Defensive"]];
 
+function fxRateLine(rate){
+  const asOf = window.lastFxAsOf;
+  return 'at ' + rate.toFixed(4) + (asOf ? ' · ' + asOf : '');
+}
 function num(s){
   if(typeof s === 'number') return s;
   if(s===undefined || s===null) return NaN;
@@ -805,41 +811,37 @@ function num(s){
   return parseFloat(cleaned);
 }
 
-// Tracker!Q4 can hold either a bare numeric rate, or the richer "USD / ILS 3.0366 ▲+0.09%
-// (+0.0027) Sep 18, 18:00" text (scraped straight from Google Finance's own page) — when it's
-// the latter, pull the rate and day change out of it directly rather than computing a day
-// change some other way, so this always matches Q4 exactly instead of disagreeing with it via
-// a different data source. Q4 is also a live/volatile formula and sometimes still shows
-// "Loading..." at the exact moment Google generates the CSV snapshot — flag that (via
-// window.lastFxWasLoading) so the caller can retry shortly instead of settling for a stale rate.
+// Tracker!Q1 holds the fast, reliable live rate (a plain GOOGLEFINANCE formula) — always used
+// for window.lastFxRate. Tracker!Q2 holds the slower "Sep 18, 18:00  USD / ILS 3.0366 ▲+0.09%
+// (+0.0027)" text (scraped straight from Google Finance's own page), used only for the day
+// change/timestamp context. These used to both live in one cell, which meant the scrape's own
+// slow, occasional "Loading..." state could block or corrupt the rate itself — now Q2 resolving
+// late (or not at all) only means the change context is temporarily unavailable, never the rate.
 // Shared by parseTableToRows (the initial parse) and retryFxIfLoading (the retry-on-Loading
-// path) so both understand the same Q4 formats — they used to parse Q4 independently, which let
-// the retry path silently fall behind when this format changed.
-function applyFxCell(fxCellRaw){
-  const fxMatch = typeof fxCellRaw === 'string'
-    ? /ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)\s*(.*)$/.exec(fxCellRaw)
+// path) so both understand the same cell formats.
+function applyFxCell(rateCellRaw, changeCellRaw){
+  const rateVal = num(rateCellRaw);
+  window.lastFxWasLoading = isNaN(rateVal);
+  if(!isNaN(rateVal)) window.lastFxRate = rateVal;
+
+  // Q4's text now leads with the timestamp: "Sep 18, 18:00  USD / ILS 3.0366 ▲+0.09% (+0.0027)".
+  const fxMatch = typeof changeCellRaw === 'string'
+    ? /^(.*?)\s*USD\s*\/\s*ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)/.exec(changeCellRaw)
     : null;
   if(fxMatch){
-    window.lastFxRate = parseFloat(fxMatch[1]);
-    window.lastFxChangePct = parseFloat(fxMatch[2]);
-    window.lastFxChange = parseFloat(fxMatch[3]);
-    window.lastFxAsOf = fxMatch[4] || '';
-    window.lastFxWasLoading = false;
-    return true;
-  }
-  const fxCellVal = num(fxCellRaw);
-  window.lastFxWasLoading = isNaN(fxCellVal);
-  if(!isNaN(fxCellVal)){
-    // Genuinely a plain numeric rate (not mid-recalculation) — a real format change, not a
-    // loading blip, so there's no change data attached to show anymore.
-    window.lastFxRate = fxCellVal;
+    window.lastFxAsOf = fxMatch[1] || '';
+    window.lastFxChangePct = parseFloat(fxMatch[3]);
+    window.lastFxChange = parseFloat(fxMatch[4]);
+  } else if(typeof changeCellRaw === 'string' && changeCellRaw.trim() && !/loading/i.test(changeCellRaw)){
+    // Q4 has settled on something else entirely (not "Loading...", not the expected format) —
+    // a real format change, so there's no change data attached to show anymore.
     window.lastFxChange = undefined;
     window.lastFxChangePct = undefined;
     window.lastFxAsOf = undefined;
   }
-  // else: transient "Loading..." — keep whatever rate/change/asOf is already showing until the
-  // retry resolves, rather than blanking the day-change back to "no data" in the meantime.
-  return !isNaN(fxCellVal);
+  // else: Q4 is still "Loading..." — keep whatever change/asOf is already showing rather than
+  // blanking it back to "no data" while the slower scrape catches up.
+  return !isNaN(rateVal);
 }
 
 function computeTotals(rows){
@@ -1358,6 +1360,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">USD/ILS</div>
         <div class="md-stat-tile-val" id="ilsxTileVal">…</div>
         <div class="md-stat-tile-sub" id="ilsxTileSub"></div>
+        <div class="md-stat-tile-sub" id="ilsxTileAsOf"></div>
       </div>
     </div>` : `
     <div class="md-stat-tiles">
@@ -1375,7 +1378,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Market Value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—'}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdUsdSub">${window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable'}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? 'at ' + window.lastFxRate.toFixed(4) : ''}</div>
+        <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? fxRateLine(window.lastFxRate) : ''}</div>
       </div>
     </div>`;
 
@@ -1428,6 +1431,8 @@ function populateIlFxTile(){
     subEl.className = 'md-stat-tile-sub ' + cls;
     subEl.textContent = `${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})`;
   }
+  const asOfEl = document.getElementById('ilsxTileAsOf');
+  if(asOfEl) asOfEl.textContent = window.lastFxAsOf || '';
 }
 
 function startIsraelLiveRefresh(){
@@ -1488,7 +1493,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Market Value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—'}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdUsdSub">${window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)` : 'rate unavailable'}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? 'at ' + window.lastFxRate.toFixed(4) : ''}</div>
+        <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? fxRateLine(window.lastFxRate) : ''}</div>
       </div>
     </div>
     <div id="intradayChart"></div>
@@ -2151,9 +2156,35 @@ function renderGauge(rows, totals){
 
 // Same idea as syncHeaderToIntraday inside the detail modals, applied to the main gauge panel's
 // three "day change" lines so they don't sit stale until the next full Tracker-sheet refresh.
+// Picks the latest point for today's window, falling back to the most recently completed
+// session when today has no data yet (market not open yet, or a non-trading day) — same idea
+// as the chart's own session fallback, so the gauge line stays informative all weekend instead
+// of just freezing on whatever the last full Tracker-sheet refresh happened to show.
+function pickLatestGaugePoint(raw, todayRange, dayRangeForDate){
+  const todayLog = raw.filter(p => p.t >= todayRange.open && p.t <= todayRange.close);
+  if(todayLog.length) return todayLog[todayLog.length-1];
+  if(!raw.length) return null;
+  let maxT = -Infinity;
+  for(const p of raw) if(p.t > maxT) maxT = p.t;
+  const dt = new Date(maxT);
+  const fbRange = dayRangeForDate(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
+  const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbRange.close);
+  return fbLog.length ? fbLog[fbLog.length-1] : null;
+}
+
+// While a market is open, its intraday log updates every minute — snappier than waiting for the
+// next full Tracker refresh, so the gauge line tracks it live. Once a market is closed, though,
+// the Tracker sheet's own numbers (already shown in the top summary cards) are just as current
+// and guaranteed consistent — overriding them with a frozen intraday snapshot from whenever that
+// market's last tick happened to land caused the gauge line to visibly disagree with the top
+// cards (e.g. after-hours price moves the Tracker sheet picks up that the log never will). So the
+// *value* only ever comes from intraday data while that market is actually open; once closed, the
+// value stays exactly what the Tracker-based render already set, and only an "as of" timestamp
+// (from the last real intraday tick) gets appended as pure context — never changing the number.
 async function syncGaugeToIntraday(split, totals){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
-  const applyLine = (valEl, subEl, latest, prevClose) => {
+  const fmtTs = t => new Date(t).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+  const applyLive = (valEl, subEl, latest, prevClose) => {
     if(!valEl || !subEl) return;
     const diff = latest - prevClose;
     const diffPct = prevClose ? diff/prevClose*100 : 0;
@@ -2162,17 +2193,41 @@ async function syncGaugeToIntraday(split, totals){
     valEl.textContent = `${diff>=0?'▲':'▼'} ${fmt(diff)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
     subEl.textContent = `Market Value: ${fmt(latest)}`;
   };
+  const appendAsOfToCurrentValue = (subEl, currentValue, ts) => {
+    if(subEl) subEl.textContent = `Market Value: ${fmt(currentValue)}` + (ts ? ` · ${fmtTs(ts)}` : '');
+  };
 
-  const taseRange = getTaseDayRangeMs(), usRange = getUsDayRangeMs();
-  let ilLog = [], usLog = [];
-  try{ ilLog = (await fetchIntradayLog(INTRADAY_LOG_CSV_URL)).filter(p=>p.t>=taseRange.open && p.t<=taseRange.close); }catch(e){}
-  try{ usLog = (await fetchIntradayLog(INTRADAY_LOG_US_CSV_URL)).filter(p=>p.t>=usRange.open && p.t<=usRange.close); }catch(e){}
+  const taseOpen = getTaseStatus();
+  const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  const [ilRaw, usRaw] = await Promise.all([
+    fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL).catch(()=>[]),
+    fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL).catch(()=>[])
+  ]);
+  const ilPoint = pickLatestGaugePoint(ilRaw, getTaseDayRangeMs(), getTaseDayRangeForDate);
+  const usPoint = pickLatestGaugePoint(usRaw, getUsDayRangeMs(), getUsDayRangeForDate);
 
-  if(ilLog.length) applyLine(document.getElementById('gaugeIlVal'), document.getElementById('gaugeIlSub'), ilLog[ilLog.length-1].v, split.il.value - split.il.gain);
-  if(usLog.length) applyLine(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), usLog[usLog.length-1].v, split.us.value - split.us.gain);
-  if(ilLog.length && usLog.length){
-    const combinedLatest = ilLog[ilLog.length-1].v + usLog[usLog.length-1].v;
-    applyLine(document.getElementById('gaugePortfolioVal'), document.getElementById('gaugePortfolioSub'), combinedLatest, totals.totalValue - totals.dayGain);
+  if(taseOpen && ilPoint){
+    applyLive(document.getElementById('gaugeIlVal'), document.getElementById('gaugeIlSub'), ilPoint.v, split.il.value - split.il.gain);
+  } else if(ilPoint){
+    appendAsOfToCurrentValue(document.getElementById('gaugeIlSub'), split.il.value, ilPoint.t);
+  }
+  if(usOpen && usPoint){
+    applyLive(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), usPoint.v, split.us.value - split.us.gain);
+  } else if(usPoint){
+    appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t);
+  }
+
+  if(taseOpen || usOpen){
+    // At least one side is live — refresh the combined figure the same snappy way, using
+    // intraday data for whichever side is open and the Tracker's own value for the other.
+    const ilForCombined = (taseOpen && ilPoint) ? ilPoint.v : split.il.value;
+    const usForCombined = (usOpen && usPoint) ? usPoint.v : split.us.value;
+    applyLive(document.getElementById('gaugePortfolioVal'), document.getElementById('gaugePortfolioSub'), ilForCombined + usForCombined, totals.totalValue - totals.dayGain);
+  } else if(ilPoint || usPoint){
+    // Both closed — the value already exactly equals totals.totalValue, so just show when the
+    // more recent of the two markets' last real ticks was.
+    const knownTimestamps = [ilPoint && ilPoint.t, usPoint && usPoint.t].filter(t => t != null);
+    if(knownTimestamps.length) appendAsOfToCurrentValue(document.getElementById('gaugePortfolioSub'), totals.totalValue, Math.max(...knownTimestamps));
   }
 }
 
@@ -2414,7 +2469,7 @@ function syncHeaderToIntraday(latest, prevClose, cost){
     usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
     usdSubEl.className = 'md-stat-tile-sub '+dcCls;
     const usdRateEl = document.getElementById('mdUsdRate');
-    if(usdRateEl) usdRateEl.textContent = 'at ' + fxRate.toFixed(4);
+    if(usdRateEl) usdRateEl.textContent = fxRateLine(fxRate);
   }
 
   if(cost){
@@ -2604,7 +2659,11 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     hoverDot.setAttribute('cy', pt.y.toFixed(1));
     hoverDot.style.display = 'block';
     defaultDot.style.display = 'none';
-    updateHeadlineDisplay(p.v, prevClose);
+    // While showing a fallback prior session, the headline/tiles above the chart reflect the
+    // real current totals (from the Tracker sheet) — hovering old session data must never
+    // overwrite them with a stale figure the tiles don't agree with. The floating tooltip below
+    // already shows the hovered point's own value, so nothing is lost by leaving the headline be.
+    if(!sessionLabel) updateHeadlineDisplay(p.v, prevClose);
 
     const ttDate = new Date(p.t).toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
     const ttDiff = p.v - prevClose;
@@ -2624,7 +2683,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     guideLine.style.display = 'none';
     hoverDot.style.display = 'none';
     defaultDot.style.display = 'block';
-    updateHeadlineDisplay(latest, prevClose);
+    if(!sessionLabel) updateHeadlineDisplay(latest, prevClose);
     tt.style.display = 'none';
     xAxisLabels.forEach(lbl => { lbl.style.opacity = '1'; });
   });
@@ -3183,7 +3242,7 @@ async function retryFxIfLoading(attempt){
   await new Promise(r=>setTimeout(r, 2500));
   try{
     const table = await fetchTableViaCsv();
-    const resolved = applyFxCell(table[3] ? table[3][16] : undefined);
+    const resolved = applyFxCell(table[0] ? table[0][16] : undefined, table[1] ? table[1][16] : undefined);
     if(resolved){
       if(window.lastRows && window.lastTotals) renderGauge(window.lastRows, window.lastTotals);
       refreshOpenMarketDetailIfNeeded();
@@ -3619,14 +3678,17 @@ function renderUniverseTable(){
     }).join('');
     tbody.querySelectorAll('tr').forEach((tr, i) => {
       const r = sorted[i];
+      const logoImg = r.logoUrl
+        ? `<img src="${r.logoUrl}" onerror="this.remove()" style="width:20px; height:20px; object-fit:contain; vertical-align:-5px; margin-right:6px; border-radius:50%; background:#fff;">`
+        : '';
       const tickerCell = tr.querySelector('td.ticker');
       if(tickerCell && r.roleInPortfolio){
-        attachHoverTooltip(tickerCell, () => `<b>${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.roleInPortfolio}</div>`);
+        attachHoverTooltip(tickerCell, () => `<b>${logoImg}${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.roleInPortfolio}</div>`);
       }
       const nameCell = tr.querySelector('td[data-col="name"]');
       if(nameCell && r.overview){
         nameCell.style.cursor = 'help';
-        attachHoverTooltip(nameCell, () => `<b>${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.overview}</div>`);
+        attachHoverTooltip(nameCell, () => `<b>${logoImg}${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.overview}</div>`);
       }
     });
   }
