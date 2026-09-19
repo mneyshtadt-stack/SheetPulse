@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789819566";
+const BUILD_ID = "1789820958";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -897,7 +897,7 @@ function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
 }
 
 // TASE moved its trading week from Sunday-Thursday to Monday-Friday effective 2026-01-05,
-// and Friday runs a shortened day (roughly 9:55-13:50) rather than the usual 10:00-17:30.
+// and Friday runs a shortened day (10:00-14:00) rather than the usual 10:00-17:30.
 function getTaseStatus(){
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Jerusalem', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
@@ -905,7 +905,7 @@ function getTaseStatus(){
   const get = t => parts.find(p=>p.type===t).value;
   const weekday = get('weekday');
   const nowMins = parseInt(get('hour'),10)*60 + parseInt(get('minute'),10);
-  if(weekday === 'Fri') return nowMins >= 9*60+55 && nowMins < 13*60+50;
+  if(weekday === 'Fri') return nowMins >= 10*60 && nowMins < 14*60;
   return ['Mon','Tue','Wed','Thu'].includes(weekday) && nowMins >= 10*60 && nowMins < 17*60+30;
 }
 
@@ -920,7 +920,7 @@ function getNextTaseOpenMs(){
     const get = t => parts.find(p=>p.type===t).value;
     const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10), weekday = get('weekday');
     let openMs;
-    if(weekday === 'Fri') openMs = zonedTimeToMs(y,m,d,9,55,'Asia/Jerusalem');
+    if(weekday === 'Fri') openMs = zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem');
     else if(['Mon','Tue','Wed','Thu'].includes(weekday)) openMs = zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem');
     else continue;
     if(openMs > now) return openMs;
@@ -1343,6 +1343,9 @@ function renderMarketDetailHeader(marketKey){
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
+  const isMarketClosed = marketKey === 'il' ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate);
+  const prevCloseVal = seg.value - seg.gain;
 
   const statsHtml = marketKey === 'il' ? `
     <div class="md-stat-tiles">
@@ -1350,6 +1353,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -1368,6 +1372,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -1387,7 +1392,7 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-headline" id="mdHeadlineVal">${fmt(seg.value)}</div>
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
-    <div class="md-headline-label">Market Value</div>
+    <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     ${statsHtml}
     ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
@@ -1471,18 +1476,20 @@ function renderPortfolioHeader(){
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
+  const isMarketClosed = !getTaseStatus() && !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
 
   body.innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
       <div class="md-headline" id="mdHeadlineVal">${fmt(totals.totalValue)}</div>
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
-    <div class="md-headline-label">Market Value</div>
+    <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -2345,7 +2352,7 @@ function roundTimeLabelToHour(t, timeZone){
 function getTaseDayRangeMs(){
   const {y,m,d,weekday} = todayInZone('Asia/Jerusalem');
   return weekday === 'Fri'
-    ? {open: zonedTimeToMs(y,m,d,9,55,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,13,50,'Asia/Jerusalem')}
+    ? {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,14,0,'Asia/Jerusalem')}
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
 function getUsDayRangeMs(){
@@ -2362,7 +2369,7 @@ function getCombinedDayRangeMs(){
 function getTaseDayRangeForDate(y, m, d){
   const weekday = new Date(y, m-1, d).toLocaleDateString('en-US', {weekday:'short'});
   return weekday === 'Fri'
-    ? {open: zonedTimeToMs(y,m,d,9,55,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,13,50,'Asia/Jerusalem')}
+    ? {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,14,0,'Asia/Jerusalem')}
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
 function getUsDayRangeForDate(y, m, d){
@@ -2371,6 +2378,44 @@ function getUsDayRangeForDate(y, m, d){
 function getCombinedDayRangeForDate(y, m, d){
   const tase = getTaseDayRangeForDate(y,m,d), us = getUsDayRangeForDate(y,m,d);
   return {open: Math.min(tase.open, us.open), close: Math.max(tase.close, us.close)};
+}
+// Walks a Y/M/D back to the nearest Mon-Fri date on or before it (TASE and USA are both closed
+// Sat/Sun now, so "trading day" is the same Mon-Fri definition for either market).
+function nearestTradingDayOnOrBefore(y, m, d){
+  let dt = new Date(y, m-1, d);
+  while(dt.getDay() === 0 || dt.getDay() === 6) dt = new Date(dt.getTime() - 86400000);
+  return {y: dt.getFullYear(), m: dt.getMonth()+1, d: dt.getDate()};
+}
+// The "Today" card's prevClose figure (totals.totalValue - totals.dayGain) is whatever the price
+// data providers report as each ticker's previous close — for the day "Today" itself represents
+// (the most recent trading day on or before today; over a weekend that's simply the last session
+// that ran). This finds the date/time that reference actually corresponds to: one trading day
+// before that session, labeled at USA's close (the later of the two markets, so it marks the
+// point at which that prior day's numbers were fully final).
+// "Friday, Sep 18"-style label for whatever trading day the current totals represent (today
+// itself if it's a trading day, otherwise the most recent one) — shown next to a headline value
+// only while the relevant market is closed, so it's clear that number is frozen as of that day
+// rather than reflecting a still-moving live price.
+function currentSessionDateLabel(){
+  const now = new Date();
+  const sessionDay = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
+  return new Date(sessionDay.y, sessionDay.m-1, sessionDay.d).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+}
+function headlineAsOfHtml(isClosed){
+  return isClosed ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· as of ${currentSessionDateLabel()}</span>` : '';
+}
+function marketPrevCloseReferenceLabel(dayRangeForDateFn){
+  const now = new Date();
+  const sessionDay = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
+  const dayBefore = new Date(sessionDay.y, sessionDay.m-1, sessionDay.d - 1);
+  const prevDay = nearestTradingDayOnOrBefore(dayBefore.getFullYear(), dayBefore.getMonth()+1, dayBefore.getDate());
+  const closeMs = dayRangeForDateFn(prevDay.y, prevDay.m, prevDay.d).close;
+  return new Date(closeMs).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+}
+// The combined portfolio's reference always lands on USA's close (it's always the later of the
+// two markets' closes in Israel time), so this is equivalent to using the combined range here.
+function prevCloseReferenceLabel(){
+  return marketPrevCloseReferenceLabel(getUsDayRangeForDate);
 }
 async function fetchIntradayLogRaw(url){
   const res = await fetch(url, {cache:'no-store'});
@@ -2586,8 +2631,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const x = xFor(t);
     const d = new Date(t);
     const isFirst = i === 0, isLast = i === tickTimes.length-1;
-    // TASE's real open is 09:55 on its shortened Friday session — but the axis reads cleaner
-    // rounded to the nearest hour (10:00) like every other tick, rather than the odd 5-minute mark.
+    // Rounds the start label to the nearest hour like every other tick (harmless no-op now that
+    // TASE's Friday open is already 10:00, same as every other trading day).
     const timeLabel = (isFirst && roundStartLabel)
       ? roundTimeLabelToHour(t, 'Asia/Jerusalem')
       : d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
@@ -2699,7 +2744,7 @@ function render(rows, totals){
   const cards = [
     {label:"Total value (NIS)", value: fmt(totals.totalValue), sub:""},
     {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)+"% overall", cls: totals.totalGain>=0?"up":"down"},
-    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:totals.dayGainPct.toFixed(2)+"% vs previous close", cls: totals.dayGain>=0?"up":"down"},
+    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:`${totals.dayGainPct.toFixed(2)}% vs previous close<div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>`, cls: totals.dayGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
   cards.forEach(c=>{
