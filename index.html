@@ -119,6 +119,12 @@
     white-space:nowrap; margin-top:1px;
   }
   .md-th-pct{font-size:11px; margin-top:1px;}
+  .nw-group-row td{background:var(--panel); font-weight:700; text-transform:uppercase; font-size:10.5px; letter-spacing:0.03em; padding-top:13px; padding-bottom:13px;}
+  .nw-group-row td:first-child{color:var(--ink); border-left:3px solid var(--group-color, var(--accent)); padding-left:11px;}
+  .nw-group-row td.num:not(.down){color:var(--ink);}
+  .nw-group-row .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:middle;}
+  .nw-item-row td{padding-top:10px; padding-bottom:10px;}
+  .nw-item-row td:first-child{padding-left:26px;}
   .md-stat-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:12px 0 14px;}
   .md-stat-tiles.cols-4{grid-template-columns:repeat(4,1fr);}
   .md-stat-tile{background:var(--panel); padding:9px 14px;}
@@ -556,7 +562,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789842420";
+const BUILD_ID = "1789843469";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -1510,7 +1516,10 @@ const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
   {key:'loan', label:'Equity Loan', match: h => h === 'Loan'}
 ];
-const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#118a7e'};
+const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#118a7e', 'Liabilities':'#a32d2d'};
+// Display order and header text for the grouped Item/Value table in the Net Worth detail view.
+const NW_ITEM_GROUP_ORDER = ['Portfolio', 'Study Funds', 'Pension', 'Liabilities'];
+const NW_ITEM_GROUP_LABELS = {'Portfolio':'Portfolio', 'Study Funds':'Study Funds', 'Pension':'Pension', 'Liabilities':'Liabilities'};
 
 // "Assets" — and therefore Net Worth — means the same thing everywhere in this view:
 // Securities + the 3 Study Funds. Kfir/Agam (small side accounts) and Pension (its own
@@ -1847,16 +1856,25 @@ function renderNetWorth(nw, crossYearPrev){
   const itemRows = [
     ...nw.assetItems.map(it=>({label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
     ...nw.liabilityItems.map(it=>({label:it.label, group:'Liabilities', isLiability:true, value:latest.liabilities[it.key]}))
-  ].filter(r=>!isNaN(r.value)).sort((a,b)=>b.value-a.value);
+  ].filter(r=>!isNaN(r.value));
 
-  const rowsHtml = itemRows.map(r=>`
-    <tr>
-      <td>
-        <div class="md-th-symbol">${r.label}</div>
-        <div class="md-th-sub">${r.group}</div>
-      </td>
-      <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
-    </tr>`).join('');
+  const rowsHtml = NW_ITEM_GROUP_ORDER.map(group=>{
+    const rows = itemRows.filter(r=>r.group===group).sort((a,b)=>b.value-a.value);
+    if(!rows.length) return '';
+    const subtotal = rows.reduce((sum,r)=> sum + (r.isLiability ? -r.value : r.value), 0);
+    const groupColor = NW_GROUP_COLORS[group] || '#8a6d3b';
+    const groupHeader = `
+      <tr class="nw-group-row" style="--group-color:${groupColor};">
+        <td><span class="dot" style="background:${groupColor};"></span>${NW_ITEM_GROUP_LABELS[group] || group}</td>
+        <td class="num ${subtotal<0?'down':''}">${subtotal<0?'-':''}${fmt(Math.abs(subtotal))}</td>
+      </tr>`;
+    const groupRows = rows.map(r=>`
+      <tr class="nw-item-row">
+        <td><div class="md-th-symbol">${r.label}</div></td>
+        <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
+      </tr>`).join('');
+    return groupHeader + groupRows;
+  }).join('');
 
   area.innerHTML = `
     <div class="md-split-bar">${barHtml}</div>
