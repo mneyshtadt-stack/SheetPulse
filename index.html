@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789792299";
+const BUILD_ID = "1789792610";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -770,12 +770,13 @@ function parseTableToRows(table){
   // and day change out of it directly rather than computing a day change some other way, so this
   // always matches Q4 exactly instead of disagreeing with it via a different data source.
   const fxMatch = typeof fxCellRaw === 'string'
-    ? /ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)/.exec(fxCellRaw)
+    ? /ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)\s*(.*)$/.exec(fxCellRaw)
     : null;
   if(fxMatch){
     window.lastFxRate = parseFloat(fxMatch[1]);
     window.lastFxChangePct = parseFloat(fxMatch[2]);
     window.lastFxChange = parseFloat(fxMatch[3]);
+    window.lastFxAsOf = fxMatch[4] || '';
     window.lastFxWasLoading = false;
   } else {
     const fxCellVal = num(fxCellRaw);
@@ -783,6 +784,7 @@ function parseTableToRows(table){
     window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
     window.lastFxChange = undefined;
     window.lastFxChangePct = undefined;
+    window.lastFxAsOf = undefined;
   }
 
   const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
@@ -2187,7 +2189,8 @@ function formatFxLine(rate){
   const {change, changePct} = getFxDayChange(rate);
   const cls = change >= 0 ? 'up' : 'down';
   const arrow = change >= 0 ? '▲' : '▼';
-  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">Today</span>`;
+  const asOf = window.lastFxAsOf || 'Today';
+  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`;
 }
 
 // Intraday value tracking (per market segment) — logged server-side by Google Apps Script
