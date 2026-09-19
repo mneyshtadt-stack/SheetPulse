@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789793159";
+const BUILD_ID = "1789793431";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -829,10 +829,16 @@ function applyFxCell(fxCellRaw){
   }
   const fxCellVal = num(fxCellRaw);
   window.lastFxWasLoading = isNaN(fxCellVal);
-  window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
-  window.lastFxChange = undefined;
-  window.lastFxChangePct = undefined;
-  window.lastFxAsOf = undefined;
+  if(!isNaN(fxCellVal)){
+    // Genuinely a plain numeric rate (not mid-recalculation) — a real format change, not a
+    // loading blip, so there's no change data attached to show anymore.
+    window.lastFxRate = fxCellVal;
+    window.lastFxChange = undefined;
+    window.lastFxChangePct = undefined;
+    window.lastFxAsOf = undefined;
+  }
+  // else: transient "Loading..." — keep whatever rate/change/asOf is already showing until the
+  // retry resolves, rather than blanking the day-change back to "no data" in the meantime.
   return !isNaN(fxCellVal);
 }
 
