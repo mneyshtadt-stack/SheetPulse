@@ -34,27 +34,12 @@
     border:1px solid var(--line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color 0.15s ease, color 0.15s ease;
   }
   #autoRefreshSelect:hover{border-color:var(--accent); color:var(--ink);}
-  #universeBtn, #netWorthBtn, #settingsBtn{
+  #universeBtn, #netWorthBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:9px 14px; cursor:pointer;
     transition:border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   }
-  #universeBtn:hover, #netWorthBtn:hover, #settingsBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
-  #settingsPanel{
-    display:none; background:var(--panel); border:1px solid var(--line); padding:18px 20px; margin-bottom:36px;
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
-  }
-  #settingsPanel.open{display:block;}
-  #settingsPanel h3{font-size:13px; font-weight:600; margin:0 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
-  #settingsPanel p{color:var(--muted); margin:0 0 14px; line-height:1.6;}
-  .field{margin-bottom:12px;}
-  .field label{display:block; color:var(--muted); margin-bottom:4px;}
-  .field input{width:100%; max-width:480px; padding:8px 10px; border:1px solid var(--line); font-family:inherit; font-size:12px; background:var(--paper); color:var(--ink);}
-  .field .hint{color:var(--muted); font-size:11px; margin-top:4px;}
-  #saveCredsBtn, #clearCredsBtn{
-    font-family:inherit; font-size:12px; padding:8px 14px; cursor:pointer; border:1px solid var(--line); background:var(--paper); color:var(--ink);
-  }
-  #saveCredsBtn{border-color:var(--accent); color:var(--accent);}
+  #universeBtn:hover, #netWorthBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
   #digestBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
@@ -427,35 +412,12 @@
       </select>
       <button id="universeBtn" title="Browse the full research watchlist">Market Universe</button>
       <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension">Net Worth</button>
-      <button id="settingsBtn" title="Custom sheet CSV URLs">Sheet URL</button>
       <button id="refreshBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
         Refresh from sheet
       </button>
     </div>
   </header>
-
-  <div id="settingsPanel">
-    <h3>Sheet CSV URL</h3>
-    <p>
-      Paste the published CSV URL from Google Sheets (File → Share → Publish to web → CSV). Stored only in
-      this browser (localStorage), sent only to Google, never to Claude. Leave blank to use the default URL
-      built into this file.
-    </p>
-    <div class="field">
-      <label for="csvUrlInput">Published CSV URL</label>
-      <input type="text" id="csvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv&gid=...">
-    </div>
-    <div class="field">
-      <label for="netWorthCsvUrlInput">Net Worth Sheet CSV URL</label>
-      <input type="text" id="netWorthCsvUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv">
-      <div class="hint">Publish the whole workbook (File → Share → Publish to web → select "Entire Document" → CSV), then paste that one URL here. Used by the "Net Worth" button — study funds, assets, mortgage, equity loan, pension. The year tabs in that workbook (2026, 2027, …) show up automatically as a switcher in the Net Worth window.</div>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button id="saveCredsBtn">Save</button>
-      <button id="clearCredsBtn">Clear</button>
-    </div>
-  </div>
 
   <div id="heroPanel">
     <div class="cards" id="cards"></div>
@@ -594,7 +556,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789820958";
+const BUILD_ID = "__BUILD_ID__";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -610,16 +572,34 @@ const BUILD_ID = "1789820958";
 })();
 
 const SHEET_ID = "1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g";
-const DEFAULT_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=1447063285`;
-const DEFAULT_NET_WORTH_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vTBPKjD7GLedKDODUC5Pnle_Czgt7X1XDGjU9WrKjkgjWrr_TSnGwP0ylYP3xwtaQ/pub?output=csv`;
+const NET_WORTH_SHEET_ID = "1EM-9DO20uZ4LyXQ00iG9ijiKDp5xn4ltUE-vQvAyh1s";
+
+// All sheet data comes through a private proxy (an authenticated Google Sheets API call on a small
+// server) instead of Google's public "publish to web" CSV export — the sheets themselves are no
+// longer published. This bearer token is still visible to anyone who reads this page's source, so
+// it doesn't hide the data from a determined reader of this file; it only keeps the raw data out of
+// search engines and anonymous scraping of a bare public URL, which is what "publish to web" was.
+const PROXY_BASE_URL = "https://michaelportfolio.duckdns.org";
+const PROXY_AUTH_TOKEN = "1a9d30b3c3f71b376cd76e836adc7db17e000f7b24912f70ad8e1851c6d10058";
+function proxyUrl(sheetId, sheetName){
+  return `${PROXY_BASE_URL}/?sheetId=${encodeURIComponent(sheetId)}&sheetName=${encodeURIComponent(sheetName)}`;
+}
+function proxyListUrl(sheetId){
+  return `${PROXY_BASE_URL}/?sheetId=${encodeURIComponent(sheetId)}&action=list`;
+}
+function fetchViaProxy(url){
+  return fetch(url, {cache:'no-store', headers:{Authorization: `Bearer ${PROXY_AUTH_TOKEN}`}});
+}
+
+const CSV_URL = proxyUrl(SHEET_ID, 'Tracker');
 // Same workbook as the Tracker sheet, "Investment Universe" tab — its "logo" column is looked up
 // by ticker and merged onto the holdings rows, so a logo only needs to be entered in one place.
-const INVESTMENT_UNIVERSE_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=840865265`;
+const INVESTMENT_UNIVERSE_CSV_URL = proxyUrl(SHEET_ID, 'Investment Universe');
 let _tickerLogosCache = null;
 async function getTickerLogos(){
   if(_tickerLogosCache) return _tickerLogosCache;
   try{
-    const res = await fetch(INVESTMENT_UNIVERSE_CSV_URL, {cache:'no-store'});
+    const res = await fetchViaProxy(INVESTMENT_UNIVERSE_CSV_URL);
     if(!res.ok) return {};
     const text = await res.text();
     const table = Papa.parse(text, {skipEmptyLines:false}).data;
@@ -645,57 +625,38 @@ async function applyTickerLogos(rows){
   rows.forEach(r => { if(logos[r.name]) r.logoUrl = logos[r.name]; });
 }
 
-function getCsvUrl(){
-  return localStorage.getItem('pf_csvUrl') || DEFAULT_CSV_URL;
-}
-function getNetWorthCsvUrl(){
-  return localStorage.getItem('pf_netWorthCsvUrl') || DEFAULT_NET_WORTH_CSV_URL;
-}
-// Year → sheet tab (gid) within the single published workbook. Maintained in code — when a new
-// year's tab is added in Google Sheets, add its year and gid here (find the gid by clicking that
-// tab and copying the number after #gid= in the address bar).
-// Fallback only — used if live discovery (below) can't reach Google or finds nothing.
-const NET_WORTH_YEAR_GIDS = {'2026': '884622855', '2027': '760785439'};
+// The Net Worth workbook's tabs are literally named by year ("2026", "2027", ...). Fallback only —
+// used if the proxy's tab-listing call (below) can't reach it or finds nothing.
+const NET_WORTH_YEARS_FALLBACK = ['2027', '2026'];
 const NET_WORTH_FIRST_YEAR = 2026; // ignore any older year tabs (2025, 2024, ...) in the workbook
 
-// Every published Google Sheet exposes a "pubhtml" listing of all its tabs (name + gid), which is
-// fetchable cross-origin. We parse that to auto-detect year tabs (2026, 2027, 2028, ...) as they're
-// added in the sheet, so no code change is needed here when a new year starts — just fill in the sheet.
-async function discoverNetWorthYearGids(){
+// Auto-detects year tabs (2026, 2027, 2028, ...) as they're added in the sheet, via the proxy's tab
+// listing, so no code change is needed here when a new year starts — just fill in the sheet.
+async function discoverNetWorthYears(){
   try{
-    const base = getNetWorthCsvUrl();
-    const m = base.match(/\/spreadsheets\/d\/e\/([^/]+)\//);
-    if(!m) return null;
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/e/${m[1]}/pubhtml`, {cache:'no-store'});
+    const res = await fetchViaProxy(proxyListUrl(NET_WORTH_SHEET_ID));
     if(!res.ok) return null;
-    const html = await res.text();
-    const gids = {};
-    const re = /items\.push\(\{name:\s*"([^"]+)"[^}]*?gid:\s*"(\d+)"/g;
-    let match;
-    while((match = re.exec(html))){
-      if(/^\d{4}$/.test(match[1]) && Number(match[1]) >= NET_WORTH_FIRST_YEAR) gids[match[1]] = match[2];
-    }
-    return Object.keys(gids).length ? gids : null;
+    const data = await res.json();
+    const years = (data.tabs || [])
+      .map(t => t.title)
+      .filter(t => /^\d{4}$/.test(t) && Number(t) >= NET_WORTH_FIRST_YEAR);
+    return years.length ? years : null;
   } catch(e){
     return null;
   }
 }
-let _nwGidsPromise = null;
-function getNetWorthGids(){
-  if(!_nwGidsPromise){
-    _nwGidsPromise = discoverNetWorthYearGids().then(discovered => discovered || NET_WORTH_YEAR_GIDS);
+let _nwYearsPromise = null;
+function getNetWorthYears(){
+  if(!_nwYearsPromise){
+    _nwYearsPromise = discoverNetWorthYears().then(discovered => discovered || NET_WORTH_YEARS_FALLBACK);
   }
-  return _nwGidsPromise;
+  return _nwYearsPromise;
 }
-function sortedNetWorthYears(map){
-  return Object.keys(map).sort((a,b)=> Number(b) - Number(a));
+function sortedNetWorthYears(years){
+  return [...years].sort((a,b)=> Number(b) - Number(a));
 }
-function netWorthUrlForYear(year, gids){
-  const base = getNetWorthCsvUrl();
-  const gid = gids[year];
-  if(!gid) return base;
-  const sep = base.includes('?') ? '&' : '?';
-  return `${base}${sep}gid=${encodeURIComponent(gid)}`;
+function netWorthUrlForYear(year){
+  return proxyUrl(NET_WORTH_SHEET_ID, year);
 }
 function setStatus(msg, isErr){
   const status = document.getElementById('status');
@@ -703,30 +664,9 @@ function setStatus(msg, isErr){
   status.textContent = msg;
 }
 
-document.getElementById('settingsBtn').addEventListener('click', ()=>{
-  document.getElementById('settingsPanel').classList.toggle('open');
-});
-(function initCredsUI(){
-  document.getElementById('csvUrlInput').value = localStorage.getItem('pf_csvUrl') || '';
-  document.getElementById('netWorthCsvUrlInput').value = localStorage.getItem('pf_netWorthCsvUrl') || '';
-})();
-document.getElementById('saveCredsBtn').addEventListener('click', ()=>{
-  localStorage.setItem('pf_csvUrl', document.getElementById('csvUrlInput').value.trim());
-  localStorage.setItem('pf_netWorthCsvUrl', document.getElementById('netWorthCsvUrlInput').value.trim());
-  setStatus('URL saved in this browser.', false);
-});
-document.getElementById('clearCredsBtn').addEventListener('click', ()=>{
-  localStorage.removeItem('pf_csvUrl');
-  localStorage.removeItem('pf_netWorthCsvUrl');
-  localStorage.removeItem('pf_netWorthLastYear');
-  document.getElementById('csvUrlInput').value='';
-  document.getElementById('netWorthCsvUrlInput').value='';
-  setStatus('Cleared. Refresh will use the default URL built into this file.', false);
-});
-
 async function fetchTableViaCsv(){
-  const res = await fetch(getCsvUrl(), {cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
+  const res = await fetchViaProxy(CSV_URL);
+  if(!res.ok) throw new Error('HTTP '+res.status+' — check the proxy is reachable and the sheet name is correct');
   const text = await res.text();
   return Papa.parse(text, {skipEmptyLines:false}).data;
 }
@@ -2024,17 +1964,17 @@ function hideNwYearSwitcher(){
 }
 
 async function fetchNetWorthTable(url){
-  const res = await fetch(url, {cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status+' — check the sheet is published and the URL is correct');
+  const res = await fetchViaProxy(url);
+  if(!res.ok) throw new Error('HTTP '+res.status+' — check the proxy is reachable and the sheet name is correct');
   const text = await res.text();
   const table = Papa.parse(text, {skipEmptyLines:false}).data;
   return parseNetWorthTable(table);
 }
 
 async function loadNetWorthYear(year){
-  const gids = await getNetWorthGids();
-  const years = sortedNetWorthYears(gids);
-  const url = year ? netWorthUrlForYear(year, gids) : getNetWorthCsvUrl();
+  const allYears = await getNetWorthYears();
+  const years = sortedNetWorthYears(allYears);
+  const url = year ? netWorthUrlForYear(year) : null;
 
   document.getElementById('marketDetailTitle').textContent = 'Net Worth';
   document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
@@ -2047,10 +1987,8 @@ async function loadNetWorthYear(year){
 
   if(!url){
     body.innerHTML = `
-      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--muted); font-size:13px; line-height:1.8; padding:12px 0 24px;">
-        No Net Worth sheet connected yet. Add a published CSV URL for your net worth sheet (study funds,
-        other assets, mortgage, equity loan, pension) under <b style="color:var(--ink);">Sheet URL</b> in
-        the header, then reopen this.
+      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--down-5); font-size:13px; line-height:1.8; padding:12px 0 24px;">
+        Could not find a year tab in the Net Worth sheet — check the proxy is reachable.
       </div>
     `;
     document.getElementById('marketDetailModal').classList.add('open');
@@ -2073,11 +2011,10 @@ async function loadNetWorthYear(year){
     let crossYearPrev = null;
     let crossYearAgo = null;
     if(year && nw.months.length === 1){
-      const prevGid = gids[String(Number(year) - 1)];
-      if(prevGid){
+      const prevYear = String(Number(year) - 1);
+      if(allYears.includes(prevYear)){
         try{
-          const prevYear = String(Number(year) - 1);
-          const prevNw = await fetchNetWorthTable(netWorthUrlForYear(prevYear, gids));
+          const prevNw = await fetchNetWorthTable(netWorthUrlForYear(prevYear));
           if(prevNw.months.length){
             const prevLatest = prevNw.months[prevNw.months.length-1];
             crossYearPrev = {...prevLatest, month: `${prevLatest.month} ${prevYear}`};
@@ -2099,8 +2036,8 @@ async function loadNetWorthYear(year){
 }
 
 async function openNetWorthDetail(){
-  const gids = await getNetWorthGids();
-  const years = sortedNetWorthYears(gids);
+  const allYears = await getNetWorthYears();
+  const years = sortedNetWorthYears(allYears);
   if(!years.length){
     await loadNetWorthYear(null);
     return;
@@ -2272,8 +2209,8 @@ function formatFxLine(rate){
 // time-driven triggers into IntradayLog/IntradayLogUS tabs of the same workbook as Tracker,
 // independent of whether anyone has this page open. The dashboard just reads those tabs as CSV
 // and plots today's rows.
-const INTRADAY_LOG_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=197488115`;
-const INTRADAY_LOG_US_CSV_URL = `https://docs.google.com/spreadsheets/d/e/2PACX-1vRpI3k04C5VfXeePo7bxX86QPZqGAIMNliHitZRibmbuVRLa_HsGn-U4R-evnf9mTu6nUV0d9S7XG5h/pub?output=csv&gid=726100519`;
+const INTRADAY_LOG_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLog');
+const INTRADAY_LOG_US_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogUS');
 
 // Today's Y/M/D as seen in a given timezone (not the browser's own local date — matters near
 // midnight boundaries), plus that timezone's weekday for schedules that vary by day (TASE Friday).
@@ -2418,7 +2355,7 @@ function prevCloseReferenceLabel(){
   return marketPrevCloseReferenceLabel(getUsDayRangeForDate);
 }
 async function fetchIntradayLogRaw(url){
-  const res = await fetch(url, {cache:'no-store'});
+  const res = await fetchViaProxy(url);
   if(!res.ok) throw new Error('HTTP '+res.status);
   const text = await res.text();
   const table = Papa.parse(text, {skipEmptyLines:true}).data;
@@ -3654,7 +3591,7 @@ let universeSort = {key:'ticker', dir:1};
 let universeFilter = '';
 
 async function fetchUniverseRows(){
-  const res = await fetch(INVESTMENT_UNIVERSE_CSV_URL, {cache:'no-store'});
+  const res = await fetchViaProxy(INVESTMENT_UNIVERSE_CSV_URL);
   if(!res.ok) throw new Error('HTTP '+res.status);
   const text = await res.text();
   const table = Papa.parse(text, {skipEmptyLines:false}).data;
