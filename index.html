@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789795357";
+const BUILD_ID = "1789819566";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -1021,7 +1021,7 @@ const MD_COLS = [
   {key:'name', label:'Symbol'},
   {key:'price', label:'Price'},
   {key:'shares', label:'Quantity'},
-  {key:'dayGain', label:'Day change'},
+  {key:'change', label:'Day change'},
   {key:'totalGain', label:'Total gain/loss'},
   {key:'value', label:'Value'}
 ];
@@ -1030,7 +1030,7 @@ const PF_COLS = [
   {key:'name', label:'Symbols'},
   {key:'price', label:'Price'},
   {key:'shares', label:'Quantity'},
-  {key:'dayGain', label:'Day change'},
+  {key:'change', label:'Day change'},
   {key:'totalGain', label:'Total gain/loss'},
   {key:'value', label:'Market value'},
   {key:'avgCost', label:'Avg cost basis'}
@@ -1404,7 +1404,7 @@ function openMarketDetail(marketKey){
 
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 
-  const defaultSortKey = marketKey === 'us' ? 'dayGain' : 'value';
+  const defaultSortKey = marketKey === 'us' ? 'change' : 'value';
   marketDetailState = {marketKey, tickers: seg.tickers, sortKey: defaultSortKey, sortDir:-1, filter:''};
   renderMarketDetailTable();
 
@@ -1513,7 +1513,7 @@ function openPortfolioDetail(){
 
   if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 
-  marketDetailState = {marketKey:'all', tickers: window.lastRows, sortKey:'dayGain', sortDir:-1, filter:''};
+  marketDetailState = {marketKey:'all', tickers: window.lastRows, sortKey:'change', sortDir:-1, filter:''};
   renderMarketDetailTable();
 
   document.getElementById('marketDetailModal').classList.add('open');
@@ -3296,6 +3296,21 @@ async function refresh(){
   } catch(e){ /* silent — cached view already shown */ }
 })();
 document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+// The treemap (and the intraday charts inside an open modal) size themselves in pixels from
+// their container's width at the moment they're drawn — with no resize/rotation handler, that
+// layout goes stale the instant the viewport changes shape (most obviously on a phone rotating
+// portrait<->landscape), leaving old tiles sized for the previous width sitting in a container
+// that's now a completely different shape. Re-render everything size-dependent, debounced so a
+// continuous drag-resize (or a browser that fires this repeatedly mid-rotation) doesn't thrash.
+let resizeRenderTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeRenderTimer);
+  resizeRenderTimer = setTimeout(() => {
+    if(window.lastRows && window.lastTotals) render(window.lastRows, window.lastTotals);
+    refreshOpenMarketDetailIfNeeded();
+  }, 250);
+});
 
 let autoRefreshTimer = null;
 function applyAutoRefreshSetting(minutes){
