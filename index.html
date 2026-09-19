@@ -556,7 +556,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789839963";
+const BUILD_ID = "1789841356";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -2369,6 +2369,10 @@ async function fetchIntradayLogRaw(url){
     if(isNaN(d.getTime())) continue;
     points.push({t: d.getTime(), v});
   }
+  // The merge/rendering logic below assumes chronological (ascending) order, but the sheet's own
+  // row order isn't guaranteed to stay that way (e.g. someone sorts it, or a script logs out of
+  // order) — sort defensively here rather than let a reordered sheet silently break every chart.
+  points.sort((a,b) => a.t - b.t);
   return points;
 }
 async function fetchIntradayLog(url){
