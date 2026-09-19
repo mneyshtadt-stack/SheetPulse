@@ -594,7 +594,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789792610";
+const BUILD_ID = "1789793159";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -760,32 +760,8 @@ function parseTableToRows(table){
   const col = name => headers.indexOf(name);
 
   // USD/ILS is always read from the Tracker sheet's fixed cell Q4 (row 4, column Q),
-  // independent of where the holdings header row lands. That cell is a live/volatile
-  // formula and sometimes still shows "Loading..." at the exact moment Google generates
-  // the CSV snapshot — flag that so the caller can retry shortly instead of settling
-  // for a stale rate.
-  const fxCellRaw = table[3] ? table[3][16] : undefined;
-  // Q4 can hold either a bare numeric rate, or the richer "USD / ILS 3.0366 ▲+0.09% (+0.0027) ..."
-  // text (scraped straight from Google Finance's own page) — when it's the latter, pull the rate
-  // and day change out of it directly rather than computing a day change some other way, so this
-  // always matches Q4 exactly instead of disagreeing with it via a different data source.
-  const fxMatch = typeof fxCellRaw === 'string'
-    ? /ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)\s*(.*)$/.exec(fxCellRaw)
-    : null;
-  if(fxMatch){
-    window.lastFxRate = parseFloat(fxMatch[1]);
-    window.lastFxChangePct = parseFloat(fxMatch[2]);
-    window.lastFxChange = parseFloat(fxMatch[3]);
-    window.lastFxAsOf = fxMatch[4] || '';
-    window.lastFxWasLoading = false;
-  } else {
-    const fxCellVal = num(fxCellRaw);
-    window.lastFxWasLoading = isNaN(fxCellVal);
-    window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
-    window.lastFxChange = undefined;
-    window.lastFxChangePct = undefined;
-    window.lastFxAsOf = undefined;
-  }
+  // independent of where the holdings header row lands.
+  applyFxCell(table[3] ? table[3][16] : undefined);
 
   const cTicker = col('Ticker'), cValueILS = col('Current Value (ILS)'),
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
@@ -827,6 +803,37 @@ function num(s){
   if(s===undefined || s===null) return NaN;
   const cleaned = String(s).replace(/[₪$,%\s]/g,'').replace(/^\((.*)\)$/,'-$1');
   return parseFloat(cleaned);
+}
+
+// Tracker!Q4 can hold either a bare numeric rate, or the richer "USD / ILS 3.0366 ▲+0.09%
+// (+0.0027) Sep 18, 18:00" text (scraped straight from Google Finance's own page) — when it's
+// the latter, pull the rate and day change out of it directly rather than computing a day
+// change some other way, so this always matches Q4 exactly instead of disagreeing with it via
+// a different data source. Q4 is also a live/volatile formula and sometimes still shows
+// "Loading..." at the exact moment Google generates the CSV snapshot — flag that (via
+// window.lastFxWasLoading) so the caller can retry shortly instead of settling for a stale rate.
+// Shared by parseTableToRows (the initial parse) and retryFxIfLoading (the retry-on-Loading
+// path) so both understand the same Q4 formats — they used to parse Q4 independently, which let
+// the retry path silently fall behind when this format changed.
+function applyFxCell(fxCellRaw){
+  const fxMatch = typeof fxCellRaw === 'string'
+    ? /ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)%\s*\(([+-][\d.]+)\)\s*(.*)$/.exec(fxCellRaw)
+    : null;
+  if(fxMatch){
+    window.lastFxRate = parseFloat(fxMatch[1]);
+    window.lastFxChangePct = parseFloat(fxMatch[2]);
+    window.lastFxChange = parseFloat(fxMatch[3]);
+    window.lastFxAsOf = fxMatch[4] || '';
+    window.lastFxWasLoading = false;
+    return true;
+  }
+  const fxCellVal = num(fxCellRaw);
+  window.lastFxWasLoading = isNaN(fxCellVal);
+  window.lastFxRate = !isNaN(fxCellVal) ? fxCellVal : window.lastFxRate;
+  window.lastFxChange = undefined;
+  window.lastFxChangePct = undefined;
+  window.lastFxAsOf = undefined;
+  return !isNaN(fxCellVal);
 }
 
 function computeTotals(rows){
@@ -3170,10 +3177,8 @@ async function retryFxIfLoading(attempt){
   await new Promise(r=>setTimeout(r, 2500));
   try{
     const table = await fetchTableViaCsv();
-    const fxCellVal = num(table[3] ? table[3][16] : undefined);
-    if(!isNaN(fxCellVal)){
-      window.lastFxRate = fxCellVal;
-      window.lastFxWasLoading = false;
+    const resolved = applyFxCell(table[3] ? table[3][16] : undefined);
+    if(resolved){
       if(window.lastRows && window.lastTotals) renderGauge(window.lastRows, window.lastTotals);
       refreshOpenMarketDetailIfNeeded();
     } else {
