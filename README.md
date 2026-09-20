@@ -13,6 +13,7 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
 - **Market Universe** — a sortable research watchlist of tickers with sector, category, and role classifications, plus hover tooltips for the fuller "why I hold this" and "what this fund is" notes.
 - **Live refresh** — open detail views refresh in place on a timer without losing your current search/sort/filter state.
 - **Installable as an app** — a web app manifest and service worker let Android's Chrome (and other browsers) install this as a real full-screen app with its own icon, no browser chrome, via "Add to Home screen" / "Install app".
+- **Biometric quick-unlock** — after signing in with Google once on a device, you can enable Face ID / Fingerprint (via WebAuthn) as a faster way back in on that same device, without repeating the full Google sign-in flow every time.
 
 ## How it works
 
@@ -21,6 +22,8 @@ The page fetches sheet data with `fetch()` and parses it client-side with [PapaP
 Data doesn't come from Google Sheets' public "Publish to web" CSV export. Instead, the page calls a small self-hosted proxy (a Node.js process behind Caddy, on a free-tier Oracle Cloud VM) which authenticates to the Google Sheets API v4 with an OAuth refresh token and returns the same CSV-shaped data. The underlying spreadsheets are **not** published to the web at all, so the raw data isn't reachable by anyone who merely has a URL.
 
 Access to the page itself is gated by **Google Sign-In**: the dashboard shows a "Sign in with Google" screen (via Google Identity Services) instead of any password. Once signed in, every request to the proxy carries the viewer's own Google ID token, and the proxy independently re-verifies that token on **every single request** — checking its signature against Google's own public keys and confirming its email matches the one allowed account — before it will read anything from the sheets. There is no static secret embedded in this page's source for a reader to find and reuse; the one Client ID that is embedded is meant to be public (that's how Google's browser sign-in flow is designed to work) and can't by itself be used to read any data.
+
+Once signed in with Google, a device can additionally register a **WebAuthn** (Face ID / Fingerprint) credential as a per-device shortcut back in. Registering one still requires a fresh, real Google ID token; unlocking with the credential afterward has the proxy verify the biometric assertion itself and hand back a short-lived session token, used exactly like a Google ID token from then on. The biometric read never leaves your device — the proxy only ever stores a public key, and only for devices you've explicitly enabled.
 
 ## Setup
 
@@ -40,7 +43,8 @@ This dashboard is wired to one specific Google account's sheets and one allowed 
 - A Node.js proxy (OAuth2 + Google Sheets API v4 + `google-auth-library` for ID token verification) behind Caddy for automatic HTTPS, self-hosted on a free-tier Oracle Cloud VM.
 - Hosted as a static page (e.g. GitHub Pages).
 - A web app manifest (`manifest.json`) and a minimal service worker (`sw.js`) for PWA installability.
+- The native browser WebAuthn API (`navigator.credentials`) on the frontend, and `@simplewebauthn/server` + `jsonwebtoken` on the proxy, for biometric quick-unlock.
 
 ## Privacy
 
-No data is sent anywhere except from your browser to the private proxy, and from the proxy to Google's Sheets API. There is no analytics and no third party involved in loading your data. The spreadsheets themselves are not published to the web; access requires signing in with the one allowed Google account, which the proxy independently re-verifies on every request alongside an origin restriction.
+No data is sent anywhere except from your browser to the private proxy, and from the proxy to Google's Sheets API. There is no analytics and no third party involved in loading your data. The spreadsheets themselves are not published to the web; access requires signing in with the one allowed Google account, which the proxy independently re-verifies on every request alongside an origin restriction. If you enable biometric unlock, your fingerprint/face data itself never leaves your device — only a public key is stored on the proxy, standard for WebAuthn.
