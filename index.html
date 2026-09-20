@@ -376,10 +376,13 @@
   // The real access gate is server-side: the proxy independently verifies this same ID
   // token's signature and email on every request. This client-side check only decides
   // whether to show the dashboard UI at all -- it can't be used to fake access to data.
-  function pfSetAccountLine(email){
+  function pfSetAccountLine(payload){
     const el = document.getElementById('accountLine');
     if(!el) return;
-    el.innerHTML = `Signed in as ${email} &middot; <a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>`;
+    const avatar = payload.picture
+      ? `<img src="${payload.picture}" alt="" referrerpolicy="no-referrer" onerror="this.remove()" style="width:18px; height:18px; border-radius:50%; vertical-align:-4px; margin-right:6px;">`
+      : '';
+    el.innerHTML = `${avatar}Signed in as ${payload.email} &middot; <a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>`;
     const link = document.getElementById('pfSignOutLink');
     if(link) link.addEventListener('click', function(e){ e.preventDefault(); pfSignOut(); });
   }
@@ -403,7 +406,7 @@
     sessionStorage.setItem('pf_idToken', idToken);
     errEl.textContent = '';
     document.body.classList.add('pf-unlocked');
-    pfSetAccountLine(payload.email);
+    pfSetAccountLine(payload);
   }
 
   function pfPromptGoogleSignIn(){
@@ -420,7 +423,7 @@
       const payload = pfDecodeJwt(existing);
       if(payload.email === ALLOWED_GOOGLE_EMAIL && payload.exp > Date.now()/1000){
         document.body.classList.add('pf-unlocked');
-        pfSetAccountLine(payload.email);
+        pfSetAccountLine(payload);
       } else {
         sessionStorage.removeItem('pf_idToken');
       }
@@ -599,7 +602,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789886460";
+const BUILD_ID = "1789887295";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
