@@ -1,4 +1,4 @@
-# Personal Finance & Investment Dashboard
+# SheetPulse
 
 A single-file, client-side dashboard for tracking a personal investment portfolio and net worth over time. No framework, no build step — just one HTML file that pulls live data from Google Sheets through a small private proxy, behind a Google Sign-In wall.
 
