@@ -366,7 +366,8 @@
 <div id="lockScreen">
   <div id="lockCard">
     <h1 style="display:flex; align-items:center; gap:10px;">
-      <svg viewBox="0 0 192 192" width="1em" height="1em" aria-hidden="true" style="flex-shrink:0;">
+      <svg viewBox="0 0 192 192" width="1.2em" height="1.2em" aria-hidden="true" style="flex-shrink:0;">
+        <rect x="0" y="0" width="192" height="192" rx="36" fill="#0d1b2a"></rect>
         <rect x="23" y="103" width="26" height="46" rx="5" fill="#2dd4bf"></rect>
         <rect x="63" y="69" width="26" height="80" rx="5" fill="#2dd4bf"></rect>
         <rect x="103" y="85" width="26" height="64" rx="5" fill="#2dd4bf"></rect>
@@ -464,7 +465,8 @@
   <header>
     <div>
       <h1 style="display:flex; align-items:center; gap:10px;">
-      <svg viewBox="0 0 192 192" width="1em" height="1em" aria-hidden="true" style="flex-shrink:0;">
+      <svg viewBox="0 0 192 192" width="1.2em" height="1.2em" aria-hidden="true" style="flex-shrink:0;">
+        <rect x="0" y="0" width="192" height="192" rx="36" fill="#0d1b2a"></rect>
         <rect x="23" y="103" width="26" height="46" rx="5" fill="#2dd4bf"></rect>
         <rect x="63" y="69" width="26" height="80" rx="5" fill="#2dd4bf"></rect>
         <rect x="103" y="85" width="26" height="64" rx="5" fill="#2dd4bf"></rect>
@@ -635,7 +637,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789895347";
+const BUILD_ID = "1789895477";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
