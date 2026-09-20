@@ -376,6 +376,21 @@
   // The real access gate is server-side: the proxy independently verifies this same ID
   // token's signature and email on every request. This client-side check only decides
   // whether to show the dashboard UI at all -- it can't be used to fake access to data.
+  function pfSetAccountLine(email){
+    const el = document.getElementById('accountLine');
+    if(!el) return;
+    el.innerHTML = `Signed in as ${email} &middot; <a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>`;
+    const link = document.getElementById('pfSignOutLink');
+    if(link) link.addEventListener('click', function(e){ e.preventDefault(); pfSignOut(); });
+  }
+
+  function pfSignOut(){
+    sessionStorage.removeItem('pf_idToken');
+    document.body.classList.remove('pf-unlocked');
+    if(window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
+    location.reload();
+  }
+
   function pfHandleGoogleCredential(response){
     const idToken = response.credential;
     let payload;
@@ -388,6 +403,7 @@
     sessionStorage.setItem('pf_idToken', idToken);
     errEl.textContent = '';
     document.body.classList.add('pf-unlocked');
+    pfSetAccountLine(payload.email);
   }
 
   function pfPromptGoogleSignIn(){
@@ -404,6 +420,7 @@
       const payload = pfDecodeJwt(existing);
       if(payload.email === ALLOWED_GOOGLE_EMAIL && payload.exp > Date.now()/1000){
         document.body.classList.add('pf-unlocked');
+        pfSetAccountLine(payload.email);
       } else {
         sessionStorage.removeItem('pf_idToken');
       }
@@ -426,6 +443,7 @@
       <h1>Portfolio</h1>
       <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
       <div id="status"></div>
+      <div class="meta" id="accountLine"></div>
     </div>
     <div class="btnrow">
       <select id="autoRefreshSelect" title="Auto-refresh interval">
@@ -581,7 +599,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789886290";
+const BUILD_ID = "1789886460";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
