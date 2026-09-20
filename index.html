@@ -348,57 +348,76 @@
   #lockCard{width:min(320px, 100%); text-align:center;}
   #lockCard h1{font-size:28px; font-weight:400; margin:0 0 4px;}
   #lockCard p{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); margin:0 0 20px;}
-  #lockPasswordInput{
-    width:100%; padding:11px 14px; border:1px solid var(--line); background:var(--panel); color:var(--ink);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; text-align:center; margin-bottom:12px;
-  }
-  #lockPasswordInput:focus{outline:none; border-color:var(--accent);}
-  #lockSubmitBtn{
-    width:100%; padding:11px 14px; border:1px solid var(--accent); background:var(--accent); color:#fff;
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; font-weight:600; cursor:pointer; border-radius:6px;
-  }
-  #lockSubmitBtn:hover{background:#7a5e30;}
+  #googleSignInBtn{display:flex; justify-content:center; margin-bottom:4px;}
   #lockError{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5); margin-top:12px; min-height:16px;
   }
 </style>
 </head>
 <body>
-<script>
-  if(localStorage.getItem('pf_unlocked') === '1'){ document.body.classList.add('pf-unlocked'); }
-</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <div id="lockScreen">
   <div id="lockCard">
     <h1>Portfolio</h1>
-    <p>Enter password to continue</p>
-    <input type="password" id="lockPasswordInput" placeholder="Password" autocomplete="off">
-    <button id="lockSubmitBtn">Unlock</button>
+    <p>Sign in with Google to continue</p>
+    <div id="googleSignInBtn"></div>
     <div id="lockError"></div>
   </div>
 </div>
 <script>
-  const PF_LOCK_HASH = '535955cbb76c7f3961ee8240c0e7b9dff245c0b99b4d34f464c20f41ea274f34';
-  async function pfSha256Hex(str){
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  const GOOGLE_WEB_CLIENT_ID = '179631696884-t1r997qilgcbs5c9feddokdofu74avnp.apps.googleusercontent.com';
+  const ALLOWED_GOOGLE_EMAIL = 'mneyshtadt@gmail.com';
+
+  function pfDecodeJwt(token){
+    const payload = token.split('.')[1];
+    return JSON.parse(decodeURIComponent(escape(atob(payload.replace(/-/g,'+').replace(/_/g,'/')))));
   }
-  async function pfTryUnlock(){
-    const input = document.getElementById('lockPasswordInput');
+
+  // The real access gate is server-side: the proxy independently verifies this same ID
+  // token's signature and email on every request. This client-side check only decides
+  // whether to show the dashboard UI at all -- it can't be used to fake access to data.
+  function pfHandleGoogleCredential(response){
+    const idToken = response.credential;
+    let payload;
+    try{ payload = pfDecodeJwt(idToken); } catch(e){ payload = null; }
     const errEl = document.getElementById('lockError');
-    const hash = await pfSha256Hex(input.value);
-    if(hash === PF_LOCK_HASH){
-      localStorage.setItem('pf_unlocked', '1');
-      document.body.classList.add('pf-unlocked');
-      errEl.textContent = '';
-    } else {
-      errEl.textContent = 'Wrong password.';
-      input.value = '';
-      input.focus();
+    if(!payload || payload.email !== ALLOWED_GOOGLE_EMAIL || !payload.email_verified){
+      errEl.textContent = 'This Google account is not authorized.';
+      return;
     }
+    sessionStorage.setItem('pf_idToken', idToken);
+    errEl.textContent = '';
+    document.body.classList.add('pf-unlocked');
   }
-  document.getElementById('lockSubmitBtn').addEventListener('click', pfTryUnlock);
-  document.getElementById('lockPasswordInput').addEventListener('keydown', (e)=>{
-    if(e.key === 'Enter') pfTryUnlock();
+
+  function pfPromptGoogleSignIn(){
+    if(!(window.google && google.accounts && google.accounts.id)) return;
+    google.accounts.id.prompt();
+  }
+
+  // If a still-valid token from earlier this tab session exists, skip straight to unlocked
+  // (the proxy will still reject it independently once it actually expires).
+  (function pfRestoreSession(){
+    const existing = sessionStorage.getItem('pf_idToken');
+    if(!existing) return;
+    try{
+      const payload = pfDecodeJwt(existing);
+      if(payload.email === ALLOWED_GOOGLE_EMAIL && payload.exp > Date.now()/1000){
+        document.body.classList.add('pf-unlocked');
+      } else {
+        sessionStorage.removeItem('pf_idToken');
+      }
+    } catch(e){ sessionStorage.removeItem('pf_idToken'); }
+  })();
+
+  window.addEventListener('load', function(){
+    if(!(window.google && google.accounts && google.accounts.id)) return;
+    google.accounts.id.initialize({
+      client_id: GOOGLE_WEB_CLIENT_ID,
+      callback: pfHandleGoogleCredential,
+    });
+    google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {theme:'outline', size:'large', text:'signin_with'});
+    if(!document.body.classList.contains('pf-unlocked')) google.accounts.id.prompt();
   });
 </script>
 <div class="wrap">
@@ -562,7 +581,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789844182";
+const BUILD_ID = "1789886075";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
@@ -582,11 +601,10 @@ const NET_WORTH_SHEET_ID = "1EM-9DO20uZ4LyXQ00iG9ijiKDp5xn4ltUE-vQvAyh1s";
 
 // All sheet data comes through a private proxy (an authenticated Google Sheets API call on a small
 // server) instead of Google's public "publish to web" CSV export — the sheets themselves are no
-// longer published. This bearer token is still visible to anyone who reads this page's source, so
-// it doesn't hide the data from a determined reader of this file; it only keeps the raw data out of
-// search engines and anonymous scraping of a bare public URL, which is what "publish to web" was.
+// longer published. Every request carries the viewer's own Google ID token (from the sign-in flow
+// above); the proxy independently re-verifies that token's signature and email on every single
+// request, so there is no static secret sitting in this file for a reader to reuse.
 const PROXY_BASE_URL = "https://michaelportfolio.duckdns.org";
-const PROXY_AUTH_TOKEN = "1a9d30b3c3f71b376cd76e836adc7db17e000f7b24912f70ad8e1851c6d10058";
 function proxyUrl(sheetId, sheetName){
   return `${PROXY_BASE_URL}/?sheetId=${encodeURIComponent(sheetId)}&sheetName=${encodeURIComponent(sheetName)}`;
 }
@@ -594,7 +612,15 @@ function proxyListUrl(sheetId){
   return `${PROXY_BASE_URL}/?sheetId=${encodeURIComponent(sheetId)}&action=list`;
 }
 function fetchViaProxy(url){
-  return fetch(url, {cache:'no-store', headers:{Authorization: `Bearer ${PROXY_AUTH_TOKEN}`}});
+  const idToken = sessionStorage.getItem('pf_idToken') || '';
+  return fetch(url, {cache:'no-store', headers:{Authorization: `Bearer ${idToken}`}}).then(res => {
+    if(res.status === 401){
+      sessionStorage.removeItem('pf_idToken');
+      document.body.classList.remove('pf-unlocked');
+      if(window.google && google.accounts && google.accounts.id) google.accounts.id.prompt();
+    }
+    return res;
+  });
 }
 
 const CSV_URL = proxyUrl(SHEET_ID, 'Tracker');
