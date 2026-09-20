@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SheetPulse — Proxy Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --ink:#1a2332; --paper:#f7f5f0; --panel:#ffffff; --line:#e2ddd0; --muted:#6b6558; --accent:#8a6d3b;
+    --blue:#4f8fd9; --teal:#118a7e; --red:#a32d2d; --green:#3b8f5c;
+    --code-bg:#f1efe6; --code-ink:#3a3628;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; line-height:1.6;}
+  .wrap{max-width:760px; margin:0 auto; padding:48px 20px 80px;}
+  h1,h2,h3{font-family:'Iowan Old Style','Georgia',serif; font-weight:400; color:var(--ink);}
+  h1{font-size:36px; margin:0 0 6px; letter-spacing:-0.01em;}
+  .subtitle{color:var(--muted); font-size:15px; margin:0 0 40px; max-width:60ch;}
+  h2{font-size:24px; margin:56px 0 6px; border-bottom:1px solid var(--line); padding-bottom:10px;}
+  h2 .eyebrow{display:block; font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--accent); margin-bottom:6px;}
+  h3{font-size:17px; margin:26px 0 8px; font-style:italic;}
+  p{margin:0 0 14px; max-width:66ch;}
+  a{color:var(--accent);}
+  code{font-family:'SF Mono','Consolas',monospace; font-size:12.5px; background:var(--code-bg); color:var(--code-ink); padding:1px 5px; border-radius:3px;}
+  pre{font-family:'SF Mono','Consolas',monospace; font-size:12.5px; background:var(--code-bg); color:var(--code-ink); padding:14px 16px; border-radius:6px; overflow-x:auto; line-height:1.55; margin:10px 0 16px;}
+  pre code{background:none; padding:0;}
+  .phase{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 24px; margin:16px 0;}
+  .phase-num{display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--accent); color:var(--panel); font-family:'Iowan Old Style','Georgia',serif; font-size:14px; margin-right:10px; flex-shrink:0;}
+  .phase h3{margin:0 0 10px; font-style:normal; font-weight:700; font-size:16px; display:flex; align-items:center;}
+  .phase ol,.phase ul{margin:0; padding-left:20px;}
+  .phase li{margin-bottom:8px;}
+  .phase li:last-child{margin-bottom:0;}
+  table{width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:13.5px;}
+  th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted); padding:0 10px 8px; border-bottom:2px solid var(--line);}
+  td{padding:10px; border-bottom:1px solid var(--line); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  td code, td a{word-break:break-all;}
+  .note{background:var(--code-bg); border-left:3px solid var(--accent); padding:12px 16px; border-radius:0 6px 6px 0; font-size:13.5px; margin:14px 0;}
+  .note.warn{border-left-color:var(--red);}
+  .diagram-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin:20px 0 8px; overflow-x:auto; text-align:center;}
+  .legend{display:flex; flex-wrap:wrap; gap:14px 20px; font-size:12px; color:var(--muted); margin-bottom:32px;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend i{width:9px; height:9px; border-radius:2px; display:inline-block;}
+  @media (max-width:520px){ .wrap{padding-left:16px; padding-right:16px;} h1{font-size:29px;} h2{font-size:20px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SheetPulse — Proxy Architecture</h1>
+  <p class="subtitle">How SheetPulse went from a public "anyone with the link" Google Sheet to a private backend that only opens for one signed-in Google account — every component, every URL, and the exact steps that built it.</p>
+
+  <h2><span class="eyebrow">The big picture</span>System map</h2>
+  <p>Twelve components, four "places" (your browser, GitHub, a small server you rent from Oracle, and Google's own identity service), and one Google account allowed to sign in.</p>
+  <div class="diagram-card">
+<pre class="mermaid">
+flowchart TB
+  U["Your browser<br/>viewing SheetPulse"]
+  GHP["GitHub Pages<br/>mneyshtadt-stack.github.io/SheetPulse"]
+  GHR[("GitHub repo<br/>index.html + README.md")]
+  PC["Your Windows PC<br/>deploy-to-github.ps1 + PAT"]
+
+  subgraph SSO["Google Sign-In"]
+    GIS["Google Identity Services<br/>Sign In With Google button"]
+    WEBID["Web OAuth client<br/>public Client ID"]
+    GIS --> WEBID
+  end
+
+  subgraph DNS["DuckDNS (free dynamic DNS)"]
+    DD["michaelportfolio.duckdns.org<br/>&rarr; VM's public IP"]
+  end
+
+  subgraph VM["Oracle Cloud VM &mdash; n8n-server"]
+    SL["Oracle Security List &mdash; firewall #1<br/>allows TCP 80 + 443 in"]
+    IPT["Ubuntu iptables &mdash; firewall #2<br/>allows TCP 80 + 443 in"]
+    CADDY["Caddy<br/>automatic HTTPS via Let's Encrypt"]
+    PROXY["sheet-proxy (Node.js)<br/>verifies the ID token + email, every request"]
+    SL --> IPT --> CADDY --> PROXY
+  end
+
+  subgraph GCP["Google Cloud (Sheets access)"]
+    OAUTH["Desktop OAuth client<br/>Client ID + Secret"]
+    RT["Refresh token"]
+    SHEETS[("Google Sheets API v4<br/>Tracker + Net Worth &mdash; NOT published")]
+    OAUTH --> RT --> PROXY
+  end
+
+  U -- "loads the page" --> GHP
+  GHP --- GHR
+  PC -- "push via GitHub API + PAT" --> GHR
+  U -- "signs in" --> GIS
+  WEBID -- "issues a Google ID token" --> U
+  U -- "fetch + Google ID token,<br/>only from this origin" --> DD
+  DD --> SL
+  PROXY -- "checks the ID token<br/>against Google's own keys" --> WEBID
+  PROXY -- "authenticated read" --> SHEETS
+  SHEETS -. "CSV-shaped data back" .-> U
+</pre>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--green)"></i>Google Sign-In</span>
+    <span><i style="background:var(--blue)"></i>Sheets access (Google Cloud)</span>
+    <span><i style="background:var(--teal)"></i>Oracle VM</span>
+    <span><i style="background:var(--accent)"></i>GitHub</span>
+    <span><i style="background:var(--red)"></i>Firewall layers</span>
+  </div>
+
+  <h2><span class="eyebrow">Why any of this</span>What problem this solves</h2>
+  <p>Stage one: SheetPulse fetched data from Google Sheets' <b>"Publish to web"</b> CSV export. That's a public URL — anyone who ever saw it (browser history, a screenshot, a shared link) could pull the raw numbers directly, forever, with no login and no way to revoke it short of un-publishing.</p>
+  <p>Stage two: the sheets were unpublished, and SheetPulse instead asked a small private server (the "proxy") for the data, accepting an answer only if the request carried a secret token and came from SheetPulse's own web address. That closed the public link, but the token itself still had to live inside this static page's own JavaScript for the browser to send it — anyone who read the page's source could find it and call the proxy directly.</p>
+  <p>Stage three (current): the static token is gone. SheetPulse now requires signing in with <b>Google (SSO)</b>, and every request instead carries the viewer's own Google ID token — a short-lived, digitally signed credential the proxy independently re-verifies against Google's own public keys on every single request, checking both its signature and that its email matches the one allowed account. There is no longer a standing secret anywhere in this page's source for a reader to find and reuse.</p>
+  <div class="note"><b>What's left:</b> the Web OAuth Client ID embedded in the page is meant to be public (Google's own design for browser sign-in flows) — it identifies the app, not a person, and can't be used by itself to read anything. The one thing still worth knowing: anyone with a browser can see and click "Sign in with Google," but the proxy will only ever accept the one allowed email address, so signing in as anyone else simply gets a 401.</div>
+
+  <h2><span class="eyebrow">Step by step</span>How it was built</h2>
+
+  <div class="phase">
+    <h3><span class="phase-num">1</span>Google Cloud — getting API access</h3>
+    <ol>
+      <li>Opened a project at <a href="https://console.cloud.google.com">console.cloud.google.com</a> and enabled the <b>Google Sheets API</b> for it.</li>
+      <li>Tried the "normal" approach first — a service account with a downloadable key. Blocked: this Google account's organization has a policy (<code>iam.disableServiceAccountKeyCreation</code>) that forbids it, with no per-project override available.</li>
+      <li>Switched to <b>OAuth 2.0</b> instead: configured the OAuth consent screen (External, left in "Testing" mode) and added the account's own email as a <b>Test user</b> — this is what lets Google show the "unverified app" warning instead of a hard block.</li>
+      <li>Created an OAuth Client ID of type <b>Desktop app</b> and downloaded its JSON — this contains a <code>client_id</code> and <code>client_secret</code>, the app's own identity to Google (not a login credential by itself).</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">2</span>Trading a one-time login for a permanent refresh token</h3>
+    <ol>
+      <li>Ran a small local Node.js script that: opened Google's consent page in a browser, caught the redirect on a temporary local web server (<code>http://127.0.0.1:53682</code>), and exchanged the returned code for tokens via a direct POST to <code>https://oauth2.googleapis.com/token</code>.</li>
+      <li>Logged in once, as the account that owns the sheets, and approved read-only Sheets access.</li>
+      <li>The script printed a <b>refresh token</b> — a long-lived credential that lets the proxy silently mint a fresh access token forever, without ever storing a password and without logging in again.</li>
+      <li>Deleted the script immediately after, since it briefly held the client secret in plain text.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">3</span>Writing the proxy itself</h3>
+    <ol>
+      <li>A single plain Node.js file (<code>index.js</code>, no framework) using only the built-in <code>http</code> module plus the <code>googleapis</code> package.</li>
+      <li>On every request it: checks the <code>Authorization: Bearer &lt;token&gt;</code> header matches a secret it holds, builds a Google Sheets client from the OAuth Client ID/Secret + refresh token, then calls the Sheets API.</li>
+      <li>Two endpoints: <code>?sheetId=X&amp;sheetName=Y</code> returns one tab's data as CSV text (shaped to match exactly what the old "publish to web" export used to look like, so SheetPulse's parsing code needed zero changes), and <code>?sheetId=X&amp;action=list</code> returns every tab's name — used to auto-detect the Net Worth workbook's year tabs.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">4</span>Hosting it on the Oracle VM</h3>
+    <ol>
+      <li>Used a free-tier Oracle Cloud VM already running for another purpose (hostname <code>n8n-server</code>, Ubuntu 24.04).</li>
+      <li>Installed Node.js and npm, created <code>~/sheet-proxy</code>, ran <code>npm install googleapis</code>.</li>
+      <li>Put every secret in one <code>.env</code> file: <code>PORT</code>, <code>AUTH_TOKEN</code>, <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code> (see the token table below).</li>
+      <li>Wrapped it in a <b>systemd</b> service (<code>sheet-proxy.service</code>) so it starts on boot and restarts on failure. It listens only on <code>127.0.0.1:3000</code> — invisible from the internet by itself.</li>
+    </ol>
+    <pre><code>[Unit]
+Description=Sheet Proxy
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/sheet-proxy
+EnvironmentFile=/home/ubuntu/sheet-proxy/.env
+ExecStart=/usr/bin/node /home/ubuntu/sheet-proxy/index.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+    <p style="margin-top:-6px;"><code>sudo systemctl daemon-reload && sudo systemctl enable --now sheet-proxy</code></p>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">5</span>Giving the VM a real name — DuckDNS</h3>
+    <p>Let's Encrypt (the free HTTPS certificate authority Caddy uses) needs a real domain name — it won't issue a certificate for a bare IP address. <a href="https://www.duckdns.org">DuckDNS</a> gives one away for free.</p>
+    <ol>
+      <li>Registered <code>michaelportfolio.duckdns.org</code> and pointed it at the VM's public IP.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">6</span>The public face — Caddy</h3>
+    <p>Caddy is the <i>only</i> thing allowed to listen on the real public ports 80 and 443. It automatically requests, installs, and renews an HTTPS certificate, then silently forwards every request to the private Node app on port 3000.</p>
+    <pre><code>michaelportfolio.duckdns.org {
+    reverse_proxy 127.0.0.1:3000
+}</code></pre>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">7</span>The firewall gotcha — two separate layers</h3>
+    <p>This is the part that actually took the longest to track down: Oracle Cloud has <i>two independent</i> firewalls stacked in front of the same VM, and both have to allow a port before anything reaches it.</p>
+    <ul>
+      <li><b>Layer 1 — Oracle's own "Security List"</b> (cloud-level, configured in the Oracle Console): had a rule for SSH (22) and one custom app (5678), but nothing for 80/443. Added two ingress rules — TCP 80 and TCP 443, source <code>0.0.0.0/0</code>.</li>
+      <li><b>Layer 2 — Ubuntu's own <code>iptables</code></b> (OS-level, invisible from the Oracle Console): a default-reject policy that also only allowed 22 and 5678. Added the same two rules again, directly on the VM, then made them survive a reboot with <code>iptables-persistent</code>.</li>
+    </ul>
+    <pre><code>sudo iptables -I INPUT 7 -p tcp -m state --state NEW -m tcp --dport 80  -j ACCEPT
+sudo iptables -I INPUT 7 -p tcp -m state --state NEW -m tcp --dport 443 -j ACCEPT
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save</code></pre>
+    <p style="margin-top:-6px;">The tell-tale sign it was a firewall (not Caddy, DNS, or the app) was Let's Encrypt's own validation servers failing with <code>"Timeout during connect (likely firewall problem)"</code> in <code>sudo journalctl -u caddy</code> — an external server couldn't even open a TCP connection, which rules out anything running on the VM itself.</p>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">8</span>Locking the proxy's front door</h3>
+    <ul>
+      <li><b>CORS:</b> the proxy sends <code>Access-Control-Allow-Origin: https://mneyshtadt-stack.github.io</code> and nothing else — a browser will refuse to hand a response to any page loaded from a different address, even if that page somehow had a valid token.</li>
+      <li><b>Bearer token (superseded in phase 11):</b> at this stage, every request had to carry one shared static secret, or the proxy replied <code>401 Unauthorized</code>.</li>
+      <li><b>Un-published the sheets:</b> turned off "Publish to web" for both workbooks in Google Sheets. The old public CSV links now redirect to a Google login page instead of leaking data — confirmed by testing the live old SheetPulse afterward and watching it fail to load.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">9</span>Updating SheetPulse</h3>
+    <ul>
+      <li>Every <code>fetch()</code> to an old "publish to web" CSV URL was replaced with a call to the proxy, carrying the bearer token as a header.</li>
+      <li>The old trick of scraping a sheet's public <code>pubhtml</code> page (to auto-discover the Net Worth workbook's year tabs) was replaced by the proxy's own <code>?action=list</code> endpoint.</li>
+      <li>The old "paste your own published CSV URL" Settings panel was removed — it no longer makes sense once the backend is one fixed, token-gated server.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">10</span>Shipping changes — no git installed here</h3>
+    <p>This machine has no <code>git</code> or <code>gh</code> CLI. Instead, <code>deploy-to-github.ps1</code> pushes straight through GitHub's REST API:</p>
+    <ol>
+      <li>Reads a fine-grained GitHub Personal Access Token from a file kept <i>outside</i> the OneDrive-synced folder (so it never gets uploaded anywhere by accident).</li>
+      <li>Reads the local dashboard file, stamps a fresh build ID into it (used by an in-page check that force-refreshes any tab still showing an older version).</li>
+      <li>Pushes the new content directly to <code>index.html</code> in the repo with one authenticated <code>PUT</code> request — no local clone, no commit history to manage by hand.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">11</span>Real login: Google Sign-In (SSO)</h3>
+    <p>The proxy's bearer token and SheetPulse's own client-side password screen were both still standing secrets baked into a public page. This phase replaces both with a real, per-request Google identity check.</p>
+    <ol>
+      <li>Created a <b>second</b> OAuth client in the same Google Cloud project, type <b>Web application</b> this time (not Desktop), with <b>Authorized JavaScript origins</b> set to the GitHub Pages address. Its Client ID is meant to be public — unlike a Desktop client's secret, it's designed to be embedded in browser-side code.</li>
+      <li>Added Google Identity Services (<code>accounts.google.com/gsi/client</code>) to SheetPulse and replaced the old client-side-only SHA-256 password screen entirely with a "Sign in with Google" button and One Tap prompt.</li>
+      <li>On sign-in, the browser receives a Google <b>ID token</b> — a short-lived, digitally signed JWT containing the signed-in email, name, and profile picture. Every call to the proxy now sends this token as the bearer credential instead of a static secret.</li>
+      <li>The proxy verifies that token on <b>every single request</b> using the <code>google-auth-library</code> package's <code>OAuth2Client.verifyIdToken()</code> — checking its signature against Google's own public keys, its audience (the Web Client ID), its expiry, and that its email matches one allowed address. Anyone else's valid Google account gets a clean 401.</li>
+      <li>Added a small account indicator to SheetPulse's header — the signed-in Google profile picture plus a "Sign out" link, which clears the session and calls <code>google.accounts.id.disableAutoSelect()</code> so a different account can be chosen next time.</li>
+      <li>Forced the sign-in UI to English regardless of browser language by adding <code>?hl=en</code> to the Google Identity Services script URL.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">12</span>Installable as an app — PWA on Android</h3>
+    <p>SheetPulse was still just a bookmarked web page — every open meant a browser address bar and tabs around the actual content. This phase makes Chrome (and other browsers) treat it as a real installable app, with no extra hosting or app-store step.</p>
+    <ol>
+      <li>Added a <b>web app manifest</b> (<code>manifest.json</code>) describing the app's name, colors, and start URL, with <code>display: standalone</code> so an installed copy opens full-screen with no browser chrome.</li>
+      <li>Added a minimal <b>service worker</b> (<code>sw.js</code>) with a single no-op <code>fetch</code> listener — it doesn't cache anything or serve offline (SheetPulse always needs a live connection to the proxy anyway), but a registered service worker with a fetch handler is one of Chrome's hard requirements for the actual "Install app" prompt, not just a "Create shortcut" bookmark.</li>
+      <li>Linked the manifest and registered the service worker from SheetPulse's <code>&lt;head&gt;</code>/body, plus added the usual <code>apple-mobile-web-app-*</code> meta tags and touch icon for iOS Safari's own "Add to Home Screen."</li>
+      <li>Generated two PNG icons (<code>icon-192.png</code>, <code>icon-512.png</code>) and pushed them to the repo root. Chrome's install prompt stayed greyed out ("This app cannot be installed") until <i>both</i> sizes existed — a 192×192 icon alone satisfies the manifest schema but not Chrome's actual installability check, which also requires a 512×512 icon.</li>
+      <li>Result: on Android, Chrome now offers a genuine "Install app" action (not just a bookmark shortcut), which places an icon on the home screen that opens SheetPulse full-screen, same as a native app.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">14</span>A faster way back in: biometric quick-unlock (WebAuthn)</h3>
+    <p>Google Sign-In is the real identity check and stays the source of truth, but re-running its full flow every time got old on a phone. This phase adds <b>WebAuthn</b> (Face ID / Fingerprint) as a per-device shortcut layered on top — never a replacement for Google Sign-In, since a device that has never signed in with Google can't register one.</p>
+    <ol>
+      <li>Added four new proxy endpoints: <code>/webauthn/register-options</code> and <code>/webauthn/register-verify</code> (both require a real, fresh Google ID token — proves you're actually the account owner before a new device's biometric can be added), plus <code>/webauthn/auth-options</code> and <code>/webauthn/auth-verify</code> (public, since these are literally how you get back in).</li>
+      <li>Registered credentials — a public key and a counter per device, never anything biometric itself — are stored server-side in a flat <code>webauthn-credentials.json</code> file next to the proxy; this app has exactly one allowed user, so a small file does the job of a database.</li>
+      <li>On successful biometric verification, the proxy mints its own short-lived session token (a JWT signed with a new local secret, <code>SESSION_JWT_SECRET</code>, valid 2 hours) instead of a Google ID token. The data endpoints now accept <i>either</i> a real Google ID token <i>or</i> one of these session tokens — both are verified independently on every request, the same as before.</li>
+      <li>On the frontend: a "Sign in with Google" success now offers an "Enable Face ID / Fingerprint" link; approving it runs the browser's native WebAuthn registration ceremony and flips a local flag (<code>localStorage</code>) so that device's lock screen offers "Unlock with Face ID / Fingerprint" from then on, instead of (or alongside) the Google button.</li>
+      <li>Used the raw browser <code>navigator.credentials</code> API directly, with hand-written base64url↔ArrayBuffer helpers, rather than a third-party WebAuthn JS library — the CDN library tried initially turned out to have a runtime incompatibility with this device's Chrome version that a small amount of native code sidesteps entirely.</li>
+      <li>The installed <code>@simplewebauthn/server</code> npm package had to be pinned to <b>major version 9</b> — the VM's Node.js (v18.19.1) doesn't meet v10's minimum (Node &ge;20), and v9's response shapes for registration/authentication (flat <code>credentialID</code>/<code>credentialPublicKey</code> fields) differ from v10's newer nested shape, which the proxy code accounts for explicitly.</li>
+    </ol>
+  </div>
+
+  <h2><span class="eyebrow">Reference</span>Every secret, and where it actually lives</h2>
+  <table>
+    <tr><th>Secret</th><th>Lives at</th><th>What it's for</th></tr>
+    <tr><td><code>GOOGLE_CLIENT_ID</code> / <code>GOOGLE_CLIENT_SECRET</code> (Desktop client)</td><td>the VM's <code>.env</code> file</td><td>Let the proxy read the Sheets API as the sheet owner</td></tr>
+    <tr><td><code>GOOGLE_REFRESH_TOKEN</code></td><td>the VM's <code>.env</code> file</td><td>Lets the proxy silently re-authenticate as the sheet owner, forever</td></tr>
+    <tr><td><code>ALLOWED_EMAIL</code></td><td>the VM's <code>.env</code> file</td><td>The one Google account the proxy will accept a sign-in from</td></tr>
+    <tr><td><code>WEB_CLIENT_ID</code> (Web OAuth client)</td><td>the VM's <code>.env</code> file, and embedded in SheetPulse's own JavaScript</td><td><i>Not secret</i> — identifies the app to Google Sign-In; safe to be public by design</td></tr>
+    <tr><td><code>SESSION_JWT_SECRET</code></td><td>the VM's <code>.env</code> file</td><td>Signs the short-lived session tokens issued after a successful WebAuthn unlock (phase 14)</td></tr>
+    <tr><td><code>RP_ID</code> / <code>RP_NAME</code> / <code>ORIGIN</code></td><td>the VM's <code>.env</code> file</td><td><i>Not secret</i> — WebAuthn's own relying-party domain/name/origin, checked on every biometric verification</td></tr>
+    <tr><td><code>webauthn-credentials.json</code></td><td>next to <code>index.js</code> on the VM</td><td>One entry per registered device: a public key + counter only — never anything biometric</td></tr>
+    <tr><td><code>AUTH_TOKEN</code> <span style="color:var(--muted);">(retired)</span></td><td>still present in the VM's <code>.env</code> file, unused</td><td>The old shared static secret, superseded by Google Sign-In in phase 11</td></tr>
+    <tr><td>GitHub fine-grained PAT</td><td><code>C:\Users\michaelne\github-deploy-token.txt</code> (outside the synced folder)</td><td>Lets <code>deploy-to-github.ps1</code> push updates without git installed</td></tr>
+  </table>
+
+  <h2><span class="eyebrow">Reference</span>Every URL in the system</h2>
+  <table>
+    <tr><th>What</th><th>URL</th></tr>
+    <tr><td>Live dashboard</td><td><a href="https://mneyshtadt-stack.github.io/SheetPulse/">mneyshtadt-stack.github.io/SheetPulse</a></td></tr>
+    <tr><td>GitHub repo</td><td><a href="https://github.com/mneyshtadt-stack/SheetPulse">github.com/mneyshtadt-stack/SheetPulse</a></td></tr>
+    <tr><td>Proxy base URL</td><td><code>https://michaelportfolio.duckdns.org</code></td></tr>
+    <tr><td>DuckDNS account</td><td><a href="https://www.duckdns.org">duckdns.org</a></td></tr>
+    <tr><td>Google Cloud Console</td><td><a href="https://console.cloud.google.com">console.cloud.google.com</a></td></tr>
+    <tr><td>OAuth credentials page</td><td><a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a></td></tr>
+  </table>
+
+  <div class="note">Everything on the Ubuntu/Oracle side — Node install, <code>google-auth-library</code>, <code>@simplewebauthn/server</code>, <code>jsonwebtoken</code>, the systemd unit, the Caddyfile, and both firewall layers — is already configured and running on the VM exactly as documented above; nothing here is a pending task.</div>
+</div>
+<script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>
+</body>
+</html>
