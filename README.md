@@ -44,6 +44,13 @@ This dashboard is wired to one specific Google account's sheets and one allowed 
 
 Testing locally works for Google Sign-In and live sheet data (the proxy's CORS and the Google OAuth client both additionally allow `http://localhost:8000` for this reason), but not for biometric quick-unlock — a WebAuthn credential is tied to its exact domain by design, so that one can only be tested on the real deployed URL.
 
+### Confirming a deploy is byte-identical to what you tested
+
+The header shows a line like `Build: 20/09/2026 16:43:31 · Content: a40b197c`. The two halves answer different questions:
+
+- **Build** is the deploy timestamp (`BUILD_ID`, stamped fresh by `deploy-to-github.ps1` on every push). `TestLocal.html`/`SheetPulse.html` always show "local (not yet deployed)" since they're never stamped.
+- **Content** is a short SHA-256 fingerprint of the page's own source, computed with the `BUILD_ID` line blanked out first — so it's independent of *when* something deployed and only reflects the actual bytes. If the `Content` hash in `TestLocal.html` matches the `Content` hash on the live GitHub Pages URL right after deploying, that proves the deploy pushed exactly what you tested, not just "something recent."
+
 ## Tech stack
 
 - Plain HTML/CSS/JavaScript — no framework, no bundler.
