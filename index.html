@@ -363,7 +363,6 @@
 </head>
 <body>
 <script src="https://accounts.google.com/gsi/client?hl=en" async defer></script>
-<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10/dist/bundle/index.umd.min.js" async defer></script>
 <div id="lockScreen">
   <div id="lockCard">
     <h1 style="display:flex; align-items:center; gap:10px;">
@@ -406,7 +405,7 @@
       ? `<img src="${payload.picture}" alt="Signed in as ${payload.email}" title="Signed in as ${payload.email}" referrerpolicy="no-referrer" onerror="this.remove()" style="width:22px; height:22px; border-radius:50%; vertical-align:-6px; margin-right:8px;">`
       : '';
     const canOfferWebAuthn = opts && opts.offerWebAuthn
-      && window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn()
+      && pfWebAuthnSupported()
       && localStorage.getItem('pf_webauthn_device') !== '1';
     const extra = canOfferWebAuthn
       ? ` &middot; <a href="#" id="pfEnableWebAuthnLink" style="color:var(--accent);">Enable Face ID / Fingerprint</a>`
@@ -440,6 +439,26 @@
     pfSetAccountLine(payload, {offerWebAuthn: true});
   }
 
+  // Native WebAuthn helpers -- base64url is what the wire format uses everywhere (challenge,
+  // credential ids, user id), but the browser API itself works in raw ArrayBuffers.
+  function pfWebAuthnSupported(){
+    return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+  }
+  function pfBase64UrlToBuffer(base64url){
+    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = base64.length % 4 === 0 ? '' : '='.repeat(4 - (base64.length % 4));
+    const raw = atob(base64 + pad);
+    const buf = new Uint8Array(raw.length);
+    for(let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+    return buf.buffer;
+  }
+  function pfBufferToBase64Url(buffer){
+    const bytes = new Uint8Array(buffer);
+    let str = '';
+    for(let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+    return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
   // Registers this device's fingerprint / Face ID as a WebAuthn credential, so future visits
   // on this same device can skip the Google sign-in flow (see pfWebAuthnLogin below). Requires
   // a real, freshly-verified Google ID token -- the proxy will not let a WebAuthn session token
@@ -453,13 +472,25 @@
       });
       if(!optRes.ok) throw new Error('Could not start registration');
       const options = await optRes.json();
-      let attestation;
-      try{
-        attestation = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
-      } catch(inner){
-        throw new Error(inner.message + ' || options received: ' + JSON.stringify(options));
-      }
-      attestation.deviceLabel = navigator.platform || 'This device';
+      const publicKey = Object.assign({}, options, {
+        challenge: pfBase64UrlToBuffer(options.challenge),
+        user: Object.assign({}, options.user, { id: pfBase64UrlToBuffer(options.user.id) }),
+        excludeCredentials: (options.excludeCredentials || []).map(function(c){
+          return Object.assign({}, c, { id: pfBase64UrlToBuffer(c.id) });
+        }),
+      });
+      const cred = await navigator.credentials.create({ publicKey });
+      const attestation = {
+        id: cred.id,
+        rawId: pfBufferToBase64Url(cred.rawId),
+        type: cred.type,
+        response: {
+          clientDataJSON: pfBufferToBase64Url(cred.response.clientDataJSON),
+          attestationObject: pfBufferToBase64Url(cred.response.attestationObject),
+        },
+        clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+        deviceLabel: navigator.platform || 'This device',
+      };
       const verifyRes = await fetch(PROXY_BASE_URL + '/webauthn/register-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
@@ -483,7 +514,25 @@
       const optRes = await fetch(PROXY_BASE_URL + '/webauthn/auth-options', { method: 'POST' });
       if(!optRes.ok) throw new Error('No biometric credential registered on this device');
       const options = await optRes.json();
-      const assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+      const publicKey = Object.assign({}, options, {
+        challenge: pfBase64UrlToBuffer(options.challenge),
+        allowCredentials: (options.allowCredentials || []).map(function(c){
+          return Object.assign({}, c, { id: pfBase64UrlToBuffer(c.id) });
+        }),
+      });
+      const cred = await navigator.credentials.get({ publicKey });
+      const assertion = {
+        id: cred.id,
+        rawId: pfBufferToBase64Url(cred.rawId),
+        type: cred.type,
+        response: {
+          clientDataJSON: pfBufferToBase64Url(cred.response.clientDataJSON),
+          authenticatorData: pfBufferToBase64Url(cred.response.authenticatorData),
+          signature: pfBufferToBase64Url(cred.response.signature),
+          userHandle: cred.response.userHandle ? pfBufferToBase64Url(cred.response.userHandle) : null,
+        },
+        clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+      };
       const verifyRes = await fetch(PROXY_BASE_URL + '/webauthn/auth-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -525,7 +574,7 @@
       });
       google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {theme:'outline', size:'large', text:'signin_with'});
     }
-    if(window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn() && localStorage.getItem('pf_webauthn_device') === '1'){
+    if(pfWebAuthnSupported() && localStorage.getItem('pf_webauthn_device') === '1'){
       const btn = document.getElementById('webauthnLoginBtn');
       btn.style.display = 'block';
       btn.addEventListener('click', pfWebAuthnLogin);
@@ -708,7 +757,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789906986";
+const BUILD_ID = "1789907778";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
