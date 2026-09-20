@@ -34,6 +34,16 @@ This dashboard is wired to one specific Google account's sheets and one allowed 
 3. Update the `SHEET_ID` / `NET_WORTH_SHEET_ID` constants in the HTML to your own spreadsheet IDs (from each sheet's normal `.../spreadsheets/d/<ID>/edit` URL — the file must be in native Google Sheets format, not an uploaded Excel file).
 4. Set `GOOGLE_WEB_CLIENT_ID` in the HTML to the Web client's ID, and set `ALLOWED_GOOGLE_EMAIL` to the Google account that should be allowed to sign in. On the proxy, set matching `WEB_CLIENT_ID` and `ALLOWED_EMAIL` values so it can independently verify the same thing server-side, and restrict its CORS to the origin you're hosting this page on.
 
+## Local testing
+
+`SheetPulse.html` is always the source of truth — it's the one file that ever gets edited by hand and the one file the deploy script reads. To try a change before it goes live:
+
+1. Edit `SheetPulse.html`.
+2. Run `TestLocal.bat` — it copies `SheetPulse.html` to `TestLocal.html` fresh (so the test copy can never drift out of sync), starts a local server, and opens `http://localhost:8000/TestLocal.html`. The URL itself makes it obvious you're looking at the local test copy, not production. `TestLocal.html` is disposable and gets overwritten every run — never edit it directly, since those changes would be silently lost.
+3. If it looks good, run `deploy-to-github.ps1` — it reads `SheetPulse.html` directly and pushes it to GitHub as `index.html`. `TestLocal.html`/`TestLocal.bat` are never touched by the deploy script and never get pushed anywhere.
+
+Testing locally works for Google Sign-In and live sheet data (the proxy's CORS and the Google OAuth client both additionally allow `http://localhost:8000` for this reason), but not for biometric quick-unlock — a WebAuthn credential is tied to its exact domain by design, so that one can only be tested on the real deployed URL.
+
 ## Tech stack
 
 - Plain HTML/CSS/JavaScript — no framework, no bundler.
