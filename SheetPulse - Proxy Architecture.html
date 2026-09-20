@@ -1,20 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>SheetPulse — Proxy Architecture</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 <style>
   :root{
     --ink:#1a2332; --paper:#f7f5f0; --panel:#ffffff; --line:#e2ddd0; --muted:#6b6558; --accent:#8a6d3b;
     --blue:#4f8fd9; --teal:#118a7e; --red:#a32d2d; --green:#3b8f5c;
     --code-bg:#f1efe6; --code-ink:#3a3628;
   }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#e9e6dd; --paper:#171b24; --panel:#1f2430; --line:#333a4a; --muted:#9aa0ad; --accent:#c9a86a;
+      --blue:#7db0f0; --teal:#4fc9b8; --red:#e5807c; --green:#6fc98f; --code-bg:#242938; --code-ink:#d8d4c6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#e9e6dd; --paper:#171b24; --panel:#1f2430; --line:#333a4a; --muted:#9aa0ad; --accent:#c9a86a;
+    --blue:#7db0f0; --teal:#4fc9b8; --red:#e5807c; --green:#6fc98f; --code-bg:#242938; --code-ink:#d8d4c6;
+  }
   *{box-sizing:border-box;}
-  body{margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; line-height:1.6;}
-  .wrap{max-width:760px; margin:0 auto; padding:48px 20px 80px;}
-  h1,h2,h3{font-family:'Iowan Old Style','Georgia',serif; font-weight:400; color:var(--ink);}
+  body{background:var(--paper); color:var(--ink); font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; line-height:1.6;}
+  .wrap{max-width:760px; margin:0 auto; padding-inline:20px; padding-block:48px 80px;}
+  h1,h2,h3{font-family:'Iowan Old Style','Georgia',serif; font-weight:400; text-wrap:balance; color:var(--ink);}
   h1{font-size:36px; margin:0 0 6px; letter-spacing:-0.01em;}
   .subtitle{color:var(--muted); font-size:15px; margin:0 0 40px; max-width:60ch;}
   h2{font-size:24px; margin:56px 0 6px; border-bottom:1px solid var(--line); padding-bottom:10px;}
@@ -38,14 +43,13 @@
   td code, td a{word-break:break-all;}
   .note{background:var(--code-bg); border-left:3px solid var(--accent); padding:12px 16px; border-radius:0 6px 6px 0; font-size:13.5px; margin:14px 0;}
   .note.warn{border-left-color:var(--red);}
-  .diagram-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin:20px 0 8px; overflow-x:auto; text-align:center;}
+  .diagram-card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:8px; margin:20px 0 8px; overflow-x:auto;}
   .legend{display:flex; flex-wrap:wrap; gap:14px 20px; font-size:12px; color:var(--muted); margin-bottom:32px;}
   .legend span{display:inline-flex; align-items:center; gap:6px;}
   .legend i{width:9px; height:9px; border-radius:2px; display:inline-block;}
-  @media (max-width:520px){ .wrap{padding-left:16px; padding-right:16px;} h1{font-size:29px;} h2{font-size:20px;} }
+  @media (max-width:520px){ .wrap{padding-inline:16px;} h1{font-size:29px;} h2{font-size:20px;} }
 </style>
-</head>
-<body>
+
 <div class="wrap">
   <h1>SheetPulse — Proxy Architecture</h1>
   <p class="subtitle">How SheetPulse went from a public "anyone with the link" Google Sheet to a private backend that only opens for one signed-in Google account — every component, every URL, and the exact steps that built it.</p>
@@ -221,7 +225,7 @@ sudo netfilter-persistent save</code></pre>
     <p>This machine has no <code>git</code> or <code>gh</code> CLI. Instead, <code>deploy-to-github.ps1</code> pushes straight through GitHub's REST API:</p>
     <ol>
       <li>Reads a fine-grained GitHub Personal Access Token from a file kept <i>outside</i> the OneDrive-synced folder (so it never gets uploaded anywhere by accident).</li>
-      <li>Reads the local dashboard file, stamps a fresh build ID into it (used by an in-page check that force-refreshes any tab still showing an older version).</li>
+      <li>Reads the local SheetPulse file, stamps a fresh build ID into it (used by an in-page check that force-refreshes any tab still showing an older version).</li>
       <li>Pushes the new content directly to <code>index.html</code> in the repo with one authenticated <code>PUT</code> request — no local clone, no commit history to manage by hand.</li>
     </ol>
   </div>
@@ -286,6 +290,7 @@ sudo netfilter-persistent save</code></pre>
       <li>The proxy's CORS check changed from one hardcoded allowed origin to a small allow-list (<code>ALLOWED_ORIGINS</code>), echoing back whichever of the two origins a request actually came from — the standard multi-origin CORS pattern. WebAuthn's own relying-party <code>ORIGIN</code> deliberately stays pinned to the production domain only, since a biometric credential is tied to its exact domain by design and genuinely can't be tested from localhost.</li>
       <li><code>TestLocal.bat</code> is the local entry point: it copies <code>SheetPulse.html</code> to <code>TestLocal.html</code> fresh on every run — so the test copy can never silently drift out of sync with the real source — starts a local Python server, and opens <code>http://localhost:8000/TestLocal.html</code>, a URL that's unmistakably not production.</li>
       <li>The resulting workflow: edit <code>SheetPulse.html</code> &rarr; run <code>TestLocal.bat</code> to check Google Sign-In and live data locally &rarr; run <code>deploy-to-github.ps1</code> once satisfied. <code>TestLocal.html</code> and <code>TestLocal.bat</code> are local-only scratch files, never read by the deploy script and never pushed anywhere.</li>
+      <li>Added a visible <b>build/content indicator</b> in the header — e.g. <code>Build: 20/09/2026 16:43:31 &middot; Content: a40b197c</code>. <b>Build</b> is the deploy timestamp (<code>BUILD_ID</code>); local files always show "local (not yet deployed)" since they're never stamped. <b>Content</b> is a short SHA-256 fingerprint of the page's own source with the <code>BUILD_ID</code> line blanked out first, so it reflects the actual bytes independent of when something deployed — comparing this hash between <code>TestLocal.html</code> and the live GitHub Pages URL right after deploying proves the deploy pushed exactly what was tested, not just "something recent."</li>
     </ol>
   </div>
 
@@ -306,7 +311,7 @@ sudo netfilter-persistent save</code></pre>
   <h2><span class="eyebrow">Reference</span>Every URL in the system</h2>
   <table>
     <tr><th>What</th><th>URL</th></tr>
-    <tr><td>Live dashboard</td><td><a href="https://mneyshtadt-stack.github.io/SheetPulse/">mneyshtadt-stack.github.io/SheetPulse</a></td></tr>
+    <tr><td>SheetPulse (live)</td><td><a href="https://mneyshtadt-stack.github.io/SheetPulse/">mneyshtadt-stack.github.io/SheetPulse</a></td></tr>
     <tr><td>GitHub repo</td><td><a href="https://github.com/mneyshtadt-stack/SheetPulse">github.com/mneyshtadt-stack/SheetPulse</a></td></tr>
     <tr><td>Local test URL</td><td><code>http://localhost:8000/TestLocal.html</code> (via <code>TestLocal.bat</code>, phase 15)</td></tr>
     <tr><td>Proxy base URL</td><td><code>https://michaelportfolio.duckdns.org</code></td></tr>
@@ -317,6 +322,82 @@ sudo netfilter-persistent save</code></pre>
 
   <div class="note">Everything on the Ubuntu/Oracle side — Node install, <code>google-auth-library</code>, <code>@simplewebauthn/server</code>, <code>jsonwebtoken</code>, the systemd unit, the Caddyfile, and both firewall layers — is already configured and running on the VM exactly as documented above; nothing here is a pending task.</div>
 </div>
-<script>mermaid.initialize({startOnLoad:true, theme:'neutral'});</script>
-</body>
-</html>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+
+</body></html>
