@@ -1,6 +1,6 @@
 {
-  "name": "Portfolio Dashboard",
-  "short_name": "Portfolio",
+  "name": "SheetPulse",
+  "short_name": "SheetPulse",
   "description": "Personal investment portfolio and net worth dashboard",
   "start_url": "./",
   "scope": "./",
