@@ -363,6 +363,7 @@
 </head>
 <body>
 <script src="https://accounts.google.com/gsi/client?hl=en" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@simplewebauthn/browser@10/dist/bundle/index.umd.min.js" async defer></script>
 <div id="lockScreen">
   <div id="lockCard">
     <h1 style="display:flex; align-items:center; gap:10px;">
@@ -381,6 +382,7 @@
       SheetPulse
     </h1>
     <p>Sign in with Google to continue</p>
+    <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--ink); font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
     <div id="googleSignInBtn"></div>
     <div id="lockError"></div>
   </div>
@@ -397,15 +399,23 @@
   // The real access gate is server-side: the proxy independently verifies this same ID
   // token's signature and email on every request. This client-side check only decides
   // whether to show the dashboard UI at all -- it can't be used to fake access to data.
-  function pfSetAccountLine(payload){
+  function pfSetAccountLine(payload, opts){
     const el = document.getElementById('accountLine');
     if(!el) return;
     const avatar = payload.picture
       ? `<img src="${payload.picture}" alt="Signed in as ${payload.email}" title="Signed in as ${payload.email}" referrerpolicy="no-referrer" onerror="this.remove()" style="width:22px; height:22px; border-radius:50%; vertical-align:-6px; margin-right:8px;">`
       : '';
-    el.innerHTML = `${avatar}<a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>`;
+    const canOfferWebAuthn = opts && opts.offerWebAuthn
+      && window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn()
+      && localStorage.getItem('pf_webauthn_device') !== '1';
+    const extra = canOfferWebAuthn
+      ? ` &middot; <a href="#" id="pfEnableWebAuthnLink" style="color:var(--accent);">Enable Face ID / Fingerprint</a>`
+      : '';
+    el.innerHTML = `${avatar}<a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>${extra}`;
     const link = document.getElementById('pfSignOutLink');
     if(link) link.addEventListener('click', function(e){ e.preventDefault(); pfSignOut(); });
+    const enableLink = document.getElementById('pfEnableWebAuthnLink');
+    if(enableLink) enableLink.addEventListener('click', function(e){ e.preventDefault(); pfWebAuthnRegister(); });
   }
 
   function pfSignOut(){
@@ -427,7 +437,63 @@
     sessionStorage.setItem('pf_idToken', idToken);
     errEl.textContent = '';
     document.body.classList.add('pf-unlocked');
-    pfSetAccountLine(payload);
+    pfSetAccountLine(payload, {offerWebAuthn: true});
+  }
+
+  // Registers this device's fingerprint / Face ID as a WebAuthn credential, so future visits
+  // on this same device can skip the Google sign-in flow (see pfWebAuthnLogin below). Requires
+  // a real, freshly-verified Google ID token -- the proxy will not let a WebAuthn session token
+  // register another credential, so a stolen session token alone can't add new devices.
+  async function pfWebAuthnRegister(){
+    try{
+      const idToken = sessionStorage.getItem('pf_idToken');
+      const optRes = await fetch(PROXY_BASE_URL + '/webauthn/register-options', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + idToken },
+      });
+      if(!optRes.ok) throw new Error('Could not start registration');
+      const options = await optRes.json();
+      const attestation = await SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+      attestation.deviceLabel = navigator.platform || 'This device';
+      const verifyRes = await fetch(PROXY_BASE_URL + '/webauthn/register-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+        body: JSON.stringify(attestation),
+      });
+      if(!verifyRes.ok) throw new Error('Registration could not be verified');
+      localStorage.setItem('pf_webauthn_device', '1');
+      pfSetAccountLine(pfDecodeJwt(idToken));
+      alert('Face ID / Fingerprint unlock is now enabled on this device.');
+    } catch(e){
+      alert('Could not enable biometric unlock: ' + e.message);
+    }
+  }
+
+  // Unlocks with an already-registered fingerprint / Face ID credential instead of Google
+  // sign-in. The proxy verifies the WebAuthn assertion itself and, if valid, hands back a
+  // short-lived session token that's used exactly like a Google ID token from then on.
+  async function pfWebAuthnLogin(){
+    const errEl = document.getElementById('lockError');
+    try{
+      const optRes = await fetch(PROXY_BASE_URL + '/webauthn/auth-options', { method: 'POST' });
+      if(!optRes.ok) throw new Error('No biometric credential registered on this device');
+      const options = await optRes.json();
+      const assertion = await SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+      const verifyRes = await fetch(PROXY_BASE_URL + '/webauthn/auth-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assertion),
+      });
+      if(!verifyRes.ok) throw new Error('Biometric verification failed');
+      const { token } = await verifyRes.json();
+      sessionStorage.setItem('pf_idToken', token);
+      errEl.textContent = '';
+      document.body.classList.add('pf-unlocked');
+      pfSetAccountLine(pfDecodeJwt(token));
+      refresh();
+    } catch(e){
+      errEl.textContent = 'Biometric unlock failed. Use Google sign-in instead.';
+    }
   }
 
   // If a still-valid token from earlier this tab session exists, skip straight to unlocked
@@ -447,12 +513,18 @@
   })();
 
   window.addEventListener('load', function(){
-    if(!(window.google && google.accounts && google.accounts.id)) return;
-    google.accounts.id.initialize({
-      client_id: GOOGLE_WEB_CLIENT_ID,
-      callback: pfHandleGoogleCredential,
-    });
-    google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {theme:'outline', size:'large', text:'signin_with'});
+    if(window.google && google.accounts && google.accounts.id){
+      google.accounts.id.initialize({
+        client_id: GOOGLE_WEB_CLIENT_ID,
+        callback: pfHandleGoogleCredential,
+      });
+      google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {theme:'outline', size:'large', text:'signin_with'});
+    }
+    if(window.SimpleWebAuthnBrowser && SimpleWebAuthnBrowser.browserSupportsWebAuthn() && localStorage.getItem('pf_webauthn_device') === '1'){
+      const btn = document.getElementById('webauthnLoginBtn');
+      btn.style.display = 'block';
+      btn.addEventListener('click', pfWebAuthnLogin);
+    }
   });
 </script>
 <div class="wrap">
@@ -631,7 +703,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789905142";
+const BUILD_ID = "1789905478";
 (function checkForFreshBuild(){
   try{
     fetch(location.pathname, {cache:'no-store'})
