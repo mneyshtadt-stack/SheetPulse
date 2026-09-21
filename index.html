@@ -265,21 +265,12 @@
   #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
   #heroDivider{padding:18px 22px 0;}
   #heroDivider h2{margin:0;}
-  #gaugePanel{display:flex; gap:36px; align-items:center; flex-wrap:wrap; padding:8px 28px 24px;}
-  .gauge-wrap{flex-shrink:0; width:200px;}
-  .gauge-clip{position:relative; width:200px; height:100px; overflow:hidden;}
-  .gauge-arc{position:absolute; top:0; left:0; width:200px; height:200px; border-radius:50%;
-    background: conic-gradient(from -90deg,
-      #a32d2d 0deg, #e2793a 45deg, #d9a441 90deg, #7a9c3f 135deg, #3b6d11 180deg, transparent 180deg 360deg);
-  }
-  .gauge-needle{
-    position:absolute; left:50%; bottom:0; width:3px; height:78px; background:#e2793a; transform-origin:bottom center;
-    border-radius:2px 2px 0 0; transition:transform 0.4s ease; filter:drop-shadow(0 1px 1.5px rgba(26,35,50,0.35));
-  }
-  .gauge-hub{position:absolute; left:50%; bottom:0; width:16px; height:16px; border-radius:50%; background:#2d6e63; transform:translate(-50%,50%); z-index:2; box-shadow:0 1px 2px rgba(26,35,50,0.3);}
-  .gauge-footer{display:flex; align-items:center; justify-content:space-between; padding:6px 4px 0; font-family:'Helvetica Neue',Arial,sans-serif;}
-  .gauge-value{font-size:20px; font-weight:700; color:var(--ink);}
-  .gauge-label{font-size:10px; color:var(--muted);}
+  #gaugePanel{display:flex; gap:28px; align-items:center; flex-wrap:wrap; padding:8px 28px 24px;}
+  .gauge-wrap{flex-shrink:0; width:236px; background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:18px 18px 16px; box-shadow:0 1px 3px rgba(26,35,50,0.06); box-sizing:border-box;}
+  .gauge-svg-wrap{position:relative; width:100%; height:118px;}
+  .gauge-footer{padding:2px 2px 0; font-family:'Helvetica Neue',Arial,sans-serif; text-align:center;}
+  .gauge-value{font-size:30px; font-weight:800; color:var(--ink); letter-spacing:-0.01em;}
   #gaugeInfo{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:2.1; flex:1; min-width:220px;}
   #gaugeInfo .glabel{color:var(--muted); margin-right:8px;}
   #gaugeInfo .gval{font-weight:700; font-size:14.5px;}
@@ -645,7 +636,7 @@
 
   <div id="heroPanel">
     <div class="cards" id="cards"></div>
-    <div id="heroDivider"><h2>Day gain</h2></div>
+    <div id="heroDivider"><h2>Day change</h2></div>
     <div id="gaugePanel"></div>
   </div>
 
@@ -781,7 +772,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790017219";
+const BUILD_ID = "1790020434";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2462,6 +2453,17 @@ async function openNetWorthDetail(){
   await loadNetWorthYear(year);
 }
 
+// Clockwise-from-top polar helper shared by the gauge's arc/needle geometry (0deg = 12 o'clock).
+function gaugePolar(cx, cy, r, angleDeg){
+  const rad = angleDeg * Math.PI / 180;
+  return {x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad)};
+}
+function gaugeArcPath(cx, cy, r, startAngle, endAngle){
+  const start = gaugePolar(cx, cy, r, endAngle);
+  const end = gaugePolar(cx, cy, r, startAngle);
+  const largeArcFlag = (endAngle - startAngle) <= 180 ? 0 : 1;
+  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
+}
 function renderGauge(rows, totals){
   const panel = document.getElementById('gaugePanel');
   if(!panel) return;
@@ -2469,8 +2471,17 @@ function renderGauge(rows, totals){
   const value = totals.dayGainPct;
   const maxAbs = 3;
   const clamped = Math.max(-maxAbs, Math.min(maxAbs, value));
-  const angle = (clamped / maxAbs) * 90; // -90..+90, CSS rotate() clockwise-positive
   const gaugeCls = value >= 0 ? 'up' : 'down';
+
+  // A 200deg sweep (rather than a flat 180deg semicircle) reads as a rounder "horseshoe" dial,
+  // matching the reference style -- tips curl slightly past horizontal instead of ending flat.
+  const cx = 100, cy = 100, r = 74, startAngle = -100, endAngle = 100;
+  const t = (clamped + maxAbs) / (2 * maxAbs);
+  const needleAngle = startAngle + t * (endAngle - startAngle);
+  const needleTip = gaugePolar(cx, cy, 56, needleAngle);
+  const arcPath = gaugeArcPath(cx, cy, r, startAngle, endAngle);
+  const labelStart = gaugePolar(cx, cy, r + 20, startAngle);
+  const labelEnd = gaugePolar(cx, cy, r + 20, endAngle);
 
   const split = splitByMarket(rows);
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -2480,15 +2491,27 @@ function renderGauge(rows, totals){
 
   panel.innerHTML = `
     <div class="gauge-wrap">
-      <div class="gauge-clip">
-        <div class="gauge-arc"></div>
-        <div class="gauge-hub"></div>
-        <div class="gauge-needle" style="transform: translateX(-50%) rotate(${angle}deg)"></div>
+      <div class="gauge-svg-wrap">
+        <svg viewBox="0 0 200 118" style="width:100%; height:100%;">
+          <defs>
+            <linearGradient id="gaugeArcGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#a32d2d"/>
+              <stop offset="25%" stop-color="#e2793a"/>
+              <stop offset="50%" stop-color="#d9a441"/>
+              <stop offset="75%" stop-color="#7a9c3f"/>
+              <stop offset="100%" stop-color="#3b6d11"/>
+            </linearGradient>
+          </defs>
+          <path d="${arcPath}" fill="none" stroke="url(#gaugeArcGrad)" stroke-width="15" stroke-linecap="round"/>
+          <line class="gauge-needle" x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="${cx}" cy="${cy}" r="7" fill="#ffffff" stroke="#1a2332" stroke-width="2"/>
+          <circle cx="${cx}" cy="${cy}" r="3" fill="#8a6d3b"/>
+          <text x="${labelStart.x.toFixed(1)}" y="${labelStart.y.toFixed(1)}" font-size="11" font-weight="600" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">-3%</text>
+          <text x="${labelEnd.x.toFixed(1)}" y="${labelEnd.y.toFixed(1)}" font-size="11" font-weight="600" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">+3%</text>
+        </svg>
       </div>
       <div class="gauge-footer">
-        <span class="gauge-label">-3%</span>
-        <span class="gauge-value ${value>=0?'up':'down'}">${value>=0?'+':''}${value.toFixed(2)}%</span>
-        <span class="gauge-label">+3%</span>
+        <span class="gauge-value">${value>=0?'+':''}${value.toFixed(2)}%</span>
       </div>
     </div>
     <div id="gaugeInfo">
