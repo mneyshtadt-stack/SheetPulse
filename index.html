@@ -779,7 +779,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789980667";
+const BUILD_ID = "1789980888";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1175,20 +1175,44 @@ function formatNextOpen(ms){
   const d = new Date(ms);
   const weekday = d.toLocaleDateString('en-US', {timeZone:'Asia/Jerusalem', weekday:'long'});
   const time = d.toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
-  return `Opens ${weekday} at ${time} (Israel time)`;
+  return `Opens ${weekday} at ${time}`;
+}
+// Today's close, in Israel time — only ever called while the market is currently open, so "today"
+// is guaranteed to already be a trading day and the close is always later today, no need to scan
+// forward like getNextTaseOpenMs/getNextUsOpenMs do for the (possibly days-away) next open.
+function getTaseCloseMs(){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone:'Asia/Jerusalem', year:'numeric', month:'2-digit', day:'2-digit', weekday:'short'
+  }).formatToParts(new Date());
+  const get = t => parts.find(p=>p.type===t).value;
+  const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10);
+  return get('weekday') === 'Fri' ? zonedTimeToMs(y,m,d,14,0,'Asia/Jerusalem') : zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem');
+}
+function getUsCloseMs(){
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(new Date());
+  const get = t => parts.find(p=>p.type===t).value;
+  return zonedTimeToMs(parseInt(get('year'),10), parseInt(get('month'),10), parseInt(get('day'),10), 16, 0, 'America/New_York');
+}
+function formatNextClose(ms){
+  if(ms === null) return '';
+  const time = new Date(ms).toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  return `Closes today at ${time}`;
 }
 
 // Same OPEN/CLOSED signal shown in the main gauge panel, drawn directly inside the intraday chart
 // (top-left, inside its own padding) so a viewer who opened the window after hours can immediately
 // tell the chart is showing a closed/frozen session — without spending a header line on it.
 function marketStatusBadgeSvg(x, y, id, label, isOpen){
-  return `<g id="${id}" style="${isOpen?'':'cursor:help;'}">
+  return `<g id="${id}" style="cursor:help;">
       <circle cx="${x}" cy="${y-3.5}" r="4" fill="${isOpen?'#3b6d11':'#a32d2d'}"/>
       <text x="${x+9}" y="${y}" font-size="11" fill="var(--ink)" font-family="'Helvetica Neue',Arial,sans-serif">${label}: <tspan font-weight="700">${isOpen?'OPEN':'CLOSED'}</tspan></text>
     </g>`;
 }
-function wireMarketStatusBadge(id, isOpen, nextOpenMsFn){
+function wireMarketStatusBadge(id, isOpen, nextOpenMsFn, nextCloseMsFn){
   if(!isOpen) attachHoverTooltip(document.getElementById(id), () => formatNextOpen(nextOpenMsFn()));
+  else if(nextCloseMsFn) attachHoverTooltip(document.getElementById(id), () => formatNextClose(nextCloseMsFn()));
 }
 
 // ---- Live quotes (Yahoo Finance via public CORS proxy, + Frankfurter for FX) ----
@@ -1665,9 +1689,9 @@ function renderMarketDetailHeader(marketKey){
     <div id="marketDetailTableArea"></div>
   `;
   if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
-    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs}], true);
+    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true);
   if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
-    [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs}]);
+    [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}]);
   return seg;
 }
 
@@ -1774,8 +1798,8 @@ function renderPortfolioHeader(){
     <div id="marketDetailTableArea"></div>
   `;
   renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.il.value, split.us.value), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
-    {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs},
-    {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs}
+    {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
+    {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
   ], true);
   return true;
 }
@@ -2419,9 +2443,9 @@ function renderGauge(rows, totals){
     </div>
     <div id="gaugeInfo">
       <div>
-        <span id="taseStatusLine" style="${taseOpen?'':'cursor:help;'}"><span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE: <b>${taseOpen?'OPEN':'CLOSED'}</b></span>
+        <span id="taseStatusLine" style="cursor:help;"><span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE: <b>${taseOpen?'OPEN':'CLOSED'}</b></span>
         &nbsp;&nbsp;
-        <span id="usStatusLine" style="${usOpen?'':'cursor:help;'}"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA: <b>${usOpen?'OPEN':'CLOSED'}</b></span>
+        <span id="usStatusLine" style="cursor:help;"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA: <b>${usOpen?'OPEN':'CLOSED'}</b></span>
       </div>
       <div id="portfolioDetailTrigger" style="cursor:pointer;"><span class="glabel">Portfolio day change:</span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></div>
       <div id="ilDetailTrigger" style="cursor:pointer;"><span class="glabel">Israeli (TASE) day change:</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></div>
@@ -2433,7 +2457,9 @@ function renderGauge(rows, totals){
   document.getElementById('ilDetailTrigger').addEventListener('click', ()=> openMarketDetail('il'));
   document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
   if(!taseOpen) attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextOpen(getNextTaseOpenMs()));
+  else attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextClose(getTaseCloseMs()));
   if(!usOpen) attachHoverTooltip(document.getElementById('usStatusLine'), () => formatNextOpen(getNextUsOpenMs()));
+  else attachHoverTooltip(document.getElementById('usStatusLine'), () => formatNextClose(getUsCloseMs()));
   syncGaugeToIntraday(split, totals);
 }
 
@@ -3014,7 +3040,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     </svg>
   `;
 
-  (statusBadges||[]).forEach(sb => wireMarketStatusBadge(sb.id, sb.isOpen, sb.nextOpenMsFn));
+  (statusBadges||[]).forEach(sb => wireMarketStatusBadge(sb.id, sb.isOpen, sb.nextOpenMsFn, sb.nextCloseMsFn));
 
   const svgEl = el.querySelector('svg');
   const overlay = el.querySelector('#intradayOverlay');
