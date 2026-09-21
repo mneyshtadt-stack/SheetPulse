@@ -41,6 +41,14 @@ The combined (Portfolio) chart's pre-open stretch (TASE trading alone, before US
 
 Both the Portfolio chart (at its own ~10:00 opening point) and the USA-only chart (at its own ~16:30 opening point) carry a small marker highlighting the FX move baked into that chart's opening number: a solid accent-colored dot, and a tooltip on hover showing today's captured rate (09:59 for Portfolio, 16:29 for USA) against the previous close's own recorded rate. This only affects the chart's plotted marker/tooltip — the `Prev. close`/`Day Change` header figures stay anchored to the real historical close on purpose, so they never disagree with their own label.
 
+## Day Change and currency movement
+
+`Day Change` deliberately includes USD/ILS currency movement, not just each holding's own price movement — this is a considered design choice, not an oversight.
+
+Your net worth is denominated in shekels; that's the currency you'll actually spend. If a US stock's price doesn't move at all but USD strengthens 1% against ILS, you really are 1% richer in ILS terms today — that's real, realizable wealth change, not a measurement quirk. Comparing today's `$price × today's rate` against yesterday's `$price × yesterday's rate` (what `LastClose` + the live rate does) correctly captures the combined effect of stock performance and currency movement, which is exactly what "how much richer/poorer am I today" has to mean for an ILS-based investor.
+
+This is a different convention from Google Finance's own per-security `change`/`changepct` (the numbers behind the Holdings table's `Day Change (%)` column), which compares a security's price only against its own previous local-currency close and never factors in FX at all — the right number for judging a stock's own performance on its own exchange, but the wrong one for a portfolio's real ILS-denominated day-over-day change. SheetPulse deliberately uses two different conventions for two different questions: the per-ticker table answers "how did this stock do," the aggregate header answers "how did my wealth change." The FX-rate markers on the intraday charts (see above) exist specifically to make the currency-driven portion of that second number visible, rather than leaving it silently blended into one figure.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
