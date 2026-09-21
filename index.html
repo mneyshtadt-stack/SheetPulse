@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790002301";
+const BUILD_ID = "1790002432";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2813,19 +2813,19 @@ async function fetchIntradayLogRaw(url){
     const d = parseSheetTimestamp(tsStr);
     if(isNaN(d.getTime())) continue;
     points.push({t: d.getTime(), v});
-    // IntradayLogIL carries two extra columns, both real USD/ILS rates captured a couple of
-    // minutes ahead of a market's open (see logIntradayValueIL): col C on its first row of the day
-    // (TASE's own ~09:59 open), col D on whichever row happens to log during the ~16:28-16:30
-    // window (USA's own open, captured here since TASE's trigger is still running then and USA's
-    // isn't). IntradayLogUS never has either column, so this only ever fires while parsing IL's URL.
-    if(url === INTRADAY_LOG_CSV_URL){
-      if(r[2] !== undefined && r[2] !== ''){
-        const taseRate = Number(r[2]);
-        if(!isNaN(taseRate)) window.todayTaseOpenFxRate = taseRate;
-      }
-      if(r[3] !== undefined && r[3] !== ''){
-        const usRate = Number(r[3]);
-        if(!isNaN(usRate)) window.todayUsOpenFxRate = usRate;
+    // IntradayLogIL's 3rd column carries a real USD/ILS rate on exactly two rows a day, each
+    // captured a couple of minutes ahead of a market's open (see logIntradayValueIL): its first row
+    // of the day (TASE's own ~09:59 open) and whichever row happens to log during the ~16:28-16:30
+    // window (USA's own open -- captured there since TASE's trigger is still running then and
+    // USA's isn't). d's own hour (Israel time, since parseSheetTimestamp maps the sheet's
+    // components directly with no further conversion) is what tells the two captures apart -- an
+    // afternoon hour means it's USA's, a morning one means it's TASE's. IntradayLogUS never has
+    // this column at all, so this only ever fires while parsing IL's URL.
+    if(url === INTRADAY_LOG_CSV_URL && r[2] !== undefined && r[2] !== ''){
+      const rate = Number(r[2]);
+      if(!isNaN(rate)){
+        if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
+        else window.todayUsOpenFxRate = rate;
       }
     }
   }
