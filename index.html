@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789998780";
+const BUILD_ID = "1789998978";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1799,7 +1799,7 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     <div id="marketDetailTableArea"></div>
   `;
-  renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.il.value, split.us.value), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
+  renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.il.value - split.il.gain, split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
     {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
   ], true);
@@ -2844,6 +2844,11 @@ function mergeIlUs(ilLog, usLog){
 // closed market genuinely isn't moving, treating it as flat at its last known value and still
 // tracking the other side's real intraday movement is accurate, not just a fallback — it's what
 // "combined portfolio value" actually means while only one market is open.
+// ilBaseline/usBaseline are that segment's IMPLIED previous close (value minus today's day-gain —
+// the same estimate already shown as "Prev. close" in the individual IL/US detail views), not
+// today's live current total. That distinction matters: a flat stand-in for "hasn't moved yet
+// today" needs to represent yesterday's close, however imprecisely, not today's still-forming
+// number -- using the live total here previously created a fake jump the moment real data arrived.
 async function fetchCombinedIntradayLogRaw(ilBaseline, usBaseline){
   const [ilRaw, usRaw] = await Promise.all([
     fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL).catch(()=>[]),
@@ -2856,16 +2861,16 @@ async function fetchCombinedIntradayLogRaw(ilBaseline, usBaseline){
   // (TASE opens at 10:00, USA at ~16:30 Israel time) -- mergeIlUs only emits a point once BOTH
   // sides have a value, so without this, the whole stretch before the later side's first row
   // silently vanishes from the combined chart instead of showing the earlier market's real
-  // movement. Prepend a flat synthetic point at the earlier side's own first timestamp, using the
-  // other side's real LastClose value -- ONLY when that real value is actually available. Falling
-  // back to usBaseline/ilBaseline (today's live current total) here would be actively misleading:
-  // that's not "hasn't moved yet today," it's today's still-forming number, which creates a fake
-  // jump the moment real data arrives and no longer matches it. Better to show nothing for that
-  // stretch (the old behavior) than to fabricate a flat line from the wrong kind of number.
-  if(ilLog.length && usLog.length && usLog[0].t > ilLog[0].t && typeof window.lastCloseUS === 'number'){
-    usLog = [{t: ilLog[0].t, v: window.lastCloseUS}, ...usLog];
-  } else if(ilLog.length && usLog.length && ilLog[0].t > usLog[0].t && typeof window.lastCloseIL === 'number'){
-    ilLog = [{t: usLog[0].t, v: window.lastCloseIL}, ...ilLog];
+  // movement. Prepend a flat synthetic point at the earlier side's own first timestamp: prefer the
+  // real LastClose value when available (window.lastCloseIL/US), falling back to the segment's
+  // implied previous close (ilBaseline/usBaseline) otherwise -- both represent the same concept
+  // (yesterday's close), just with different precision, so either is a sound flat stand-in.
+  if(ilLog.length && usLog.length && usLog[0].t > ilLog[0].t){
+    const flatUs = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : usBaseline;
+    if(flatUs != null) usLog = [{t: ilLog[0].t, v: flatUs}, ...usLog];
+  } else if(ilLog.length && usLog.length && ilLog[0].t > usLog[0].t){
+    const flatIl = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : ilBaseline;
+    if(flatIl != null) ilLog = [{t: usLog[0].t, v: flatIl}, ...ilLog];
   }
 
   return mergeIlUs(ilLog, usLog);
