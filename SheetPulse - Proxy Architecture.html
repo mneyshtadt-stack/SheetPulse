@@ -294,6 +294,15 @@ sudo netfilter-persistent save</code></pre>
     </ol>
   </div>
 
+  <div class="phase">
+    <h3><span class="phase-num">16</span>Intraday log timestamps — matching the project's date convention</h3>
+    <ol>
+      <li>The <code>IntradayLogIL</code>/<code>IntradayLogUS</code> tabs are written by Apps Script time-driven triggers (<code>logIntradayValueIL</code>/<code>logIntradayValueUS</code>, running every minute while each market is open), which append one Timestamp + Value row per tick and prune everything from a prior day the first time a new day's row is logged.</li>
+      <li>A raw <code>Date</code> value written into a cell renders using the spreadsheet's own locale — by default, US-style <code>m/d/yyyy</code> — so both logging functions now explicitly call <code>setNumberFormat('dd/mm/yyyy hh:mm:ss')</code> on the Timestamp cell on every write, keeping the column consistent with dd/mm/yyyy everywhere else in the project regardless of the spreadsheet's own locale setting.</li>
+      <li>That format change meant the dashboard's own CSV parser (<code>fetchIntradayLogRaw</code>) could no longer rely on JavaScript's native <code>new Date(tsStr)</code>, which only reliably understands <code>m/d/yyyy</code> order for slash-separated strings and would otherwise have silently turned every dd/mm/yyyy row into an Invalid Date. A small explicit parser (<code>parseSheetTimestamp</code>) now reads the day/month/year/time components directly off the string instead.</li>
+    </ol>
+  </div>
+
   <h2><span class="eyebrow">Reference</span>Every secret, and where it actually lives</h2>
   <table>
     <tr><th>Secret</th><th>Lives at</th><th>What it's for</th></tr>
