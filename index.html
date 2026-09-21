@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789999292";
+const BUILD_ID = "1790000185";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1665,7 +1665,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)} · ${dayChangeAsOf}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)}${typeof window.lastCloseFxRate === 'number' ? ` (at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -1782,7 +1782,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${prevCloseReferenceLabel()}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -2603,6 +2603,7 @@ function approxCloseInstant(dateObj, market){
 async function fetchLastClose(){
   window.lastCloseIL = undefined; window.lastCloseILTs = undefined;
   window.lastCloseUS = undefined; window.lastCloseUSTs = undefined;
+  window.lastCloseFxRate = undefined;
   try{
     const res = await fetchViaProxy(LAST_CLOSE_CSV_URL);
     if(!res.ok) return;
@@ -2620,6 +2621,10 @@ async function fetchLastClose(){
       }
       if(window.lastCloseUS === undefined && table[i][2] !== '' && !isNaN(usVal)){
         window.lastCloseUS = usVal; window.lastCloseUSTs = approxCloseInstant(dateObj, 'US');
+        // The rate recorded on USA's own row -- USA always closes after TASE each day, so this
+        // is specifically the rate in effect at USA's close, not some earlier TASE-time reading.
+        const rate = Number(table[i][4]);
+        if(!isNaN(rate)) window.lastCloseFxRate = rate;
       }
       if(window.lastCloseIL !== undefined && window.lastCloseUS !== undefined) break;
     }
