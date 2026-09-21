@@ -186,23 +186,24 @@
   #universeHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
   #universeHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
   #universeHeaderBtns{display:flex; align-items:center; gap:4px; flex-shrink:0;}
-  #universeSearchWrap{padding:14px 24px 0; position:relative;}
+  #universeSearchWrap{padding:14px 24px 0; display:flex; align-items:center; flex-wrap:wrap; gap:14px;}
   #universeSearch{
-    width:100%; max-width:280px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
+    width:100%; max-width:280px; flex:0 0 auto; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
   }
   #universeSearch:focus{outline:none; border-color:var(--accent);}
-  #universeStatus{margin-left:12px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--down-5);}
+  #universeStatus{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--down-5);}
   /* Shown only when the search was populated by double-clicking a treemap tile (showUniverseQuoteCard) —
-     a quick live-price glance without having to also scan the table below for that one ticker's row. */
+     a quick live-price glance without having to also scan the table below for that one ticker's row.
+     A normal flex sibling of the search box (not absolutely positioned) so it sits reliably right next
+     to it in both the regular and maximized modal layouts, instead of needing hand-tuned pixel offsets. */
   #universeQuoteCard{
-    display:none; position:absolute; right:24px; top:-16px; z-index:5;
-    flex-direction:column; gap:5px; background:var(--paper); border:1px solid var(--line);
-    border-left:4px solid var(--line); border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,0.1);
-    padding:12px 20px; font-family:'Helvetica Neue',Arial,sans-serif;
-    opacity:0; transform:translateY(-4px); transition:opacity .15s ease, transform .15s ease;
+    display:none; flex-direction:column; gap:5px; background:var(--paper); border:1px solid var(--line);
+    border-left:4px solid var(--line); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    padding:8px 18px; font-family:'Helvetica Neue',Arial,sans-serif;
+    opacity:0; transition:opacity .15s ease;
   }
-  #universeQuoteCard.show{display:flex; opacity:1; transform:translateY(0);}
+  #universeQuoteCard.show{display:flex; opacity:1;}
   #universeQuoteCard.up{border-left-color:var(--up-4);}
   #universeQuoteCard.down{border-left-color:var(--down-4);}
   #universeQuoteCard .uq-ticker{font-size:10.5px; font-weight:700; letter-spacing:0.05em; color:var(--muted); text-transform:uppercase;}
@@ -780,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789978659";
+const BUILD_ID = "1789978883";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1237,7 +1238,10 @@ function showUniverseQuoteCard(row){
   // Prefer the sheet's own Prev day close (exact) over back-deriving the dollar change from the
   // Day Change (%) column, which is only shown/stored rounded to 2 decimals and so introduces
   // rounding error into a value that's otherwise available exactly.
-  const dayChangeAmt = !isNaN(row.prevClose) ? row.price - row.prevClose : row.price - row.price/(1+row.change/100);
+  // >0 rather than just !isNaN -- a transient blank/recalculating GOOGLEFINANCE cell can read back
+  // as a real 0 (not NaN), which would otherwise silently produce a nonsense "day change" equal to
+  // the whole price. Falls back to the less precise but sane change%-derived estimate in that case.
+  const dayChangeAmt = row.prevClose > 0 ? row.price - row.prevClose : row.price - row.price/(1+row.change/100);
   card.className = 'show ' + cls;
   card.innerHTML = `
     <div class="uq-ticker">${row.name}</div>
