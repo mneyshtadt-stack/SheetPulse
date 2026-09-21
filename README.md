@@ -35,6 +35,8 @@ Intraday price history (used for the IL/US/combined intraday charts) is logged s
 
 Because `USA market`'s ILS figure is fixed at whatever the rate was at that past close, it doesn't track today's live USD/ILS movement — the USA and combined `Day Change` tiles show that recorded rate directly (e.g. "at USD/ILS 3.0221") next to `Prev. close`, so it's clear which rate the number is anchored to rather than silently comparing today's value against a stale-rate figure with no indication.
 
+The combined chart's pre-open stretch (TASE trading alone, before USA opens) handles this differently: rather than holding USA flat at yesterday's ILS figure, it re-prices `USA market$` (yesterday's USD close) at **today's live** USD/ILS rate, so that segment reflects real FX movement even before USA opens — refreshed on the same cadence as the rest of the page (every auto-refresh / modal reopen), not continuously. That stretch is marked with dashed ring markers at its start and end, and hovering it shows a tooltip explaining it's an estimate. This only affects the chart's plotted line — the `Prev. close`/`Day Change` header figures stay anchored to the real historical close on purpose, so they never disagree with their own label.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
