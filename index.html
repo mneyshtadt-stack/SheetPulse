@@ -196,7 +196,7 @@
   /* Shown only when the search was populated by double-clicking a treemap tile (showUniverseQuoteCard) —
      a quick live-price glance without having to also scan the table below for that one ticker's row. */
   #universeQuoteCard{
-    display:none; position:absolute; left:24px; top:100%; margin-top:10px; z-index:5;
+    display:none; position:absolute; left:300px; top:14px; z-index:5;
     align-items:baseline; gap:12px; background:var(--panel,#fff); border:1px solid var(--line);
     border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,0.14); padding:12px 18px;
     font-family:'Helvetica Neue',Arial,sans-serif;
@@ -775,7 +775,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789977634";
+const BUILD_ID = "1789978004";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -963,7 +963,7 @@ function parseTableToRows(table){
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
         cSector = col('Sector'), cCostILS = col('Total Cost (ILS)'), cRole = col('Role Group'),
         cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price'),
-        cLogo = col('Logo');
+        cPrevClose = col('Prev day close'), cLogo = col('Logo');
   if([cTicker,cValueILS,cChange,cRet,cSector,cCostILS].some(i=>i===-1)){
     throw new Error('Sheet columns have changed — expected headers not found');
   }
@@ -983,6 +983,7 @@ function parseTableToRows(table){
       buyDate: cBuyDate>=0 ? (r[cBuyDate]||'').trim() || null : null,
       shares: cShares>=0 ? num(r[cShares]) : NaN,
       price: cPrice>=0 ? num(r[cPrice]) : NaN,
+      prevClose: cPrevClose>=0 ? num(r[cPrevClose]) : NaN,
       logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : ''
     });
   }
@@ -1225,7 +1226,10 @@ function showUniverseQuoteCard(row){
   const ccy = ISRAELI_TICKERS.includes(row.name) ? 'ILA' : 'USD';
   const cls = row.change >= 0 ? 'up' : 'down';
   const arrow = row.change >= 0 ? '↑' : '↓';
-  const dayChangeAmt = row.price - row.price/(1+row.change/100);
+  // Prefer the sheet's own Prev day close (exact) over back-deriving the dollar change from the
+  // Day Change (%) column, which is only shown/stored rounded to 2 decimals and so introduces
+  // rounding error into a value that's otherwise available exactly.
+  const dayChangeAmt = !isNaN(row.prevClose) ? row.price - row.prevClose : row.price - row.price/(1+row.change/100);
   card.innerHTML = `
     <span><span class="uq-price">${row.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
     <span class="uq-pct ${cls}">${arrow} ${Math.abs(row.change).toFixed(2)}%</span>
