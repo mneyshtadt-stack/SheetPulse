@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790010157";
+const BUILD_ID = "1790010246";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -969,7 +969,7 @@ function parseTableToRows(table){
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
         cSector = col('Sector'), cCostILS = col('Total Cost (ILS)'), cRole = col('Role Group'),
         cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price'),
-        cLogo = col('Logo');
+        cLogo = col('Logo'), cValueUSD = col('Current Value ($)');
   // Fuzzy-matched on purpose (unlike the required columns above) — this one's optional, and an
   // exact-string match already proved too brittle against small wording/punctuation differences
   // from whatever's actually typed in the sheet ("Prev Day Close", "Prev. Close", etc.).
@@ -995,7 +995,8 @@ function parseTableToRows(table){
       shares: cShares>=0 ? num(r[cShares]) : NaN,
       price: cPrice>=0 ? num(r[cPrice]) : NaN,
       prevClose: cPrevClose>=0 ? num(r[cPrevClose]) : NaN,
-      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : ''
+      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : '',
+      valueUsd: cValueUSD>=0 ? num(r[cValueUSD]) : NaN
     });
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
@@ -1111,7 +1112,12 @@ function splitByMarket(rows){
     const cost = allArr.reduce((a,r)=>a+(r.cost||0),0);
     const totalGain = allValue - cost;
     const totalGainPct = cost ? totalGain/cost*100 : 0;
-    return {value: allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr};
+    // Genuine live sum of each holding's own Current Value ($) (Tracker column H), where present —
+    // real per-ticker dollar data rather than deriving a segment's $ total by dividing its ILS
+    // total through a single blended rate.
+    const usdRows = allArr.filter(r=>!isNaN(r.valueUsd));
+    const usdValue = usdRows.length ? usdRows.reduce((a,r)=>a+r.valueUsd,0) : NaN;
+    return {value: allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr, usdValue};
   };
   return {
     il: calc(il, ilAll, window.lastCloseIL),
@@ -1643,11 +1649,14 @@ function renderMarketDetailHeader(marketKey){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
   const isMarketClosed = marketKey === 'il' ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
-  // USA's own Market Value (USD) tile compares today's $ value against LastClose's real recorded
-  // USA market$ figure -- a genuine dollars-to-dollars comparison, free of any FX contamination,
-  // rather than converting the ILS-denominated (FX-inclusive) day gain through today's rate. Falls
-  // back to that ILS-derived estimate only for the rare case LastClose's $ figure isn't available yet.
-  const todayUsd = (marketKey === 'us' && window.lastFxRate) ? seg.value / window.lastFxRate : null;
+  // USA's own Market Value (USD) tile uses the genuine live sum of each holding's own Current
+  // Value ($) (Tracker column H) when available, rather than deriving it by dividing the
+  // ILS-denominated total through today's blended rate -- and compares that against LastClose's
+  // real recorded USA market$ figure, a dollars-to-dollars comparison free of any FX contamination.
+  // Both fall back to the derived/estimated form only when the real data isn't available yet.
+  const todayUsd = marketKey === 'us'
+    ? (typeof seg.usdValue === 'number' && !isNaN(seg.usdValue) ? seg.usdValue : (window.lastFxRate ? seg.value / window.lastFxRate : null))
+    : null;
   const usdChange = (todayUsd !== null && typeof window.lastCloseUSD === 'number') ? todayUsd - window.lastCloseUSD : null;
   const usdChangePct = (usdChange !== null && window.lastCloseUSD) ? usdChange / window.lastCloseUSD * 100 : null;
   const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate, marketKey === 'il' ? window.lastCloseILTs : window.lastCloseUSTs);
@@ -1687,7 +1696,7 @@ function renderMarketDetailHeader(marketKey){
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market Value (USD)</div>
-        <div class="md-stat-tile-val" id="mdUsdVal">${window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—'}</div>
+        <div class="md-stat-tile-val" id="mdUsdVal">${todayUsd !== null ? "$" + Math.round(todayUsd).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
           ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`
           : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable')}</div>
