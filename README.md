@@ -25,6 +25,8 @@ Access to the page itself is gated by **Google Sign-In**: the dashboard shows a 
 
 Once signed in with Google, a device can additionally register a **WebAuthn** (Face ID / Fingerprint) credential as a per-device shortcut back in. Registering one still requires a fresh, real Google ID token; unlocking with the credential afterward has the proxy verify the biometric assertion itself and hand back a short-lived session token, used exactly like a Google ID token from then on. The biometric read never leaves your device — the proxy only ever stores a public key, and only for devices you've explicitly enabled.
 
+Intraday price history (used for the IL/US/combined intraday charts) is logged separately: an Apps Script time-driven trigger bound to the spreadsheet snapshots the portfolio's value once a minute into `IntradayLogIL`/`IntradayLogUS` tabs while each market is open, stamping each row's Timestamp column as `dd/mm/yyyy hh:mm:ss`. The dashboard parses that column with an explicit dd/mm/yyyy parser rather than JavaScript's native `Date` constructor, since the native parser only reliably understands `m/d/yyyy` order for slash-separated strings.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
