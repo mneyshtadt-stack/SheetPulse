@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790000591";
+const BUILD_ID = "1790000628";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3146,7 +3146,11 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
     const ttCls = ttDiff >= 0 ? 'var(--up-5)' : 'var(--down-5)';
     const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
-    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>`;
+    const usDateStr = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'last';
+    const approxNote = p.approx
+      ? `<div style="color:var(--muted); font-size:11px; margin-top:3px; max-width:180px;">Estimated — USA's ${usDateStr} close in USD &times; today's live USD/ILS rate</div>`
+      : '';
+    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>${approxNote}`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
     const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
