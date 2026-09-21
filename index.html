@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790010246";
+const BUILD_ID = "1790010688";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1795,6 +1795,25 @@ function renderPortfolioHeader(){
   const body = document.getElementById('marketDetailBody');
   const isMarketClosed = !getTaseStatus() && !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
 
+  // Portfolio's Market Value (USD) splits into its two segments rather than dividing the whole
+  // ILS total by one rate: IL holdings have no real independent dollar identity (their $ figure is
+  // always just a function of whatever rate is applied), so today's $ total is
+  // (IL's ILS value ÷ today's rate) + USA's own real $ value (the direct column-H sum, same as the
+  // USA-only tile). The reference side mirrors that: (LastClose's IL value ÷ LastClose's own
+  // recorded rate) + LastClose's real USA market$ -- anchoring IL's unavoidable FX component to a
+  // frozen historical rate instead of today's live one, while USA's half stays fully FX-clean.
+  // Falls back to the simpler whole-total/live-rate estimate whenever the real pieces aren't
+  // all available yet.
+  const usUsdToday = (typeof split.us.usdValue === 'number' && !isNaN(split.us.usdValue))
+    ? split.us.usdValue
+    : (window.lastFxRate ? split.us.value / window.lastFxRate : null);
+  const todayUsdTotal = (window.lastFxRate && usUsdToday !== null) ? (split.il.value / window.lastFxRate) + usUsdToday : null;
+  const yesterdayUsdTotal = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate && typeof window.lastCloseUSD === 'number')
+    ? (window.lastCloseIL / window.lastCloseFxRate) + window.lastCloseUSD
+    : null;
+  const portfolioUsdChange = (todayUsdTotal !== null && yesterdayUsdTotal !== null) ? todayUsdTotal - yesterdayUsdTotal : null;
+  const portfolioUsdChangePct = (portfolioUsdChange !== null && yesterdayUsdTotal) ? portfolioUsdChange / yesterdayUsdTotal * 100 : null;
+
   body.innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
       <div class="md-headline" id="mdHeadlineVal">${fmt(totals.totalValue)}</div>
@@ -1815,8 +1834,10 @@ function renderPortfolioHeader(){
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market Value (USD)</div>
-        <div class="md-stat-tile-val" id="mdUsdVal">${window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—'}</div>
-        <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdUsdSub">${window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)` : 'rate unavailable'}</div>
+        <div class="md-stat-tile-val" id="mdUsdVal">${todayUsdTotal !== null ? "$" + Math.round(todayUsdTotal).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
+        <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
+          ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)`
+          : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? fxRateLine(window.lastFxRate) : ''}</div>
       </div>
     </div>
