@@ -775,7 +775,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789977448";
+const BUILD_ID = "1789977634";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1208,29 +1208,29 @@ async function fetchYahooQuote(symbol){
   return {symbol, price, prevClose, change, changePct};
 }
 
-// The floating live-price card shown above the Market Universe table when a treemap tile is
-// double-clicked (showUniverseQuoteCard) — a quick glance at price/day-change for that one ticker
-// without having to scan the table below for its row. Reuses fetchYahooQuote, same as the market
-// detail modals' live price refresh.
-async function showUniverseQuoteCard(ticker){
+// The floating price card shown above the Market Universe table when a treemap tile is
+// double-clicked — a quick glance at price/day-change for that one ticker without having to scan
+// the table below for its row. Reads straight off the already-loaded row (same Current Price /
+// Day Change (%) the treemap tile itself is drawn from) instead of an extra network round-trip —
+// an earlier version hit Yahoo Finance through a public CORS proxy for this, which just added an
+// unreliable third-party dependency for data the sheet already has.
+function showUniverseQuoteCard(row){
   const card = document.getElementById('universeQuoteCard');
   if(!card) return;
   card.className = 'show';
-  card.innerHTML = `<span class="uq-loading">Loading live price…</span>`;
-  const symbol = YAHOO_SYMBOL_MAP[ticker] || ticker;
-  const ccy = ISRAELI_TICKERS.includes(ticker) ? 'ILA' : 'USD';
-  try{
-    const q = await fetchYahooQuote(symbol);
-    const cls = q.change >= 0 ? 'up' : 'down';
-    const arrow = q.change >= 0 ? '↑' : '↓';
-    card.innerHTML = `
-      <span><span class="uq-price">${q.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
-      <span class="uq-pct ${cls}">${arrow} ${Math.abs(q.changePct).toFixed(2)}%</span>
-      <span class="uq-today">${q.change>=0?'+':''}${q.change.toFixed(2)} today</span>
-    `;
-  } catch(e){
-    card.innerHTML = `<span class="uq-loading">Live price unavailable</span>`;
+  if(isNaN(row.price) || isNaN(row.change)){
+    card.innerHTML = `<span class="uq-loading">Price unavailable</span>`;
+    return;
   }
+  const ccy = ISRAELI_TICKERS.includes(row.name) ? 'ILA' : 'USD';
+  const cls = row.change >= 0 ? 'up' : 'down';
+  const arrow = row.change >= 0 ? '↑' : '↓';
+  const dayChangeAmt = row.price - row.price/(1+row.change/100);
+  card.innerHTML = `
+    <span><span class="uq-price">${row.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
+    <span class="uq-pct ${cls}">${arrow} ${Math.abs(row.change).toFixed(2)}%</span>
+    <span class="uq-today">${dayChangeAmt>=0?'+':''}${dayChangeAmt.toFixed(2)} today</span>
+  `;
 }
 function hideUniverseQuoteCard(){
   const card = document.getElementById('universeQuoteCard');
@@ -3139,7 +3139,7 @@ function render(rows, totals){
       renderUniverseTable();
       document.getElementById('universeModal').classList.add('open');
       refreshUniverseRows();
-      showUniverseQuoteCard(n.data.name);
+      showUniverseQuoteCard(n.data);
     });
     const tc = textColorFor(n.data.change);
     let inner = '';
