@@ -779,7 +779,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789979656";
+const BUILD_ID = "1789980667";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2557,20 +2557,43 @@ const INTRADAY_LOG_US_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogUS');
 // never pruned) that the Apps Script trigger writes to once a day, at the same moment it captures
 // the definitive closing reading — so this always holds a real recorded close, not an approximation.
 const LAST_CLOSE_CSV_URL = proxyUrl(SHEET_ID, 'LastClose');
+// LastClose is now one row per calendar day (Date | TASE market | USA market), keeping a rolling
+// ~7-day window instead of just the latest close — easier to scan/audit in the sheet itself. A
+// same-day row can have only one market's column filled in (they close at different times), so
+// this scans from the most recent row backward and takes each market's own most recent non-blank
+// value independently, rather than assuming both are always on the same row.
+function approxCloseInstant(dateObj, market){
+  const d = new Date(dateObj);
+  if(market === 'IL'){
+    const isFriday = d.getDay() === 5;
+    d.setHours(isFriday ? 13 : 17, isFriday ? 50 : 30, 0, 0);
+  } else {
+    d.setHours(23, 0, 0, 0); // USA's close, in Israel time
+  }
+  return d;
+}
 async function fetchLastClose(){
+  window.lastCloseIL = undefined; window.lastCloseILTs = undefined;
+  window.lastCloseUS = undefined; window.lastCloseUSTs = undefined;
   try{
     const res = await fetchViaProxy(LAST_CLOSE_CSV_URL);
     if(!res.ok) return;
     const text = await res.text();
     const table = Papa.parse(text, {skipEmptyLines:true}).data;
-    for(let i=1;i<table.length;i++){
-      const market = (table[i][0]||'').trim();
-      const value = Number(table[i][2]);
-      if(!market || isNaN(value)) continue;
-      const ts = parseSheetTimestamp((table[i][1]||'').trim());
-      const validTs = !isNaN(ts.getTime()) ? ts : undefined;
-      if(market === 'IL'){ window.lastCloseIL = value; window.lastCloseILTs = validTs; }
-      if(market === 'US'){ window.lastCloseUS = value; window.lastCloseUSTs = validTs; }
+    for(let i=table.length-1; i>=1; i--){
+      const dateStr = (table[i][0]||'').trim();
+      if(!dateStr) continue;
+      const dm = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if(!dm) continue;
+      const dateObj = new Date(Number(dm[3]), Number(dm[2])-1, Number(dm[1]));
+      const ilVal = Number(table[i][1]), usVal = Number(table[i][2]);
+      if(window.lastCloseIL === undefined && table[i][1] !== '' && !isNaN(ilVal)){
+        window.lastCloseIL = ilVal; window.lastCloseILTs = approxCloseInstant(dateObj, 'IL');
+      }
+      if(window.lastCloseUS === undefined && table[i][2] !== '' && !isNaN(usVal)){
+        window.lastCloseUS = usVal; window.lastCloseUSTs = approxCloseInstant(dateObj, 'US');
+      }
+      if(window.lastCloseIL !== undefined && window.lastCloseUS !== undefined) break;
     }
   } catch(e){ /* silent — computeTotals/splitByMarket fall back to the live-derived estimate */ }
 }
