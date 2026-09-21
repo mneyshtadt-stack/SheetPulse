@@ -758,7 +758,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789975243";
+const BUILD_ID = "1789976264";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1021,18 +1021,33 @@ function applyFxCell(rateCellRaw, changeCellRaw){
   return !isNaN(rateVal);
 }
 
+// dayGain/dayGainPct prefer the real logged close (window.lastCloseIL + window.lastCloseUS, from
+// the never-pruned LastClose tab) over summing each holding's own live day-change% — the summed
+// version is only an algebraic approximation that can drift from the actual previous close (e.g.
+// across a weekend, before a provider's change% has rolled over to the new session), and its
+// implied "previous close" has no real connection to the calendar-math label shown next to it.
+// The summed method remains as a fallback for whenever LastClose hasn't been populated yet.
 function computeTotals(rows){
   // rows: {value, change, cost}
   const totalValue = rows.reduce((a,r)=>a+r.value,0);
   const totalCost = rows.reduce((a,r)=>a+(r.cost||0),0);
-  const dayGain = rows.reduce((a,r)=>{
-    if(isNaN(r.change)) return a;
-    return a + (r.value - r.value/(1+r.change/100));
-  },0);
   const totalGain = totalValue-totalCost;
   const totalGainPct = totalCost ? totalGain/totalCost*100 : 0;
-  const dayBase = totalValue-dayGain;
-  const dayGainPct = dayBase ? dayGain/dayBase*100 : 0;
+
+  const loggedPrevClose = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseUS === 'number')
+    ? window.lastCloseIL + window.lastCloseUS : null;
+  let dayGain, dayGainPct;
+  if(loggedPrevClose !== null){
+    dayGain = totalValue - loggedPrevClose;
+    dayGainPct = loggedPrevClose ? dayGain/loggedPrevClose*100 : 0;
+  } else {
+    dayGain = rows.reduce((a,r)=>{
+      if(isNaN(r.change)) return a;
+      return a + (r.value - r.value/(1+r.change/100));
+    },0);
+    const dayBase = totalValue-dayGain;
+    dayGainPct = dayBase ? dayGain/dayBase*100 : 0;
+  }
   return {totalValue, totalCost, totalGain, totalGainPct, dayGain, dayGainPct};
 }
 
@@ -1045,18 +1060,28 @@ function splitByMarket(rows){
   const usAll = rows.filter(r=>!isIL(r));
   const il = ilAll.filter(r=>!isNaN(r.change));
   const us = usAll.filter(r=>!isNaN(r.change));
-  const calc = (arr, allArr) => {
-    const value = arr.reduce((a,r)=>a+r.value,0);
-    const gain = arr.reduce((a,r)=>a + (r.value - r.value/(1+r.change/100)), 0);
-    const base = value - gain;
-    const pct = base ? gain/base*100 : 0;
-    const cost = allArr.reduce((a,r)=>a+(r.cost||0),0);
+  // Same logged-close-first approach as computeTotals (see its comment) — a segment's gain/pct
+  // prefer that market's own real recorded close over summing its holdings' live day-change%.
+  const calc = (arr, allArr, loggedPrevClose) => {
     const allValue = allArr.reduce((a,r)=>a+r.value,0);
+    let gain, pct;
+    if(typeof loggedPrevClose === 'number'){
+      gain = allValue - loggedPrevClose;
+      pct = loggedPrevClose ? gain/loggedPrevClose*100 : 0;
+    } else {
+      gain = arr.reduce((a,r)=>a + (r.value - r.value/(1+r.change/100)), 0);
+      const base = allValue - gain;
+      pct = base ? gain/base*100 : 0;
+    }
+    const cost = allArr.reduce((a,r)=>a+(r.cost||0),0);
     const totalGain = allValue - cost;
     const totalGainPct = cost ? totalGain/cost*100 : 0;
     return {value: allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr};
   };
-  return {il: calc(il, ilAll), us: calc(us, usAll)};
+  return {
+    il: calc(il, ilAll, window.lastCloseIL),
+    us: calc(us, usAll, window.lastCloseUS)
+  };
 }
 
 function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
@@ -1521,7 +1546,7 @@ function renderMarketDetailHeader(marketKey){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
   const isMarketClosed = marketKey === 'il' ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
-  const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate);
+  const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate, marketKey === 'il' ? window.lastCloseILTs : window.lastCloseUSTs);
   const prevCloseVal = seg.value - seg.gain;
 
   const statsHtml = marketKey === 'il' ? `
@@ -2461,6 +2486,30 @@ function formatFxLine(rate){
 const INTRADAY_LOG_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogIL');
 const INTRADAY_LOG_US_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogUS');
 
+// IntradayLogIL/US get pruned back to just today's rows the moment a new day's first reading is
+// logged, so by the time a session needs "yesterday's close" for Day Change math, the log has
+// usually already discarded it. LastClose is a tiny two-row tab (one per market, updated in place,
+// never pruned) that the Apps Script trigger writes to once a day, at the same moment it captures
+// the definitive closing reading — so this always holds a real recorded close, not an approximation.
+const LAST_CLOSE_CSV_URL = proxyUrl(SHEET_ID, 'LastClose');
+async function fetchLastClose(){
+  try{
+    const res = await fetchViaProxy(LAST_CLOSE_CSV_URL);
+    if(!res.ok) return;
+    const text = await res.text();
+    const table = Papa.parse(text, {skipEmptyLines:true}).data;
+    for(let i=1;i<table.length;i++){
+      const market = (table[i][0]||'').trim();
+      const value = Number(table[i][2]);
+      if(!market || isNaN(value)) continue;
+      const ts = parseSheetTimestamp((table[i][1]||'').trim());
+      const validTs = !isNaN(ts.getTime()) ? ts : undefined;
+      if(market === 'IL'){ window.lastCloseIL = value; window.lastCloseILTs = validTs; }
+      if(market === 'US'){ window.lastCloseUS = value; window.lastCloseUSTs = validTs; }
+    }
+  } catch(e){ /* silent — computeTotals/splitByMarket fall back to the live-derived estimate */ }
+}
+
 // Today's Y/M/D as seen in a given timezone (not the browser's own local date — matters near
 // midnight boundaries), plus that timezone's weekday for schedules that vary by day (TASE Friday).
 function todayInZone(timeZone){
@@ -2590,18 +2639,26 @@ function currentSessionDateLabel(){
 function headlineAsOfHtml(isClosed){
   return isClosed ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· as of ${currentSessionDateLabel()}</span>` : '';
 }
-function marketPrevCloseReferenceLabel(dayRangeForDateFn){
+function formatPrevCloseLabel(d){
+  return d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+}
+// loggedTs (window.lastCloseILTs/USTs, from the LastClose tab) is the real timestamp the Apps
+// Script trigger actually stamped when it captured that close — used whenever it's available,
+// since it's the true instant the value line next to it corresponds to. The calendar-math
+// fallback below only runs before LastClose has been populated (or if that fetch failed).
+function marketPrevCloseReferenceLabel(dayRangeForDateFn, loggedTs){
+  if(loggedTs instanceof Date && !isNaN(loggedTs.getTime())) return formatPrevCloseLabel(loggedTs);
   const now = new Date();
   const sessionDay = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
   const dayBefore = new Date(sessionDay.y, sessionDay.m-1, sessionDay.d - 1);
   const prevDay = nearestTradingDayOnOrBefore(dayBefore.getFullYear(), dayBefore.getMonth()+1, dayBefore.getDate());
   const closeMs = dayRangeForDateFn(prevDay.y, prevDay.m, prevDay.d).close;
-  return new Date(closeMs).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+  return formatPrevCloseLabel(new Date(closeMs));
 }
 // The combined portfolio's reference always lands on USA's close (it's always the later of the
 // two markets' closes in Israel time), so this is equivalent to using the combined range here.
 function prevCloseReferenceLabel(){
-  return marketPrevCloseReferenceLabel(getUsDayRangeForDate);
+  return marketPrevCloseReferenceLabel(getUsDayRangeForDate, window.lastCloseUSTs);
 }
 // The sheet's Timestamp column is formatted dd/mm/yyyy, but JavaScript's native Date parser only
 // reliably understands m/d/yyyy for slash-separated strings — feeding it "21/09/2026" silently
@@ -3518,7 +3575,7 @@ async function refresh(){
   try{
     setStatus('Fetching latest from Google Sheet…', false);
     const rows = await fetchAndParseWithRetry(2, 2000);
-    await applyTickerLogos(rows);
+    await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
     const totals = computeTotals(rows);
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
@@ -3540,7 +3597,7 @@ async function refresh(){
 (async function autoRefreshOnLoad(){
   try{
     const rows = await fetchAndParseWithRetry(2, 2000);
-    await applyTickerLogos(rows);
+    await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
     const totals = computeTotals(rows);
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
