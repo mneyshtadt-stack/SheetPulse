@@ -27,6 +27,8 @@ Once signed in with Google, a device can additionally register a **WebAuthn** (F
 
 Intraday price history (used for the IL/US/combined intraday charts) is logged separately: an Apps Script time-driven trigger bound to the spreadsheet snapshots the portfolio's value once a minute into `IntradayLogIL`/`IntradayLogUS` tabs while each market is open, stamping each row's Timestamp column as `dd/mm/yyyy hh:mm:ss`. The dashboard parses that column with an explicit dd/mm/yyyy parser rather than JavaScript's native `Date` constructor, since the native parser only reliably understands `m/d/yyyy` order for slash-separated strings.
 
+`Day Change` / `Prev. close` figures prefer a real recorded closing value over a live approximation. A tiny `LastClose` tab (never pruned, one row per market) is written once a day by the same Apps Script trigger, at the exact moment its close-grace-window logic captures each market's definitive close — the dashboard reads that value directly, so the number and its "as of" timestamp always describe the same real moment. Until that tab has been populated (e.g. before the first close since this shipped), it falls back to summing each holding's own live day-change % instead, as it always did before.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
