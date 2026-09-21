@@ -58,9 +58,10 @@ function isUsCloseGraceWindow() {
   const openDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   return openDays.indexOf(weekday) !== -1 && hm > '1600' && hm <= '1610';
 }
-// Mirrors isTaseOpenGraceWindow -- captures the real USD/ILS rate a couple of minutes before USA
-// opens, so the combined chart has a fresher rate to prefer as the day gets closer to USA's own
-// open, instead of relying solely on the ~6.5-hour-older rate captured at TASE's open.
+// Used from inside logIntradayValueIL (TASE is still actively logging through this window, unlike
+// USA) to also capture the real USD/ILS rate a couple of minutes before USA opens, so the combined
+// chart has a fresher rate to prefer as the day gets closer to USA's own open, instead of relying
+// solely on the ~6.5-hour-older rate captured at TASE's own open.
 function isUsOpenGraceWindow() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'America/New_York', 'EEE');
@@ -220,7 +221,7 @@ function logIntradayValueIL() {
   let logSheet = ss.getSheetByName('IntradayLogIL');
   if (!logSheet) {
     logSheet = ss.insertSheet('IntradayLogIL');
-    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (session open)']);
+    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (TASE session open)', 'USD/ILS Rate (USA session open)']);
   }
   pruneIfNewDay(logSheet, 'Asia/Jerusalem');
   // Whatever's left after pruning is just the header row (1) the first time today's data gets
@@ -242,6 +243,18 @@ function logIntradayValueIL() {
     if (isNaN(openFxRate)) openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
     if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
   }
+  // USA's own session-open rate is also captured here, on whichever IL row happens to log during
+  // that narrow window (~16:28-16:30 Israel time) -- TASE's own trigger is still actively running
+  // through the whole session, so this doesn't need a separate early-return branch the way TASE's
+  // own capture does in the "not open yet" case above. Guarded separately from il_close_logged_date
+  // so it only ever writes once per day regardless of how many IL rows land in that 2-minute window.
+  if (isUsOpenGraceWindow() && props.getProperty('il_us_open_rate_date') !== today) {
+    const usOpenRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+    if (!isNaN(usOpenRate)) {
+      logSheet.getRange(2, 4).setValue(usOpenRate);
+      props.setProperty('il_us_open_rate_date', today);
+    }
+  }
   if (isCloseGrace) {
     props.setProperty('il_close_logged_date', today);
     const fxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
@@ -252,23 +265,10 @@ function logIntradayValueIL() {
 function logIntradayValueUS() {
   const isOpen = isUsMarketOpenNow();
   const isCloseGrace = !isOpen && isUsCloseGraceWindow();
+  if (!isOpen && !isCloseGrace) return;
+
   const props = PropertiesService.getScriptProperties();
   const today = Utilities.formatDate(new Date(), 'America/New_York', 'yyyy-MM-dd');
-
-  if (!isOpen && !isCloseGrace) {
-    // Mirrors logIntradayValueIL's TASE-open capture -- stash the live rate a couple of minutes
-    // before USA opens, ready to transfer onto IntradayLogUS's first row of the day below.
-    if (isUsOpenGraceWindow() && props.getProperty('us_open_rate_date') !== today) {
-      const tracker = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker');
-      const rate = Number(tracker.getRange(1, 17).getValue()); // Q1
-      if (!isNaN(rate)) {
-        props.setProperty('us_open_rate_date', today);
-        props.setProperty('us_open_rate_value', String(rate));
-      }
-    }
-    return;
-  }
-
   if (isCloseGrace && props.getProperty('us_close_logged_date') === today) return;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -302,21 +302,13 @@ function logIntradayValueUS() {
   let logSheet = ss.getSheetByName('IntradayLogUS');
   if (!logSheet) {
     logSheet = ss.insertSheet('IntradayLogUS');
-    logSheet.appendRow(['Timestamp', 'US Value', 'USD/ILS Rate (session open)']);
+    logSheet.appendRow(['Timestamp', 'US Value']);
   }
   pruneIfNewDay(logSheet, 'America/New_York');
-  const isFirstRowToday = logSheet.getLastRow() <= 1;
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = isCloseGrace ? usCloseInstant() : new Date();
   logSheet.getRange(2, 1, 1, 2).setValues([[tsValue, usValue]]);
-  if (isFirstRowToday) {
-    let openFxRate = props.getProperty('us_open_rate_date') === today
-      ? Number(props.getProperty('us_open_rate_value'))
-      : NaN;
-    if (isNaN(openFxRate)) openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
-    if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
-  }
   if (isCloseGrace) {
     props.setProperty('us_close_logged_date', today);
     const fxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
