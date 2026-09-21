@@ -186,13 +186,29 @@
   #universeHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
   #universeHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
   #universeHeaderBtns{display:flex; align-items:center; gap:4px; flex-shrink:0;}
-  #universeSearchWrap{padding:14px 24px 0;}
+  #universeSearchWrap{padding:14px 24px 0; position:relative;}
   #universeSearch{
     width:100%; max-width:280px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
   }
   #universeSearch:focus{outline:none; border-color:var(--accent);}
   #universeStatus{margin-left:12px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--down-5);}
+  /* Shown only when the search was populated by double-clicking a treemap tile (showUniverseQuoteCard) —
+     a quick live-price glance without having to also scan the table below for that one ticker's row. */
+  #universeQuoteCard{
+    display:none; position:absolute; left:24px; top:100%; margin-top:10px; z-index:5;
+    align-items:baseline; gap:12px; background:var(--panel,#fff); border:1px solid var(--line);
+    border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,0.14); padding:12px 18px;
+    font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  #universeQuoteCard.show{display:flex;}
+  #universeQuoteCard .uq-price{font-size:26px; font-weight:600; color:var(--ink);}
+  #universeQuoteCard .uq-ccy{font-size:12px; color:var(--muted); margin-left:-6px;}
+  #universeQuoteCard .uq-pct{font-size:13px; font-weight:600; padding:4px 9px; border-radius:6px;}
+  #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--up-5);}
+  #universeQuoteCard .uq-pct.down{background:var(--down-1); color:var(--down-5);}
+  #universeQuoteCard .uq-today{font-size:13px; color:var(--muted);}
+  #universeQuoteCard .uq-loading{font-size:12.5px; color:var(--muted);}
   #marketDetailSearchWrap{margin-top:16px;}
   #marketDetailSearch{
     width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
@@ -741,6 +757,7 @@
     <div id="universeSearchWrap">
       <input type="text" id="universeSearch" placeholder="Search ticker…">
       <span id="universeStatus"></span>
+      <div id="universeQuoteCard"></div>
     </div>
     <div id="universeTableWrap">
       <table id="universeTable">
@@ -758,7 +775,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789976487";
+const BUILD_ID = "1789977448";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1189,6 +1206,35 @@ async function fetchYahooQuote(symbol){
   const change = price - prevClose;
   const changePct = prevClose ? (change/prevClose*100) : 0;
   return {symbol, price, prevClose, change, changePct};
+}
+
+// The floating live-price card shown above the Market Universe table when a treemap tile is
+// double-clicked (showUniverseQuoteCard) — a quick glance at price/day-change for that one ticker
+// without having to scan the table below for its row. Reuses fetchYahooQuote, same as the market
+// detail modals' live price refresh.
+async function showUniverseQuoteCard(ticker){
+  const card = document.getElementById('universeQuoteCard');
+  if(!card) return;
+  card.className = 'show';
+  card.innerHTML = `<span class="uq-loading">Loading live price…</span>`;
+  const symbol = YAHOO_SYMBOL_MAP[ticker] || ticker;
+  const ccy = ISRAELI_TICKERS.includes(ticker) ? 'ILA' : 'USD';
+  try{
+    const q = await fetchYahooQuote(symbol);
+    const cls = q.change >= 0 ? 'up' : 'down';
+    const arrow = q.change >= 0 ? '↑' : '↓';
+    card.innerHTML = `
+      <span><span class="uq-price">${q.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
+      <span class="uq-pct ${cls}">${arrow} ${Math.abs(q.changePct).toFixed(2)}%</span>
+      <span class="uq-today">${q.change>=0?'+':''}${q.change.toFixed(2)} today</span>
+    `;
+  } catch(e){
+    card.innerHTML = `<span class="uq-loading">Live price unavailable</span>`;
+  }
+}
+function hideUniverseQuoteCard(){
+  const card = document.getElementById('universeQuoteCard');
+  if(card) card.className = '';
 }
 
 let marketDetailLiveTimer = null;
@@ -3093,6 +3139,7 @@ function render(rows, totals){
       renderUniverseTable();
       document.getElementById('universeModal').classList.add('open');
       refreshUniverseRows();
+      showUniverseQuoteCard(n.data.name);
     });
     const tc = textColorFor(n.data.change);
     let inner = '';
@@ -4039,12 +4086,14 @@ function renderUniverseTable(){
 document.getElementById('universeSearch').addEventListener('input', (e)=>{
   universeFilter = e.target.value;
   renderUniverseTable();
+  hideUniverseQuoteCard();
 });
 
 document.getElementById('universeBtn').addEventListener('click', ()=>{
   renderUniverseTable();
   document.getElementById('universeModal').classList.add('open');
   refreshUniverseRows();
+  hideUniverseQuoteCard();
 });
 document.getElementById('universeRefresh').addEventListener('click', refreshUniverseRows);
 document.getElementById('netWorthBtn').addEventListener('click', openNetWorthDetail);
@@ -4058,6 +4107,7 @@ document.getElementById('universeClose').addEventListener('click', ()=>{
   document.getElementById('universeCard').classList.remove('maximized');
   document.getElementById('universeModal').classList.remove('maximized-open');
   document.getElementById('universeMaximize').textContent = '⛶';
+  hideUniverseQuoteCard();
 });
 document.getElementById('universeMaximize').addEventListener('click', ()=>{
   const card = document.getElementById('universeCard');
