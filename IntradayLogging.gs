@@ -18,6 +18,18 @@ function isUsMarketOpenNow() {
   return openDays.indexOf(weekday) !== -1 && hm >= '0930' && hm <= '1600';
 }
 
+// A narrow window just before TASE opens, used only to capture the real USD/ILS rate as of the
+// actual start of today's session (see logIntradayValueIL). isTaseOpenNow() only turns true right
+// at 10:00 itself -- by the time it fires, "the session-open rate" would really mean whatever rate
+// happened to be live at that exact trigger run, not a rate genuinely captured ahead of the open.
+function isTaseOpenGraceWindow() {
+  const now = new Date();
+  const weekday = Utilities.formatDate(now, 'Asia/Jerusalem', 'EEE');
+  const hm = Utilities.formatDate(now, 'Asia/Jerusalem', 'HHmm');
+  const openDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  return openDays.indexOf(weekday) !== -1 && hm >= '0958' && hm < '1000';
+}
+
 // Apps Script's "every minute" triggers aren't perfectly precise — they can drift by a few
 // minutes under load, so the last run before the exact close sometimes lands a few minutes
 // early (e.g. 22:56 Israel time instead of 23:00) and the next run doesn't fire until after the
@@ -147,10 +159,25 @@ function setLastClose(market, timestamp, value, fxRate, usdValue) {
 function logIntradayValueIL() {
   const isOpen = isTaseOpenNow();
   const isCloseGrace = !isOpen && isTaseCloseGraceWindow();
-  if (!isOpen && !isCloseGrace) return;
-
   const props = PropertiesService.getScriptProperties();
   const today = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
+
+  if (!isOpen && !isCloseGrace) {
+    // A couple of minutes before TASE actually opens, stash the live USD/ILS rate in a script
+    // property (once per day) so it's ready to transfer onto the sheet the moment the first real
+    // row gets logged below -- rather than reading "now"'s rate at whatever minute the first
+    // trigger run after 10:00 happens to land on.
+    if (isTaseOpenGraceWindow() && props.getProperty('il_open_rate_date') !== today) {
+      const tracker = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker');
+      const rate = Number(tracker.getRange(1, 17).getValue()); // Q1
+      if (!isNaN(rate)) {
+        props.setProperty('il_open_rate_date', today);
+        props.setProperty('il_open_rate_value', String(rate));
+      }
+    }
+    return;
+  }
+
   if (isCloseGrace && props.getProperty('il_close_logged_date') === today) return;
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -183,13 +210,28 @@ function logIntradayValueIL() {
   let logSheet = ss.getSheetByName('IntradayLogIL');
   if (!logSheet) {
     logSheet = ss.insertSheet('IntradayLogIL');
-    logSheet.appendRow(['Timestamp', 'IL Value']);
+    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (session open)']);
   }
   pruneIfNewDay(logSheet, 'Asia/Jerusalem');
+  // Whatever's left after pruning is just the header row (1) the first time today's data gets
+  // logged -- captured here, on that one row only, so the dashboard has a real recorded rate for
+  // "the start of today's session" instead of reapplying whatever rate happens to be live at
+  // whatever later moment someone views the chart (see fetchCombinedIntradayLogRaw on the frontend).
+  const isFirstRowToday = logSheet.getLastRow() <= 1;
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = isCloseGrace ? taseCloseInstant() : new Date();
   logSheet.getRange(2, 1, 1, 2).setValues([[tsValue, ilValue]]);
+  if (isFirstRowToday) {
+    // Prefer the rate captured ahead of the open (see the isTaseOpenGraceWindow branch above) --
+    // only reads live right now as a fallback, for the rare day this deploy or a missed trigger
+    // run means that earlier capture never happened.
+    let openFxRate = props.getProperty('il_open_rate_date') === today
+      ? Number(props.getProperty('il_open_rate_value'))
+      : NaN;
+    if (isNaN(openFxRate)) openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+    if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
+  }
   if (isCloseGrace) {
     props.setProperty('il_close_logged_date', today);
     const fxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
