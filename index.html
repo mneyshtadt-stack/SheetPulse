@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790002096";
+const BUILD_ID = "1790002301";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2813,16 +2813,19 @@ async function fetchIntradayLogRaw(url){
     const d = parseSheetTimestamp(tsStr);
     if(isNaN(d.getTime())) continue;
     points.push({t: d.getTime(), v});
-    // Both IntradayLogIL and IntradayLogUS's first row of each day also carry a 3rd column, the
-    // real USD/ILS rate captured a couple of minutes ahead of that market's own open (see
-    // logIntradayValueIL/US) -- picked up here as a side effect, since this is the one shared
-    // place both logs get parsed through. Kept in separate globals since they're different
-    // moments (TASE's open vs USA's, ~6.5 hours apart), not interchangeable.
-    if(r[2] !== undefined && r[2] !== ''){
-      const rate = Number(r[2]);
-      if(!isNaN(rate)){
-        if(url === INTRADAY_LOG_CSV_URL) window.todayTaseOpenFxRate = rate;
-        else if(url === INTRADAY_LOG_US_CSV_URL) window.todayUsOpenFxRate = rate;
+    // IntradayLogIL carries two extra columns, both real USD/ILS rates captured a couple of
+    // minutes ahead of a market's open (see logIntradayValueIL): col C on its first row of the day
+    // (TASE's own ~09:59 open), col D on whichever row happens to log during the ~16:28-16:30
+    // window (USA's own open, captured here since TASE's trigger is still running then and USA's
+    // isn't). IntradayLogUS never has either column, so this only ever fires while parsing IL's URL.
+    if(url === INTRADAY_LOG_CSV_URL){
+      if(r[2] !== undefined && r[2] !== ''){
+        const taseRate = Number(r[2]);
+        if(!isNaN(taseRate)) window.todayTaseOpenFxRate = taseRate;
+      }
+      if(r[3] !== undefined && r[3] !== ''){
+        const usRate = Number(r[3]);
+        if(!isNaN(usRate)) window.todayUsOpenFxRate = usRate;
       }
     }
   }
