@@ -197,8 +197,8 @@
      a quick live-price glance without having to also scan the table below for that one ticker's row. */
   #universeQuoteCard{
     display:none; position:absolute; right:24px; top:-16px; z-index:5;
-    flex-direction:column; gap:5px; background:var(--panel,#fff); border:1px solid var(--line);
-    border-left:4px solid var(--line); border-radius:10px; box-shadow:0 10px 28px rgba(0,0,0,0.16);
+    flex-direction:column; gap:5px; background:var(--paper); border:1px solid var(--line);
+    border-left:4px solid var(--line); border-radius:10px; box-shadow:0 6px 16px rgba(0,0,0,0.1);
     padding:12px 20px; font-family:'Helvetica Neue',Arial,sans-serif;
     opacity:0; transform:translateY(-4px); transition:opacity .15s ease, transform .15s ease;
   }
@@ -780,7 +780,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789978310";
+const BUILD_ID = "1789978659";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
