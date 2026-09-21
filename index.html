@@ -263,8 +263,7 @@
   .card .sub{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:4px;}
   .up{color:var(--up-5);} .down{color:var(--down-5);}
   #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
-  #heroDivider{padding:18px 22px 0;}
-  #heroDivider h2{margin:0;}
+  .gauge-title{font-size:15px; font-weight:400; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em; text-align:center; margin-bottom:2px;}
   #gaugePanel{display:flex; gap:28px; align-items:center; flex-wrap:wrap; padding:8px 28px 24px;}
   .gauge-wrap{flex-shrink:0; width:236px; box-sizing:border-box;}
   .gauge-svg-wrap{position:relative; width:100%; height:150px;}
@@ -633,7 +632,6 @@
 
   <div id="heroPanel">
     <div class="cards" id="cards"></div>
-    <div id="heroDivider"><h2>Day change</h2></div>
     <div id="gaugePanel"></div>
   </div>
 
@@ -769,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790021317";
+const BUILD_ID = "1790021433";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2490,6 +2488,7 @@ function renderGauge(rows, totals){
 
   panel.innerHTML = `
     <div class="gauge-wrap">
+      <div class="gauge-title">Day change</div>
       <div class="gauge-svg-wrap">
         <svg viewBox="0 0 200 150" style="width:100%; height:100%;">
           <defs>
