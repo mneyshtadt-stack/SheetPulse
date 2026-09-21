@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790001811";
+const BUILD_ID = "1790002096";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2813,13 +2813,17 @@ async function fetchIntradayLogRaw(url){
     const d = parseSheetTimestamp(tsStr);
     if(isNaN(d.getTime())) continue;
     points.push({t: d.getTime(), v});
-    // IntradayLogIL's first row of each day also carries a 3rd column, the real USD/ILS rate
-    // captured at that exact moment (see logIntradayValueIL) -- picked up here as a side effect,
-    // since this is the one shared place both the IL and US logs get parsed through. Harmless for
-    // the US log, whose rows never have a 3rd column at all.
+    // Both IntradayLogIL and IntradayLogUS's first row of each day also carry a 3rd column, the
+    // real USD/ILS rate captured a couple of minutes ahead of that market's own open (see
+    // logIntradayValueIL/US) -- picked up here as a side effect, since this is the one shared
+    // place both logs get parsed through. Kept in separate globals since they're different
+    // moments (TASE's open vs USA's, ~6.5 hours apart), not interchangeable.
     if(r[2] !== undefined && r[2] !== ''){
       const rate = Number(r[2]);
-      if(!isNaN(rate)) window.todayOpenFxRate = rate;
+      if(!isNaN(rate)){
+        if(url === INTRADAY_LOG_CSV_URL) window.todayTaseOpenFxRate = rate;
+        else if(url === INTRADAY_LOG_US_CSV_URL) window.todayUsOpenFxRate = rate;
+      }
     }
   }
   // The merge/rendering logic below assumes chronological (ascending) order, but the sheet's own
@@ -2870,20 +2874,23 @@ async function fetchCombinedIntradayLogRaw(ilBaseline, usBaseline){
   // later than the other side" case -- these used to only apply the LastClose preference in the
   // second case, silently falling back to the less precise estimate in the first.
   const flatIl = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : ilBaseline;
-  // USA's flat stand-in specifically is re-priced at USD/ILS's rate as of the START of today's
-  // TASE session (window.todayOpenFxRate, captured once by the Apps Script onto IntradayLogIL's
-  // first row of the day -- see logIntradayValueIL) rather than frozen at yesterday's rate. FX
-  // moves well before and independently of either market opening, so holding yesterday's ILS total
-  // flat all morning would silently ignore real FX movement -- but re-applying whatever rate is
-  // live at whatever later moment someone happens to view the chart would make this figure drift
-  // every time it's refreshed instead of being a real, fixed fact. Falls back to today's currently-
-  // live rate only if the session-open capture hasn't landed yet (e.g. viewing before TASE's very
-  // first trigger run of the day). This only affects the CHART's plotted line, never the Prev.
-  // close/Day Change header stats (computeTotals/splitByMarket), which stay anchored to the real
-  // historical close on purpose -- keeping those two numbers always reconciled is the whole point
-  // of LastClose, and a live-drifting baseline there would break that guarantee again.
+  // USA's flat stand-in specifically is re-priced at a real captured USD/ILS rate rather than
+  // frozen at yesterday's rate -- FX moves well before and independently of either market opening,
+  // so holding yesterday's ILS total flat all morning would silently ignore real FX movement -- but
+  // re-applying whatever rate is live at whatever later moment someone happens to view the chart
+  // would make this figure drift every time it's refreshed instead of being a real, fixed fact.
+  // Prefers the freshest available real capture: window.todayUsOpenFxRate (captured ~16:29, right
+  // before USA's own open -- the most accurate once the day's gotten that far) over
+  // window.todayTaseOpenFxRate (captured ~09:59, ~6.5 hours older by the time USA is close to
+  // opening), over today's currently-live rate only if neither capture has landed yet (e.g.
+  // viewing before either market's very first trigger run of the day). This only affects the
+  // CHART's plotted line, never the Prev. close/Day Change header stats (computeTotals/
+  // splitByMarket), which stay anchored to the real historical close on purpose -- keeping those
+  // two numbers always reconciled is the whole point of LastClose, and a live-drifting baseline
+  // there would break that guarantee again.
   const flatUsHistorical = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : usBaseline;
-  const openRate = typeof window.todayOpenFxRate === 'number' ? window.todayOpenFxRate : window.lastFxRate;
+  const openRate = typeof window.todayUsOpenFxRate === 'number' ? window.todayUsOpenFxRate
+    : (typeof window.todayTaseOpenFxRate === 'number' ? window.todayTaseOpenFxRate : window.lastFxRate);
   const flatUs = (typeof window.lastCloseUSD === 'number' && openRate)
     ? window.lastCloseUSD * openRate
     : flatUsHistorical;
@@ -3176,11 +3183,17 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const ttCls = ttDiff >= 0 ? 'var(--up-5)' : 'var(--down-5)';
     const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
     const usDateStr = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'last';
-    const openRateStr = typeof window.todayOpenFxRate === 'number' ? window.todayOpenFxRate.toFixed(4) : null;
+    // Prefer showing whichever capture was actually used for this segment's value (see the
+    // matching preference order in fetchCombinedIntradayLogRaw) -- USA's own ~16:29 capture once
+    // it exists, TASE's ~09:59 one otherwise.
+    const usedUsRate = typeof window.todayUsOpenFxRate === 'number';
+    const openRateStr = usedUsRate ? window.todayUsOpenFxRate.toFixed(4)
+      : (typeof window.todayTaseOpenFxRate === 'number' ? window.todayTaseOpenFxRate.toFixed(4) : null);
+    const openRateLabel = usedUsRate ? '16:29' : '09:59';
     const closeRateStr = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate.toFixed(4) : null;
     const rateNote = openRateStr && closeRateStr
-      ? `USD/ILS ${openRateStr} at 09:59 vs ${closeRateStr} at ${usDateStr} close`
-      : (openRateStr ? `USD/ILS ${openRateStr} at 09:59` : `today's session-open USD/ILS rate`);
+      ? `USD/ILS ${openRateStr} at ${openRateLabel} vs ${closeRateStr} at ${usDateStr} close`
+      : (openRateStr ? `USD/ILS ${openRateStr} at ${openRateLabel}` : `today's session-open USD/ILS rate`);
     const approxNote = p.approx
       ? `<div style="color:var(--muted); font-size:11px; margin-top:3px; max-width:210px;">Estimated — USA's ${usDateStr} close in USD &times; ${rateNote}</div>`
       : '';
