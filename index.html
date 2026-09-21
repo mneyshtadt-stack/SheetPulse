@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790008286";
+const BUILD_ID = "1790008499";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2630,12 +2630,17 @@ async function fetchLastClose(){
       }
       if(window.lastCloseUS === undefined && table[i][2] !== '' && !isNaN(usVal)){
         window.lastCloseUS = usVal; window.lastCloseUSTs = approxCloseInstant(dateObj, 'US');
-        // The rate recorded on USA's own row -- USA always closes after TASE each day, so this
-        // is specifically the rate in effect at USA's close, not some earlier TASE-time reading.
-        const rate = Number(table[i][4]);
-        if(!isNaN(rate)) window.lastCloseFxRate = rate;
         const usd = Number(table[i][3]);
         if(!isNaN(usd)) window.lastCloseUSD = usd;
+        // The rate recorded on USA's own row -- USA always closes after TASE each day, so this
+        // is specifically the rate in effect at USA's close, not some earlier TASE-time reading.
+        // Falls back to deriving it algebraically from the two values already on this same row
+        // (USA market ÷ USA market$ is exactly the rate that was in effect) whenever the explicit
+        // rate column itself is blank for some reason -- the two columns are never independently
+        // wrong, so this is a safe, always-available fallback rather than a rough approximation.
+        const rate = Number(table[i][4]);
+        if(!isNaN(rate)) window.lastCloseFxRate = rate;
+        else if(!isNaN(usd) && usd) window.lastCloseFxRate = usVal / usd;
       }
       if(window.lastCloseIL !== undefined && window.lastCloseUS !== undefined) break;
     }
