@@ -135,9 +135,10 @@ const TIMESTAMP_FORMAT = 'dd/mm/yyyy hh:mm:ss';
 // row often gets filled in twice (TASE's columns when it closes, USA's columns later, since they
 // close at different times) rather than all at once. USA market$ is read from the Tracker sheet's
 // own "Current Value ($)" column rather than derived by dividing the ILS total by the FX rate.
-// USD/ILS Rate gets overwritten at each write, ending up as whichever close happened more recently
-// that day. Pruned by row COUNT, not calendar span -- since the trigger never fires Saturday/
-// Sunday, this naturally holds the last 7 actual trading days.
+// USD/ILS Rate is only ever written at USA's close (23:00), not TASE's -- it's meant to represent
+// the day's final rate, and TASE closing hours earlier isn't that. Pruned by row COUNT, not
+// calendar span -- since the trigger never fires Saturday/Sunday, this naturally holds the last 7
+// actual trading days.
 function setLastClose(market, timestamp, value, fxRate, usdValue) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName('LastClose');
@@ -158,7 +159,7 @@ function setLastClose(market, timestamp, value, fxRate, usdValue) {
   }
   sheet.getRange(rowIdx, col).setValue(value);
   if (market === 'US' && !isNaN(usdValue)) sheet.getRange(rowIdx, 4).setValue(usdValue);
-  if (!isNaN(fxRate)) sheet.getRange(rowIdx, 5).setValue(fxRate);
+  if (market === 'US' && !isNaN(fxRate)) sheet.getRange(rowIdx, 5).setValue(fxRate);
 
   const dataRows = sheet.getLastRow() - 1;
   const excess = dataRows - 7;
@@ -260,8 +261,7 @@ function logIntradayValueIL() {
   }
   if (isCloseGrace) {
     props.setProperty('il_close_logged_date', today);
-    const fxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
-    setLastClose('IL', tsValue, ilValue, fxRate);
+    setLastClose('IL', tsValue, ilValue); // no fxRate -- USD/ILS Rate is only written at USA's close
   }
 }
 
