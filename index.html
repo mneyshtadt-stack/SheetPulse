@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790009872";
+const BUILD_ID = "1790010157";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1643,6 +1643,13 @@ function renderMarketDetailHeader(marketKey){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
   const isMarketClosed = marketKey === 'il' ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  // USA's own Market Value (USD) tile compares today's $ value against LastClose's real recorded
+  // USA market$ figure -- a genuine dollars-to-dollars comparison, free of any FX contamination,
+  // rather than converting the ILS-denominated (FX-inclusive) day gain through today's rate. Falls
+  // back to that ILS-derived estimate only for the rare case LastClose's $ figure isn't available yet.
+  const todayUsd = (marketKey === 'us' && window.lastFxRate) ? seg.value / window.lastFxRate : null;
+  const usdChange = (todayUsd !== null && typeof window.lastCloseUSD === 'number') ? todayUsd - window.lastCloseUSD : null;
+  const usdChangePct = (usdChange !== null && window.lastCloseUSD) ? usdChange / window.lastCloseUSD * 100 : null;
   const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate, marketKey === 'il' ? window.lastCloseILTs : window.lastCloseUSTs);
   const prevCloseVal = seg.value - seg.gain;
 
@@ -1681,7 +1688,9 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market Value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—'}</div>
-        <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdUsdSub">${window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable'}</div>
+        <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
+          ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`
+          : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? fxRateLine(window.lastFxRate) : ''}</div>
       </div>
     </div>`;
@@ -2917,7 +2926,7 @@ function updateHeadlineDisplay(v, prevClose){
     changeEl.className = 'md-headline-change ' + cls;
   }
 }
-function syncHeaderToIntraday(latest, prevClose, cost){
+function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
   updateHeadlineDisplay(latest, prevClose);
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const diff = latest - prevClose;
@@ -2933,9 +2942,23 @@ function syncHeaderToIntraday(latest, prevClose, cost){
   const usdSubEl = document.getElementById('mdUsdSub');
   if(fxRate && usdValEl && usdSubEl){
     const fmtUsd = n => "$" + Math.round(Math.abs(n)).toLocaleString('en-US');
-    usdValEl.textContent = fmtUsd(latest / fxRate);
-    usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
-    usdSubEl.className = 'md-stat-tile-sub '+dcCls;
+    const todayUsd = latest / fxRate;
+    usdValEl.textContent = fmtUsd(todayUsd);
+    // USA's own tile compares today's $ value against LastClose's real recorded USA market$
+    // figure -- a genuine dollars-to-dollars comparison, free of FX contamination -- rather than
+    // converting the ILS-denominated (FX-inclusive) diff through today's rate. Falls back to that
+    // ILS-derived estimate for the Portfolio combined view (no clean per-market $ reference there)
+    // or when LastClose's $ figure isn't available yet.
+    if(isUsSegment && typeof window.lastCloseUSD === 'number' && window.lastCloseUSD){
+      const usdChange = todayUsd - window.lastCloseUSD;
+      const usdChangePct = usdChange / window.lastCloseUSD * 100;
+      const usdCls = usdChange >= 0 ? 'up' : 'down';
+      usdSubEl.textContent = `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}${fmtUsd(usdChange)} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`;
+      usdSubEl.className = 'md-stat-tile-sub '+usdCls;
+    } else {
+      usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
+      usdSubEl.className = 'md-stat-tile-sub '+dcCls;
+    }
     const usdRateEl = document.getElementById('mdUsdRate');
     if(usdRateEl) usdRateEl.textContent = fxRateLine(fxRate);
   }
@@ -2998,7 +3021,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     if(typeof newRate === 'number') log[0] = {...log[0], fxMarker: {oldRate: window.lastCloseFxRate, newRate}};
   }
 
-  if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost);
+  if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
   if(log.length < 2){
     el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Building up today's chart — logged ${log.length} point${log.length===1?'':'s'} so far today.</div>`;
     return;
