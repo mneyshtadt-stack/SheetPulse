@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1789998978";
+const BUILD_ID = "1789999292";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2854,23 +2854,25 @@ async function fetchCombinedIntradayLogRaw(ilBaseline, usBaseline){
     fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL).catch(()=>[]),
     fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL).catch(()=>[])
   ]);
-  let ilLog = ilRaw.length ? ilRaw : (usRaw.length && ilBaseline != null ? [{t: usRaw[0].t, v: ilBaseline}] : []);
-  let usLog = usRaw.length ? usRaw : (ilRaw.length && usBaseline != null ? [{t: ilRaw[0].t, v: usBaseline}] : []);
+  // Prefer the real LastClose value over the implied-previous-close estimate everywhere a flat
+  // stand-in is needed below, for both the "log is completely empty" case and the "log starts
+  // later than the other side" case -- these used to only apply the LastClose preference in the
+  // second case, silently falling back to the less precise estimate in the first.
+  const flatIl = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : ilBaseline;
+  const flatUs = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : usBaseline;
+
+  let ilLog = ilRaw.length ? ilRaw : (usRaw.length && flatIl != null ? [{t: usRaw[0].t, v: flatIl}] : []);
+  let usLog = usRaw.length ? usRaw : (ilRaw.length && flatUs != null ? [{t: ilRaw[0].t, v: flatUs}] : []);
 
   // Even when both sides have real rows today, one can start logging hours later than the other
   // (TASE opens at 10:00, USA at ~16:30 Israel time) -- mergeIlUs only emits a point once BOTH
   // sides have a value, so without this, the whole stretch before the later side's first row
   // silently vanishes from the combined chart instead of showing the earlier market's real
-  // movement. Prepend a flat synthetic point at the earlier side's own first timestamp: prefer the
-  // real LastClose value when available (window.lastCloseIL/US), falling back to the segment's
-  // implied previous close (ilBaseline/usBaseline) otherwise -- both represent the same concept
-  // (yesterday's close), just with different precision, so either is a sound flat stand-in.
-  if(ilLog.length && usLog.length && usLog[0].t > ilLog[0].t){
-    const flatUs = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : usBaseline;
-    if(flatUs != null) usLog = [{t: ilLog[0].t, v: flatUs}, ...usLog];
-  } else if(ilLog.length && usLog.length && ilLog[0].t > usLog[0].t){
-    const flatIl = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : ilBaseline;
-    if(flatIl != null) ilLog = [{t: usLog[0].t, v: flatIl}, ...ilLog];
+  // movement. Prepend the same flat stand-in at the earlier side's own first timestamp.
+  if(ilLog.length && usLog.length && usLog[0].t > ilLog[0].t && flatUs != null){
+    usLog = [{t: ilLog[0].t, v: flatUs}, ...usLog];
+  } else if(ilLog.length && usLog.length && ilLog[0].t > usLog[0].t && flatIl != null){
+    ilLog = [{t: usLog[0].t, v: flatIl}, ...ilLog];
   }
 
   return mergeIlUs(ilLog, usLog);
