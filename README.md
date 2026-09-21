@@ -33,6 +33,8 @@ Intraday price history (used for the IL/US/combined intraday charts) is logged s
 
 `LastClose` holds one row per calendar day (`Date`, `TASE market`, `USA market`, `USA market$`, `USD/ILS Rate`) rather than per market, since TASE and USA close at different times and each fills in its own columns on the same day's row. It keeps a rolling window of the last 7 rows — since the trigger never fires on Saturday/Sunday, that's the last 7 actual trading days, spanning more than 7 calendar days whenever a weekend falls in between, with no duplicate weekend rows. `USA market$` is the USA segment converted back to USD (only ever written at USA's own close, alongside the rate used for that conversion). `USD/ILS Rate` is the live rate at whichever closure most recently wrote that row, so once both markets have closed for a given day it reflects USA's (later) close-time rate.
 
+Because `USA market`'s ILS figure is fixed at whatever the rate was at that past close, it doesn't track today's live USD/ILS movement — the USA and combined `Day Change` tiles show that recorded rate directly (e.g. "at USD/ILS 3.0221") next to `Prev. close`, so it's clear which rate the number is anchored to rather than silently comparing today's value against a stale-rate figure with no indication.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
