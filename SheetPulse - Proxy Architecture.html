@@ -342,6 +342,11 @@ sudo netfilter-persistent save</code></pre>
     </ol>
   </div>
 
+  <h2><span class="eyebrow">Design rationale</span>Day Change and currency movement</h2>
+  <p><code>Day Change</code> deliberately includes USD/ILS currency movement, not just each holding's own price movement — a considered design choice, not an oversight.</p>
+  <p>Your net worth is denominated in shekels; that's the currency you'll actually spend. If a US stock's price doesn't move at all but USD strengthens 1% against ILS, you really are 1% richer in ILS terms today — that's real, realizable wealth change, not a measurement quirk. Comparing today's <code>$price &times; today's rate</code> against yesterday's <code>$price &times; yesterday's rate</code> (what <code>LastClose</code> + the live rate does, see phase 17) correctly captures the combined effect of stock performance and currency movement, which is exactly what "how much richer/poorer am I today" has to mean for an ILS-based investor.</p>
+  <p>This is a different convention from Google Finance's own per-security <code>change</code>/<code>changepct</code> (the numbers behind the Holdings table's <code>Day Change (%)</code> column), which compares a security's price only against its own previous local-currency close and never factors in FX at all — the right number for judging a stock's own performance on its own exchange, but the wrong one for a portfolio's real ILS-denominated day-over-day change. SheetPulse deliberately uses two different conventions for two different questions: the per-ticker table answers "how did this stock do," the aggregate header answers "how did my wealth change." The FX-rate markers from phase 19 exist specifically to make the currency-driven portion of that second number visible, rather than leaving it silently blended into one figure.</p>
+
   <h2><span class="eyebrow">Reference</span>Every secret, and where it actually lives</h2>
   <table>
     <tr><th>Secret</th><th>Lives at</th><th>What it's for</th></tr>
