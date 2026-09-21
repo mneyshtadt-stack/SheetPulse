@@ -781,7 +781,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790004674";
+const BUILD_ID = "1790007623";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1690,9 +1690,9 @@ function renderMarketDetailHeader(marketKey){
     ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
-  if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
+  if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('il'), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
     [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true);
-  if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
+  if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
     [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}]);
   return seg;
 }
@@ -1799,7 +1799,7 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     <div id="marketDetailTableArea"></div>
   `;
-  renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.il.value - split.il.gain, split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
+  renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
     {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
   ], true);
@@ -2510,10 +2510,9 @@ async function syncGaugeToIntraday(split, totals){
 
   const taseOpen = getTaseStatus();
   const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
-  const [ilRaw, usRaw] = await Promise.all([
-    fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL).catch(()=>[]),
-    fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL).catch(()=>[])
-  ]);
+  const rows = await fetchIntradayLogRows().catch(()=>[]);
+  const ilRaw = rows.map(r => ({t: r.t, v: r.il}));
+  const usRaw = rows.map(r => ({t: r.t, v: r.us})).filter(p => typeof p.v === 'number');
   const ilPoint = pickLatestGaugePoint(ilRaw, getTaseDayRangeMs(), getTaseDayRangeForDate);
   const usPoint = pickLatestGaugePoint(usRaw, getUsDayRangeMs(), getUsDayRangeForDate);
 
@@ -2572,14 +2571,15 @@ function formatFxLine(rate){
   return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`;
 }
 
-// Intraday value tracking (per market segment) — logged server-side by Google Apps Script
-// time-driven triggers into IntradayLog/IntradayLogUS tabs of the same workbook as Tracker,
-// independent of whether anyone has this page open. The dashboard just reads those tabs as CSV
-// and plots today's rows.
-const INTRADAY_LOG_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogIL');
-const INTRADAY_LOG_US_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLogUS');
+// Intraday value tracking — logged server-side by a single Google Apps Script time-driven trigger
+// (logIntradayValue, ~09:59-23:10 Israel time) into one IntradayLog tab of the same workbook as
+// Tracker, independent of whether anyone has this page open. Every row carries both segments'
+// values together (IL Value + USA Value (ILS, live), the latter computed live off Current Value
+// (ILS) the whole time regardless of which market is actually open), so the dashboard just reads
+// this one tab as CSV and plots today's rows — no merging of independently-timed logs needed.
+const INTRADAY_LOG_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLog');
 
-// IntradayLogIL/US get pruned back to just today's rows the moment a new day's first reading is
+// IntradayLog gets pruned back to just today's rows the moment a new day's first reading is
 // logged, so by the time a session needs "yesterday's close" for Day Change math, the log has
 // usually already discarded it. LastClose is a tiny two-row tab (one per market, updated in place,
 // never pruned) that the Apps Script trigger writes to once a day, at the same moment it captures
@@ -2808,131 +2808,86 @@ function parseSheetTimestamp(tsStr){
   if(mm > 12 && dd <= 12){ dd = b; mm = a; }
   return new Date(yyyy, mm-1, dd, hh, mi, ss);
 }
-async function fetchIntradayLogRaw(url){
-  const res = await fetchViaProxy(url);
+// One row per tick of the single IntradayLog sheet, carrying both segments' values together (see
+// logIntradayValue in IntradayLogging.gs) — replaces two independently-timed IL/US logs that used
+// to need merging by nearest-timestamp carry-forward.
+async function fetchIntradayLogRows(){
+  const res = await fetchViaProxy(INTRADAY_LOG_CSV_URL);
   if(!res.ok) throw new Error('HTTP '+res.status);
   const text = await res.text();
   const table = Papa.parse(text, {skipEmptyLines:true}).data;
-  const points = [];
+  const rows = [];
   for(let i=1;i<table.length;i++){
     const r = table[i];
     const tsStr = (r[0]||'').trim();
-    const v = Number(r[1]);
-    if(!tsStr || isNaN(v)) continue;
+    const il = Number(r[1]);
+    if(!tsStr || isNaN(il)) continue;
     const d = parseSheetTimestamp(tsStr);
     if(isNaN(d.getTime())) continue;
-    points.push({t: d.getTime(), v});
-    // IntradayLogIL's 3rd column carries a real USD/ILS rate on exactly two rows a day, each
-    // captured a couple of minutes ahead of a market's open (see logIntradayValueIL): its first row
-    // of the day (TASE's own ~09:59 open) and whichever row happens to log during the ~16:28-16:30
-    // window (USA's own open -- captured there since TASE's trigger is still running then and
-    // USA's isn't). d's own hour (Israel time, since parseSheetTimestamp maps the sheet's
-    // components directly with no further conversion) is what tells the two captures apart -- an
-    // afternoon hour means it's USA's, a morning one means it's TASE's. IntradayLogUS never has
-    // this column at all, so this only ever fires while parsing IL's URL.
-    if(url === INTRADAY_LOG_CSV_URL && r[2] !== undefined && r[2] !== ''){
+    const us = Number(r[3]);
+    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us});
+    // Column C carries the real USD/ILS rate captured a couple of minutes ahead of TASE's own
+    // open (see logIntradayValue), written on exactly one row a day -- used both as the fallback
+    // flat-USA baseline below and as the "rate vs. previous close" marker on the combined chart's
+    // first point.
+    if(r[2] !== undefined && r[2] !== ''){
       const rate = Number(r[2]);
-      if(!isNaN(rate)){
-        if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
-        else window.todayUsOpenFxRate = rate;
-      }
+      if(!isNaN(rate)) window.todayTaseOpenFxRate = rate;
     }
   }
-  // The merge/rendering logic below assumes chronological (ascending) order, but the sheet's own
-  // row order isn't guaranteed to stay that way (e.g. someone sorts it, or a script logs out of
-  // order) — sort defensively here rather than let a reordered sheet silently break every chart.
-  points.sort((a,b) => a.t - b.t);
-  return points;
+  // Downstream logic assumes chronological (ascending) order, but the sheet's own row order isn't
+  // guaranteed to stay that way (e.g. someone sorts it, or a script logs out of order) — sort
+  // defensively here rather than let a reordered sheet silently break every chart.
+  rows.sort((a,b) => a.t - b.t);
+  return rows;
 }
-async function fetchIntradayLog(url){
-  const raw = await fetchIntradayLogRaw(url);
+// which: 'il' or 'us' — picks out just that segment's series for the IL-only/USA-only detail charts.
+async function fetchIntradayLogRaw(which){
+  const rows = await fetchIntradayLogRows();
+  return rows
+    .map(r => ({t: r.t, v: which === 'us' ? r.us : r.il}))
+    .filter(p => typeof p.v === 'number');
+}
+async function fetchIntradayLog(which){
+  const raw = await fetchIntradayLogRaw(which);
   const today = new Date();
   return raw.filter(p=>{
     const d = new Date(p.t);
     return d.getFullYear()===today.getFullYear() && d.getMonth()===today.getMonth() && d.getDate()===today.getDate();
   });
 }
-// Total portfolio isn't logged separately — it's the IL and US logs added together. The two
-// triggers run independently and won't land on identical timestamps, so this merges them by
-// carrying forward each segment's last known value at every timestamp either one reports.
-// approx (on either input point) marks it as a synthetic flat stand-in rather than a real logged
-// reading -- carried through onto the combined point so the chart can flag it distinctly.
-function mergeIlUs(ilLog, usLog){
-  if(!ilLog.length || !usLog.length) return [];
-  const allTimes = [...new Set([...ilLog.map(p=>p.t), ...usLog.map(p=>p.t)])].sort((a,b)=>a-b);
-  const points = [];
-  let ilIdx = 0, usIdx = 0, ilVal = null, usVal = null, ilApprox = false, usApprox = false;
-  for(const t of allTimes){
-    while(ilIdx < ilLog.length && ilLog[ilIdx].t <= t){ ilVal = ilLog[ilIdx].v; ilApprox = !!ilLog[ilIdx].approx; ilIdx++; }
-    while(usIdx < usLog.length && usLog[usIdx].t <= t){ usVal = usLog[usIdx].v; usApprox = !!usLog[usIdx].approx; usIdx++; }
-    if(ilVal !== null && usVal !== null) points.push({t, v: ilVal + usVal, approx: ilApprox || usApprox});
-  }
-  return points;
-}
-// Raw (not filtered to "today") combined series — merges the whole IL/US history so the caller
-// can pick out whichever calendar day it needs, including falling back to the last session.
-// ilBaseline/usBaseline are that segment's IMPLIED previous close (value minus today's day-gain —
-// the same estimate already shown as "Prev. close" in the individual IL/US detail views), not
-// today's live current total. That distinction matters: a flat stand-in for "hasn't moved yet
-// today" needs to represent yesterday's close, however imprecisely, not today's still-forming
-// number -- using the live total here previously created a fake jump the moment real data arrived.
-async function fetchCombinedIntradayLogRaw(ilBaseline, usBaseline){
-  const [ilRaw, usRaw] = await Promise.all([
-    fetchIntradayLogRaw(INTRADAY_LOG_CSV_URL).catch(()=>[]),
-    fetchIntradayLogRaw(INTRADAY_LOG_US_CSV_URL).catch(()=>[])
-  ]);
-  // Prefer the real LastClose value over the implied-previous-close estimate everywhere a flat
-  // stand-in is needed below, for both the "log is completely empty" case and the "log starts
-  // later than the other side" case -- these used to only apply the LastClose preference in the
-  // second case, silently falling back to the less precise estimate in the first.
-  const flatIl = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : ilBaseline;
-  // USA's flat stand-in specifically is re-priced at a real captured USD/ILS rate rather than
-  // frozen at yesterday's rate -- FX moves well before and independently of either market opening,
-  // so holding yesterday's ILS total flat all morning would silently ignore real FX movement -- but
-  // re-applying whatever rate is live at whatever later moment someone happens to view the chart
-  // would make this figure drift every time it's refreshed instead of being a real, fixed fact.
-  // Prefers the freshest available real capture: window.todayUsOpenFxRate (captured ~16:29, right
-  // before USA's own open -- the most accurate once the day's gotten that far) over
-  // window.todayTaseOpenFxRate (captured ~09:59, ~6.5 hours older by the time USA is close to
-  // opening), over today's currently-live rate only if neither capture has landed yet (e.g.
-  // viewing before either market's very first trigger run of the day). This only affects the
-  // CHART's plotted line, never the Prev. close/Day Change header stats (computeTotals/
-  // splitByMarket), which stay anchored to the real historical close on purpose -- keeping those
-  // two numbers always reconciled is the whole point of LastClose, and a live-drifting baseline
-  // there would break that guarantee again.
+// Raw (not filtered to "today") combined series — the caller picks out whichever calendar day it
+// needs, including falling back to the last session. usBaseline is USA's IMPLIED previous close
+// (value minus today's day-gain — the same estimate already shown as "Prev. close" in the USA
+// detail view), not today's live current total. That distinction matters: a flat stand-in for
+// "hasn't moved yet today" needs to represent yesterday's close, however imprecisely, not today's
+// still-forming number. (IL never needs a stand-in — every row always carries a real IL value.)
+async function fetchCombinedIntradayLogRaw(usBaseline){
+  const rows = await fetchIntradayLogRows().catch(()=>[]);
+  if(!rows.length) return [];
+
+  // Only ever needed for a row whose own USA column came back blank (a rare feed glitch) -- real
+  // per-tick USA-in-ILS data exists on every row from the day's first tick onward (see
+  // logIntradayValue), so this is a fallback, not the main mechanism.
   const flatUsHistorical = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : usBaseline;
-  const openRate = typeof window.todayUsOpenFxRate === 'number' ? window.todayUsOpenFxRate
-    : (typeof window.todayTaseOpenFxRate === 'number' ? window.todayTaseOpenFxRate : window.lastFxRate);
+  const openRate = typeof window.todayTaseOpenFxRate === 'number' ? window.todayTaseOpenFxRate : window.lastFxRate;
   const flatUs = (typeof window.lastCloseUSD === 'number' && openRate)
     ? window.lastCloseUSD * openRate
     : flatUsHistorical;
 
-  let ilLog = ilRaw.length ? ilRaw : (usRaw.length && flatIl != null ? [{t: usRaw[0].t, v: flatIl, approx:true}] : []);
-  let usLog = usRaw.length ? usRaw : (ilRaw.length && flatUs != null ? [{t: ilRaw[0].t, v: flatUs, approx:true}] : []);
+  const points = rows.map(r => ({
+    t: r.t,
+    v: r.il + (typeof r.us === 'number' ? r.us : flatUs)
+  }));
 
-  // Even when both sides have real rows today, one can start logging hours later than the other
-  // (TASE opens at 10:00, USA at ~16:30 Israel time) -- mergeIlUs only emits a point once BOTH
-  // sides have a value, so without this, the whole stretch before the later side's first row
-  // silently vanishes from the combined chart instead of showing the earlier market's real
-  // movement. Prepend the same flat stand-in at the earlier side's own first timestamp.
-  if(ilLog.length && usLog.length && usLog[0].t > ilLog[0].t && flatUs != null){
-    usLog = [{t: ilLog[0].t, v: flatUs, approx:true}, ...usLog];
-  } else if(ilLog.length && usLog.length && ilLog[0].t > usLog[0].t && flatIl != null){
-    ilLog = [{t: usLog[0].t, v: flatIl, approx:true}, ...ilLog];
+  // Highlight the day's very first point with the FX move baked into today's opening number:
+  // previous close's recorded rate vs. the rate captured at TASE's own ~09:59 open. Only shown
+  // when both rates are actually available.
+  if(points.length && typeof window.lastCloseFxRate === 'number' && typeof window.todayTaseOpenFxRate === 'number'){
+    points[0].fxMarker = {oldRate: window.lastCloseFxRate, newRate: window.todayTaseOpenFxRate};
   }
 
-  // Without this, the visible hand-off from estimated to real data lands wherever IL's own
-  // ~5-minute logging cadence (or USA's actual first real row) happens to fall -- which can be a
-  // few minutes early or late -- rather than USA's actual nominal open (16:30 Israel time). Add an
-  // explicit anchor point exactly there whenever that moment has already passed and real USA data
-  // hasn't started yet, so the estimated segment always has a real point at that precise instant.
-  const usOpenMs = getUsDayRangeMs().open;
-  const firstRealUsT = usRaw.length ? usRaw[0].t : Infinity;
-  if(ilLog.length && flatUs != null && usOpenMs > ilLog[0].t && usOpenMs < firstRealUsT && usOpenMs <= Date.now()){
-    usLog = [...usLog, {t: usOpenMs, v: flatUs, approx:true}].sort((a,b)=>a.t-b.t);
-  }
-
-  return mergeIlUs(ilLog, usLog);
+  return points;
 }
 // The intraday log updates every minute regardless of when the dashboard itself last refreshed
 // from the Tracker sheet, so it's often more current. Once it loads, sync it into the modal's
@@ -3107,22 +3062,15 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
 
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
 
-  // Marks where a session-open-FX-adjusted synthetic stretch (see fetchCombinedIntradayLogRaw)
-  // begins and ends, so it's unmistakable which part of the line is estimated vs. real logged
-  // data — only ever present on the combined chart; IL/US-only points never carry .approx at all.
-  // A solid accent-colored dot with a small "~" tag reads much clearer at a glance than a thin
-  // ring in the line's own color, which was too easy to miss against the line itself.
-  let approxMarkersSvg = '';
-  if(log.some(p => p.approx)){
-    const startIdx = log.findIndex(p => p.approx);
-    let endIdx = log.length - 1;
-    for(let i = startIdx; i < log.length; i++){ if(!log[i].approx){ endIdx = i - 1; break; } }
-    if(endIdx >= startIdx){
-      const markSvg = pt => `
-        <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="6" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/>
-        <text x="${pt.x.toFixed(1)}" y="${(pt.y-11).toFixed(1)}" font-size="12" font-weight="700" fill="var(--accent)" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">~</text>`;
-      approxMarkersSvg = markSvg(points[startIdx]) + (endIdx !== startIdx ? markSvg(points[endIdx]) : '');
-    }
+  // Marks the combined (Portfolio) chart's very first point of the day with the FX move baked
+  // into today's opening number (see fetchCombinedIntradayLogRaw) — only ever present on that
+  // chart; IL/US-only points never carry .fxMarker at all.
+  let fxMarkerSvg = '';
+  const fxMarkerIdx = log.findIndex(p => p.fxMarker);
+  if(fxMarkerIdx !== -1){
+    const pt = points[fxMarkerIdx];
+    fxMarkerSvg = `
+      <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="6" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/>`;
   }
 
   el.innerHTML = `
@@ -3133,7 +3081,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       <line x1="${padL}" x2="${w-padR}" y1="${prevCloseY.toFixed(1)}" y2="${prevCloseY.toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
       <text x="${w-padR}" y="${(prevCloseY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
-      ${approxMarkersSvg}
+      ${fxMarkerSvg}
       <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="4" fill="${lineColor}"/>
       ${xLabels}
       <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
@@ -3194,22 +3142,12 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
     const ttCls = ttDiff >= 0 ? 'var(--up-5)' : 'var(--down-5)';
     const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
-    const usDateStr = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleDateString('en-US', {month:'short', day:'numeric'}) : 'last';
-    // Prefer showing whichever capture was actually used for this segment's value (see the
-    // matching preference order in fetchCombinedIntradayLogRaw) -- USA's own ~16:29 capture once
-    // it exists, TASE's ~09:59 one otherwise.
-    const usedUsRate = typeof window.todayUsOpenFxRate === 'number';
-    const openRateStr = usedUsRate ? window.todayUsOpenFxRate.toFixed(4)
-      : (typeof window.todayTaseOpenFxRate === 'number' ? window.todayTaseOpenFxRate.toFixed(4) : null);
-    const openRateLabel = usedUsRate ? '16:29' : '09:59';
-    const closeRateStr = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate.toFixed(4) : null;
-    const rateNote = openRateStr && closeRateStr
-      ? `USD/ILS ${openRateStr} at ${openRateLabel} vs ${closeRateStr} at ${usDateStr} close`
-      : (openRateStr ? `USD/ILS ${openRateStr} at ${openRateLabel}` : `today's session-open USD/ILS rate`);
-    const approxNote = p.approx
-      ? `<div style="color:var(--muted); font-size:11px; margin-top:3px; max-width:210px;">Estimated — USA's ${usDateStr} close in USD &times; ${rateNote}</div>`
+    // At the combined chart's opening point only: show the FX rate that's now baked into today's
+    // number vs. the rate previous close was recorded at (see fetchCombinedIntradayLogRaw).
+    const fxNote = p.fxMarker
+      ? `<div style="color:var(--muted); font-size:11px; margin-top:3px; max-width:230px;">USD/ILS ${p.fxMarker.newRate.toFixed(4)} today vs ${p.fxMarker.oldRate.toFixed(4)} at previous close</div>`
       : '';
-    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>${approxNote}`;
+    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>${fxNote}`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
     const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
