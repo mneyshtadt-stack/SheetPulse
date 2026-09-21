@@ -221,7 +221,7 @@ function logIntradayValueIL() {
   let logSheet = ss.getSheetByName('IntradayLogIL');
   if (!logSheet) {
     logSheet = ss.insertSheet('IntradayLogIL');
-    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (TASE session open)', 'USD/ILS Rate (USA session open)']);
+    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (session open)']);
   }
   pruneIfNewDay(logSheet, 'Asia/Jerusalem');
   // Whatever's left after pruning is just the header row (1) the first time today's data gets
@@ -243,15 +243,18 @@ function logIntradayValueIL() {
     if (isNaN(openFxRate)) openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
     if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
   }
-  // USA's own session-open rate is also captured here, on whichever IL row happens to log during
-  // that narrow window (~16:28-16:30 Israel time) -- TASE's own trigger is still actively running
-  // through the whole session, so this doesn't need a separate early-return branch the way TASE's
-  // own capture does in the "not open yet" case above. Guarded separately from il_close_logged_date
-  // so it only ever writes once per day regardless of how many IL rows land in that 2-minute window.
+  // USA's own session-open rate reuses this same column, on whichever IL row happens to log during
+  // that narrow window (~16:28-16:30 Israel time) instead -- TASE's own trigger is still actively
+  // running through the whole session, so this doesn't need a separate early-return branch the way
+  // TASE's own capture does in the "not open yet" case above. Two rows a day (this one and the
+  // day's first row above) end up with a value here; the row's own Timestamp is what tells the
+  // frontend which capture is which, so a second column isn't needed to disambiguate them. Guarded
+  // separately from il_close_logged_date so it only ever writes once per day regardless of how many
+  // IL rows land in that 2-minute window.
   if (isUsOpenGraceWindow() && props.getProperty('il_us_open_rate_date') !== today) {
     const usOpenRate = Number(tracker.getRange(1, 17).getValue()); // Q1
     if (!isNaN(usOpenRate)) {
-      logSheet.getRange(2, 4).setValue(usOpenRate);
+      logSheet.getRange(2, 3).setValue(usOpenRate);
       props.setProperty('il_us_open_rate_date', today);
     }
   }
