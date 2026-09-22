@@ -74,20 +74,41 @@ function usCloseInstant() {
   return Utilities.parseDate(dateStr + ' 16:00:00', 'America/New_York', 'yyyy-MM-dd HH:mm:ss');
 }
 
-// The dashboard's chart only ever plots today's rows, so anything older is dead weight that
-// just makes the sheet slower and every chart load download more than it needs. Clearing
-// yesterday's rows the first time we log each new day keeps the sheet permanently small. This
-// works the same whether rows are appended (ascending) or inserted at the top (descending),
-// since row 2 always belongs to whatever day the current block of un-pruned rows is from.
-function pruneIfNewDay(sheet, timeZone) {
+// Keeps the sheet down to the 2 most recent distinct trading dates found in it (today's and
+// whichever date is second-most-recent -- naturally the last actual trading day, so this survives
+// weekends without any special-casing: Friday's rows stay valid as "the previous date" straight
+// through Monday, since Saturday/Sunday never log anything in between). Anything older than that
+// gets deleted. Rows are always newest-first (each write does insertRowBefore(2)), so once a row
+// older than the 2 kept dates is found, everything below it is old too -- one contiguous block.
+// This used to just wipe everything the moment a new day's first row logged, but the USA-only
+// chart's own session doesn't start until ~16:30 -- wiping at TASE's 10:00 open destroyed
+// yesterday's data (including yesterday's full USA session) hours before the USA chart's own
+// "show the last completed session" fallback needed it, leaving that chart with nothing to show
+// for the whole TASE-only morning.
+function pruneOldRows(sheet, timeZone) {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return; // just the header, or empty — nothing to prune
-  const today = Utilities.formatDate(new Date(), timeZone, 'yyyy-MM-dd');
-  const firstRowDate = sheet.getRange(2, 1).getValue();
-  const firstRowDay = Utilities.formatDate(new Date(firstRowDate), timeZone, 'yyyy-MM-dd');
-  if (firstRowDay !== today) {
-    sheet.deleteRows(2, lastRow - 1);
+  const dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues()
+    .map(r => Utilities.formatDate(new Date(r[0]), timeZone, 'yyyy-MM-dd'));
+  const distinctDates = [...new Set(dates)]; // newest-first, since the rows themselves are
+  if (distinctDates.length <= 2) return; // nothing older than the 2 most recent dates
+  const keepDates = new Set(distinctDates.slice(0, 2));
+  let cutoffRow = -1;
+  for (let i = 0; i < dates.length; i++) {
+    if (!keepDates.has(dates[i])) { cutoffRow = i + 2; break; } // +2: sheet row number, 1-indexed past the header
   }
+  if (cutoffRow !== -1) sheet.deleteRows(cutoffRow, lastRow - cutoffRow + 1);
+}
+
+// Peeks at the most recent existing row (row 2, since writes always insertRowBefore(2)) to tell
+// whether today has logged anything yet at all -- checked before this tick's own row is written
+// or pruneOldRows runs, so it stays correct now that old rows aren't wiped to zero on a new day.
+function isFirstLogRowToday(sheet, todayIL) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return true;
+  const firstRowDate = sheet.getRange(2, 1).getValue();
+  const firstRowDay = Utilities.formatDate(new Date(firstRowDate), 'Asia/Jerusalem', 'yyyy-MM-dd');
+  return firstRowDay !== todayIL;
 }
 
 // A single ticker's price feed can glitch for one read (e.g. GOOGLEFINANCE briefly returning
@@ -244,12 +265,12 @@ function logIntradayValue() {
     logSheet = ss.insertSheet('IntradayLog');
     logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (session open)', 'USA Value (ILS, live)']);
   }
-  pruneIfNewDay(logSheet, 'Asia/Jerusalem');
-  // Whatever's left after pruning is just the header row (1) the first time today's data gets
-  // logged -- captured here, on that one row only, so the dashboard has a real recorded rate for
-  // "the start of today's session" instead of reapplying whatever rate happens to be live at
-  // whatever later moment someone views the chart.
-  const isFirstRowToday = logSheet.getLastRow() <= 1;
+  // Checked before this tick's own row is written or old rows are pruned -- captured here, on
+  // that one row only, so the dashboard has a real recorded rate for "the start of today's
+  // session" instead of reapplying whatever rate happens to be live at whatever later moment
+  // someone views the chart.
+  const isFirstRowToday = isFirstLogRowToday(logSheet, todayIL);
+  pruneOldRows(logSheet, 'Asia/Jerusalem');
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : new Date());
