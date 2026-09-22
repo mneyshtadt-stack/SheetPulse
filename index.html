@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790062146";
+const BUILD_ID = "1790074633";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1215,33 +1215,6 @@ function wireMarketStatusBadge(id, isOpen, nextOpenMsFn, nextCloseMsFn){
   else if(nextCloseMsFn) attachHoverTooltip(document.getElementById(id), () => formatNextClose(nextCloseMsFn()));
 }
 
-// ---- Live quotes (Yahoo Finance via public CORS proxy, + Frankfurter for FX) ----
-// Yahoo Finance doesn't send CORS headers for browser fetches, so this routes
-// through a free public CORS proxy (allorigins). These proxies are convenient
-// but not fully reliable — if they're down or rate-limited, live prices will
-// show "—" while the rest of the modal (sourced from your sheet) still works.
-const YAHOO_SYMBOL_MAP = {'IBI.F35':'IBI-F35.TA', 'IBI.FK4':'IBI-FK4.TA'};
-const TICKER_DISPLAY_NAME = {
-  'IBI.F35': 'IBI SAL (4A) Index Israel Banks',
-  'IBI.FK4': 'IBI SAL (4A) Kosher TA-125 IL ETF'
-};
-
-async function fetchYahooQuote(symbol){
-  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}`;
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`;
-  const res = await fetch(proxyUrl, {cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const json = await res.json();
-  const result = json.chart && json.chart.result && json.chart.result[0];
-  if(!result || !result.meta) throw new Error('No data for '+symbol);
-  const meta = result.meta;
-  const price = meta.regularMarketPrice;
-  const prevClose = meta.previousClose != null ? meta.previousClose : meta.chartPreviousClose;
-  const change = price - prevClose;
-  const changePct = prevClose ? (change/prevClose*100) : 0;
-  return {symbol, price, prevClose, change, changePct};
-}
-
 // The floating price card shown above the Market Universe table when a treemap tile is
 // double-clicked — a quick glance at price/day-change for that one ticker without having to scan
 // the table below for its row. Reads straight off the already-loaded row (same Current Price /
@@ -1283,7 +1256,6 @@ function hideUniverseQuoteCard(){
   if(card) card.className = '';
 }
 
-let marketDetailLiveTimer = null;
 let marketDetailState = {marketKey:null, tickers:[], sortKey:'value', sortDir:-1, filter:''};
 
 // Keeps whichever detail window (Israeli/USA/Portfolio) is open refreshing itself every 5
@@ -1296,19 +1268,6 @@ function startMarketDetailAutoRefresh(){
 }
 function stopMarketDetailAutoRefresh(){
   if(marketDetailAutoRefreshTimer){ clearInterval(marketDetailAutoRefreshTimer); marketDetailAutoRefreshTimer = null; }
-}
-
-async function refreshMarketDetailLiveRow(rowEl, symbol){
-  const priceEl = rowEl.querySelector('.md-live-price');
-  if(!priceEl) return;
-  try{
-    const q = await fetchYahooQuote(symbol);
-    priceEl.textContent = q.price.toLocaleString('en-US',{maximumFractionDigits:2});
-  } catch(e){
-    // Keep whatever price is already showing (sheet value or last successful
-    // live fetch) rather than blanking it out on a failed/rate-limited proxy call.
-    if(priceEl.textContent === '…') priceEl.textContent = '—';
-  }
 }
 
 const MD_COLS = [
@@ -1348,12 +1307,11 @@ function renderIlTickerCards(enriched){
     const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
     const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
     const subtitle = TICKER_NAME_MAP[r.name] || '';
-    const ySym = YAHOO_SYMBOL_MAP[r.name];
     return `
-      <div class="md-ticker-card" ${ySym?`data-symbol="${ySym}"`:''}>
+      <div class="md-ticker-card">
         <div class="md-tc-head">
           <span class="md-tc-symbol">${r.name}</span>
-          <span class="md-tc-price"><b class="md-live-price">${!isNaN(r.price)?r.price.toLocaleString('en-US',{maximumFractionDigits:2}):'…'}</b></span>
+          <span class="md-tc-price"><b>${!isNaN(r.price)?r.price.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</b></span>
         </div>
         <div class="md-tc-name" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
         <div class="md-tc-grid">
@@ -1384,8 +1342,7 @@ function renderIlTickerCards(enriched){
     <div class="md-split-legend">${legendHtml}</div>
     <div class="md-ticker-cards" id="ilTickerCards">${cardsHtml}</div>
   `;
-
-  startIsraelLiveRefresh();
+  populateIlFxTile();
 }
 
 function renderPortfolioTable(enriched){
@@ -1569,7 +1526,6 @@ function renderMarketDetailTable(){
     const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
     const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
     const subtitle = TICKER_NAME_MAP[r.name] || '';
-    const ySym = YAHOO_SYMBOL_MAP[r.name];
     // Same "price vs. avg cost" coloring as the Portfolio table: "Total Cost (ILS)" from the
     // sheet is always in ILS regardless of the ticker's trading currency, so the cost/value
     // ratio (both ILS) is applied to the native-currency price to get a true native avg cost.
@@ -1581,7 +1537,7 @@ function renderMarketDetailTable(){
       : '—';
 
     html += `
-      <tr ${ySym?`data-symbol="${ySym}"`:''}>
+      <tr>
         <td>
           <div class="md-th-symbol">${r.name}</div>
           <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
@@ -1725,8 +1681,6 @@ function renderMarketDetailHeader(marketKey){
 function openMarketDetail(marketKey){
   const seg = renderMarketDetailHeader(marketKey);
 
-  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
-
   const defaultSortKey = marketKey === 'us' ? 'change' : 'value';
   marketDetailState = {marketKey, tickers: seg.tickers, sortKey: defaultSortKey, sortDir:-1, filter:''};
   renderMarketDetailTable();
@@ -1758,24 +1712,9 @@ function populateIlFxTile(){
   if(asOfEl) asOfEl.textContent = window.lastFxAsOf || '';
 }
 
-function startIsraelLiveRefresh(){
-  populateIlFxTile();
-  const refreshLive = async ()=>{
-    const cardEls = document.querySelectorAll('#ilTickerCards [data-symbol]');
-    for(const cardEl of cardEls){
-      const sym = cardEl.dataset.symbol;
-      if(sym) await refreshMarketDetailLiveRow(cardEl, sym);
-    }
-  };
-  refreshLive();
-  if(marketDetailLiveTimer) clearInterval(marketDetailLiveTimer);
-  marketDetailLiveTimer = setInterval(refreshLive, 60000);
-}
-
 function closeMarketDetail(){
   document.getElementById('marketDetailModal').classList.remove('open');
   document.getElementById('marketDetailCard').classList.remove('wide');
-  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
   stopMarketDetailAutoRefresh();
 }
 
@@ -1891,8 +1830,6 @@ function openPortfolioDetail(){
   if(!renderPortfolioHeader()) return;
 
   document.getElementById('marketDetailCard').classList.add('wide');
-
-  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
 
   marketDetailState = {marketKey:'all', tickers: window.lastRows, sortKey:'change', sortDir:-1, filter:''};
   renderMarketDetailTable();
@@ -2426,7 +2363,6 @@ async function loadNetWorthYear(year){
   document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
   document.getElementById('marketDetailCard').classList.add('wide');
   renderNwYearSwitcher(year, years);
-  if(marketDetailLiveTimer){ clearInterval(marketDetailLiveTimer); marketDetailLiveTimer = null; }
   marketDetailState = {marketKey:'networth', tickers:[], sortKey:'', sortDir:1, filter:''};
 
   const body = document.getElementById('marketDetailBody');
