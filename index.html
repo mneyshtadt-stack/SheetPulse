@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790059162";
+const BUILD_ID = "1790059434";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1687,10 +1687,10 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Market Value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsd !== null ? "$" + Math.round(todayUsd).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
-          ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`
-          : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable')}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
-          ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(4)}) · ${dayChangeAsOf}`
+          ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
+          : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+        <div class="md-stat-tile-sub" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
+          ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(5)}) · ${dayChangeAsOf}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>`;
@@ -1705,6 +1705,16 @@ function renderMarketDetailHeader(marketKey){
     ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
+  if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
+    attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
+      const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
+      return `<b>How Market Value (USD) is calculated</b>
+        <div>Today's total: ${fmtUsd(todayUsd)}</div>
+        <div>&minus; Prev. close: ${fmtUsd(window.lastCloseUSD)}</div>
+        <div style="margin-top:2px;">= <span class="${usdChange>=0?'up':'down'}">${usdChange>=0?'+':'-'}${fmtUsd(Math.abs(usdChange))} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)</span></div>
+        <div style="margin-top:6px; color:var(--muted); font-size:11px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and LastClose's recorded USA market$ — never derived by converting the ILS total through a rate.</div>`;
+    });
+  }
   if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('il'), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
     [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true);
   if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
