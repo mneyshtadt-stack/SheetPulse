@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790059081";
+const BUILD_ID = "1790059162";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1827,10 +1827,10 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Market Value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsdTotal !== null ? "$" + Math.round(todayUsdTotal).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
-          ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)`
-          : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)` : 'rate unavailable')}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate">${yesterdayUsdTotal !== null
-          ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${prevCloseReferenceLabel()}`
+          ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
+          : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+        <div class="md-stat-tile-sub" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${yesterdayUsdTotal !== null
+          ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(5)})` : ''} · ${prevCloseReferenceLabel()}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>
@@ -1853,6 +1853,22 @@ function renderPortfolioHeader(){
       <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
       ${breakdown}
       <div style="margin-top:6px; color:var(--muted); font-size:11px;">Prev. close is LastClose's real recorded value, frozen at each market's actual close — never recalculated with today's live rate.</div>`;
+  });
+  if(yesterdayUsdTotal !== null) attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
+    const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
+    const todayIlUsd = window.lastFxRate ? split.il.value / window.lastFxRate : null;
+    const yesterdayIlUsd = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate) ? window.lastCloseIL / window.lastCloseFxRate : null;
+    const breakdown = (todayIlUsd !== null && yesterdayIlUsd !== null) ? `
+      <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">
+        <div>Israeli (TASE): ${fmtUsd(todayIlUsd)} &rarr; was ${fmtUsd(yesterdayIlUsd)} (&divide; USD/ILS ${window.lastFxRate.toFixed(5)} today, ${window.lastCloseFxRate.toFixed(5)} at close)</div>
+        <div>USA: ${fmtUsd(todayUsdTotal - todayIlUsd)} &rarr; was $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (real, from LastClose)</div>
+      </div>` : '';
+    return `<b>How Market Value (USD) is calculated</b>
+      <div>Today's total: ${fmtUsd(todayUsdTotal)}</div>
+      <div>&minus; Prev. close: ${fmtUsd(yesterdayUsdTotal)}</div>
+      <div style="margin-top:2px;">= <span class="${portfolioUsdChange>=0?'up':'down'}">${portfolioUsdChange>=0?'+':'-'}${fmtUsd(Math.abs(portfolioUsdChange))} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)</span></div>
+      ${breakdown}
+      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) / LastClose, never converted.</div>`;
   });
   renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
