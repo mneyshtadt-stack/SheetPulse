@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790057336";
+const BUILD_ID = "1790057577";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1689,7 +1689,9 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
           ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`
           : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%)` : 'rate unavailable')}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate">${window.lastFxRate ? fxRateLine(window.lastFxRate) : ''}</div>
+        <div class="md-stat-tile-sub" id="mdUsdRate">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
+          ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(4)}) · ${dayChangeAsOf}`
+          : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>`;
 
@@ -3012,7 +3014,14 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
       usdSubEl.className = 'md-stat-tile-sub '+dcCls;
     }
     const usdRateEl = document.getElementById('mdUsdRate');
-    if(usdRateEl) usdRateEl.textContent = fxRateLine(fxRate);
+    if(usdRateEl){
+      if(isUsSegment && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
+        const asOf = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}) : '';
+        usdRateEl.innerHTML = `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(4)})${asOf ? ` &middot; ${asOf}` : ''}`;
+      } else {
+        usdRateEl.textContent = fxRateLine(fxRate);
+      }
+    }
   }
 
   if(cost){
