@@ -41,6 +41,8 @@ The combined (Portfolio) chart's pre-open stretch (TASE trading alone, before US
 
 Both the Portfolio chart (at its own ~10:00 opening point) and the USA-only chart (at its own ~16:30 opening point) carry a small marker highlighting the FX move baked into that chart's opening number: a solid accent-colored dot, and a tooltip on hover showing today's captured rate (09:59 for Portfolio, 16:29 for USA) against the previous close's own recorded rate. This only affects the chart's plotted marker/tooltip — the `Prev. close`/`Day Change` header figures stay anchored to the real historical close on purpose, so they never disagree with their own label.
 
+**The USA-only chart's own axis starts at TASE's 10:00 open, not USA's own 9:30 ET/~16:30 Israel-time open** — a deliberate reversal of an earlier design choice. Since `IntradayLog` carries real per-tick `USA Value (ILS, live)` data from 10:00 onward regardless of which market is actually open, cutting the chart off at 16:30 left it showing nothing (or a stale "last session" fallback) for the first ~6.5 hours of every trading day, wasting data that already exists. The FX-rate marker at USA's own real open (~16:30) still lands on the correct point — it's found by scanning for the first row at/after 9:30 ET, not assumed to be the chart's first plotted point, since that's now the 10:00 point instead.
+
 ## Day Change and currency movement
 
 `Day Change` deliberately includes USD/ILS currency movement, not just each holding's own price movement — this is a considered design choice, not an oversight.
