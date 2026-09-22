@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790061731";
+const BUILD_ID = "1790062146";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2841,14 +2841,9 @@ function getTaseDayRangeMs(){
     ? {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,14,0,'Asia/Jerusalem')}
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
-// The USA-only chart's own open boundary is deliberately TASE's own open (10:00 Israel time), not
-// USA's actual 9:30 ET open -- real per-tick data already exists in IntradayLog from 10:00 onward
-// (USA Value (ILS, live), yesterday's US close continuously re-priced at today's live rate), and
-// showing nothing until 16:30 would waste it and leave the chart empty most of the day for no
-// reason. The market-open/closed status badge is unaffected -- that's a separate function.
 function getUsDayRangeMs(){
   const {y,m,d} = todayInZone('America/New_York');
-  return {open: getTaseDayRangeMs().open, close: zonedTimeToMs(y,m,d,16,0,'America/New_York')};
+  return {open: zonedTimeToMs(y,m,d,9,30,'America/New_York'), close: zonedTimeToMs(y,m,d,16,0,'America/New_York')};
 }
 function getCombinedDayRangeMs(){
   const tase = getTaseDayRangeMs(), us = getUsDayRangeMs();
@@ -2864,7 +2859,7 @@ function getTaseDayRangeForDate(y, m, d){
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
 function getUsDayRangeForDate(y, m, d){
-  return {open: getTaseDayRangeForDate(y,m,d).open, close: zonedTimeToMs(y,m,d,16,0,'America/New_York')};
+  return {open: zonedTimeToMs(y,m,d,9,30,'America/New_York'), close: zonedTimeToMs(y,m,d,16,0,'America/New_York')};
 }
 function getCombinedDayRangeForDate(y, m, d){
   const tase = getTaseDayRangeForDate(y,m,d), us = getUsDayRangeForDate(y,m,d);
@@ -2940,6 +2935,11 @@ async function fetchIntradayLogRows(){
   if(!res.ok) throw new Error('HTTP '+res.status);
   const text = await res.text();
   const table = Papa.parse(text, {skipEmptyLines:true}).data;
+  // IntradayLog now keeps a 2-day rolling window (today + the last actual trading day), not just
+  // today, so the USA-only chart's "show the last completed session" fallback has real data to
+  // fall back to during the TASE-only morning (see pruneOldRows in IntradayLogging.gs). That means
+  // this parse can no longer assume every row belongs to today.
+  const todayZ = todayInZone('Asia/Jerusalem');
   const rows = [];
   for(let i=1;i<table.length;i++){
     const r = table[i];
@@ -2956,8 +2956,12 @@ async function fetchIntradayLogRows(){
     // row's own hour (Israel time, since parseSheetTimestamp maps the sheet's components directly
     // with no further conversion) is what tells the two captures apart -- used as the fallback
     // flat-USA baseline below, and as the "rate vs. previous close" marker on each chart's own
-    // opening point (Portfolio's 10:00, USA's 16:30 — see renderIntradayChart's markerKind).
-    if(r[2] !== undefined && r[2] !== ''){
+    // opening point (Portfolio's 10:00, USA's 16:30 — see renderIntradayChart's markerKind). Only
+    // ever captured from TODAY's own rows -- with 2 days of data now present, a prior day's rows
+    // (processed after today's, since rows are newest-first) would otherwise silently overwrite
+    // today's real captured rate with a stale one.
+    const isToday = d.getFullYear() === todayZ.y && (d.getMonth()+1) === todayZ.m && d.getDate() === todayZ.d;
+    if(isToday && r[2] !== undefined && r[2] !== ''){
       const rate = Number(r[2]);
       if(!isNaN(rate)){
         if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
@@ -3109,16 +3113,31 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
 
   // Nothing logged yet for today's window (market not open yet, or a non-trading day) — rather
   // than show an empty "building up" chart, fall back to the most recently completed session.
+  // IntradayLog now logs continuously through the whole day (see pruneOldRows in
+  // IntradayLogging.gs), so simply taking the single latest timestamp in raw no longer reliably
+  // points at a genuinely completed past session -- it's usually today's own still-forming data
+  // (e.g. the USA chart, whose own real window doesn't start until 16:30, would otherwise "fall
+  // back" to today's own not-yet-open range and still show nothing). Walk backward through each
+  // distinct calendar day present in raw, newest first, skipping today's own date, until one
+  // whose real range actually has at least 2 points.
   if(log.length < 2 && dayRangeForDate && raw.length){
-    let maxT = -Infinity;
-    for(const p of raw) if(p.t > maxT) maxT = p.t;
-    const dt = new Date(maxT);
-    const fbRange = dayRangeForDate(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
-    const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbRange.close);
-    if(fbLog.length >= 2){
-      log = fbLog;
-      dayRange = fbRange;
-      sessionLabel = dt.toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+    const candidateDates = [...new Set(raw.map(p => {
+      const d = new Date(p.t);
+      return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    }))].map(key => {
+      const [y,m,d] = key.split('-').map(Number);
+      return {y,m,d};
+    }).sort((a,b) => (b.y-a.y) || (b.m-a.m) || (b.d-a.d));
+    for(const {y,m,d} of candidateDates){
+      const fbRange = dayRangeForDate(y,m,d);
+      if(fbRange.open >= dayRange.open) continue; // today's own range (or later) -- only look backward
+      const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbRange.close);
+      if(fbLog.length >= 2){
+        log = fbLog;
+        dayRange = fbRange;
+        sessionLabel = new Date(fbRange.open).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+        break;
+      }
     }
   }
 
@@ -3129,25 +3148,14 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // (a genuine move keeps trending, so its neighbors wouldn't agree with each other either).
   log = removeIntradaySpikes(log);
 
-  // Tag the point at this chart's own real market open with the FX move baked into that opening
-  // number: previous close's recorded rate vs. the rate captured ahead of the open (see
-  // fetchIntradayLogRows / logIntradayValue). For 'us-open' this is NOT simply log[0] -- the USA
-  // chart's own axis now starts at TASE's 10:00 open (real pre-market data), so the true USA open
-  // (9:30 ET / ~16:30 Israel time) sits partway through the array, not at its start. Only
-  // meaningful for today's real session, not a fallback replay of a past one, and only once both
-  // rates are actually available.
+  // Tag whichever point actually ends up first on screen with the FX move baked into today's
+  // opening number for this chart: previous close's recorded rate vs. the rate captured ahead of
+  // this chart's own market open (see fetchIntradayLogRows / logIntradayValue). Only meaningful
+  // for today's real session, not a fallback replay of a past one, and only once both rates are
+  // actually available.
   if(log.length && markerKind && !sessionLabel && typeof window.lastCloseFxRate === 'number'){
     const newRate = markerKind === 'us-open' ? window.todayUsOpenFxRate : window.todayTaseOpenFxRate;
-    if(typeof newRate === 'number'){
-      let markerIdx = 0;
-      if(markerKind === 'us-open'){
-        const {y,m,d} = todayInZone('America/New_York');
-        const usOpenMs = zonedTimeToMs(y,m,d,9,30,'America/New_York');
-        const foundIdx = log.findIndex(p => p.t >= usOpenMs);
-        markerIdx = foundIdx !== -1 ? foundIdx : 0;
-      }
-      log[markerIdx] = {...log[markerIdx], fxMarker: {oldRate: window.lastCloseFxRate, newRate}};
-    }
+    if(typeof newRate === 'number') log[0] = {...log[0], fxMarker: {oldRate: window.lastCloseFxRate, newRate}};
   }
 
   if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
