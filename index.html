@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790058925";
+const BUILD_ID = "1790059081";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1816,7 +1816,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${prevCloseReferenceLabel()}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${prevCloseReferenceLabel()}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -1837,6 +1837,23 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     <div id="marketDetailTableArea"></div>
   `;
+  attachHoverTooltip(document.getElementById('mdDayChangeAsOf'), () => {
+    const prevClose = totals.totalValue - totals.dayGain;
+    const ilPart = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : null;
+    const usPart = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : null;
+    const rate = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate : null;
+    const breakdown = (ilPart !== null && usPart !== null) ? `
+      <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">
+        <div>Israeli (TASE): ${fmt(ilPart)}</div>
+        <div>USA: ${fmt(usPart)}${rate ? ` (at USD/ILS ${rate.toFixed(4)})` : ''}</div>
+      </div>` : '';
+    return `<b>How Day Change is calculated</b>
+      <div>Today's value: ${fmt(totals.totalValue)}</div>
+      <div>&minus; Prev. close: ${fmt(prevClose)}</div>
+      <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
+      ${breakdown}
+      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Prev. close is LastClose's real recorded value, frozen at each market's actual close — never recalculated with today's live rate.</div>`;
+  });
   renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
     {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
