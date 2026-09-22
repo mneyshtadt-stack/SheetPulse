@@ -767,7 +767,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790059434";
+const BUILD_ID = "1790059755";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1690,7 +1690,7 @@ function renderMarketDetailHeader(marketKey){
           ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
           : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
-          ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(5)}) · ${dayChangeAsOf}`
+          ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} · ${dayChangeAsOf}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>`;
@@ -1826,7 +1826,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Day Change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${prevCloseReferenceLabel()}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total Gain</div>
@@ -1840,7 +1840,7 @@ function renderPortfolioHeader(){
           ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
           : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${yesterdayUsdTotal !== null
-          ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')}${typeof window.lastCloseFxRate === 'number' ? ` (USA half at USD/ILS ${window.lastCloseFxRate.toFixed(5)})` : ''} · ${prevCloseReferenceLabel()}`
+          ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')} · ${prevCloseReferenceLabel()}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>
@@ -1870,7 +1870,7 @@ function renderPortfolioHeader(){
     const yesterdayIlUsd = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate) ? window.lastCloseIL / window.lastCloseFxRate : null;
     const breakdown = (todayIlUsd !== null && yesterdayIlUsd !== null) ? `
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">
-        <div>Israeli (TASE): ${fmtUsd(todayIlUsd)} &rarr; was ${fmtUsd(yesterdayIlUsd)} (&divide; USD/ILS ${window.lastFxRate.toFixed(5)} today, ${window.lastCloseFxRate.toFixed(5)} at close)</div>
+        <div>Israeli (TASE): ${fmtUsd(todayIlUsd)} &rarr; was ${fmtUsd(yesterdayIlUsd)} (&divide; USD/ILS ${window.lastFxRate.toFixed(4)} today, ${window.lastCloseFxRate.toFixed(4)} at close)</div>
         <div>USA: ${fmtUsd(todayUsdTotal - todayIlUsd)} &rarr; was $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (real, from LastClose)</div>
       </div>` : '';
     return `<b>How Market Value (USD) is calculated</b>
@@ -3068,7 +3068,7 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
       if(usdRateEl){
         if(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
           const asOf = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}) : '';
-          usdRateEl.innerHTML = `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (at USD/ILS ${window.lastCloseFxRate.toFixed(4)})${asOf ? ` &middot; ${asOf}` : ''}`;
+          usdRateEl.innerHTML = `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')}${asOf ? ` &middot; ${asOf}` : ''}`;
         } else {
           usdRateEl.textContent = fxRateLine(fxRate);
         }
