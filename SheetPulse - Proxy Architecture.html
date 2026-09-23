@@ -177,16 +177,16 @@ WantedBy=multi-user.target</code></pre>
     <ol>
       <li>Registered <code>michaelportfolio.duckdns.org</code> and pointed it at the VM's public IP.</li>
     </ol>
-    <p style="margin-top:10px;"><b>Superseded in phase 21:</b> the proxy's main address is now <code>api.sheetpulse.org</code>, a domain you own. The DuckDNS name still works, kept only as a fallback.</p>
+    <p style="margin-top:10px;"><b>Superseded in phase 21:</b> the proxy's address is now <code>api.sheetpulse.org</code>, a domain you own. The DuckDNS name was then removed from the Caddyfile, so the proxy no longer answers on it.</p>
   </div>
 
   <div class="phase">
     <h3><span class="phase-num">6</span>The public face — Caddy</h3>
     <p>Caddy is the <i>only</i> thing allowed to listen on the real public ports 80 and 443. It automatically requests, installs, and renews an HTTPS certificate, then silently forwards every request to the private Node app on port 3000.</p>
-    <pre><code>michaelportfolio.duckdns.org, api.sheetpulse.org {
+    <pre><code>api.sheetpulse.org {
     reverse_proxy 127.0.0.1:3000
 }</code></pre>
-    <p style="margin-top:-6px;">Current version, with both names on one line (phase 21). Caddy gets and renews a separate certificate for each name automatically.</p>
+    <p style="margin-top:-6px;">Current version. It originally named <code>michaelportfolio.duckdns.org</code>; both names ran side by side during the switch in phase 21, then DuckDNS was removed.</p>
   </div>
 
   <div class="phase">
@@ -363,7 +363,7 @@ sudo netfilter-persistent save</code></pre>
     <ol>
       <li><b>Diagnosis.</b> The office DNS returned a fake address (<code>169.253.253.10</code>) for <code>michaelportfolio.duckdns.org</code> instead of the VM's real IP (<code>151.145.89.129</code>). A direct HTTPS request to the real IP, using the same name, got a normal answer from the proxy. So the network blocks free dynamic-DNS addresses like <code>duckdns.org</code> by name, because malware uses them heavily. It doesn't block the VM itself.</li>
       <li><b>Fix.</b> Registered <code>sheetpulse.org</code> at Spaceship. Its <code>api</code> subdomain points at the VM, and the bare <code>sheetpulse.org</code> stays free for other uses. Endings popular with spammers (<code>.click</code>, <code>.online</code>, <code>.cfd</code>…) were ruled out, because office filters often block them for the same reason they block DuckDNS.</li>
-      <li><b>No downtime.</b> Caddy serves both names from one site block (phase 6) and got the new certificate automatically on reload. The new address was checked from the office network (DNS, HTTPS certificate, a <code>401</code> from the proxy, and the CORS response) before <code>PROXY_BASE_URL</code> in <code>SheetPulse.html</code> was changed. That was the only code change.</li>
+      <li><b>No downtime.</b> Caddy serves both names from one site block (phase 6) and got the new certificate automatically on reload. The new address was checked from the office network (DNS, HTTPS certificate, a <code>401</code> from the proxy, and the CORS response) before <code>PROXY_BASE_URL</code> in <code>SheetPulse.html</code> was changed. That was the only code change. Once the dashboard was confirmed working at the office, the DuckDNS name was removed from the Caddyfile.</li>
       <li><b>Nothing else needed changing.</b> Google Sign-In, the proxy's CORS allow-list and WebAuthn are all tied to the dashboard page's own address (<code>mneyshtadt-stack.github.io</code>), not the proxy's. Registered Face ID/fingerprint devices kept working. A move to Google Cloud Run was considered and dropped, because the domain alone solved the problem with the proxy code untouched.</li>
     </ol>
   </div>
@@ -402,7 +402,7 @@ sudo netfilter-persistent save</code></pre>
     <tr><td>Local test URL</td><td><code>http://localhost:8000/TestLocal.html</code> (via <code>TestLocal.bat</code>, phase 15)</td></tr>
     <tr><td>Proxy base URL</td><td><code>https://api.sheetpulse.org</code></td></tr>
     <tr><td>Domain and DNS (<code>sheetpulse.org</code>)</td><td><a href="https://www.spaceship.com">spaceship.com</a> &rarr; Launchpad &rarr; Domain Manager</td></tr>
-    <tr><td>Old proxy name (fallback only)</td><td><code>https://michaelportfolio.duckdns.org</code> &middot; <a href="https://www.duckdns.org">duckdns.org</a></td></tr>
+    <tr><td>Old proxy name <span style="color:var(--muted);">(retired, no longer served)</span></td><td><code>https://michaelportfolio.duckdns.org</code> &middot; <a href="https://www.duckdns.org">duckdns.org</a></td></tr>
     <tr><td>Google Cloud Console</td><td><a href="https://console.cloud.google.com">console.cloud.google.com</a></td></tr>
     <tr><td>OAuth credentials page</td><td><a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a></td></tr>
   </table>
