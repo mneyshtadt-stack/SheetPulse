@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>SheetPulse — Proxy Architecture</title>
 <style>
   :root{
@@ -70,8 +69,8 @@ flowchart TB
     GIS --> WEBID
   end
 
-  subgraph DNS["DuckDNS (free dynamic DNS)"]
-    DD["michaelportfolio.duckdns.org<br/>&rarr; VM's public IP"]
+  subgraph DNS["Spaceship DNS (sheetpulse.org)"]
+    DD["api.sheetpulse.org<br/>A record &rarr; VM's public IP"]
   end
 
   subgraph VM["Oracle Cloud VM &mdash; n8n-server"]
@@ -178,14 +177,16 @@ WantedBy=multi-user.target</code></pre>
     <ol>
       <li>Registered <code>michaelportfolio.duckdns.org</code> and pointed it at the VM's public IP.</li>
     </ol>
+    <p style="margin-top:10px;"><b>Superseded in phase 21:</b> the proxy's main address is now <code>api.sheetpulse.org</code>, a domain you own. The DuckDNS name still works, kept only as a fallback.</p>
   </div>
 
   <div class="phase">
     <h3><span class="phase-num">6</span>The public face — Caddy</h3>
     <p>Caddy is the <i>only</i> thing allowed to listen on the real public ports 80 and 443. It automatically requests, installs, and renews an HTTPS certificate, then silently forwards every request to the private Node app on port 3000.</p>
-    <pre><code>michaelportfolio.duckdns.org {
+    <pre><code>michaelportfolio.duckdns.org, api.sheetpulse.org {
     reverse_proxy 127.0.0.1:3000
 }</code></pre>
+    <p style="margin-top:-6px;">Current version, with both names on one line (phase 21). Caddy gets and renews a separate certificate for each name automatically.</p>
   </div>
 
   <div class="phase">
@@ -340,6 +341,30 @@ sudo netfilter-persistent save</code></pre>
       <li>In its place: a single small marker + tooltip on each chart's own opening point — the Portfolio chart's own ~10:00 point and the USA chart's own ~16:30 point — showing the FX rate captured just ahead of that market's open (09:59 for TASE, 16:29 for USA) against the previous close's own recorded rate (<code>window.lastCloseFxRate</code>, from <code>LastClose</code>). <code>IntradayLog</code>'s 3rd column, <code>USD/ILS Rate (session open)</code>, still carries both captures on their own respective rows exactly as before (disambiguated by each row's own hour); only the chart's data-sourcing and the marker's meaning changed, not the capture mechanism.</li>
       <li><code>renderIntradayChart</code> gained a <code>markerKind</code> parameter (<code>'tase-open'</code> / <code>'us-open'</code> / omitted) rather than inferring where to place a marker from a flag threaded through the plotted data itself. The 09:59/16:29 capture timestamps sit a couple of minutes <i>before</i> each chart's own axis-open boundary (10:00, 16:30) and would otherwise be silently dropped by the existing day-range filter before ever rendering — caught while wiring this up. The marker is now tagged onto whichever point actually ends up first on screen, after that filter runs, not onto the raw capture timestamp itself.</li>
       <li><b>Follow-up, reversing an earlier decision in this same phase:</b> the USA-only chart's own axis was widened to start at TASE's 10:00 open instead of USA's real 9:30 ET (~16:30 Israel time) open. The original reasoning for cutting it off at 16:30 predated the live per-tick <code>USA Value (ILS, live)</code> column existing at all — once that column was real, keeping the axis at 16:30 just meant the chart showed nothing (or a stale "last session" fallback, since <code>IntradayLog</code> is now pruned the moment TASE's first row of the day lands, well before 16:30) for the first ~6.5 hours of every trading day, discarding data that already existed. <code>getUsDayRangeMs()</code>/<code>getUsDayRangeForDate()</code> now borrow <code>getTaseDayRangeMs()</code>/<code>getTaseDayRangeForDate()</code>'s own open time instead of computing their own 9:30 ET boundary; the close boundary (16:00 ET) is untouched, as is the separate <code>getMarketStatus()</code> call the OPEN/CLOSED badge itself relies on. This one change meant the USA open-point FX marker (previous bullet) could no longer assume <code>log[0]</code> was the 16:30 point — the marker-tagging code now scans for the first plotted point at or after the true 9:30 ET open specifically for <code>markerKind === 'us-open'</code>, rather than always tagging whichever point happens to render first.</li>
+      <li><b>Later reverted:</b> the USA-only chart went back to USA's own real session (9:30–16:00 ET, ~16:30–23:00 Israel time). Before USA opens, it now shows the last completed USA session (phase 20), which is more useful during the TASE-only morning than a half-empty axis starting at 10:00. <code>IntradayLog</code> is also no longer wiped when TASE's first row lands; see phase 20.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">20</span>Charts before the market opens: replaying the last session correctly</h3>
+    <p>Until a market has logged at least 2 points today (before it opens, or on a weekend), each intraday chart shows the most recent completed session instead of an empty chart. Several parts of that fallback were showing today's figures against the wrong past session. They're fixed now.</p>
+    <ol>
+      <li><b>Keeping enough history.</b> <code>pruneOldRows</code> in <code>IntradayLogging.gs</code> used to wipe <code>IntradayLog</code> the moment a new day's first row logged. That destroyed yesterday's data at TASE's 10:00 open, hours before the USA chart's own fallback needed it. It now keeps the <b>3 most recent distinct trading dates</b> in the sheet. Nothing logs on Saturday or Sunday, so Friday survives the weekend and all of Monday. The third date is a safety margin in case the trigger misses a whole day's runs.</li>
+      <li><b>One definition of "today".</b> <code>getUsDayRangeMs()</code> took "today" from New York's clock while TASE used Israel's. Between midnight and about 7am Israel time, New York is still on the previous date, so the USA and Portfolio charts treated yesterday's finished session as "today". That skipped the fallback and left <code>Prev. close</code> comparing the session against itself (0%). Both now use Israel's calendar date, and New York's clock only sets the USA open and close times.</li>
+      <li><b>The replayed session's own <code>Prev. close</code>.</b> <code>fetchLastClose()</code> now also builds <code>window.lastCloseByDate</code>, one entry per <code>LastClose</code> row, instead of only the single most recent close. <code>findPriorClose()</code> looks up the close just before the replayed date, for example Monday's when replaying Tuesday. <code>renderIntradayChart</code> takes it through a new <code>historicalPrevCloseFn</code> parameter.</li>
+      <li><b>The replayed session's own FX marker.</b> The opening FX-rate marker was switched off entirely during a replay. <code>fetchIntradayLogRows()</code> now records every day's captured opening rate in <code>window.intradayOpenRateByDate</code>, not just today's. <code>findPriorFxRate()</code> finds the closing rate of the trading day before, so a replayed session shows its own opening rate against its own previous close.</li>
+      <li><b>The closing value on the chart.</b> A replayed session now shows its final value as a labeled "Close ₪…" callout with an enlarged end dot. The header tiles above show today's live figure, which can differ from that past close once the exchange rate has moved.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">21</span>A real domain: <code>api.sheetpulse.org</code></h3>
+    <p>SheetPulse couldn't load from the office network: every request to the proxy timed out. The VM wasn't down, and nothing in the page was broken.</p>
+    <ol>
+      <li><b>Diagnosis.</b> The office DNS returned a fake address (<code>169.253.253.10</code>) for <code>michaelportfolio.duckdns.org</code> instead of the VM's real IP (<code>151.145.89.129</code>). A direct HTTPS request to the real IP, using the same name, got a normal answer from the proxy. So the network blocks free dynamic-DNS addresses like <code>duckdns.org</code> by name, because malware uses them heavily. It doesn't block the VM itself.</li>
+      <li><b>Fix.</b> Registered <code>sheetpulse.org</code> at Spaceship. Its <code>api</code> subdomain points at the VM, and the bare <code>sheetpulse.org</code> stays free for other uses. Endings popular with spammers (<code>.click</code>, <code>.online</code>, <code>.cfd</code>…) were ruled out, because office filters often block them for the same reason they block DuckDNS.</li>
+      <li><b>No downtime.</b> Caddy serves both names from one site block (phase 6) and got the new certificate automatically on reload. The new address was checked from the office network (DNS, HTTPS certificate, a <code>401</code> from the proxy, and the CORS response) before <code>PROXY_BASE_URL</code> in <code>SheetPulse.html</code> was changed. That was the only code change.</li>
+      <li><b>Nothing else needed changing.</b> Google Sign-In, the proxy's CORS allow-list and WebAuthn are all tied to the dashboard page's own address (<code>mneyshtadt-stack.github.io</code>), not the proxy's. Registered Face ID/fingerprint devices kept working. A move to Google Cloud Run was considered and dropped, because the domain alone solved the problem with the proxy code untouched.</li>
     </ol>
   </div>
 
@@ -375,8 +400,9 @@ sudo netfilter-persistent save</code></pre>
     <tr><td>SheetPulse (live)</td><td><a href="https://mneyshtadt-stack.github.io/SheetPulse/">mneyshtadt-stack.github.io/SheetPulse</a></td></tr>
     <tr><td>GitHub repo</td><td><a href="https://github.com/mneyshtadt-stack/SheetPulse">github.com/mneyshtadt-stack/SheetPulse</a></td></tr>
     <tr><td>Local test URL</td><td><code>http://localhost:8000/TestLocal.html</code> (via <code>TestLocal.bat</code>, phase 15)</td></tr>
-    <tr><td>Proxy base URL</td><td><code>https://michaelportfolio.duckdns.org</code></td></tr>
-    <tr><td>DuckDNS account</td><td><a href="https://www.duckdns.org">duckdns.org</a></td></tr>
+    <tr><td>Proxy base URL</td><td><code>https://api.sheetpulse.org</code></td></tr>
+    <tr><td>Domain and DNS (<code>sheetpulse.org</code>)</td><td><a href="https://www.spaceship.com">spaceship.com</a> &rarr; Launchpad &rarr; Domain Manager</td></tr>
+    <tr><td>Old proxy name (fallback only)</td><td><code>https://michaelportfolio.duckdns.org</code> &middot; <a href="https://www.duckdns.org">duckdns.org</a></td></tr>
     <tr><td>Google Cloud Console</td><td><a href="https://console.cloud.google.com">console.cloud.google.com</a></td></tr>
     <tr><td>OAuth credentials page</td><td><a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a></td></tr>
   </table>
@@ -384,81 +410,3 @@ sudo netfilter-persistent save</code></pre>
   <div class="note">Everything on the Ubuntu/Oracle side — Node install, <code>google-auth-library</code>, <code>@simplewebauthn/server</code>, <code>jsonwebtoken</code>, the systemd unit, the Caddyfile, and both firewall layers — is already configured and running on the VM exactly as documented above; nothing here is a pending task.</div>
 </div>
 
-<!--claude-mermaid-runtime-begin:3477-->
-<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
-<script src="/_runtime/mermaid-11.16.1.min.js"></script>
-<script>(function(){
-var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
-if(typeof mermaid==='undefined')return;
-var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
-if(!pres.length)return;
-var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
-var root=document.documentElement;
-var items=pres.map(function(pre){
-var mount=document.createElement('div');mount.className='mermaid-diagram';
-return {pre:pre,mount:mount,src:pre.textContent||''};
-});
-var seq=0;
-var renderGen=0;
-var lastKey='';
-function pageBg(fallback){
-var els=[document.body,document.documentElement];
-for(var i=0;i<els.length;i++){
-var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
-if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
-}
-return fallback;
-}
-function render(){
-var theme=root.getAttribute('data-theme');
-var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
-var pal=dark?CFG.palettes.dark:CFG.palettes.light;
-var bg=pageBg(pal.bg);
-var key=(dark?'d':'l')+'|'+bg;
-if(key===lastKey)return;
-lastKey=key;
-var gen=++renderGen;
-var font=getComputedStyle(document.body).fontFamily||'sans-serif';
-var nat={useMaxWidth:false};
-mermaid.initialize({
-startOnLoad:false,securityLevel:'strict',theme:'base',
-flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
-gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
-quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
-packet:nat,kanban:nat,architecture:nat,radar:nat,
-themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
-primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
-nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
-clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
-darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
-attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
-fontSize:'16px',fontFamily:font},
-themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
-});
-items.forEach(function(it){
-var id='claude-mermaid-'+seq++;
-mermaid.render(id,it.src).then(function(r){
-if(gen!==renderGen)return;
-var prev=it.pre.previousElementSibling;
-if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
-it.mount.innerHTML=r.svg;
-if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
-it.pre.style.display='none';
-},function(){
-var scratch=document.getElementById(id);
-if(scratch)scratch.parentNode.removeChild(scratch);
-scratch=document.getElementById('d'+id);
-if(scratch)scratch.parentNode.removeChild(scratch);
-if(gen!==renderGen)return;
-if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
-it.pre.style.display='';
-});
-});
-}
-render();
-if(mq&&mq.addEventListener)mq.addEventListener('change',render);
-if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
-})();</script>
-<!--claude-mermaid-runtime-end-->
-
-</body></html>
