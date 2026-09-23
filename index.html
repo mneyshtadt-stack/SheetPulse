@@ -279,6 +279,12 @@
   h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em;}
   .legend{display:flex; gap:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
   .legend span{display:inline-flex; align-items:center; gap:5px;}
+  .nw-series-toggle{display:inline-flex; align-items:center; gap:5px; margin-right:16px; cursor:pointer; user-select:none; border-radius:3px;}
+  .nw-series-toggle:hover{color:var(--ink);}
+  .nw-series-toggle:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  .nw-series-toggle .nw-sw{width:9px; height:9px; border-radius:2px; display:inline-block; background:var(--sw);}
+  .nw-series-toggle.off{opacity:0.5; text-decoration:line-through;}
+  .nw-series-toggle.off .nw-sw{background:transparent; box-shadow:inset 0 0 0 1.5px var(--sw);}
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
   #treemap{position:relative; width:100%; height:480px;}
@@ -780,7 +786,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790166289";
+const BUILD_ID = "1790170099";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2082,19 +2088,27 @@ function buildNwTrendChart(opts){
   `;
 }
 
+// Series hidden via a legend click, per chart (keyed by svgId) -- kept outside the chart so the
+// choice survives the detail window's periodic re-render.
+const nwHiddenSeries = {};
+
 // Total + several sub-series together on one set of axes, with a shared per-month hover
 // column (rather than one hit target per dot) so a single hover shows every series' value.
+// The Y range covers only the visible series, so hiding Total lets the individual funds use
+// the full chart height instead of sitting squashed along the bottom.
 function buildNwMultiTrendChart(opts){
   const {title, svgId, months, series, hasIncompleteHistory} = opts;
+  const hidden = nwHiddenSeries[svgId] || new Set();
+  const visible = series.filter(s => !hidden.has(s.key));
   const w = 780, h = 170, pad = 30;
-  const allVals = series.flatMap(s => months.map(s.getValue));
+  const allVals = visible.flatMap(s => months.map(s.getValue));
   const min = Math.min(...allVals), max = Math.max(...allVals);
   const range = (max - min) || 1;
   const stepX = months.length>1 ? (w - 2*pad)/(months.length-1) : 0;
   const xFor = i => pad + i*stepX;
   const yFor = v => h - pad - ((v - min)/range)*(h - 2*pad);
 
-  const seriesSvg = series.map(s=>{
+  const seriesSvg = visible.map(s=>{
     const pts = months.map((m,i)=>({x: xFor(i), y: yFor(s.getValue(m))}));
     const path = pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
     const dots = pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${s.bold?3:2.5}" fill="${s.color}"/>`).join('');
@@ -2106,11 +2120,13 @@ function buildNwMultiTrendChart(opts){
     `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
   ).join('');
   const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="10" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
-  const legend = series.map(s=>
-    `<span style="display:inline-flex; align-items:center; gap:5px; margin-right:16px;"><span style="width:9px; height:9px; border-radius:2px; background:${s.color}; display:inline-block;"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`
-  ).join('');
+  const legend = series.map(s=>{
+    const off = hidden.has(s.key);
+    return `<span class="nw-series-toggle${off?' off':''}" data-series="${s.key}" role="button" tabindex="0" aria-pressed="${!off}" title="Click to ${off?'show':'hide'} ${s.label}"><span class="nw-sw" style="--sw:${s.color};"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`;
+  }).join('');
 
   return `
+    <div id="${svgId}Wrap">
     <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
     <div style="margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
@@ -2119,7 +2135,31 @@ function buildNwMultiTrendChart(opts){
       ${labels}
     </svg>
     ${hasIncompleteHistory ? `<div style="font-size:11px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+    </div>
   `;
+}
+
+// Hover tooltips (visible series only) plus the legend's click-to-hide/show; a toggle rebuilds
+// just this one chart in place.
+function wireNwMultiTrendChart(opts, crossYearPrev){
+  const wrap = document.getElementById(opts.svgId + 'Wrap');
+  if(!wrap) return;
+  const hidden = nwHiddenSeries[opts.svgId] || (nwHiddenSeries[opts.svgId] = new Set());
+  const visible = opts.series.filter(s => !hidden.has(s.key));
+  wireNwTrendTooltips(opts.svgId, idx => buildMultiSeriesMonthTooltip(opts.months, idx, visible, crossYearPrev));
+  wrap.querySelectorAll('.nw-series-toggle').forEach(el=>{
+    const toggle = ()=>{
+      const key = el.dataset.series;
+      if(hidden.has(key)) hidden.delete(key);
+      else if(visible.length > 1) hidden.add(key);
+      else return;
+      document.getElementById('customTooltip').style.display = 'none';
+      wrap.outerHTML = buildNwMultiTrendChart(opts);
+      wireNwMultiTrendChart(opts, crossYearPrev);
+    };
+    el.addEventListener('click', toggle);
+    el.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggle(); } });
+  });
 }
 
 function buildMultiSeriesMonthTooltip(months, idx, series, crossYearPrev){
@@ -2240,24 +2280,22 @@ function renderNetWorth(nw, crossYearPrev){
     {key:'studyAnalyst', label:'Analyst', sub:'Stocks 963', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['studyAnalyst'])},
     {key:'studyMeitav', label:'Meitav', sub:'Stocks 883', color:'#3fae82', getValue: m => nwSum(m.assets, ['studyMeitav'])}
   ];
-  const studyTrendHtml = nw.months.length>=1
-    ? buildNwMultiTrendChart({
-        title: 'Study Funds Trend', svgId: 'nwStudyTrendSvg', months: nw.months,
-        series: studyFundSeries, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
-      })
-    : '';
+  const studyTrendOpts = {
+    title: 'Study Funds Trend', svgId: 'nwStudyTrendSvg', months: nw.months,
+    series: studyFundSeries, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
+  };
+  const studyTrendHtml = nw.months.length>=1 ? buildNwMultiTrendChart(studyTrendOpts) : '';
   const pensionSeries = [
     {key:'total', label:'Total', color: NW_GROUP_COLORS['Pension'], bold:true, getValue: m => nwSum(m.assets, NW_PENSION_KEYS)},
     {key:'insurance', label:'Clal Manager Insurance', color:'#d9a441', getValue: m => nwSum(m.assets, ['insurance'])},
     {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
     {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])}
   ];
-  const pensionTrendHtml = pensionMonths.length>=1
-    ? buildNwMultiTrendChart({
-        title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
-        series: pensionSeries, hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
-      })
-    : '';
+  const pensionTrendOpts = {
+    title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
+    series: pensionSeries, hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
+  };
+  const pensionTrendHtml = pensionMonths.length>=1 ? buildNwMultiTrendChart(pensionTrendOpts) : '';
 
   const itemRows = [
     ...nw.assetItems.map(it=>({label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
@@ -2296,8 +2334,8 @@ function renderNetWorth(nw, crossYearPrev){
   `;
   wireNwTrendTooltips('nwTrendSvg', idx => buildNetWorthMonthTooltip(nw, nw.months[idx], idx, crossYearPrev));
   wireNwTrendTooltips('nwPortfolioTrendSvg', idx => buildCategoryMonthTooltip(nw.months, idx, 'Portfolio', NW_PORTFOLIO_KEYS, crossYearPrev));
-  wireNwTrendTooltips('nwStudyTrendSvg', idx => buildMultiSeriesMonthTooltip(nw.months, idx, studyFundSeries, crossYearPrev));
-  wireNwTrendTooltips('nwPensionTrendSvg', idx => buildMultiSeriesMonthTooltip(pensionMonths, idx, pensionSeries, crossYearPrev));
+  wireNwMultiTrendChart(studyTrendOpts, crossYearPrev);
+  wireNwMultiTrendChart(pensionTrendOpts, crossYearPrev);
   wireNetWorthGroupTooltips(nw, latest, totalForBar);
 }
 
