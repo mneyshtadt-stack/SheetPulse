@@ -68,7 +68,7 @@
   #digestBox .up{color:var(--up-5); font-weight:600;}
   #digestBox .down{color:var(--down-5); font-weight:600;}
   #universeModal{
-    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2000;
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2150;
     align-items:center; justify-content:center; padding:24px;
   }
   #universeModal.open{display:flex;}
@@ -780,7 +780,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790158653";
+const BUILD_ID = "1790166289";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1268,6 +1268,29 @@ function hideUniverseQuoteCard(){
   const card = document.getElementById('universeQuoteCard');
   if(card) card.className = '';
 }
+// Opens Market Universe filtered to one holding, with its live-price card -- shared by the
+// treemap tiles and the Portfolio/USA holdings tables (Market Universe stacks above those windows).
+function openUniverseForTicker(row){
+  const searchInput = document.getElementById('universeSearch');
+  searchInput.value = row.name;
+  universeFilter = row.name;
+  renderUniverseTable();
+  document.getElementById('universeModal').classList.add('open');
+  refreshUniverseRows();
+  showUniverseQuoteCard(row);
+}
+function wireHoldingRowDblClick(rowSelector, rows){
+  document.querySelectorAll(rowSelector).forEach(tr=>{
+    tr.addEventListener('dblclick', (e)=>{
+      if(e.target.closest('button')) return;
+      const row = rows.find(r => r.name === tr.dataset.ticker);
+      if(!row) return;
+      const sel = window.getSelection && window.getSelection();
+      if(sel) sel.removeAllRanges();
+      openUniverseForTicker(row);
+    });
+  });
+}
 
 let marketDetailState = {marketKey:null, tickers:[], sortKey:'value', sortDir:-1, filter:''};
 
@@ -1411,7 +1434,7 @@ function renderPortfolioTable(enriched){
     const holdingPeriod = formatHoldingPeriod(r.buyDate);
 
     html += `
-      <tr class="pf-row" data-ticker="${r.name}">
+      <tr class="pf-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
         <td class="expand-col"><button class="pf-expand-btn" aria-label="Expand ${r.name}">›</button></td>
         <td>
           <div class="md-th-symbol">${r.name}</div>
@@ -1489,6 +1512,7 @@ function renderPortfolioTable(enriched){
       btn.classList.toggle('open', !isOpen);
     });
   });
+  wireHoldingRowDblClick('.md-pf-table tr.pf-row', sorted);
 }
 
 function renderMarketDetailTable(){
@@ -1550,7 +1574,7 @@ function renderMarketDetailTable(){
       : '—';
 
     html += `
-      <tr>
+      <tr class="md-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
         <td>
           <div class="md-th-symbol">${r.name}</div>
           <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
@@ -1588,6 +1612,7 @@ function renderMarketDetailTable(){
       renderMarketDetailTable();
     });
   });
+  wireHoldingRowDblClick('.md-holdings-table tr.md-row', sorted);
 }
 
 // Builds the header (title + hero + stat tiles) for the 'il'/'us' detail modal from
@@ -3484,13 +3509,7 @@ function render(rows, totals){
     div.style.cursor = 'pointer';
     div.addEventListener('dblclick', ()=>{
       tt.style.display = 'none';
-      const searchInput = document.getElementById('universeSearch');
-      searchInput.value = n.data.name;
-      universeFilter = n.data.name;
-      renderUniverseTable();
-      document.getElementById('universeModal').classList.add('open');
-      refreshUniverseRows();
-      showUniverseQuoteCard(n.data);
+      openUniverseForTicker(n.data);
     });
     const tc = textColorFor(n.data.change);
     let inner = '';
