@@ -74,29 +74,27 @@ function usCloseInstant() {
   return Utilities.parseDate(dateStr + ' 16:00:00', 'America/New_York', 'yyyy-MM-dd HH:mm:ss');
 }
 
-// Keeps the sheet down to the 3 most recent distinct trading dates found in it (today's, and the
-// 2 before it -- naturally the last 2 actual trading days, so this survives weekends without any
-// special-casing: Friday's rows stay valid as "the previous date" straight through Monday, since
-// Saturday/Sunday never log anything in between). Anything older than that gets deleted. Rows are
+// Keeps the sheet down to the most recent INTRADAY_KEEP_DATES distinct trading dates found in it
+// (counted by dates actually present, so weekends need no special-casing: Saturday/Sunday never
+// log anything, so Friday's rows stay valid as "the previous date" straight through Monday). Anything older than that gets deleted. Rows are
 // always newest-first (each write does insertRowBefore(2)), so once a row older than the kept
 // dates is found, everything below it is old too -- one contiguous block.
 // This used to just wipe everything the moment a new day's first row logged, but the USA-only
 // chart's own session doesn't start until ~16:30 -- wiping at TASE's 10:00 open destroyed
 // yesterday's data (including yesterday's full USA session) hours before the USA chart's own
 // "show the last completed session" fallback needed it, leaving that chart with nothing to show
-// for the whole TASE-only morning. A straight 2-date window already survives a normal weekend on
-// its own (Friday is never actually at risk of being pruned before Monday needs it -- see the
-// walkthrough in the dashboard's own commit history) -- kept at 3 anyway as a safety margin
-// against this trigger occasionally missing a whole day's runs (observed before, see README), so a
-// single bad day doesn't also wipe out the one real trading day before it.
+// for the whole TASE-only morning. The dashboard's 5D chart range replots the last 5 trading
+// dates straight from this sheet, so 7 are kept: 5 plus a margin in case the trigger misses a
+// whole day's runs (observed before, see README). About 160 rows a day, so ~1,100 rows total.
+const INTRADAY_KEEP_DATES = 7;
 function pruneOldRows(sheet, timeZone) {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return; // just the header, or empty — nothing to prune
   const dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues()
     .map(r => Utilities.formatDate(new Date(r[0]), timeZone, 'yyyy-MM-dd'));
   const distinctDates = [...new Set(dates)]; // newest-first, since the rows themselves are
-  if (distinctDates.length <= 3) return; // nothing older than the 3 most recent dates
-  const keepDates = new Set(distinctDates.slice(0, 3));
+  if (distinctDates.length <= INTRADAY_KEEP_DATES) return;
+  const keepDates = new Set(distinctDates.slice(0, INTRADAY_KEEP_DATES));
   let cutoffRow = -1;
   for (let i = 0; i < dates.length; i++) {
     if (!keepDates.has(dates[i])) { cutoffRow = i + 2; break; } // +2: sheet row number, 1-indexed past the header
