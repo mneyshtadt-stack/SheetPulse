@@ -287,6 +287,11 @@
   .nw-series-toggle.off .nw-sw{background:transparent; box-shadow:inset 0 0 0 1.5px var(--sw);}
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
+  #chartRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #chartRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #chartRangeBar button:hover{color:var(--ink); border-color:var(--line);}
+  #chartRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
+  #chartRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
   .tile-logo{
@@ -786,7 +791,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790172610";
+const BUILD_ID = "1790177069";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1702,7 +1707,7 @@ function renderMarketDetailHeader(marketKey){
     </div>
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     ${statsHtml}
-    ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div>' : ''}
+    ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div><div id="chartRangeBar"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
   if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
@@ -1715,14 +1720,29 @@ function renderMarketDetailHeader(marketKey){
         <div style="margin-top:6px; color:var(--muted); font-size:11px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and LastClose's recorded USA market$ — never derived by converting the ILS total through a rate.</div>`;
     });
   }
-  if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('il'), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
-    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true, undefined, (y,m,d) => findPriorClose(y,m,d,'il'));
-  if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
-    [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}], false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'));
+  if(marketKey === 'il'){
+    chartCtx = {
+      holdings: seg.tickers, liveValue: seg.value,
+      fetchIntradayRaw: () => fetchIntradayLogRaw('il'), dayRangeForDate: getTaseDayRangeForDate,
+      renderDay: () => renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('il'), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
+        [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true, undefined, (y,m,d) => findPriorClose(y,m,d,'il'))
+    };
+    renderActiveChart();
+  }
+  if(marketKey === 'us'){
+    chartCtx = {
+      holdings: seg.tickers, liveValue: seg.value,
+      fetchIntradayRaw: () => fetchIntradayLogRaw('us'), dayRangeForDate: getUsDayRangeForDate,
+      renderDay: () => renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
+        [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}], false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'))
+    };
+    renderActiveChart();
+  }
   return seg;
 }
 
 function openMarketDetail(marketKey){
+  chartRange = '1D';
   const seg = renderMarketDetailHeader(marketKey);
 
   const defaultSortKey = marketKey === 'us' ? 'change' : 'value';
@@ -1828,6 +1848,7 @@ function renderPortfolioHeader(){
       </div>
     </div>
     <div id="intradayChart"></div>
+    <div id="chartRangeBar"></div>
     <div id="marketDetailTableArea"></div>
   `;
   attachHoverTooltip(document.getElementById('mdDayChangeAsOf'), () => {
@@ -1863,17 +1884,23 @@ function renderPortfolioHeader(){
       ${breakdown}
       <div style="margin-top:6px; color:var(--muted); font-size:11px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) / LastClose, never converted.</div>`;
   });
-  renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
-    {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
-    {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
-  ], true, 'tase-open', (y,m,d) => {
-    const il = findPriorClose(y,m,d,'il'), us = findPriorClose(y,m,d,'us');
-    return (typeof il === 'number' && typeof us === 'number') ? il + us : null;
-  });
+  chartCtx = {
+    holdings: rows, liveValue: totals.totalValue,
+    fetchIntradayRaw: () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), dayRangeForDate: getCombinedDayRangeForDate,
+    renderDay: () => renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
+      {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
+      {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
+    ], true, 'tase-open', (y,m,d) => {
+      const il = findPriorClose(y,m,d,'il'), us = findPriorClose(y,m,d,'us');
+      return (typeof il === 'number' && typeof us === 'number') ? il + us : null;
+    })
+  };
+  renderActiveChart();
   return true;
 }
 
 function openPortfolioDetail(){
+  chartRange = '1D';
   if(!renderPortfolioHeader()) return;
 
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -3173,9 +3200,11 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   try{
     raw = await fetchRawFn();
   } catch(e){
+    if(chartRange !== '1D') return;
     el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--down-5); padding:20px 0;">Could not load today's chart (${e.message}).</div>`;
     return;
   }
+  if(chartRange !== '1D') return;
   // Drop anything outside real trading hours (e.g. a stray point from manual testing) — it
   // would otherwise still stretch the Y-axis range even though it renders off-window on the X-axis.
   let log = raw.filter(p => p.t >= dayRange.open && p.t <= dayRange.close);
@@ -3462,6 +3491,227 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     if(!sessionLabel) updateHeadlineDisplay(latest, prevClose);
     tt.style.display = 'none';
     xAxisLabels.forEach(lbl => { lbl.style.opacity = '1'; });
+  });
+}
+
+// ---- Chart ranges (1D / 5D / 1M / 6M / YTD / 1Y / 5Y / MAX) ----
+// 1D is renderIntradayChart as before. 5D replots IntradayLog's last 5 trading dates, each clipped
+// to that view's own trading hours. 1M and up are rebuilt from PriceHistory (daily closes written
+// by PriceHistory.gs): current share count x that day's close x that day's USD/ILS, each holding
+// counted only from its own Buy Date. The chosen range survives the window's auto-refresh and
+// resets to 1D whenever a detail window is opened.
+const PRICE_HISTORY_CSV_URL = proxyUrl(SHEET_ID, 'PriceHistory');
+const CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
+const CHART_RANGE_LABELS = {'5D':'past 5 days','1M':'past month','6M':'past 6 months','YTD':'year to date','1Y':'past year','5Y':'past 5 years'};
+let chartRange = '1D';
+let chartCtx = null;
+let _priceHistoryCache = null;
+
+function renderChartRangeBar(){
+  const bar = document.getElementById('chartRangeBar');
+  if(!bar) return;
+  bar.innerHTML = CHART_RANGES.map(r => `<button type="button" data-range="${r}" class="${r===chartRange?'active':''}" aria-pressed="${r===chartRange}">${r}</button>`).join('');
+  bar.querySelectorAll('button').forEach(btn => btn.addEventListener('click', ()=>{
+    if(btn.dataset.range === chartRange) return;
+    chartRange = btn.dataset.range;
+    document.getElementById('customTooltip').style.display = 'none';
+    renderActiveChart();
+  }));
+}
+
+function renderActiveChart(){
+  renderChartRangeBar();
+  if(!chartCtx) return;
+  if(chartRange === '1D'){ chartCtx.renderDay(); return; }
+  renderRangeChart(chartCtx, chartRange);
+}
+
+async function fetchPriceHistory(){
+  if(_priceHistoryCache && Date.now() - _priceHistoryCache.at < 30*60*1000) return _priceHistoryCache.data;
+  const res = await fetchViaProxy(PRICE_HISTORY_CSV_URL);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const table = Papa.parse(await res.text(), {skipEmptyLines:true}).data;
+  const header = (table[0]||[]).map(h => String(h).trim());
+  const dates = [], cols = {};
+  header.slice(1).forEach(h => { if(h) cols[h] = []; });
+  for(let i=1;i<table.length;i++){
+    const dm = String(table[i][0]||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!dm) continue;
+    dates.push(new Date(Number(dm[1]), Number(dm[2])-1, Number(dm[3]), 12).getTime());
+    header.forEach((h, c) => { if(c > 0 && cols[h]) cols[h].push(num(table[i][c])); });
+  }
+  const data = {dates, cols};
+  _priceHistoryCache = {at: Date.now(), data};
+  return data;
+}
+
+// One value per PriceHistory date for the given holdings, carrying each column's last close
+// forward over gaps (holidays, dates Google has no close for).
+function buildDailyValueSeries(ph, holdings){
+  const fx = ph.cols['USDILS'] || [];
+  const missing = holdings.filter(h => !ph.cols[h.name]).map(h => h.name);
+  const tracked = holdings.filter(h => ph.cols[h.name] && !isNaN(h.shares)).map(h => {
+    const buy = h.buyDate ? new Date(h.buyDate) : null;
+    return {h, col: ph.cols[h.name], isIl: ISRAELI_TICKERS.includes(h.name), buyMs: buy && !isNaN(buy.getTime()) ? buy.getTime() : -Infinity, last: NaN};
+  });
+  let lastFx = NaN;
+  const points = [];
+  ph.dates.forEach((t, i) => {
+    if(!isNaN(fx[i])) lastFx = fx[i];
+    let total = 0, any = false;
+    tracked.forEach(x => {
+      if(!isNaN(x.col[i])) x.last = x.col[i];
+      if(t < x.buyMs || isNaN(x.last)) return;
+      if(x.isIl){ total += x.h.shares * x.last / 100; any = true; }
+      else if(!isNaN(lastFx)){ total += x.h.shares * x.last * lastFx; any = true; }
+    });
+    if(any) points.push({t, v: total});
+  });
+  return {points, missing};
+}
+
+function chartRangeStartMs(range){
+  const d = new Date();
+  d.setHours(0,0,0,0);
+  if(range === '1M') d.setMonth(d.getMonth()-1);
+  else if(range === '6M') d.setMonth(d.getMonth()-6);
+  else if(range === 'YTD') d.setMonth(0, 1);
+  else if(range === '1Y') d.setFullYear(d.getFullYear()-1);
+  else if(range === '5Y') d.setFullYear(d.getFullYear()-5);
+  else return -Infinity;
+  return d.getTime();
+}
+
+async function renderRangeChart(ctx, range){
+  const el = document.getElementById('intradayChart');
+  if(!el) return;
+  const msgHtml = (text, color) => `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:${color||'var(--muted)'}; padding:20px 0;">${text}</div>`;
+  el.innerHTML = msgHtml('Loading chart…');
+  let pts, note = '';
+  try{
+    if(range === '5D'){
+      const raw = removeIntradaySpikes(await ctx.fetchIntradayRaw());
+      const dayKey = t => { const d = new Date(t); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); };
+      const inSession = raw.filter(p => {
+        const d = new Date(p.t);
+        const rng = ctx.dayRangeForDate(d.getFullYear(), d.getMonth()+1, d.getDate());
+        return p.t >= rng.open && p.t <= rng.close;
+      });
+      const days = [...new Set(inSession.map(p => dayKey(p.t)))].sort().slice(-5);
+      pts = inSession.filter(p => days.includes(dayKey(p.t)));
+      if(days.length < 5) note = `IntradayLog currently holds ${days.length} trading day${days.length===1?'':'s'}; 5D fills in as more days are logged.`;
+    } else {
+      const ph = await fetchPriceHistory();
+      const {points, missing} = buildDailyValueSeries(ph, ctx.holdings);
+      const today = new Date(); today.setHours(12,0,0,0);
+      const series = points.filter(p => new Date(p.t).toDateString() !== today.toDateString());
+      if(typeof ctx.liveValue === 'number' && !isNaN(ctx.liveValue)) series.push({t: today.getTime(), v: ctx.liveValue});
+      const start = chartRangeStartMs(range);
+      pts = series.filter(p => p.t >= start);
+      note = 'Past values: current share counts × each day\'s close, from each holding\'s Buy Date.'
+        + (missing.length ? ` No price history for ${missing.join(', ')}.` : '');
+    }
+  } catch(e){
+    el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-5)');
+    return;
+  }
+  if(chartRange !== range) return;
+  if(!pts || pts.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
+
+  const fmt = n => "₪" + Math.round(n).toLocaleString('en-US');
+  const w = Math.max(el.clientWidth || 900, 280), h = 300, padL = 66, padR = 20, padT = 30, padB = 26;
+  const startV = pts[0].v, endV = pts[pts.length-1].v;
+  const vals = pts.map(p => p.v);
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const spread = (maxV - minV) || 1;
+  const yMin = minV - spread*0.12, yMax = maxV + spread*0.12;
+  // Evenly spaced by point, not by clock time, so nights and weekends don't leave gaps.
+  const xFor = i => padL + (pts.length > 1 ? i/(pts.length-1) : 0) * (w - padL - padR);
+  const yFor = v => h - padB - ((v - yMin)/(yMax - yMin)) * (h - padT - padB);
+  const points = pts.map((p,i) => ({x: xFor(i), y: yFor(p.v)}));
+  const isUp = endV >= startV;
+  const lineColor = isUp ? 'var(--up-5)' : 'var(--down-5)';
+  const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const font = `font-family="'Helvetica Neue',Arial,sans-serif"`;
+
+  const yGrid = Array.from({length:5}, (_,i)=>{
+    const v = yMin + (yMax-yMin)*(i/4), y = yFor(v);
+    return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
+      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" ${font}>${fmt(v)}</text>`;
+  }).join('');
+
+  const longRange = ['1Y','5Y','MAX'].includes(range);
+  const tickLabel = t => new Date(t).toLocaleDateString('en-US', longRange ? {month:'short', year:'numeric'} : {month:'short', day:'numeric'});
+  let tickIdx;
+  if(range === '5D'){
+    tickIdx = pts.map((p,i) => i).filter(i => i === 0 || new Date(pts[i].t).toDateString() !== new Date(pts[i-1].t).toDateString());
+  } else {
+    const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
+    tickIdx = [...new Set(Array.from({length:n}, (_,k) => Math.round(k*(pts.length-1)/(n-1))))];
+  }
+  const xLabels = tickIdx.map((i,k) => {
+    const anchor = range === '5D' ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
+    const sep = range === '5D' && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
+    return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
+  }).join('');
+
+  const diff = endV - startV, diffPct = startV ? diff/startV*100 : 0;
+  const rangeLabel = range === 'MAX'
+    ? 'since ' + new Date(pts[0].t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
+    : CHART_RANGE_LABELS[range];
+  const startY = yFor(startV);
+  const last = points[points.length-1];
+
+  el.innerHTML = `
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; margin-bottom:4px;">
+      <span style="color:${lineColor}; font-weight:700;">${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)</span>
+      <span style="color:var(--muted);"> ${rangeLabel}</span>
+    </div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
+      ${yGrid}
+      <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
+      <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>Start <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
+      <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
+      <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
+      ${xLabels}
+      <line id="rangeGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <circle id="rangeHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
+      <rect id="rangeOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
+    </svg>
+    ${note ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-top:2px;">${note}</div>` : ''}
+  `;
+
+  const svgEl = el.querySelector('svg');
+  const overlay = el.querySelector('#rangeOverlay');
+  const guide = el.querySelector('#rangeGuideLine');
+  const hoverDot = el.querySelector('#rangeHoverDot');
+  const defaultDot = el.querySelector('#rangeDefaultDot');
+  const tt = document.getElementById('customTooltip');
+  const dateFmt = range === '5D'
+    ? {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}
+    : {weekday:'short', month:'short', day:'numeric', year:'numeric'};
+  overlay.addEventListener('mousemove', (e)=>{
+    const rect = svgEl.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (w / rect.width);
+    const idx = Math.max(0, Math.min(pts.length-1, Math.round((mx - padL) / (w - padL - padR) * (pts.length-1))));
+    const p = pts[idx], pt = points[idx];
+    guide.setAttribute('x1', pt.x.toFixed(1)); guide.setAttribute('x2', pt.x.toFixed(1)); guide.style.display = 'block';
+    hoverDot.setAttribute('cx', pt.x.toFixed(1)); hoverDot.setAttribute('cy', pt.y.toFixed(1)); hoverDot.style.display = 'block';
+    defaultDot.style.display = 'none';
+    const d = p.v - startV, dp = startV ? d/startV*100 : 0;
+    const isToday = range !== '5D' && idx === pts.length-1 && typeof ctx.liveValue === 'number';
+    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
+      + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs start</div>`
+      + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
+    tt.style.display = 'block';
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if(x + tt.offsetWidth > window.innerWidth) x = e.clientX - tt.offsetWidth - 14;
+    if(y + tt.offsetHeight > window.innerHeight) y = e.clientY - tt.offsetHeight - 14;
+    tt.style.left = x + 'px'; tt.style.top = y + 'px';
+  });
+  overlay.addEventListener('mouseleave', ()=>{
+    guide.style.display = 'none'; hoverDot.style.display = 'none'; defaultDot.style.display = 'block';
+    tt.style.display = 'none';
   });
 }
 
