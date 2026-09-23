@@ -780,7 +780,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790078057";
+const BUILD_ID = "1790133050";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1685,9 +1685,9 @@ function renderMarketDetailHeader(marketKey){
     });
   }
   if(marketKey === 'il') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('il'), getTaseDayRangeMs(), seg.cost, getTaseDayRangeForDate,
-    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true);
+    [{id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs}], true, undefined, (y,m,d) => findPriorClose(y,m,d,'il'));
   if(marketKey === 'us') renderIntradayChart(seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
-    [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}], false, 'us-open');
+    [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}], false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'));
   return seg;
 }
 
@@ -1835,7 +1835,10 @@ function renderPortfolioHeader(){
   renderIntradayChart(totals.totalValue - totals.dayGain, () => fetchCombinedIntradayLogRaw(split.us.value - split.us.gain), getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
     {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
     {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
-  ], true, 'tase-open');
+  ], true, 'tase-open', (y,m,d) => {
+    const il = findPriorClose(y,m,d,'il'), us = findPriorClose(y,m,d,'us');
+    return (typeof il === 'number' && typeof us === 'number') ? il + us : null;
+  });
   return true;
 }
 
@@ -2667,6 +2670,12 @@ async function fetchLastClose(){
   window.lastCloseIL = undefined; window.lastCloseILTs = undefined;
   window.lastCloseUS = undefined; window.lastCloseUSTs = undefined;
   window.lastCloseFxRate = undefined; window.lastCloseUSD = undefined;
+  // A full per-date history (not just the single most-recent close) -- LastClose only ever keeps
+  // 7 rows, so this is cheap. Needed so a chart replaying a PAST completed session (e.g. showing
+  // Tuesday's session because TASE hasn't opened yet today) can look up THAT session's own real
+  // previous close (Monday's, not "whatever today's reference is") instead of reusing today's
+  // reference and effectively comparing that past session against itself. Keyed by "yyyy-mm-dd".
+  window.lastCloseByDate = {};
   try{
     const res = await fetchViaProxy(LAST_CLOSE_CSV_URL);
     if(!res.ok) return;
@@ -2683,11 +2692,17 @@ async function fetchLastClose(){
     const todayStr = `${pad(todayZ.d)}/${pad(todayZ.m)}/${todayZ.y}`;
     for(let i=table.length-1; i>=1; i--){
       const dateStr = (table[i][0]||'').trim();
-      if(!dateStr || dateStr === todayStr) continue;
+      if(!dateStr) continue;
       const dm = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if(!dm) continue;
       const dateObj = new Date(Number(dm[3]), Number(dm[2])-1, Number(dm[1]));
+      const dateKey = `${dm[3]}-${pad(Number(dm[2]))}-${pad(Number(dm[1]))}`;
       const ilVal = Number(table[i][1]), usVal = Number(table[i][2]);
+      const entry = window.lastCloseByDate[dateKey] || (window.lastCloseByDate[dateKey] = {});
+      if(table[i][1] !== '' && !isNaN(ilVal)) entry.il = ilVal;
+      if(table[i][2] !== '' && !isNaN(usVal)) entry.us = usVal;
+
+      if(dateStr === todayStr) continue; // never today's own row for the "current" globals below
       if(window.lastCloseIL === undefined && table[i][1] !== '' && !isNaN(ilVal)){
         window.lastCloseIL = ilVal; window.lastCloseILTs = approxCloseInstant(dateObj, 'IL');
       }
@@ -2705,9 +2720,22 @@ async function fetchLastClose(){
         if(!isNaN(rate)) window.lastCloseFxRate = rate;
         else if(!isNaN(usd) && usd) window.lastCloseFxRate = usVal / usd;
       }
-      if(window.lastCloseIL !== undefined && window.lastCloseUS !== undefined) break;
     }
   } catch(e){ /* silent — computeTotals/splitByMarket fall back to the live-derived estimate */ }
+}
+
+// Finds the most recent LastClose row strictly before the given Y/M/D -- used to give a replayed
+// past session (see renderIntradayChart's historicalPrevCloseFn) its own correct previous close,
+// rather than reusing whatever "today"'s reference happens to be.
+function findPriorClose(y, m, d, market){
+  const pad = n => String(n).padStart(2,'0');
+  const sessionKey = `${y}-${pad(m)}-${pad(d)}`;
+  const keys = Object.keys(window.lastCloseByDate || {}).filter(k => k < sessionKey).sort().reverse();
+  for(const k of keys){
+    const val = window.lastCloseByDate[k][market];
+    if(typeof val === 'number') return val;
+  }
+  return null;
 }
 
 // Today's Y/M/D as seen in a given timezone (not the browser's own local date — matters near
@@ -3044,7 +3072,7 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
     if(tgSubEl){ tgSubEl.textContent = (totalGainPct>=0?'+':'')+totalGainPct.toFixed(2)+'%'; tgSubEl.className = 'md-stat-tile-sub '+tgCls; }
   }
 }
-async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind){
+async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
   if(!el) return;
   el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Loading today's chart…</div>`;
@@ -3085,6 +3113,13 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
         log = fbLog;
         dayRange = fbRange;
         sessionLabel = new Date(fbRange.open).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
+        // This replayed session needs its OWN previous close (e.g. Monday's, when replaying
+        // Tuesday because TASE hasn't opened yet today) -- reusing the prevClose passed in from
+        // outside (today's own reference) would compare this past session against itself.
+        if(historicalPrevCloseFn){
+          const hp = historicalPrevCloseFn(y, m, d);
+          if(typeof hp === 'number') prevClose = hp;
+        }
         break;
       }
     }
