@@ -8,7 +8,7 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
 - **Sector & role-group allocation** — visual breakdowns of what each holding is for (growth, income, hedge, etc.), not just what it is.
 - **Net Worth tracker** — assets, liabilities, and pension tracked monthly, with:
   - A hero net worth figure with month-over-month and year-to-date comparisons.
-  - Trend charts for Net Worth, Portfolio, Study Funds, and Pension. On the Study Funds and Pension charts, clicking a legend item hides or shows that line, and the chart rescales to the lines still shown — hiding Total lets the individual funds fill the chart.
+  - Trend charts for Net Worth, Portfolio, Study Funds, and Pension. On the Study Funds and Pension charts, clicking a legend item hides or shows that line, and the chart rescales to the lines still shown — hiding Total lets the individual funds fill the chart. Every line can be hidden; the chart then shows a short "All lines hidden" note until one is clicked back on.
   - A **year switcher** that automatically detects each year's tab in the underlying spreadsheet (2026, 2027, …) with no code changes needed as new years are added.
 - **Market Universe** — a sortable research watchlist of tickers with sector, category, and role classifications, plus hover tooltips for the fuller "why I hold this" and "what this fund is" notes. Double-clicking a treemap tile, or a holding's row in the Portfolio or USA Holdings detail table, jumps here filtered to that ticker and shows a floating live-price card (price, day change %, and $/₪ change) above the table.
 - **Live refresh** — open detail views refresh in place on a timer without losing your current search/sort/filter state.
