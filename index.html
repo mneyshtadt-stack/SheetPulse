@@ -791,7 +791,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790177771";
+const BUILD_ID = "1790178367";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3635,12 +3635,25 @@ async function renderRangeChart(ctx, range){
   const vals = pts.map(p => p.v);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
   const spread = (maxV - minV) || 1;
-  const yMin = minV - spread*0.12, yMax = maxV + spread*0.12;
+  const yMin = minV >= 0 ? Math.max(0, minV - spread*0.12) : minV - spread*0.12;
+  const yMax = maxV + spread*0.12;
+  // Holdings bought after the range's first point step the value up by their own cost -- that's new
+  // money, not gain. The change figures subtract it; the percentage is on start value + new money.
+  const firstT = pts[0].t;
+  const buys = ctx.holdings.map(hd => ({ms: hd.buyDate ? new Date(hd.buyDate).getTime() : NaN, cost: hd.cost}))
+    .filter(b => !isNaN(b.ms) && b.ms > firstT && !isNaN(b.cost));
+  const newMoneyUntil = t => buys.reduce((s,b) => b.ms <= t ? s + b.cost : s, 0);
+  const changeVsStart = p => {
+    const added = newMoneyUntil(p.t);
+    const gain = p.v - startV - added;
+    return {gain, pct: (startV + added) ? gain / (startV + added) * 100 : 0, added};
+  };
   // Evenly spaced by point, not by clock time, so nights and weekends don't leave gaps.
   const xFor = i => padL + (pts.length > 1 ? i/(pts.length-1) : 0) * (w - padL - padR);
   const yFor = v => h - padB - ((v - yMin)/(yMax - yMin)) * (h - padT - padB);
   const points = pts.map((p,i) => ({x: xFor(i), y: yFor(p.v)}));
-  const isUp = endV >= startV;
+  const total = changeVsStart(pts[pts.length-1]);
+  const isUp = total.gain >= 0;
   const lineColor = isUp ? 'var(--up-5)' : 'var(--down-5)';
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
   const font = `font-family="'Helvetica Neue',Arial,sans-serif"`;
@@ -3666,7 +3679,7 @@ async function renderRangeChart(ctx, range){
     return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
   }).join('');
 
-  const diff = endV - startV, diffPct = startV ? diff/startV*100 : 0;
+  const diff = total.gain, diffPct = total.pct;
   const rangeLabel = range === 'MAX'
     ? 'since ' + new Date(pts[0].t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     : CHART_RANGE_LABELS[range];
@@ -3677,6 +3690,7 @@ async function renderRangeChart(ctx, range){
     <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; margin-bottom:4px;">
       <span style="color:${lineColor}; font-weight:700;">${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)</span>
       <span style="color:var(--muted);"> ${rangeLabel}</span>
+      ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases</span>` : ''}
     </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
@@ -3709,10 +3723,11 @@ async function renderRangeChart(ctx, range){
     guide.setAttribute('x1', pt.x.toFixed(1)); guide.setAttribute('x2', pt.x.toFixed(1)); guide.style.display = 'block';
     hoverDot.setAttribute('cx', pt.x.toFixed(1)); hoverDot.setAttribute('cy', pt.y.toFixed(1)); hoverDot.style.display = 'block';
     defaultDot.style.display = 'none';
-    const d = p.v - startV, dp = startV ? d/startV*100 : 0;
+    const c = changeVsStart(p), d = c.gain, dp = c.pct;
     const isToday = range !== '5D' && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
       + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs start</div>`
+      + (c.added > 0 ? `<div style="color:var(--muted); font-size:11px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
