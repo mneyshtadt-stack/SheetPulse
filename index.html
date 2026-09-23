@@ -780,7 +780,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790136054";
+const BUILD_ID = "1790136771";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2701,6 +2701,8 @@ async function fetchLastClose(){
       const entry = window.lastCloseByDate[dateKey] || (window.lastCloseByDate[dateKey] = {});
       if(table[i][1] !== '' && !isNaN(ilVal)) entry.il = ilVal;
       if(table[i][2] !== '' && !isNaN(usVal)) entry.us = usVal;
+      const dateRate = Number(table[i][4]);
+      if(table[i][4] !== '' && !isNaN(dateRate)) entry.rate = dateRate;
 
       if(dateStr === todayStr) continue; // never today's own row for the "current" globals below
       if(window.lastCloseIL === undefined && table[i][1] !== '' && !isNaN(ilVal)){
@@ -2733,6 +2735,18 @@ function findPriorClose(y, m, d, market){
   const keys = Object.keys(window.lastCloseByDate || {}).filter(k => k < sessionKey).sort().reverse();
   for(const k of keys){
     const val = window.lastCloseByDate[k][market];
+    if(typeof val === 'number') return val;
+  }
+  return null;
+}
+// Same idea as findPriorClose, but for the USD/ILS rate -- the "old rate" half of a replayed past
+// session's own FX-change marker (see renderIntradayChart's historicalFxMarker).
+function findPriorFxRate(y, m, d){
+  const pad = n => String(n).padStart(2,'0');
+  const sessionKey = `${y}-${pad(m)}-${pad(d)}`;
+  const keys = Object.keys(window.lastCloseByDate || {}).filter(k => k < sessionKey).sort().reverse();
+  for(const k of keys){
+    const val = window.lastCloseByDate[k].rate;
     if(typeof val === 'number') return val;
   }
   return null;
@@ -2924,6 +2938,10 @@ async function fetchIntradayLogRows(){
   // fall back to during the TASE-only morning (see pruneOldRows in IntradayLogging.gs). That means
   // this parse can no longer assume every row belongs to today.
   const todayZ = todayInZone('Asia/Jerusalem');
+  const pad = n => String(n).padStart(2,'0');
+  // Per-date opening-rate captures (see below), keyed "yyyy-mm-dd" -- lets a replayed PAST session
+  // (see renderIntradayChart's fallback) show its own real FX-change marker instead of only today's.
+  window.intradayOpenRateByDate = {};
   const rows = [];
   for(let i=1;i<table.length;i++){
     const r = table[i];
@@ -2940,16 +2958,22 @@ async function fetchIntradayLogRows(){
     // row's own hour (Israel time, since parseSheetTimestamp maps the sheet's components directly
     // with no further conversion) is what tells the two captures apart -- used as the fallback
     // flat-USA baseline below, and as the "rate vs. previous close" marker on each chart's own
-    // opening point (Portfolio's 10:00, USA's 16:30 — see renderIntradayChart's markerKind). Only
-    // ever captured from TODAY's own rows -- with 2 days of data now present, a prior day's rows
-    // (processed after today's, since rows are newest-first) would otherwise silently overwrite
-    // today's real captured rate with a stale one.
-    const isToday = d.getFullYear() === todayZ.y && (d.getMonth()+1) === todayZ.m && d.getDate() === todayZ.d;
-    if(isToday && r[2] !== undefined && r[2] !== ''){
+    // opening point (Portfolio's 10:00, USA's 16:30 — see renderIntradayChart's markerKind).
+    if(r[2] !== undefined && r[2] !== ''){
       const rate = Number(r[2]);
       if(!isNaN(rate)){
-        if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
-        else window.todayUsOpenFxRate = rate;
+        const dateKey = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+        const entry = window.intradayOpenRateByDate[dateKey] || (window.intradayOpenRateByDate[dateKey] = {});
+        if(d.getHours() < 13) entry.tase = rate; else entry.us = rate;
+        // Also kept as the single "today's own" globals the live (non-fallback) marker path reads --
+        // guarded to TODAY's rows only, since with 2 days of data now present, a prior day's rows
+        // (processed after today's, since rows are newest-first) would otherwise silently overwrite
+        // today's real captured rate with a stale one.
+        const isToday = d.getFullYear() === todayZ.y && (d.getMonth()+1) === todayZ.m && d.getDate() === todayZ.d;
+        if(isToday){
+          if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
+          else window.todayUsOpenFxRate = rate;
+        }
       }
     }
   }
@@ -3094,6 +3118,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // would otherwise still stretch the Y-axis range even though it renders off-window on the X-axis.
   let log = raw.filter(p => p.t >= dayRange.open && p.t <= dayRange.close);
   let sessionLabel = '';
+  let historicalFxMarker = null;
 
   // Nothing logged yet for today's window (market not open yet, or a non-trading day) — rather
   // than show an empty "building up" chart, fall back to the most recently completed session.
@@ -3127,6 +3152,18 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
           const hp = historicalPrevCloseFn(y, m, d);
           if(typeof hp === 'number') prevClose = hp;
         }
+        // Same idea for the opening FX-rate marker: a replayed session has its own real opening
+        // rate (captured on ITS OWN first row, not today's) and its own prior close's rate (the
+        // day before the one being replayed, not "today"'s skip-today reference) -- reusing
+        // window.todayTaseOpenFxRate/lastCloseFxRate here would silently compare the wrong pair.
+        if(markerKind){
+          const pad2 = n => String(n).padStart(2,'0');
+          const dateKey = `${y}-${pad2(m)}-${pad2(d)}`;
+          const rateEntry = window.intradayOpenRateByDate && window.intradayOpenRateByDate[dateKey];
+          const newRate = rateEntry ? (markerKind === 'us-open' ? rateEntry.us : rateEntry.tase) : undefined;
+          const oldRate = findPriorFxRate(y, m, d);
+          if(typeof newRate === 'number' && typeof oldRate === 'number') historicalFxMarker = {oldRate, newRate};
+        }
         break;
       }
     }
@@ -3139,14 +3176,18 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // (a genuine move keeps trending, so its neighbors wouldn't agree with each other either).
   log = removeIntradaySpikes(log);
 
-  // Tag whichever point actually ends up first on screen with the FX move baked into today's
-  // opening number for this chart: previous close's recorded rate vs. the rate captured ahead of
-  // this chart's own market open (see fetchIntradayLogRows / logIntradayValue). Only meaningful
-  // for today's real session, not a fallback replay of a past one, and only once both rates are
-  // actually available.
-  if(log.length && markerKind && !sessionLabel && typeof window.lastCloseFxRate === 'number'){
-    const newRate = markerKind === 'us-open' ? window.todayUsOpenFxRate : window.todayTaseOpenFxRate;
-    if(typeof newRate === 'number') log[0] = {...log[0], fxMarker: {oldRate: window.lastCloseFxRate, newRate}};
+  // Tag whichever point actually ends up first on screen with the FX move baked into that
+  // session's opening number: previous close's recorded rate vs. the rate captured ahead of that
+  // market's own open (see fetchIntradayLogRows / logIntradayValue). A fallback replay of a past
+  // session uses historicalFxMarker (that session's own pair, computed above), never today's --
+  // otherwise it would compare the replayed day's rate against the wrong "previous" close.
+  if(log.length && markerKind){
+    if(sessionLabel){
+      if(historicalFxMarker) log[0] = {...log[0], fxMarker: historicalFxMarker};
+    } else if(typeof window.lastCloseFxRate === 'number'){
+      const newRate = markerKind === 'us-open' ? window.todayUsOpenFxRate : window.todayTaseOpenFxRate;
+      if(typeof newRate === 'number') log[0] = {...log[0], fxMarker: {oldRate: window.lastCloseFxRate, newRate}};
+    }
   }
 
   if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
