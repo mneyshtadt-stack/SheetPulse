@@ -780,7 +780,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790136771";
+const BUILD_ID = "1790137184";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3270,6 +3270,17 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   const prevCloseY = yFor(prevClose);
   const lastPoint = points[points.length-1];
 
+  // A replayed past session's own actual closing value isn't shown anywhere else on this view (the
+  // header tiles above show today's own live-current figure, which can genuinely differ from that
+  // past session's frozen close once FX has moved since) -- so it needs its own explicit callout on
+  // the chart, not just a plain unlabeled dot at the line's end like the live/current-session case
+  // already has (where that same dot is simply "now", already shown in the header).
+  let closeCalloutSvg = '';
+  if(sessionLabel){
+    const ty = Math.min(lastPoint.y + 22, h - padB - 4);
+    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
+  }
+
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
 
   // Marks whichever point ended up first on screen with the FX move baked into that chart's own
@@ -3296,7 +3307,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       <text x="${w-padR}" y="${(prevCloseY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${fxMarkerSvg}
-      <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="4" fill="${lineColor}"/>
+      <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="${sessionLabel ? 6 : 4}" fill="${lineColor}" stroke="${sessionLabel ? 'var(--paper)' : 'none'}" stroke-width="2"/>
+      ${closeCalloutSvg}
       ${xLabels}
       <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
       <circle id="intradayHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
