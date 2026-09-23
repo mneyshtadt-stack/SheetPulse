@@ -10,7 +10,7 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
   - A hero net worth figure with month-over-month and year-to-date comparisons.
   - Trend charts for Net Worth, Portfolio, Study Funds, and Pension.
   - A **year switcher** that automatically detects each year's tab in the underlying spreadsheet (2026, 2027, …) with no code changes needed as new years are added.
-- **Market Universe** — a sortable research watchlist of tickers with sector, category, and role classifications, plus hover tooltips for the fuller "why I hold this" and "what this fund is" notes. Double-clicking a treemap tile jumps here filtered to that ticker and shows a floating live-price card (price, day change %, and $/₪ change) above the table.
+- **Market Universe** — a sortable research watchlist of tickers with sector, category, and role classifications, plus hover tooltips for the fuller "why I hold this" and "what this fund is" notes. Double-clicking a treemap tile, or a holding's row in the Portfolio or USA Holdings detail table, jumps here filtered to that ticker and shows a floating live-price card (price, day change %, and $/₪ change) above the table.
 - **Live refresh** — open detail views refresh in place on a timer without losing your current search/sort/filter state.
 - **Installable as an app** — a web app manifest and service worker let Android's Chrome (and other browsers) install this as a real full-screen app with its own icon, no browser chrome, via "Add to Home screen" / "Install app".
 - **Biometric quick-unlock** — after signing in with Google once on a device, you can enable Face ID / Fingerprint (via WebAuthn) as a faster way back in on that same device, without repeating the full Google sign-in flow every time.
