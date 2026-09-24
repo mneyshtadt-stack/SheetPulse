@@ -287,6 +287,7 @@
   .nw-series-toggle.off .nw-sw{background:transparent; box-shadow:inset 0 0 0 1.5px var(--sw);}
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
+  .price-warn{display:inline-flex; vertical-align:-3px; margin-left:6px; cursor:help;}
   #chartRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
   #chartRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
   #chartRangeBar button:hover{color:var(--ink); border-color:var(--line);}
@@ -791,7 +792,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790226429";
+const BUILD_ID = "1790226676";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -989,13 +990,16 @@ function parseTableToRows(table){
     throw new Error('Sheet columns have changed — expected headers not found');
   }
   const rows = [];
+  // Holdings Google Finance returned no live price for (#N/A, or a transient 0) -- left out of the
+  // rows as before, but recorded so applyTotalFallback can substitute a recorded total.
+  const missing = [];
   for(let i=headerIdx+1; i<table.length; i++){
     const r = table[i];
     const ticker = (r[cTicker]||'').trim();
     if(!ticker) break;
     const value = num(r[cValueILS]);
     const cost = num(r[cCostILS]);
-    if(isNaN(value)) continue;
+    if(isNaN(value) || (cPrice>=0 && !(num(r[cPrice]) > 0))){ missing.push({ticker, cost}); continue; }
     rows.push({
       name: ticker, value: value, change: num(r[cChange]), ret: num(r[cRet]),
       sector: ((r[cSector]||'Other').trim() || 'Other').split('/')[0].trim(),
@@ -1010,7 +1014,57 @@ function parseTableToRows(table){
     });
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
+  window.lastMissingPrices = missing;
   return rows;
+}
+
+// When some holdings have no live price, the plain sum undercounts. Substitutes a recorded total:
+// with both markets closed, the latest recorded close (TASE close + USA $ close at today's live
+// USD/ILS -- prices can't move until the open); with a market open, the last IntradayLog row.
+// Total cost still includes the missing holdings, so Total gain stays consistent. The result is
+// flagged on totals.fallback for the Total value card's warning.
+function latestRecordedClose(){
+  const keys = Object.keys(window.lastCloseByDate || {}).sort().reverse();
+  const ilKey = keys.find(k => typeof window.lastCloseByDate[k].il === 'number');
+  const usKey = keys.find(k => typeof window.lastCloseByDate[k].us === 'number');
+  if(!ilKey || !usKey) return null;
+  const us = window.lastCloseByDate[usKey];
+  return {il: window.lastCloseByDate[ilKey].il, us: us.us, usd: us.usd, ilKey, usKey};
+}
+async function applyTotalFallback(totals){
+  const missing = window.lastMissingPrices || [];
+  if(!missing.length) return totals;
+  const bothClosed = !getTaseStatus() && !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  const fmtKey = k => { const [y,m,d] = k.split('-'); return `${d}/${m}`; };
+  let value = NaN, source = '';
+  if(bothClosed){
+    const c = latestRecordedClose();
+    if(c){
+      const fx = window.lastFxRate;
+      const usPart = (typeof c.usd === 'number' && fx) ? c.usd * fx : c.us;
+      value = c.il + usPart;
+      source = `the last recorded close (TASE ${fmtKey(c.ilKey)}, USA ${fmtKey(c.usKey)}${typeof c.usd === 'number' && fx ? `, USA part at today's USD/ILS ${fx.toFixed(4)}` : ''})`;
+    }
+  } else {
+    const logRows = await fetchIntradayLogRows().catch(() => []);
+    const last = logRows[logRows.length-1];
+    if(last && typeof last.us === 'number'){
+      value = last.il + last.us;
+      const d = new Date(last.t);
+      const time = d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+      source = `the last IntradayLog value (${d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString('en-GB', {day:'2-digit', month:'2-digit'}) + ' ' + time})`;
+    }
+  }
+  const fallback = {missing: missing.map(m => m.ticker), partialValue: totals.totalValue, source, applied: !isNaN(value)};
+  if(isNaN(value)) return {...totals, fallback};
+  const totalCost = totals.totalCost + missing.reduce((a,m) => a + (isNaN(m.cost) ? 0 : m.cost), 0);
+  const totalGain = value - totalCost;
+  const loggedPrevClose = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseUS === 'number')
+    ? window.lastCloseIL + window.lastCloseUS : null;
+  const dayGain = loggedPrevClose !== null ? value - loggedPrevClose : totals.dayGain;
+  const dayBase = loggedPrevClose !== null ? loggedPrevClose : value - dayGain;
+  return {...totals, totalValue: value, totalCost, totalGain, totalGainPct: totalCost ? totalGain/totalCost*100 : 0,
+    dayGain, dayGainPct: dayBase ? dayGain/dayBase*100 : 0, fallback};
 }
 
 // last-known snapshot, shown until a refresh succeeds
@@ -2792,6 +2846,8 @@ async function fetchLastClose(){
       if(table[i][2] !== '' && !isNaN(usVal)) entry.us = usVal;
       const dateRate = Number(table[i][4]);
       if(table[i][4] !== '' && !isNaN(dateRate)) entry.rate = dateRate;
+      const dateUsd = Number(table[i][3]);
+      if(table[i][3] !== '' && !isNaN(dateUsd)) entry.usd = dateUsd;
 
       if(dateStr === todayStr) continue; // never today's own row for the "current" globals below
       if(window.lastCloseIL === undefined && table[i][1] !== '' && !isNaN(ilVal)){
@@ -3750,7 +3806,7 @@ function render(rows, totals){
   const cardsEl = document.getElementById('cards');
   cardsEl.innerHTML = '';
   const cards = [
-    {label:"Total value (NIS)", value: fmt(totals.totalValue), sub:""},
+    {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="#1a2332" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#1a2332"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
     {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:`<span style="color:${totals.dayGain>=0?'var(--up-5)':'var(--down-5)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>${typeof window.lastCloseFxRate === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">As of USD/ILS ${window.lastCloseFxRate.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
     {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:`<span style="color:${totals.totalGain>=0?'var(--up-5)':'var(--down-5)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
@@ -3762,6 +3818,18 @@ function render(rows, totals){
   });
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
+  const warnEl = document.getElementById('totalValueWarn');
+  if(warnEl && totals.fallback){
+    const f = totals.fallback;
+    warnEl.addEventListener('mouseenter', () => { cardsEl.title = ''; });
+    warnEl.addEventListener('mouseleave', () => { cardsEl.title = 'View all holdings'; });
+    attachHoverTooltip(warnEl, () => `<b>Some live prices are missing</b>`
+      + `<div style="margin-top:6px; max-width:300px;">Google Finance didn't return a live price for ${f.missing.length} holding${f.missing.length===1?'':'s'}: ${f.missing.join(', ')}.</div>`
+      + (f.applied
+        ? `<div style="margin-top:6px; max-width:300px;">Total value uses ${f.source} instead of the partial sum of the holdings that did come through (${fmt(f.partialValue)}). Today and Total gain follow it.</div>`
+        : `<div style="margin-top:6px; max-width:300px;">No recorded total was available to fall back on, so Total value is only the holdings that did come through.</div>`)
+      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; max-width:300px;">The treemap and holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
+  }
 
   function colorFor(c){
     const g = ["var(--up-1)","var(--up-2)","var(--up-3)","var(--up-4)","var(--up-5)"];
@@ -4322,7 +4390,7 @@ async function refresh(){
     setStatus('Fetching latest from Google Sheet…', false);
     const rows = await fetchAndParseWithRetry(2, 2000);
     await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
-    const totals = computeTotals(rows);
+    const totals = await applyTotalFallback(computeTotals(rows));
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
     document.getElementById('asOf').textContent = asOfText;
@@ -4344,7 +4412,7 @@ async function refresh(){
   try{
     const rows = await fetchAndParseWithRetry(2, 2000);
     await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
-    const totals = computeTotals(rows);
+    const totals = await applyTotalFallback(computeTotals(rows));
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
     document.getElementById('asOf').textContent = asOfText;
