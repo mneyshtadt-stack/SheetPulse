@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790260300";
+const BUILD_ID = "1790260580";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1873,9 +1873,9 @@ function populateIlFxTile(){
   if(asOfEl) asOfEl.textContent = window.lastFxAsOf || '';
 }
 
-// USD/ILS window: the live rate, plus daily-close ranges from PriceHistory's USDILS column. No 1D
-// view -- IntradayLog records the rate only twice a day -- and 5D is the last 5 daily closes.
-const FX_CHART_RANGES = ['5D','1M','6M','YTD','1Y','5Y','MAX'];
+// USD/ILS window: the live rate; 1D from IntradayLog's live rate (about every 5 minutes), longer
+// ranges from PriceHistory's USDILS daily closes (5D = the last 5 of them).
+const FX_CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
 function openFxDetail(){
   chartRange = '1M';
   marketDetailState = {marketKey:'fx', tickers:[], sortKey:'value', sortDir:-1, filter:''};
@@ -1900,6 +1900,8 @@ function renderFxDetailHeader(){
     <div id="chartRangeBar"></div>
   `;
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
+    fetchIntradayRaw: fetchIntradayFxRaw, prevClose: (rate && fx) ? rate - fx.change : undefined,
+    intradayNote: 'Live rate logged about every 5 minutes (IntradayLog); compared with the previous close, the same reference as the change above.',
     note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
   renderActiveChart();
 }
@@ -3161,9 +3163,6 @@ async function fetchIntradayLogRows(){
   // this parse can no longer assume every row belongs to today.
   const todayZ = todayInZone('Asia/Jerusalem');
   const pad = n => String(n).padStart(2,'0');
-  // Per-date opening-rate captures (see below), keyed "yyyy-mm-dd" -- lets a replayed PAST session
-  // (see renderIntradayChart's fallback) show its own real FX-change marker instead of only today's.
-  window.intradayOpenRateByDate = {};
   const rows = [];
   for(let i=1;i<table.length;i++){
     const r = table[i];
@@ -3173,37 +3172,53 @@ async function fetchIntradayLogRows(){
     const d = parseSheetTimestamp(tsStr);
     if(isNaN(d.getTime())) continue;
     const us = Number(r[3]);
-    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us});
-    // Column C carries a real USD/ILS rate on exactly two rows a day, each captured a couple of
-    // minutes ahead of a market's own open (see logIntradayValue): the day's first row (TASE's
-    // ~09:59 open) and whichever row logs during the ~16:28-16:30 window (USA's own open). The
-    // row's own hour (Israel time, since parseSheetTimestamp maps the sheet's components directly
-    // with no further conversion) is what tells the two captures apart -- used as the fallback
-    // flat-USA baseline below, and as the "rate vs. previous close" marker on each chart's own
-    // opening point (Portfolio's 10:00, USA's 16:30 — see renderIntradayChart's markerKind).
-    if(r[2] !== undefined && r[2] !== ''){
-      const rate = Number(r[2]);
-      if(!isNaN(rate)){
-        const dateKey = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-        const entry = window.intradayOpenRateByDate[dateKey] || (window.intradayOpenRateByDate[dateKey] = {});
-        if(d.getHours() < 13) entry.tase = rate; else entry.us = rate;
-        // Also kept as the single "today's own" globals the live (non-fallback) marker path reads --
-        // guarded to TODAY's rows only, since with 2 days of data now present, a prior day's rows
-        // (processed after today's, since rows are newest-first) would otherwise silently overwrite
-        // today's real captured rate with a stale one.
-        const isToday = d.getFullYear() === todayZ.y && (d.getMonth()+1) === todayZ.m && d.getDate() === todayZ.d;
-        if(isToday){
-          if(d.getHours() < 13) window.todayTaseOpenFxRate = rate;
-          else window.todayUsOpenFxRate = rate;
-        }
-      }
-    }
+    // Column C: the live USD/ILS rate on every row (older rows carry it only on each market's
+    // opening capture).
+    const fx = (r[2] !== undefined && r[2] !== '') ? Number(r[2]) : NaN;
+    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us, fx: fx > 0 ? fx : null});
   }
   // Downstream logic assumes chronological (ascending) order, but the sheet's own row order isn't
   // guaranteed to stay that way (e.g. someone sorts it, or a script logs out of order) — sort
   // defensively here rather than let a reordered sheet silently break every chart.
   rows.sort((a,b) => a.t - b.t);
+
+  // Each market's opening USD/ILS rate per date ("yyyy-mm-dd"), for each chart's FX marker
+  // (Portfolio's 10:00, USA's 16:30), a replayed past session's included: the rate on the row
+  // closest to that market's open -- at or just before it (TASE's 10:00:00 opening reading, USA's
+  // ~16:25 row), else the nearest one after, within 30 minutes either way. That also picks exactly
+  // the opening captures on older rows, where column C held nothing else.
+  const nearestOpenRate = (list, target) => {
+    const before = list.filter(r => r.t <= target && target - r.t <= 30*60000);
+    if(before.length) return before[before.length-1].fx;
+    const after = list.find(r => r.t > target && r.t - target <= 30*60000);
+    return after ? after.fx : undefined;
+  };
+  const byDate = {};
+  rows.forEach(r => {
+    if(r.fx === null) return;
+    const d = new Date(r.t);
+    const key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    (byDate[key] || (byDate[key] = {y: d.getFullYear(), m: d.getMonth()+1, d: d.getDate(), list: []})).list.push(r);
+  });
+  window.intradayOpenRateByDate = {};
+  Object.keys(byDate).forEach(key => {
+    const {y, m, d, list} = byDate[key];
+    const entry = {};
+    const tase = nearestOpenRate(list, getTaseDayRangeForDate(y, m, d).open);
+    const us = nearestOpenRate(list, getUsDayRangeForDate(y, m, d).open);
+    if(tase) entry.tase = tase;
+    if(us) entry.us = us;
+    window.intradayOpenRateByDate[key] = entry;
+  });
+  const todayEntry = window.intradayOpenRateByDate[`${todayZ.y}-${pad(todayZ.m)}-${pad(todayZ.d)}`] || {};
+  window.todayTaseOpenFxRate = todayEntry.tase;
+  window.todayUsOpenFxRate = todayEntry.us;
   return rows;
+}
+// Today's (and recent days') USD/ILS rate, one point per IntradayLog row, for the USD/ILS 1D chart.
+async function fetchIntradayFxRaw(){
+  const rows = await fetchIntradayLogRows();
+  return rows.filter(r => r.fx !== null).map(r => ({t: r.t, v: r.fx}));
 }
 // which: 'il' or 'us' — picks out just that segment's series for the IL-only/USA-only detail charts.
 async function fetchIntradayLogRaw(which){
@@ -3680,7 +3695,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
 // resets to 1D whenever a detail window is opened.
 const PRICE_HISTORY_CSV_URL = proxyUrl(SHEET_ID, 'PriceHistory');
 const CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
-const CHART_RANGE_LABELS = {'5D':'past 5 days','1M':'past month','6M':'past 6 months','YTD':'year to date','1Y':'past year','5Y':'past 5 years'};
+const CHART_RANGE_LABELS = {'1D':'today', '5D':'past 5 days','1M':'past month','6M':'past 6 months','YTD':'year to date','1Y':'past year','5Y':'past 5 years'};
 let chartRange = '1D';
 let chartCtx = null;
 let intradayRecheckTimer = null;
@@ -3786,7 +3801,18 @@ async function renderRangeChart(ctx, range){
   const intraday5D = range === '5D' && !ctx.priceColumn;
   let pts, note = '';
   try{
-    if(ctx.priceColumn){
+    if(ctx.priceColumn && range === '1D'){
+      // Today's intraday series (for USD/ILS: IntradayLog's live rate, about every 5 minutes), plus
+      // the live value right now as the last point.
+      const todayStr = new Date().toDateString();
+      pts = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now() && new Date(p.t).toDateString() === todayStr);
+      if(pts.length && typeof ctx.liveValue === 'number' && ctx.liveValue > 0) pts.push({t: Date.now(), v: ctx.liveValue});
+      if(pts.length < 2){
+        if(currentRange() === range) el.innerHTML = msgHtml('Today\'s intraday chart starts with the logger\'s first reading (about 09:54), then fills in about every 5 minutes.');
+        return;
+      }
+      note = ctx.intradayNote || '';
+    } else if(ctx.priceColumn){
       const ph = await fetchPriceHistory();
       const col = ph.cols[ctx.priceColumn];
       if(!col){
@@ -3831,8 +3857,11 @@ async function renderRangeChart(ctx, range){
 
   const fmt = ctx.fmtValue || (n => "₪" + Math.round(n).toLocaleString('en-US'));
   const w = Math.max(el.clientWidth || 900, 280), h = ctx.height || intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30, padB = 26;
-  const startV = pts[0].v, endV = pts[pts.length-1].v;
-  const vals = pts.map(p => p.v);
+  // 1D compares against the previous close (like every other "today" figure), longer ranges
+  // against the range's own first point.
+  const vsPrevClose = range === '1D' && typeof ctx.prevClose === 'number' && ctx.prevClose > 0;
+  const startV = vsPrevClose ? ctx.prevClose : pts[0].v, endV = pts[pts.length-1].v;
+  const vals = pts.map(p => p.v).concat(startV);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
   const spread = (maxV - minV) || 1;
   const yMin = minV >= 0 ? Math.max(0, minV - spread*0.12) : minV - spread*0.12;
@@ -3865,7 +3894,9 @@ async function renderRangeChart(ctx, range){
   }).join('');
 
   const longRange = ['1Y','5Y','MAX'].includes(range);
-  const tickLabel = t => new Date(t).toLocaleDateString('en-US', longRange ? {month:'short', year:'numeric'} : {month:'short', day:'numeric'});
+  const tickLabel = t => range === '1D'
+    ? new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})
+    : new Date(t).toLocaleDateString('en-US', longRange ? {month:'short', year:'numeric'} : {month:'short', day:'numeric'});
   let tickIdx;
   if(range === '5D'){
     tickIdx = pts.map((p,i) => i).filter(i => !intraday5D || i === 0 || new Date(pts[i].t).toDateString() !== new Date(pts[i-1].t).toDateString());
@@ -3895,7 +3926,7 @@ async function renderRangeChart(ctx, range){
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
       <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>Start <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
+      <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
       ${xLabels}
@@ -3912,7 +3943,7 @@ async function renderRangeChart(ctx, range){
   const hoverDot = el.querySelector('#rangeHoverDot');
   const defaultDot = el.querySelector('#rangeDefaultDot');
   const tt = document.getElementById('customTooltip');
-  const dateFmt = intraday5D
+  const dateFmt = (intraday5D || range === '1D')
     ? {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}
     : {weekday:'short', month:'short', day:'numeric', year:'numeric'};
   overlay.addEventListener('mousemove', (e)=>{
@@ -3926,7 +3957,7 @@ async function renderRangeChart(ctx, range){
     const c = changeVsStart(p), d = c.gain, dp = c.pct;
     const isToday = !intraday5D && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
-      + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs start</div>`
+      + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
       + (c.added > 0 ? `<div style="color:var(--muted); font-size:11px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
     tt.style.display = 'block';
