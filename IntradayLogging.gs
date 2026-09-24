@@ -18,16 +18,21 @@ function isUsMarketOpenNow() {
   return openDays.indexOf(weekday) !== -1 && hm >= '0930' && hm <= '1600';
 }
 
-// A narrow window just before TASE opens, used only to capture the real USD/ILS rate as of the
-// actual start of today's session (see logIntradayValue). isTaseOpenNow() only turns true right
-// at 10:00 itself -- by the time it fires, "the session-open rate" would really mean whatever rate
-// happened to be live at that exact trigger run, not a rate genuinely captured ahead of the open.
+// A window just before TASE opens, in which logIntradayValue writes the day's opening reading
+// (stamped exactly 10:00:00, see taseOpenInstant) -- so the TASE and Portfolio charts have a point
+// the moment TASE opens instead of waiting for the first regular tick. TASE prices can't move
+// before the open, so the reading is exactly the opening value (USA re-priced at the live rate).
+// Six minutes wide so a ~5-minute trigger is sure to run inside it at least once.
 function isTaseOpenGraceWindow() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'Asia/Jerusalem', 'EEE');
   const hm = Utilities.formatDate(now, 'Asia/Jerusalem', 'HHmm');
   const openDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  return openDays.indexOf(weekday) !== -1 && hm >= '0958' && hm < '1000';
+  return openDays.indexOf(weekday) !== -1 && hm >= '0954' && hm < '1000';
+}
+function taseOpenInstant() {
+  const dateStr = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
+  return Utilities.parseDate(dateStr + ' 10:00:00', 'Asia/Jerusalem', 'yyyy-MM-dd HH:mm:ss');
 }
 
 // Same idea, just ahead of USA's own open, so the USA chart's own 16:30 point can carry its own
@@ -207,27 +212,17 @@ function logIntradayValue() {
   const todayIL = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
   const todayET = Utilities.formatDate(new Date(), 'America/New_York', 'yyyy-MM-dd');
 
-  if (!isOpen && !taseGraceWindow && !usGraceWindow) {
-    // A couple of minutes before TASE actually opens, stash the live USD/ILS rate in a script
-    // property (once per day) -- this becomes column C below, and is also what the frontend
-    // compares against LastClose's own recorded rate for the "FX move since previous close"
-    // indicator at the Portfolio chart's 10:00 point.
-    if (isTaseOpenGraceWindow() && props.getProperty('il_open_rate_date') !== todayIL) {
-      const tracker = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker');
-      const rate = Number(tracker.getRange(1, 17).getValue()); // Q1
-      if (!isNaN(rate)) {
-        props.setProperty('il_open_rate_date', todayIL);
-        props.setProperty('il_open_rate_value', String(rate));
-      }
-    }
-    return;
-  }
+  // Once a day, just before TASE opens: the opening reading, stamped 10:00:00. Being the day's first
+  // row, it also carries the live USD/ILS rate in column C (see isFirstRowToday below) -- the rate
+  // the frontend compares against LastClose's for the FX marker at the Portfolio chart's 10:00 point.
+  const taseOpenGrace = !isOpen && isTaseOpenGraceWindow() && props.getProperty('tase_open_logged_date') !== todayIL;
+  if (!isOpen && !taseGraceWindow && !usGraceWindow && !taseOpenGrace) return;
 
   // Each grace window only needs to fire once a day; once logged, later ticks still inside the
   // same (multi-minute, drift-tolerant) window are treated as normal readings instead.
   const taseGrace = taseGraceWindow && props.getProperty('tase_close_logged_date') !== todayIL;
   const usGrace = usGraceWindow && props.getProperty('us_close_logged_date') !== todayET;
-  if (!isOpen && !taseGrace && !usGrace) return; // both grace windows already logged today
+  if (!isOpen && !taseGrace && !usGrace && !taseOpenGrace) return; // grace windows already logged today
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tracker = ss.getSheetByName('Tracker');
@@ -275,20 +270,17 @@ function logIntradayValue() {
   pruneOldRows(logSheet, 'Asia/Jerusalem');
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
-  const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : new Date());
+  const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : (taseOpenGrace ? taseOpenInstant() : new Date()));
   logSheet.getRange(2, 1, 1, 2).setValues([[tsValue, ilValue]]);
   logSheet.getRange(2, 4).setValue(usValue);
 
   if (isFirstRowToday) {
-    // Prefer the rate captured ahead of the open (see the isTaseOpenGraceWindow branch above) --
-    // only reads live right now as a fallback, for the rare day a deploy or a missed trigger run
-    // means that earlier capture never happened.
-    let openFxRate = props.getProperty('il_open_rate_date') === todayIL
-      ? Number(props.getProperty('il_open_rate_value'))
-      : NaN;
-    if (isNaN(openFxRate)) openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+    // Normally the pre-open 10:00:00 row (taseOpenGrace above), so this is the rate just ahead of
+    // TASE's open; on a day that reading was missed, it's the rate at the first regular tick.
+    const openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
     if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
   }
+  if (taseOpenGrace) props.setProperty('tase_open_logged_date', todayIL);
 
   // USA's own session-open rate reuses this same column, on whichever row happens to log during
   // that narrow window (~16:28-16:30 Israel time) instead -- the trigger is already running
