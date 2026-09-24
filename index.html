@@ -792,7 +792,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790241033";
+const BUILD_ID = "1790255784";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3275,6 +3275,10 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     return;
   }
   if(chartRange !== '1D') return;
+  // The logger writes each market's opening reading a few minutes early, stamped at the open
+  // itself (10:00:00 / 16:30:00) -- until that moment arrives it's a point in the future, not yet
+  // part of any chart.
+  raw = raw.filter(p => p.t <= Date.now());
   // Drop anything outside real trading hours (e.g. a stray point from manual testing) — it
   // would otherwise still stretch the Y-axis range even though it renders off-window on the X-axis.
   let log = raw.filter(p => p.t >= dayRange.open && p.t <= dayRange.close);
@@ -3699,7 +3703,7 @@ async function renderRangeChart(ctx, range){
   let pts, note = '';
   try{
     if(range === '5D'){
-      const raw = removeIntradaySpikes(await ctx.fetchIntradayRaw());
+      const raw = removeIntradaySpikes((await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now()));
       const dayKey = t => { const d = new Date(t); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); };
       const inSession = raw.filter(p => {
         const d = new Date(p.t);
