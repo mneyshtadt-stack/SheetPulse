@@ -2,11 +2,12 @@
 //
 // Two tabs:
 //   History       -- YOUR formula tab, edited by hand like the Tracker. B1 = start date; row 3 =
-//                    one symbol per column pair (CURRENCY:USDILS, VOO, SMH, ...); row 4 = a
-//                    GOOGLEFINANCE(symbol,"close",$B$1,TODAY(),"DAILY") formula under each symbol,
-//                    spilling Date | Close down the pair. Add a ticker = add a new column pair.
+//                    one symbol per column pair (CURRENCY:USDILS, VOO, SMH, ...); row 4 =
+//                    =QUERY(GOOGLEFINANCE(symbol,"close",$B$1,TODAY(),"DAILY"),"select * order by Col1 desc",1)
+//                    under each symbol, spilling Date | Close down the pair, newest date first.
+//                    Add a ticker = add a new column pair.
 //   PriceHistory  -- plain values written by this script, read by the dashboard: row 1 =
-//                    Date | USDILS | <ticker> ...; one row per date ("yyyy-mm-dd" text); prices in
+//                    Date | USDILS | <ticker> ...; one row per date, newest first ("yyyy-mm-dd" text); prices in
 //                    each ticker's own quote currency (USD, or agorot for the TASE funds). Blank =
 //                    no close that day; the dashboard carries the last one forward.
 //
@@ -87,10 +88,33 @@ function createHistoryTab() {
     const c = i * 2 + 1;
     sh.getRange(3, c).setValue(s).setFontWeight('bold');
     const a1 = sh.getRange(3, c).getA1Notation();
-    sh.getRange(4, c).setFormula('=GOOGLEFINANCE(' + a1 + ',"close",$B$1,TODAY(),"DAILY")');
+    sh.getRange(4, c).setFormula(phDescendingFormula_('GOOGLEFINANCE(' + a1 + ',"close",$B$1,TODAY(),"DAILY")'));
     sh.getRange(5, c, rowsNeeded - 4, 1).setNumberFormat('yyyy-mm-dd');
   });
   sh.setFrozenRows(4);
+}
+
+// GOOGLEFINANCE always returns oldest-first; QUERY re-sorts newest-first and keeps the Date | Close
+// header (the 1) on top.
+function phDescendingFormula_(googleFinanceCall) {
+  return '=QUERY(' + googleFinanceCall + ',"select * order by Col1 desc",1)';
+}
+
+// One-time: wraps every plain GOOGLEFINANCE history formula in the History tab in the QUERY above,
+// so each block lists its newest date first. Formulas already wrapped are left alone; safe to re-run.
+function convertHistoryToDescending() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PH_SOURCE_SHEET);
+  if (!sh) throw new Error('No "' + PH_SOURCE_SHEET + '" tab');
+  const rows = Math.min(sh.getLastRow(), 15), cols = sh.getLastColumn();
+  const formulas = sh.getRange(1, 1, rows, cols).getFormulas();
+  let converted = 0;
+  formulas.forEach((row, r) => row.forEach((f, c) => {
+    if (/^=\s*GOOGLEFINANCE\(/i.test(f) && !/QUERY\(/i.test(f)) {
+      sh.getRange(r + 1, c + 1).setFormula(phDescendingFormula_(f.replace(/^=\s*/, '')));
+      converted++;
+    }
+  }));
+  console.log('History: ' + converted + ' formula(s) converted to newest-first');
 }
 
 // "NYSEARCA:VOO" -> "VOO", "CURRENCY:USDILS" -> "USDILS", "SMH" -> "SMH".
@@ -100,8 +124,9 @@ function phColumnName_(symbol) {
 }
 
 // Merges the copied closes into whatever PriceHistory already holds -- a block that's temporarily
-// #N/A or loading never erases values copied on an earlier run -- and rewrites the tab sorted by
-// date. Dates where only USD/ILS has a value (weekend FX quotes) are dropped. Returns the date count.
+// #N/A or loading never erases values copied on an earlier run -- and rewrites the tab sorted
+// newest date first. Dates where only USD/ILS has a value (weekend FX quotes) are dropped. Returns
+// the date count.
 function phMergeAndWrite_(ss, fetched) {
   let sh = ss.getSheetByName(PH_SHEET);
   if (!sh) sh = ss.insertSheet(PH_SHEET);
@@ -126,7 +151,8 @@ function phMergeAndWrite_(ss, fetched) {
 
   const keys = Object.keys(byDate)
     .filter(k => cols.some(c => c !== PH_FX_COL && typeof byDate[k][c] === 'number'))
-    .sort();
+    .sort()
+    .reverse();
   const out = [['Date'].concat(cols)].concat(
     keys.map(k => [k].concat(cols.map(c => (typeof byDate[k][c] === 'number' ? byDate[k][c] : '')))));
 
