@@ -792,7 +792,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790240496";
+const BUILD_ID = "1790241033";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3248,18 +3248,19 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
     if(tgSubEl){ tgSubEl.textContent = (totalGainPct>=0?'+':'')+totalGainPct.toFixed(2)+'%'; tgSubEl.className = 'md-stat-tile-sub '+tgCls; }
   }
 }
-// Chart height that keeps the x-axis -- and the range bar under it -- inside the detail window's
-// visible area without scrolling: 300px when there's room, shrinking to 190px on short screens.
-function intradayChartHeight(el){
+// Chart height that fills the detail window's visible area down to its bottom edge, time axis
+// included -- the range bar and everything else below the chart sit under the fold. Between
+// 190px (short screens) and 440px (tall ones).
+function intradayChartHeight(el, hasNoteLine){
   const body = document.getElementById('marketDetailBody');
   const header = document.getElementById('marketDetailHeader');
   if(!body || !body.contains(el)) return 300;
   const offset = el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop;
   // The window grows with its content up to 97vh, so measure against that maximum rather than its
-  // current height (which is still short while the chart itself is being drawn). 18 = body's
-  // bottom padding; 80 = a note line above the chart + the range bar below + a little margin.
-  const visible = window.innerHeight * 0.97 - (header ? header.offsetHeight : 0) - 18;
-  return Math.max(190, Math.min(300, Math.floor(visible - offset - 80)));
+  // current height (which is still short while the chart itself is being drawn). A note line above
+  // the chart takes ~20px; 6 = margin under the axis.
+  const visible = window.innerHeight * 0.97 - (header ? header.offsetHeight : 0);
+  return Math.max(190, Math.min(440, Math.floor(visible - offset - (hasNoteLine ? 20 : 0) - 6)));
 }
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
@@ -3388,7 +3389,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // widths a fixed 900:300 viewBox no longer matches the CSS box's aspect ratio, and the browser's
   // default preserveAspectRatio="meet" then letterboxes the chart (blank bands top and bottom)
   // instead of filling it.
-  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el), padL = 66, padR = 20, padT = 30, padB = 26;
+  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el, !!(sessionLabel || singlePoint)), padL = 66, padR = 20, padT = 30, padB = 26;
   const vals = log.map(p=>p.v);
   const minV = Math.min(prevClose, ...vals), maxV = Math.max(prevClose, ...vals);
   const range = (maxV - minV) || 1;
@@ -3728,7 +3729,7 @@ async function renderRangeChart(ctx, range){
   if(!pts || pts.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
 
   const fmt = n => "₪" + Math.round(n).toLocaleString('en-US');
-  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el), padL = 66, padR = 20, padT = 30, padB = 26;
+  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30, padB = 26;
   const startV = pts[0].v, endV = pts[pts.length-1].v;
   const vals = pts.map(p => p.v);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
