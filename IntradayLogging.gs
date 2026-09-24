@@ -35,10 +35,10 @@ function taseOpenInstant() {
   return Utilities.parseDate(dateStr + ' 10:00:00', 'Asia/Jerusalem', 'yyyy-MM-dd HH:mm:ss');
 }
 
-// Just ahead of USA's own open (09:24-09:30 ET, ~16:24-16:30 Israel time): the row logged here
-// carries USA's opening USD/ILS rate, for the USA chart's own 16:30 "rate vs. previous close"
-// marker, and is the value the dashboard uses as that chart's 16:30 starting point. Six minutes
-// wide so a ~5-minute trigger is sure to run inside it.
+// Just ahead of USA's own open (09:24-09:30 ET, ~16:24-16:30 Israel time): the row logged here is
+// the one the dashboard takes USA's opening USD/ILS rate from (the USA chart's 16:30 FX marker) and
+// uses as that chart's 16:30 starting point. Six minutes wide so a ~5-minute trigger is sure to run
+// inside it.
 function isUsOpenGraceWindow() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'America/New_York', 'EEE');
@@ -109,16 +109,6 @@ function pruneOldRows(sheet, timeZone) {
   if (cutoffRow !== -1) sheet.deleteRows(cutoffRow, lastRow - cutoffRow + 1);
 }
 
-// Peeks at the most recent existing row (row 2, since writes always insertRowBefore(2)) to tell
-// whether today has logged anything yet at all -- checked before this tick's own row is written
-// or pruneOldRows runs, so it stays correct now that old rows aren't wiped to zero on a new day.
-function isFirstLogRowToday(sheet, todayIL) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return true;
-  const firstRowDate = sheet.getRange(2, 1).getValue();
-  const firstRowDay = Utilities.formatDate(new Date(firstRowDate), 'Asia/Jerusalem', 'yyyy-MM-dd');
-  return firstRowDay !== todayIL;
-}
 
 // A single ticker's price feed can glitch for one read (e.g. GOOGLEFINANCE briefly returning
 // #N/A or 0), which shows up as a sharp V-shaped spike in the logged total that self-corrects
@@ -214,13 +204,12 @@ function logIntradayValue() {
   const todayIL = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
   const todayET = Utilities.formatDate(new Date(), 'America/New_York', 'yyyy-MM-dd');
 
-  // Once a day, just before TASE opens: the opening reading, stamped 10:00:00. Being the day's first
-  // row, it also carries the live USD/ILS rate in column C (see isFirstRowToday below) -- the rate
-  // the frontend compares against LastClose's for the FX marker at the Portfolio chart's 10:00 point.
+  // Once a day, just before TASE opens: the opening reading, stamped 10:00:00. Its USD/ILS rate is
+  // the one the dashboard compares against LastClose's for the FX marker at the 10:00 point.
   const taseOpenGrace = !isOpen && isTaseOpenGraceWindow() && props.getProperty('tase_open_logged_date') !== todayIL;
   // Normally TASE is still open when USA's pre-open window comes round, so the logger is running
   // anyway; on Fridays TASE has closed at 14:00, so let one regular row through in that window.
-  const usPreOpen = !isOpen && isUsOpenGraceWindow() && props.getProperty('il_us_open_rate_date') !== todayIL;
+  const usPreOpen = !isOpen && isUsOpenGraceWindow() && props.getProperty('us_preopen_logged_date') !== todayIL;
   if (!isOpen && !taseGraceWindow && !usGraceWindow && !taseOpenGrace && !usPreOpen) return;
 
   // Each grace window only needs to fire once a day; once logged, later ticks still inside the
@@ -265,41 +254,21 @@ function logIntradayValue() {
   let logSheet = ss.getSheetByName('IntradayLog');
   if (!logSheet) {
     logSheet = ss.insertSheet('IntradayLog');
-    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate (session open)', 'USA Value (ILS, live)']);
+    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate', 'USA Value (ILS, live)']);
   }
-  // Checked before this tick's own row is written or old rows are pruned -- captured here, on
-  // that one row only, so the dashboard has a real recorded rate for "the start of today's
-  // session" instead of reapplying whatever rate happens to be live at whatever later moment
-  // someone views the chart.
-  const isFirstRowToday = isFirstLogRowToday(logSheet, todayIL);
+  // Column C used to carry a rate on just two rows a day (each market's open); it now holds the
+  // live rate on every row -- the dashboard's intraday USD/ILS chart, and the FX markers pick the
+  // row closest to each open themselves.
+  if (logSheet.getRange(1, 3).getValue() !== 'USD/ILS Rate') logSheet.getRange(1, 3).setValue('USD/ILS Rate');
   pruneOldRows(logSheet, 'Asia/Jerusalem');
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : (taseOpenGrace ? taseOpenInstant() : new Date()));
-  logSheet.getRange(2, 1, 1, 2).setValues([[tsValue, ilValue]]);
-  logSheet.getRange(2, 4).setValue(usValue);
+  const liveRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+  logSheet.getRange(2, 1, 1, 4).setValues([[tsValue, ilValue, isNaN(liveRate) ? '' : liveRate, usValue]]);
 
-  if (isFirstRowToday) {
-    // Normally the pre-open 10:00:00 row (taseOpenGrace above), so this is the rate just ahead of
-    // TASE's open; on a day that reading was missed, it's the rate at the first regular tick.
-    const openFxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
-    if (!isNaN(openFxRate)) logSheet.getRange(2, 3).setValue(openFxRate);
-  }
   if (taseOpenGrace) props.setProperty('tase_open_logged_date', todayIL);
-
-  // USA's own session-open rate reuses this same column, on whichever row happens to log during
-  // that window (~16:24-16:30 Israel time) instead -- the trigger is normally already running
-  // continuously through the whole combined window, so no separate early-return branch is needed
-  // the way TASE's own capture has above. The row's own Timestamp is what tells the two captures
-  // apart on the frontend (an afternoon hour means it's USA's), so a second column isn't needed to
-  // disambiguate them. Guarded separately so it only ever writes once per day.
-  if (isUsOpenGraceWindow() && props.getProperty('il_us_open_rate_date') !== todayIL) {
-    const usOpenRate = Number(tracker.getRange(1, 17).getValue()); // Q1
-    if (!isNaN(usOpenRate)) {
-      logSheet.getRange(2, 3).setValue(usOpenRate);
-      props.setProperty('il_us_open_rate_date', todayIL);
-    }
-  }
+  if (usPreOpen) props.setProperty('us_preopen_logged_date', todayIL);
 
   if (taseGrace) {
     props.setProperty('tase_close_logged_date', todayIL);
