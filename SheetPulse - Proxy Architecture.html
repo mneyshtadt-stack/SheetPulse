@@ -380,6 +380,17 @@ sudo netfilter-persistent save</code></pre>
     </ol>
   </div>
 
+  <div class="phase">
+    <h3><span class="phase-num">23</span>One log instead of two: <code>LastClose</code> folded into <code>IntradayLog</code></h3>
+    <ol>
+      <li><b>Every row carries more.</b> <code>IntradayLog</code>'s column C now holds the live USD/ILS rate (rounded to 4 decimals) on every row, not just at each market's open. A new column E, <code>USA Value ($)</code>, holds USA's holdings in dollars. That dollar figure was the only thing <code>LastClose</code> had that <code>IntradayLog</code> didn't.</li>
+      <li><b>Close rows.</b> Each market's close is its own row, stamped exactly at the close: TASE 17:30:00 (Friday 14:00:00), USA 16:00:00 New York time (normally 23:00:00 in Israel). It's filled green in the sheet. The dashboard reads each day's closes straight from those rows, and if one was ever missed, the last row before the close stands in. <code>IntradayLog</code> already keeps 7 trading days, the same span <code>LastClose</code> held.</li>
+      <li><b>FX markers.</b> A market's opening rate is taken from the row closest to its open (10:00 for TASE, 16:30 for USA), at or just before it.</li>
+      <li><b>Moving over.</b> A one-time <code>migrateLastCloseIntoIntradayLog</code> copied the dollar values and closing rates from <code>LastClose</code> onto the matching close rows and coloured the existing close rows green. The <code>LastClose</code> tab could then be deleted.</li>
+      <li><b>A bug found on the way.</b> On Fridays the logger treats TASE as open until 14:00, but its close window was 13:50–14:00, so the Friday close row was never written. The window is now 14:01–14:10, with the row stamped 14:00:00.</li>
+    </ol>
+  </div>
+
   <h2><span class="eyebrow">Design rationale</span>Day Change and currency movement</h2>
   <p><code>Day Change</code> deliberately includes USD/ILS currency movement, not just each holding's own price movement — a considered design choice, not an oversight.</p>
   <p>Your net worth is denominated in shekels; that's the currency you'll actually spend. If a US stock's price doesn't move at all but USD strengthens 1% against ILS, you really are 1% richer in ILS terms today — that's real, realizable wealth change, not a measurement quirk. Comparing today's <code>$price &times; today's rate</code> against yesterday's <code>$price &times; yesterday's rate</code> (what <code>LastClose</code> + the live rate does, see phase 17) correctly captures the combined effect of stock performance and currency movement, which is exactly what "how much richer/poorer am I today" has to mean for an ILS-based investor.</p>
