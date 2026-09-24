@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790260580";
+const BUILD_ID = "1790260946";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1877,7 +1877,7 @@ function populateIlFxTile(){
 // ranges from PriceHistory's USDILS daily closes (5D = the last 5 of them).
 const FX_CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
 function openFxDetail(){
-  chartRange = '1M';
+  chartRange = '1D';
   marketDetailState = {marketKey:'fx', tickers:[], sortKey:'value', sortDir:-1, filter:''};
   renderFxDetailHeader();
   document.getElementById('marketDetailModal').classList.add('open');
