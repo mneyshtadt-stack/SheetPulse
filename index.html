@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790262362";
+const BUILD_ID = "1790262636";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1362,10 +1362,22 @@ function showUniverseChart(row){
   }));
   const isIl = ISRAELI_TICKERS.includes(row.name);
   const money = n => n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  // Sized so the summary line, chart, note, the table's header and at least the first row all fit
+  // in the visible area without scrolling (~190px for everything but the chart itself). Measured
+  // against the window's maximum height (85vh, or full screen when maximized), not its current
+  // one, which is still short while the chart itself is loading.
+  const wrap = document.getElementById('universeTableWrap');
+  const card = document.getElementById('universeCard');
+  let height = 240;
+  if(wrap && card){
+    const cardMax = window.innerHeight * (card.classList.contains('maximized') ? 1 : 0.85);
+    const wrapMax = cardMax - (wrap.getBoundingClientRect().top - card.getBoundingClientRect().top);
+    height = Math.max(140, Math.min(240, Math.floor(wrapMax - 190)));
+  }
   renderRangeChart({
     priceColumn: row.name, holdings: [], liveValue: row.price,
     fmtValue: isIl ? (n => money(n) + ' ILA') : (n => '$' + money(n)),
-    chartElId: 'universeChart', currentRange: () => universeChartRange, height: 240,
+    chartElId: 'universeChart', currentRange: () => universeChartRange, height,
     note: `Daily closes of ${row.name} from the PriceHistory tab; the last point is today's live price.`
   }, universeChartRange);
 }
