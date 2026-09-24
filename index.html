@@ -294,7 +294,7 @@
   #chartRangeBar button:hover, #universeRangeBar button:hover{color:var(--ink); border-color:var(--line);}
   #chartRangeBar button.active, #universeRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
   #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
-  #universeChart{padding:0 24px;}
+  #universeChart{padding:10px 0 14px;}
   #universeChart:empty{display:none;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
@@ -780,8 +780,8 @@
       <div id="universeQuoteCard"></div>
       <div id="universeRangeBar" style="display:none;"></div>
     </div>
-    <div id="universeChart"></div>
     <div id="universeTableWrap">
+      <div id="universeChart"></div>
       <table id="universeTable">
         <thead><tr></tr></thead>
         <tbody></tbody>
@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790260946";
+const BUILD_ID = "1790261108";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
