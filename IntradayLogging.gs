@@ -264,8 +264,10 @@ function logIntradayValue() {
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : (taseOpenGrace ? taseOpenInstant() : new Date()));
-  const liveRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+  // Rounded to 4 decimals, the precision the dashboard shows USD/ILS at everywhere.
+  const liveRate = Math.round(Number(tracker.getRange(1, 17).getValue()) * 10000) / 10000; // Q1
   logSheet.getRange(2, 1, 1, 4).setValues([[tsValue, ilValue, isNaN(liveRate) ? '' : liveRate, usValue]]);
+  logSheet.getRange(2, 3).setNumberFormat('0.0000');
 
   if (taseOpenGrace) props.setProperty('tase_open_logged_date', todayIL);
   if (usPreOpen) props.setProperty('us_preopen_logged_date', todayIL);
