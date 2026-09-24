@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790261685";
+const BUILD_ID = "1790262362";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1127,11 +1127,11 @@ function applyFxCell(rateCellRaw, changeCellRaw){
 }
 
 // dayGain/dayGainPct prefer the real logged close (window.lastCloseIL + window.lastCloseUS, from
-// the never-pruned LastClose tab) over summing each holding's own live day-change% — the summed
+// IntradayLog's recorded close rows) over summing each holding's own live day-change% — the summed
 // version is only an algebraic approximation that can drift from the actual previous close (e.g.
 // across a weekend, before a provider's change% has rolled over to the new session), and its
 // implied "previous close" has no real connection to the calendar-math label shown next to it.
-// The summed method remains as a fallback for whenever LastClose hasn't been populated yet.
+// The summed method remains as a fallback for whenever no recorded close is available yet.
 function computeTotals(rows){
   // rows: {value, change, cost}
   const totalValue = rows.reduce((a,r)=>a+r.value,0);
@@ -1742,7 +1742,7 @@ function renderMarketDetailHeader(marketKey){
   const isMarketClosed = marketKey === 'il' ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
   // USA's own Market Value (USD) tile uses the genuine live sum of each holding's own Current
   // Value ($) (Tracker column H) when available, rather than deriving it by dividing the
-  // ILS-denominated total through today's blended rate -- and compares that against LastClose's
+  // ILS-denominated total through today's blended rate -- and compares that against the previous close's
   // real recorded USA market$ figure, a dollars-to-dollars comparison free of any FX contamination.
   // Both fall back to the derived/estimated form only when the real data isn't available yet.
   const todayUsd = marketKey === 'us'
@@ -1814,7 +1814,7 @@ function renderMarketDetailHeader(marketKey){
         <div>Today's total: ${fmtUsd(todayUsd)}</div>
         <div>&minus; Prev. close: ${fmtUsd(window.lastCloseUSD)}</div>
         <div style="margin-top:2px;">= <span class="${usdChange>=0?'up':'down'}">${usdChange>=0?'+':'-'}${fmtUsd(Math.abs(usdChange))} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)</span></div>
-        <div style="margin-top:6px; color:var(--muted); font-size:11px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and LastClose's recorded USA market$ — never derived by converting the ILS total through a rate.</div>`;
+        <div style="margin-top:6px; color:var(--muted); font-size:11px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and the USA dollar value recorded at the previous close — never derived by converting the ILS total through a rate.</div>`;
     });
   }
   if(marketKey === 'il'){
@@ -1951,8 +1951,8 @@ function renderPortfolioHeader(){
   // ILS total by one rate: IL holdings have no real independent dollar identity (their $ figure is
   // always just a function of whatever rate is applied), so today's $ total is
   // (IL's ILS value ÷ today's rate) + USA's own real $ value (the direct column-H sum, same as the
-  // USA-only tile). The reference side mirrors that: (LastClose's IL value ÷ LastClose's own
-  // recorded rate) + LastClose's real USA market$ -- anchoring IL's unavoidable FX component to a
+  // USA-only tile). The reference side mirrors that: (the recorded IL close ÷ that close's own
+  // recorded rate) + the real USA dollar value recorded at the close -- anchoring IL's unavoidable FX component to a
   // frozen historical rate instead of today's live one, while USA's half stays fully FX-clean.
   // Falls back to the simpler whole-total/live-rate estimate whenever the real pieces aren't
   // all available yet.
@@ -2014,7 +2014,7 @@ function renderPortfolioHeader(){
       <div>&minus; Prev. close: ${fmt(prevClose)}</div>
       <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
       ${breakdown}
-      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Prev. close is LastClose's real recorded value, frozen at each market's actual close — never recalculated with today's live rate.</div>`;
+      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Prev. close is the value recorded at each market's actual close (IntradayLog's green close rows), frozen at that moment — never recalculated with today's live rate.</div>`;
   });
   if(yesterdayUsdTotal !== null) attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
     const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
@@ -2023,14 +2023,14 @@ function renderPortfolioHeader(){
     const breakdown = (todayIlUsd !== null && yesterdayIlUsd !== null) ? `
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">
         <div>Israeli (TASE): ${fmtUsd(todayIlUsd)} &rarr; was ${fmtUsd(yesterdayIlUsd)} (&divide; USD/ILS ${window.lastFxRate.toFixed(4)} today, ${window.lastCloseFxRate.toFixed(4)} at close)</div>
-        <div>USA: ${fmtUsd(todayUsdTotal - todayIlUsd)} &rarr; was $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (real, from LastClose)</div>
+        <div>USA: ${fmtUsd(todayUsdTotal - todayIlUsd)} &rarr; was $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (real, recorded at the close)</div>
       </div>` : '';
     return `<b>How Market Value (USD) is calculated</b>
       <div>Today's total: ${fmtUsd(todayUsdTotal)}</div>
       <div>&minus; Prev. close: ${fmtUsd(yesterdayUsdTotal)}</div>
       <div style="margin-top:2px;">= <span class="${portfolioUsdChange>=0?'up':'down'}">${portfolioUsdChange>=0?'+':'-'}${fmtUsd(Math.abs(portfolioUsdChange))} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)</span></div>
       ${breakdown}
-      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) / LastClose, never converted.</div>`;
+      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) and the recorded close, never converted.</div>`;
   });
   chartCtx = {
     holdings: rows, liveValue: totals.totalValue,
@@ -2885,90 +2885,84 @@ function formatFxLine(rate){
 // this one tab as CSV and plots today's rows — no merging of independently-timed logs needed.
 const INTRADAY_LOG_CSV_URL = proxyUrl(SHEET_ID, 'IntradayLog');
 
-// IntradayLog gets pruned back to just today's rows the moment a new day's first reading is
-// logged, so by the time a session needs "yesterday's close" for Day Change math, the log has
-// usually already discarded it. LastClose is a tiny two-row tab (one per market, updated in place,
-// never pruned) that the Apps Script trigger writes to once a day, at the same moment it captures
-// the definitive closing reading — so this always holds a real recorded close, not an approximation.
-const LAST_CLOSE_CSV_URL = proxyUrl(SHEET_ID, 'LastClose');
-// LastClose is now one row per calendar day (Date | TASE market | USA market), keeping a rolling
-// ~7-day window instead of just the latest close — easier to scan/audit in the sheet itself. A
-// same-day row can have only one market's column filled in (they close at different times), so
-// this scans from the most recent row backward and takes each market's own most recent non-blank
-// value independently, rather than assuming both are always on the same row.
-function approxCloseInstant(dateObj, market){
-  const d = new Date(dateObj);
-  if(market === 'IL'){
-    const isFriday = d.getDay() === 5;
-    d.setHours(isFriday ? 13 : 17, isFriday ? 50 : 30, 0, 0);
-  } else {
-    d.setHours(23, 0, 0, 0); // USA's close, in Israel time
-  }
-  return d;
+// Each day's recorded closes, read straight from IntradayLog: the logger writes one row stamped
+// exactly at each market's close (TASE 17:30, 14:00 on Fridays; USA 16:00 New York time) and fills
+// it green. TASE's close is IntradayLog's IL value at that moment; USA's close is its ILS value, its
+// dollar value (column E) and the USD/ILS rate (column C) at that moment. If a close row was ever
+// missed, the last row before the close stands in. Only closes that have actually happened count.
+//
+// window.lastCloseIL/US (+USD, FxRate and their timestamps) are the most recent close BEFORE today:
+// while today is still the current session -- even after a market has closed -- "Prev. close" must
+// stay anchored to the prior session, or Day Change collapses to comparing today's close against
+// itself. window.lastCloseByDate keeps every day's closes (today's included, once they happen), so a
+// replayed past session can look up its own previous close. Keyed by "yyyy-mm-dd".
+function taseCloseMsFor(y, m, d){
+  const friday = new Date(y, m-1, d).getDay() === 5;
+  return zonedTimeToMs(y, m, d, friday ? 14 : 17, friday ? 0 : 30, 'Asia/Jerusalem');
+}
+function usCloseMsFor(y, m, d){
+  return zonedTimeToMs(y, m, d, 16, 0, 'America/New_York');
 }
 async function fetchLastClose(){
   window.lastCloseIL = undefined; window.lastCloseILTs = undefined;
   window.lastCloseUS = undefined; window.lastCloseUSTs = undefined;
   window.lastCloseFxRate = undefined; window.lastCloseUSD = undefined;
-  // A full per-date history (not just the single most-recent close) -- LastClose only ever keeps
-  // 7 rows, so this is cheap. Needed so a chart replaying a PAST completed session (e.g. showing
-  // Tuesday's session because TASE hasn't opened yet today) can look up THAT session's own real
-  // previous close (Monday's, not "whatever today's reference is") instead of reusing today's
-  // reference and effectively comparing that past session against itself. Keyed by "yyyy-mm-dd".
   window.lastCloseByDate = {};
-  try{
-    const res = await fetchViaProxy(LAST_CLOSE_CSV_URL);
-    if(!res.ok) return;
-    const text = await res.text();
-    const table = Papa.parse(text, {skipEmptyLines:true}).data;
-    // "Prev. close" always means the session BEFORE the one currently being displayed -- while
-    // today is still the current session (whether a market is still open, already closed, or it's
-    // after-hours), today's own just-written row must never be used as its own reference, or Day
-    // Change collapses to comparing today's close against itself (a real bug: showed +0.00% the
-    // instant TASE's close landed in LastClose). Only once a NEW calendar day begins does today's
-    // row become valid as *that* day's previous close.
-    const todayZ = todayInZone('Asia/Jerusalem');
-    const pad = n => String(n).padStart(2,'0');
-    const todayStr = `${pad(todayZ.d)}/${pad(todayZ.m)}/${todayZ.y}`;
-    for(let i=table.length-1; i>=1; i--){
-      const dateStr = (table[i][0]||'').trim();
-      if(!dateStr) continue;
-      const dm = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if(!dm) continue;
-      const dateObj = new Date(Number(dm[3]), Number(dm[2])-1, Number(dm[1]));
-      const dateKey = `${dm[3]}-${pad(Number(dm[2]))}-${pad(Number(dm[1]))}`;
-      const ilVal = Number(table[i][1]), usVal = Number(table[i][2]);
-      const entry = window.lastCloseByDate[dateKey] || (window.lastCloseByDate[dateKey] = {});
-      if(table[i][1] !== '' && !isNaN(ilVal)) entry.il = ilVal;
-      if(table[i][2] !== '' && !isNaN(usVal)) entry.us = usVal;
-      const dateRate = Number(table[i][4]);
-      if(table[i][4] !== '' && !isNaN(dateRate)) entry.rate = dateRate;
-      const dateUsd = Number(table[i][3]);
-      if(table[i][3] !== '' && !isNaN(dateUsd)) entry.usd = dateUsd;
-
-      if(dateStr === todayStr) continue; // never today's own row for the "current" globals below
-      if(window.lastCloseIL === undefined && table[i][1] !== '' && !isNaN(ilVal)){
-        window.lastCloseIL = ilVal; window.lastCloseILTs = approxCloseInstant(dateObj, 'IL');
-      }
-      if(window.lastCloseUS === undefined && table[i][2] !== '' && !isNaN(usVal)){
-        window.lastCloseUS = usVal; window.lastCloseUSTs = approxCloseInstant(dateObj, 'US');
-        const usd = Number(table[i][3]);
-        if(!isNaN(usd)) window.lastCloseUSD = usd;
-        // The rate recorded on USA's own row -- USA always closes after TASE each day, so this
-        // is specifically the rate in effect at USA's close, not some earlier TASE-time reading.
-        // Falls back to deriving it algebraically from the two values already on this same row
-        // (USA market ÷ USA market$ is exactly the rate that was in effect) whenever the explicit
-        // rate column itself is blank for some reason -- the two columns are never independently
-        // wrong, so this is a safe, always-available fallback rather than a rough approximation.
-        const rate = Number(table[i][4]);
-        if(!isNaN(rate)) window.lastCloseFxRate = rate;
-        else if(!isNaN(usd) && usd) window.lastCloseFxRate = usVal / usd;
+  let rows;
+  try{ rows = await fetchIntradayLogRows(); }
+  catch(e){ return; /* silent -- computeTotals/splitByMarket fall back to the live-derived estimate */ }
+  const pad = n => String(n).padStart(2,'0');
+  const byDay = {};
+  rows.forEach(r => {
+    const dt = new Date(r.t);
+    const key = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+    (byDay[key] || (byDay[key] = {y: dt.getFullYear(), m: dt.getMonth()+1, d: dt.getDate(), list: []})).list.push(r);
+  });
+  const now = Date.now();
+  // The close row of a day: the last row at or within a minute after the close (rows are ascending).
+  const closeRow = (list, closeMs) => {
+    let best = null;
+    for(const r of list){ if(r.t <= closeMs + 60000) best = r; else break; }
+    return best;
+  };
+  Object.keys(byDay).forEach(key => {
+    const {y, m, d, list} = byDay[key];
+    const entry = {};
+    const taseClose = taseCloseMsFor(y, m, d), usClose = usCloseMsFor(y, m, d);
+    if(now >= taseClose){
+      const r = closeRow(list, taseClose);
+      if(r){ entry.il = r.il; entry.ilTs = new Date(r.t); }
+    }
+    if(now >= usClose){
+      const r = closeRow(list, usClose);
+      if(r && typeof r.us === 'number'){
+        entry.us = r.us; entry.usTs = new Date(r.t);
+        if(typeof r.usd === 'number') entry.usd = r.usd;
+        // The rate on USA's close row; older rows without one fall back to USA ILS / USA $, which is
+        // exactly the rate those two values were computed at.
+        if(typeof r.fx === 'number') entry.rate = r.fx;
+        else if(entry.usd) entry.rate = entry.us / entry.usd;
       }
     }
-  } catch(e){ /* silent — computeTotals/splitByMarket fall back to the live-derived estimate */ }
+    if(Object.keys(entry).length) window.lastCloseByDate[key] = entry;
+  });
+  const todayZ = todayInZone('Asia/Jerusalem');
+  const todayKey = `${todayZ.y}-${pad(todayZ.m)}-${pad(todayZ.d)}`;
+  const priorKeys = Object.keys(window.lastCloseByDate).filter(k => k < todayKey).sort().reverse();
+  const ilKey = priorKeys.find(k => typeof window.lastCloseByDate[k].il === 'number');
+  const usKey = priorKeys.find(k => typeof window.lastCloseByDate[k].us === 'number');
+  if(ilKey){
+    window.lastCloseIL = window.lastCloseByDate[ilKey].il;
+    window.lastCloseILTs = window.lastCloseByDate[ilKey].ilTs;
+  }
+  if(usKey){
+    const e = window.lastCloseByDate[usKey];
+    window.lastCloseUS = e.us; window.lastCloseUSTs = e.usTs;
+    window.lastCloseUSD = e.usd; window.lastCloseFxRate = e.rate;
+  }
 }
 
-// Finds the most recent LastClose row strictly before the given Y/M/D -- used to give a replayed
+// Finds the most recent recorded close strictly before the given Y/M/D -- used to give a replayed
 // past session (see renderIntradayChart's historicalPrevCloseFn) its own correct previous close,
 // rather than reusing whatever "today"'s reference happens to be.
 function findPriorClose(y, m, d, market){
@@ -3133,10 +3127,10 @@ function headlineAsOfHtml(isClosed){
 function formatPrevCloseLabel(d){
   return d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
 }
-// loggedTs (window.lastCloseILTs/USTs, from the LastClose tab) is the real timestamp the Apps
+// loggedTs (window.lastCloseILTs/USTs, IntradayLog's close rows) is the real timestamp the Apps
 // Script trigger actually stamped when it captured that close — used whenever it's available,
 // since it's the true instant the value line next to it corresponds to. The calendar-math
-// fallback below only runs before LastClose has been populated (or if that fetch failed).
+// fallback below only runs before a recorded close is available (or if that fetch failed).
 function marketPrevCloseReferenceLabel(dayRangeForDateFn, loggedTs){
   if(loggedTs instanceof Date && !isNaN(loggedTs.getTime())) return formatPrevCloseLabel(loggedTs);
   const now = new Date();
@@ -3193,7 +3187,9 @@ async function fetchIntradayLogRows(){
     // Column C: the live USD/ILS rate on every row (older rows carry it only on each market's
     // opening capture).
     const fx = (r[2] !== undefined && r[2] !== '') ? Number(r[2]) : NaN;
-    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us, fx: fx > 0 ? fx : null});
+    // Column E: USA's holdings in dollars (on older rows, only on the USA close rows).
+    const usd = (r[4] !== undefined && r[4] !== '') ? Number(r[4]) : NaN;
+    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us, fx: fx > 0 ? fx : null, usd: usd > 0 ? usd : null});
   }
   // Downstream logic assumes chronological (ascending) order, but the sheet's own row order isn't
   // guaranteed to stay that way (e.g. someone sorts it, or a script logs out of order) — sort
@@ -3315,11 +3311,11 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
     const fmtUsd = n => "$" + Math.round(Math.abs(n)).toLocaleString('en-US');
     const todayUsd = latest / fxRate;
     usdValEl.textContent = fmtUsd(todayUsd);
-    // USA's own tile compares today's $ value against LastClose's real recorded USA market$
+    // USA's own tile compares today's $ value against the real USA dollar value recorded at the previous close
     // figure -- a genuine dollars-to-dollars comparison, free of FX contamination -- rather than
     // converting the ILS-denominated (FX-inclusive) diff through today's rate. Falls back to that
     // ILS-derived estimate for the Portfolio combined view (no clean per-market $ reference there)
-    // or when LastClose's $ figure isn't available yet.
+    // or when that dollar figure isn't available yet.
     if(isUsSegment && typeof window.lastCloseUSD === 'number' && window.lastCloseUSD){
       const usdChange = todayUsd - window.lastCloseUSD;
       const usdChangePct = usdChange / window.lastCloseUSD * 100;
@@ -3330,7 +3326,7 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
       usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
       usdSubEl.className = 'md-stat-tile-sub '+dcCls;
     }
-    // LastClose's own recorded rate/$ figures never change between ticks, so this line only
+    // The recorded close's rate/$ figures never change between ticks, so this line only
     // ever needs recomputing for the USA-only view (which has a clean per-market reference); the
     // Portfolio combined view's version -- set correctly once at initial render, using the
     // IL+USA split renderPortfolioHeader already has -- is deliberately left untouched here rather
