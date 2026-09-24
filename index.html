@@ -792,7 +792,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790227286";
+const BUILD_ID = "1790233739";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3267,12 +3267,16 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   let sessionLabel = '';
   let historicalFxMarker = null;
 
-  // Right after the open there's only one tick inside today's window. The row logged just
-  // before the open (e.g. USA at ~16:25, while TASE's session keeps the logger running) is the
-  // genuine opening value, so it becomes the chart's first point at the open -- today's chart
-  // then shows from the first tick instead of replaying the last session until a second one.
-  if(log.length === 1){
-    const preOpen = raw.filter(p => p.t < dayRange.open && p.t >= dayRange.open - 15*60*1000);
+  if(intradayRecheckTimer){ clearTimeout(intradayRecheckTimer); intradayRecheckTimer = null; }
+  const marketOpen = (statusBadges || []).some(b => b.isOpen);
+
+  // Opening point. The logger writes a pre-open reading stamped exactly at TASE's open (see
+  // logIntradayValue); when that's missing, the last value logged before the open stands in -- USA's
+  // ~16:25 row (TASE's session keeps the logger running), or the previous session's last row (for
+  // TASE its close, unchanged overnight), looking back up to 4 days for weekends. So once a market
+  // is open, today's chart shows from its first point instead of replaying the last session.
+  if(log.length <= 1 && (log.length === 0 ? marketOpen : log[0].t > dayRange.open)){
+    const preOpen = raw.filter(p => p.t < dayRange.open && p.t >= dayRange.open - 4*86400000);
     if(preOpen.length) log.unshift({...preOpen[preOpen.length-1], t: dayRange.open});
   }
 
@@ -3284,8 +3288,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // (e.g. the USA chart, whose own real window doesn't start until 16:30, would otherwise "fall
   // back" to today's own not-yet-open range and still show nothing). Walk backward through each
   // distinct calendar day present in raw, newest first, skipping today's own date, until one
-  // whose real range actually has at least 2 points.
-  if(log.length < 2 && dayRangeForDate && raw.length){
+  // whose real range actually has at least 2 points. Once the market is open, a single point of
+  // today's is enough -- it's today's session from then on.
+  if(log.length < 2 && !(marketOpen && log.length === 1) && dayRangeForDate && raw.length){
     const candidateDates = [...new Set(raw.map(p => {
       const d = new Date(p.t);
       return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
@@ -3347,10 +3352,24 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   }
 
   if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
-  if(log.length < 2){
-    el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Building up today's chart — logged ${log.length} point${log.length===1?'':'s'} so far today.</div>`;
+
+  // While the market is open but today's chart isn't drawable yet (still replaying the last
+  // session, or only the opening point so far), look again every minute instead of waiting for
+  // the window's 5-minute refresh -- the logger adds a point about every 5 minutes.
+  const singlePoint = log.length === 1 && !sessionLabel;
+  if(marketOpen && (sessionLabel || log.length < 2)){
+    intradayRecheckTimer = setTimeout(() => {
+      intradayRecheckTimer = null;
+      if(chartRange === '1D' && chartCtx && document.getElementById('intradayChart')
+        && document.getElementById('marketDetailModal').classList.contains('open')) chartCtx.renderDay();
+    }, 60000);
+  }
+  if(log.length < 1){
+    el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Building up today's chart — no points logged yet today.</div>`;
     return;
   }
+  // Just the opening point so far: draw it as a dot on today's axis (a zero-length line).
+  if(singlePoint) log = [log[0], {...log[0], fxMarker: undefined}];
 
   // Size the viewBox to the container's real width rather than a fixed 900 — on narrow (mobile)
   // widths a fixed 900:300 viewBox no longer matches the CSS box's aspect ratio, and the browser's
@@ -3433,7 +3452,14 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // already has (where that same dot is simply "now", already shown in the header).
   let closeCalloutSvg = '';
   if(sessionLabel){
-    const ty = Math.min(lastPoint.y + 22, h - padB - 4);
+    // Below the end dot by default; if that lands on the "Prev. close" label (drawn just above its
+    // dashed line at the same right edge), go above the dot instead, or below that label.
+    const prevLabelY = prevCloseY - 8;
+    let ty = Math.min(lastPoint.y + 22, h - padB - 4);
+    if(Math.abs(ty - prevLabelY) < 15){
+      ty = lastPoint.y - 12;
+      if(Math.abs(ty - prevLabelY) < 15 || ty < padT) ty = prevLabelY + 16;
+    }
     closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
   }
 
@@ -3455,7 +3481,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   }
 
   el.innerHTML = `
-    ${sessionLabel ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:4px;">Showing last session — ${sessionLabel}</div>` : ''}
+    ${sessionLabel ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:4px;">Showing last session — ${sessionLabel}${marketOpen ? ' · today\'s chart starts with its first logged point (about every 5 min)' : ''}</div>` : ''}
+    ${singlePoint ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:4px;">Opening point so far — the line starts with the next logged point (about every 5 min)</div>` : ''}
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGridLines}
       ${statusBadgesSvg}
@@ -3561,6 +3588,7 @@ const CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
 const CHART_RANGE_LABELS = {'5D':'past 5 days','1M':'past month','6M':'past 6 months','YTD':'year to date','1Y':'past year','5Y':'past 5 years'};
 let chartRange = '1D';
 let chartCtx = null;
+let intradayRecheckTimer = null;
 let _priceHistoryCache = null;
 
 function renderChartRangeBar(){
