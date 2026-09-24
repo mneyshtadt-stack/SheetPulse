@@ -288,11 +288,14 @@
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
   .price-warn{display:inline-flex; vertical-align:-3px; margin-left:6px; cursor:help;}
-  #chartRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
-  #chartRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
-  #chartRangeBar button:hover{color:var(--ink); border-color:var(--line);}
-  #chartRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
-  #chartRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  #chartRangeBar, #universeRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #universeRangeBar{margin:0 0 0 auto;}
+  #chartRangeBar button, #universeRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #chartRangeBar button:hover, #universeRangeBar button:hover{color:var(--ink); border-color:var(--line);}
+  #chartRangeBar button.active, #universeRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
+  #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  #universeChart{padding:0 24px;}
+  #universeChart:empty{display:none;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
   .tile-logo{
@@ -775,7 +778,9 @@
       <input type="text" id="universeSearch" placeholder="Search ticker…">
       <span id="universeStatus"></span>
       <div id="universeQuoteCard"></div>
+      <div id="universeRangeBar" style="display:none;"></div>
     </div>
+    <div id="universeChart"></div>
     <div id="universeTableWrap">
       <table id="universeTable">
         <thead><tr></tr></thead>
@@ -792,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790255784";
+const BUILD_ID = "1790260300";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1303,6 +1308,7 @@ function showUniverseQuoteCard(row){
   const card = document.getElementById('universeQuoteCard');
   if(!card) return;
   card.className = 'show';
+  showUniverseChart(row);
   if(isNaN(row.price) || isNaN(row.change)){
     card.innerHTML = `<span class="uq-loading">Price unavailable</span>`;
     return;
@@ -1332,6 +1338,43 @@ function showUniverseQuoteCard(row){
 function hideUniverseQuoteCard(){
   const card = document.getElementById('universeQuoteCard');
   if(card) card.className = '';
+  hideUniverseChart();
+}
+
+// A ticker's own price chart in Market Universe, shown alongside its price card: daily closes from
+// PriceHistory in the ticker's own currency (USD, or agorot for the TASE funds, matching the
+// Tracker), today's live price as the last point. Its range is kept separately from the detail
+// window's, since both windows can be open at once.
+const UNIVERSE_CHART_RANGES = ['5D','1M','6M','YTD','1Y','5Y','MAX'];
+let universeChartRange = '1M';
+let universeChartRow = null;
+function showUniverseChart(row){
+  universeChartRow = row;
+  const bar = document.getElementById('universeRangeBar');
+  if(!bar) return;
+  bar.style.display = 'flex';
+  bar.innerHTML = UNIVERSE_CHART_RANGES.map(r => `<button type="button" data-range="${r}" class="${r===universeChartRange?'active':''}" aria-pressed="${r===universeChartRange}">${r}</button>`).join('');
+  bar.querySelectorAll('button').forEach(btn => btn.addEventListener('click', ()=>{
+    if(btn.dataset.range === universeChartRange || !universeChartRow) return;
+    universeChartRange = btn.dataset.range;
+    document.getElementById('customTooltip').style.display = 'none';
+    showUniverseChart(universeChartRow);
+  }));
+  const isIl = ISRAELI_TICKERS.includes(row.name);
+  const money = n => n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  renderRangeChart({
+    priceColumn: row.name, holdings: [], liveValue: row.price,
+    fmtValue: isIl ? (n => money(n) + ' ILA') : (n => '$' + money(n)),
+    chartElId: 'universeChart', currentRange: () => universeChartRange, height: 240,
+    note: `Daily closes of ${row.name} from the PriceHistory tab; the last point is today's live price.`
+  }, universeChartRange);
+}
+function hideUniverseChart(){
+  universeChartRow = null;
+  const bar = document.getElementById('universeRangeBar');
+  if(bar){ bar.style.display = 'none'; bar.innerHTML = ''; }
+  const el = document.getElementById('universeChart');
+  if(el) el.innerHTML = '';
 }
 // Opens Market Universe filtered to one holding, with its live-price card -- shared by the
 // treemap tiles and the Portfolio/USA holdings tables (Market Universe stacks above those windows).
@@ -1830,6 +1873,37 @@ function populateIlFxTile(){
   if(asOfEl) asOfEl.textContent = window.lastFxAsOf || '';
 }
 
+// USD/ILS window: the live rate, plus daily-close ranges from PriceHistory's USDILS column. No 1D
+// view -- IntradayLog records the rate only twice a day -- and 5D is the last 5 daily closes.
+const FX_CHART_RANGES = ['5D','1M','6M','YTD','1Y','5Y','MAX'];
+function openFxDetail(){
+  chartRange = '1M';
+  marketDetailState = {marketKey:'fx', tickers:[], sortKey:'value', sortDir:-1, filter:''};
+  renderFxDetailHeader();
+  document.getElementById('marketDetailModal').classList.add('open');
+  startMarketDetailAutoRefresh();
+}
+function renderFxDetailHeader(){
+  document.getElementById('marketDetailTitle').textContent = 'USD/ILS';
+  document.getElementById('marketDetailSubtitle').textContent = 'US dollar in Israeli shekels';
+  hideNwYearSwitcher();
+  const rate = window.lastFxRate;
+  const fx = rate ? getFxDayChange(rate) : null;
+  const color = fx && fx.change < 0 ? 'var(--down-5)' : 'var(--up-5)';
+  document.getElementById('marketDetailBody').innerHTML = `
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+      <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
+      ${fx ? `<span class="md-headline-change" style="color:${color};">${fx.change>=0?'▲':'▼'} ${fx.change>=0?'+':''}${fx.change.toFixed(4)} (${fx.changePct>=0?'+':''}${fx.changePct.toFixed(2)}%)</span>` : ''}
+    </div>
+    <div class="md-headline-label">Live rate${window.lastFxAsOf ? ' · ' + window.lastFxAsOf : ''}</div>
+    <div id="intradayChart"></div>
+    <div id="chartRangeBar"></div>
+  `;
+  chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
+    note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
+  renderActiveChart();
+}
+
 function closeMarketDetail(){
   document.getElementById('marketDetailModal').classList.remove('open');
   document.getElementById('marketDetailCard').classList.remove('wide');
@@ -1981,6 +2055,8 @@ function refreshOpenMarketDetailIfNeeded(){
     if(!renderPortfolioHeader()) return;
     marketDetailState.tickers = window.lastRows;
     renderMarketDetailTable();
+  } else if(key === 'fx'){
+    renderFxDetailHeader();
   }
   // 'networth' is intentionally excluded — it only refreshes on its own button click.
 }
@@ -2661,9 +2737,10 @@ function renderGauge(rows, totals){
       <div id="portfolioDetailTrigger" style="cursor:pointer;"><span class="glabel">Portfolio day change:</span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></div>
       <div id="ilDetailTrigger" style="cursor:pointer;"><span class="glabel">Israeli (TASE) day change:</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></div>
       <div id="usDetailTrigger" style="cursor:pointer;"><span class="glabel">USA day change:</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></div>
-      <div><span class="glabel">USD/ILS:</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></div>
+      <div id="fxDetailTrigger" style="cursor:pointer;" title="Open the USD/ILS chart"><span class="glabel">USD/ILS:</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></div>
     </div>
   `;
+  document.getElementById('fxDetailTrigger').addEventListener('click', ()=> openFxDetail());
   document.getElementById('portfolioDetailTrigger').addEventListener('click', ()=> openPortfolioDetail());
   document.getElementById('ilDetailTrigger').addEventListener('click', ()=> openMarketDetail('il'));
   document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
@@ -3612,7 +3689,7 @@ let _priceHistoryCache = null;
 function renderChartRangeBar(){
   const bar = document.getElementById('chartRangeBar');
   if(!bar) return;
-  bar.innerHTML = CHART_RANGES.map(r => `<button type="button" data-range="${r}" class="${r===chartRange?'active':''}" aria-pressed="${r===chartRange}">${r}</button>`).join('');
+  bar.innerHTML = ((chartCtx && chartCtx.ranges) || CHART_RANGES).map(r => `<button type="button" data-range="${r}" class="${r===chartRange?'active':''}" aria-pressed="${r===chartRange}">${r}</button>`).join('');
   bar.querySelectorAll('button').forEach(btn => btn.addEventListener('click', ()=>{
     if(btn.dataset.range === chartRange) return;
     chartRange = btn.dataset.range;
@@ -3624,7 +3701,7 @@ function renderChartRangeBar(){
 function renderActiveChart(){
   renderChartRangeBar();
   if(!chartCtx) return;
-  if(chartRange === '1D'){ chartCtx.renderDay(); return; }
+  if(chartRange === '1D' && chartCtx.renderDay){ chartCtx.renderDay(); return; }
   renderRangeChart(chartCtx, chartRange);
 }
 
@@ -3695,14 +3772,34 @@ function chartRangeStartMs(range){
   return d.getTime();
 }
 
+// ctx.priceColumn switches this from "portfolio value" to "one PriceHistory column as-is": the
+// USD/ILS window ('USDILS') and a ticker's own chart in Market Universe. Such a chart is always
+// daily closes -- its 5D is the last 5 of them -- plus ctx.liveValue as today's point, formatted
+// with ctx.fmtValue. ctx.chartElId / ctx.currentRange / ctx.height let it live outside the
+// detail window (Market Universe keeps its own range state).
 async function renderRangeChart(ctx, range){
-  const el = document.getElementById('intradayChart');
+  const el = document.getElementById(ctx.chartElId || 'intradayChart');
   if(!el) return;
+  const currentRange = () => ctx.currentRange ? ctx.currentRange() : chartRange;
   const msgHtml = (text, color) => `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:${color||'var(--muted)'}; padding:20px 0;">${text}</div>`;
   el.innerHTML = msgHtml('Loading chart…');
+  const intraday5D = range === '5D' && !ctx.priceColumn;
   let pts, note = '';
   try{
-    if(range === '5D'){
+    if(ctx.priceColumn){
+      const ph = await fetchPriceHistory();
+      const col = ph.cols[ctx.priceColumn];
+      if(!col){
+        if(currentRange() === range) el.innerHTML = msgHtml(`No price history for ${ctx.priceColumn} yet — add it to the History tab.`);
+        return;
+      }
+      const today = new Date(); today.setHours(12,0,0,0);
+      const series = ph.dates.map((t,i) => ({t, v: col[i]}))
+        .filter(p => !isNaN(p.v) && new Date(p.t).toDateString() !== today.toDateString());
+      if(typeof ctx.liveValue === 'number' && ctx.liveValue > 0) series.push({t: today.getTime(), v: ctx.liveValue});
+      pts = range === '5D' ? series.slice(-5) : series.filter(p => p.t >= chartRangeStartMs(range));
+      note = ctx.note || '';
+    } else if(range === '5D'){
       const raw = removeIntradaySpikes((await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now()));
       const dayKey = t => { const d = new Date(t); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); };
       const inSession = raw.filter(p => {
@@ -3729,11 +3826,11 @@ async function renderRangeChart(ctx, range){
     el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-5)');
     return;
   }
-  if(chartRange !== range) return;
+  if(currentRange() !== range) return;
   if(!pts || pts.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
 
-  const fmt = n => "₪" + Math.round(n).toLocaleString('en-US');
-  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30, padB = 26;
+  const fmt = ctx.fmtValue || (n => "₪" + Math.round(n).toLocaleString('en-US'));
+  const w = Math.max(el.clientWidth || 900, 280), h = ctx.height || intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30, padB = 26;
   const startV = pts[0].v, endV = pts[pts.length-1].v;
   const vals = pts.map(p => p.v);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
@@ -3771,14 +3868,14 @@ async function renderRangeChart(ctx, range){
   const tickLabel = t => new Date(t).toLocaleDateString('en-US', longRange ? {month:'short', year:'numeric'} : {month:'short', day:'numeric'});
   let tickIdx;
   if(range === '5D'){
-    tickIdx = pts.map((p,i) => i).filter(i => i === 0 || new Date(pts[i].t).toDateString() !== new Date(pts[i-1].t).toDateString());
+    tickIdx = pts.map((p,i) => i).filter(i => !intraday5D || i === 0 || new Date(pts[i].t).toDateString() !== new Date(pts[i-1].t).toDateString());
   } else {
     const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
     tickIdx = [...new Set(Array.from({length:n}, (_,k) => Math.round(k*(pts.length-1)/(n-1))))];
   }
   const xLabels = tickIdx.map((i,k) => {
-    const anchor = range === '5D' ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
-    const sep = range === '5D' && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
+    const anchor = intraday5D ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
+    const sep = intraday5D && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
     return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
   }).join('');
 
@@ -3815,7 +3912,7 @@ async function renderRangeChart(ctx, range){
   const hoverDot = el.querySelector('#rangeHoverDot');
   const defaultDot = el.querySelector('#rangeDefaultDot');
   const tt = document.getElementById('customTooltip');
-  const dateFmt = range === '5D'
+  const dateFmt = intraday5D
     ? {weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}
     : {weekday:'short', month:'short', day:'numeric', year:'numeric'};
   overlay.addEventListener('mousemove', (e)=>{
@@ -3827,7 +3924,7 @@ async function renderRangeChart(ctx, range){
     hoverDot.setAttribute('cx', pt.x.toFixed(1)); hoverDot.setAttribute('cy', pt.y.toFixed(1)); hoverDot.style.display = 'block';
     defaultDot.style.display = 'none';
     const c = changeVsStart(p), d = c.gain, dp = c.pct;
-    const isToday = range !== '5D' && idx === pts.length-1 && typeof ctx.liveValue === 'number';
+    const isToday = !intraday5D && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
       + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs start</div>`
       + (c.added > 0 ? `<div style="color:var(--muted); font-size:11px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
