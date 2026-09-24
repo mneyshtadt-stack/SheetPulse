@@ -1,5 +1,5 @@
 // TASE moved from Sunday-Thursday to Monday-Friday trading on 2026-01-05, and Friday runs a
-// shortened day (~9:55-13:50) instead of the usual 10:00-17:30.
+// shortened day (10:00-14:00) instead of the usual 10:00-17:30.
 function isTaseOpenNow() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'Asia/Jerusalem', 'EEE');
@@ -84,9 +84,10 @@ function usCloseInstant() {
 
 // Keeps the sheet down to the most recent INTRADAY_KEEP_DATES distinct trading dates found in it
 // (counted by dates actually present, so weekends need no special-casing: Saturday/Sunday never
-// log anything, so Friday's rows stay valid as "the previous date" straight through Monday). Anything older than that gets deleted. Rows are
-// always newest-first (each write does insertRowBefore(2)), so once a row older than the kept
-// dates is found, everything below it is old too -- one contiguous block.
+// log anything, so Friday's rows stay valid as "the previous date" straight through Monday).
+// Anything older than that gets deleted. Rows are always newest-first (each write does
+// insertRowBefore(2)), so once a row older than the kept dates is found, everything below it is
+// old too -- one contiguous block.
 // This used to just wipe everything the moment a new day's first row logged, but the USA-only
 // chart's own session doesn't start until ~16:30 -- wiping at TASE's 10:00 open destroyed
 // yesterday's data (including yesterday's full USA session) hours before the USA chart's own
