@@ -53,11 +53,12 @@ function isUsOpenGraceWindow() {
 // open-market guard has already turned off, silently dropping the actual closing reading. These
 // two functions define a short window right after each close where, once per day, we log one
 // final reading explicitly stamped at the true close time (not whenever this happened to run).
+// Friday's session (and isTaseOpenNow) runs to 14:00, so its close window starts right after that.
 function isTaseCloseGraceWindow() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'Asia/Jerusalem', 'EEE');
   const hm = Utilities.formatDate(now, 'Asia/Jerusalem', 'HHmm');
-  if (weekday === 'Fri') return hm > '1350' && hm <= '1400';
+  if (weekday === 'Fri') return hm > '1400' && hm <= '1410';
   const openDays = ['Mon', 'Tue', 'Wed', 'Thu'];
   return openDays.indexOf(weekday) !== -1 && hm > '1731' && hm <= '1741';
 }
@@ -65,7 +66,7 @@ function taseCloseInstant() {
   const now = new Date();
   const weekday = Utilities.formatDate(now, 'Asia/Jerusalem', 'EEE');
   const dateStr = Utilities.formatDate(now, 'Asia/Jerusalem', 'yyyy-MM-dd');
-  const closeTime = weekday === 'Fri' ? '13:50:00' : '17:30:00';
+  const closeTime = weekday === 'Fri' ? '14:00:00' : '17:30:00';
   return Utilities.parseDate(dateStr + ' ' + closeTime, 'Asia/Jerusalem', 'yyyy-MM-dd HH:mm:ss');
 }
 function isUsCloseGraceWindow() {
@@ -149,41 +150,13 @@ function isOutlierAndUnconfirmed(newValue, propKey) {
 // default — and matches the explicit dd/mm/yyyy parser the dashboard's chart code now expects.
 const TIMESTAMP_FORMAT = 'dd/mm/yyyy hh:mm:ss';
 
-// LastClose keeps a rolling window of the last 7 trading days, one row per calendar date (Israel
-// time), with columns Date / TASE market / USA market / USA market$ / USD/ILS Rate. A given day's
-// row often gets filled in twice (TASE's columns when it closes, USA's columns later, since they
-// close at different times) rather than all at once. USA market$ is read from the Tracker sheet's
-// own "Current Value ($)" column rather than derived by dividing the ILS total by the FX rate.
-// USD/ILS Rate is only ever written at USA's close (23:00), not TASE's -- it's meant to represent
-// the day's final rate, and TASE closing hours earlier isn't that. Pruned by row COUNT, not
-// calendar span -- since the trigger never fires Saturday/Sunday, this naturally holds the last 7
-// actual trading days.
-function setLastClose(market, timestamp, value, fxRate, usdValue) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName('LastClose');
-  if (!sheet) {
-    sheet = ss.insertSheet('LastClose');
-    sheet.appendRow(['Date', 'TASE market', 'USA market', 'USA market$', 'USD/ILS Rate']);
-  }
-  const dateStr = Utilities.formatDate(timestamp, 'Asia/Jerusalem', 'dd/MM/yyyy');
-  const col = market === 'IL' ? 2 : 3;
-  const data = sheet.getDataRange().getValues();
-  let rowIdx = -1;
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === dateStr) { rowIdx = i + 1; break; }
-  }
-  if (rowIdx === -1) {
-    sheet.appendRow([dateStr]);
-    rowIdx = sheet.getLastRow();
-  }
-  sheet.getRange(rowIdx, col).setValue(value);
-  if (market === 'US' && !isNaN(usdValue)) sheet.getRange(rowIdx, 4).setValue(usdValue);
-  if (market === 'US' && !isNaN(fxRate)) sheet.getRange(rowIdx, 5).setValue(fxRate);
-
-  const dataRows = sheet.getLastRow() - 1;
-  const excess = dataRows - 7;
-  if (excess > 0) sheet.deleteRows(2, excess);
-}
+// IntradayLog's columns. Each market's close is its own row, stamped exactly at the close (TASE
+// 17:30:00, 14:00:00 on Fridays; USA 16:00:00 New York time, normally 23:00:00 in Israel) and filled
+// green -- the dashboard reads each day's closes straight from those rows (they replaced the old
+// LastClose tab). USA Value ($) is USA's holdings in dollars (Tracker's "Current Value ($)"), which
+// the dashboard's Market Value (USD) tiles compare against.
+const INTRADAY_HEADER = ['Timestamp', 'IL Value', 'USD/ILS Rate', 'USA Value (ILS, live)', 'USA Value ($)'];
+const CLOSE_ROW_COLOR = '#00ff00';
 
 // One continuous log spanning both markets' full active hours (~09:59-23:10 Israel time),
 // replacing the old split of IntradayLogIL (TASE hours) + IntradayLogUS (USA hours) into two
@@ -205,7 +178,7 @@ function logIntradayValue() {
   const todayET = Utilities.formatDate(new Date(), 'America/New_York', 'yyyy-MM-dd');
 
   // Once a day, just before TASE opens: the opening reading, stamped 10:00:00. Its USD/ILS rate is
-  // the one the dashboard compares against LastClose's for the FX marker at the 10:00 point.
+  // the one the dashboard compares against the previous close's for the FX marker at 10:00.
   const taseOpenGrace = !isOpen && isTaseOpenGraceWindow() && props.getProperty('tase_open_logged_date') !== todayIL;
   // Normally TASE is still open when USA's pre-open window comes round, so the logger is running
   // anyway; on Fridays TASE has closed at 14:00, so let one regular row through in that window.
@@ -230,18 +203,25 @@ function logIntradayValue() {
   const headers = data[headerRowIdx];
   const cTicker = headers.indexOf('Ticker');
   const cValue = headers.indexOf('Current Value (ILS)');
+  const cValueUsd = headers.indexOf('Current Value ($)');
   if (cTicker === -1 || cValue === -1) throw new Error('Expected columns not found');
+  if (cValueUsd === -1) console.warn('Current Value ($) column not found. Sheet headers were:', headers);
 
   const israeliTickers = ['IBI.F35', 'IBI.FK4'];
   let ilValue = 0;
   let usValue = 0;
+  let usValueUsd = cValueUsd === -1 ? NaN : 0;
   for (let i = headerRowIdx + 1; i < data.length; i++) {
     const ticker = String(data[i][cTicker] || '').trim();
     if (!ticker) break;
     const v = Number(data[i][cValue]);
     if (isNaN(v)) continue;
-    if (israeliTickers.indexOf(ticker) !== -1) ilValue += v;
-    else usValue += v;
+    if (israeliTickers.indexOf(ticker) !== -1) { ilValue += v; continue; }
+    usValue += v;
+    if (cValueUsd !== -1) {
+      const u = Number(data[i][cValueUsd]);
+      if (!isNaN(u)) usValueUsd += u;
+    }
   }
 
   // A glitch in either segment's price feed shouldn't quietly corrupt the row -- hold the whole
@@ -251,53 +231,88 @@ function logIntradayValue() {
   const usOutlier = isOutlierAndUnconfirmed(usValue, 'us');
   if (ilOutlier || usOutlier) return;
 
-  let logSheet = ss.getSheetByName('IntradayLog');
-  if (!logSheet) {
-    logSheet = ss.insertSheet('IntradayLog');
-    logSheet.appendRow(['Timestamp', 'IL Value', 'USD/ILS Rate', 'USA Value (ILS, live)']);
-  }
-  // Column C used to carry a rate on just two rows a day (each market's open); it now holds the
-  // live rate on every row -- the dashboard's intraday USD/ILS chart, and the FX markers pick the
-  // row closest to each open themselves.
-  if (logSheet.getRange(1, 3).getValue() !== 'USD/ILS Rate') logSheet.getRange(1, 3).setValue('USD/ILS Rate');
+  const logSheet = intradayLogSheet_(ss);
   pruneOldRows(logSheet, 'Asia/Jerusalem');
   logSheet.insertRowBefore(2);
   logSheet.getRange(2, 1).setNumberFormat(TIMESTAMP_FORMAT);
   const tsValue = taseGrace ? taseCloseInstant() : (usGrace ? usCloseInstant() : (taseOpenGrace ? taseOpenInstant() : new Date()));
   // Rounded to 4 decimals, the precision the dashboard shows USD/ILS at everywhere.
   const liveRate = Math.round(Number(tracker.getRange(1, 17).getValue()) * 10000) / 10000; // Q1
-  logSheet.getRange(2, 1, 1, 4).setValues([[tsValue, ilValue, isNaN(liveRate) ? '' : liveRate, usValue]]);
+  logSheet.getRange(2, 1, 1, 5).setValues([[tsValue, ilValue, isNaN(liveRate) ? '' : liveRate, usValue, isNaN(usValueUsd) ? '' : usValueUsd]]);
   logSheet.getRange(2, 3).setNumberFormat('0.0000');
+  // Explicitly set every time: a newly inserted row picks up the formatting of the row below it,
+  // which would otherwise spread a close row's green onto the next day's first rows.
+  logSheet.getRange(2, 1, 1, INTRADAY_HEADER.length).setBackground(taseGrace || usGrace ? CLOSE_ROW_COLOR : null);
 
   if (taseOpenGrace) props.setProperty('tase_open_logged_date', todayIL);
   if (usPreOpen) props.setProperty('us_preopen_logged_date', todayIL);
+  if (taseGrace) props.setProperty('tase_close_logged_date', todayIL);
+  if (usGrace) props.setProperty('us_close_logged_date', todayET);
+}
 
-  if (taseGrace) {
-    props.setProperty('tase_close_logged_date', todayIL);
-    setLastClose('IL', taseCloseInstant(), ilValue); // no fxRate -- USD/ILS Rate is only written at USA's close
+function intradayLogSheet_(ss) {
+  let sheet = ss.getSheetByName('IntradayLog');
+  if (!sheet) {
+    sheet = ss.insertSheet('IntradayLog');
+    sheet.appendRow(INTRADAY_HEADER);
+  } else if (sheet.getRange(1, 1, 1, INTRADAY_HEADER.length).getValues()[0].join('|') !== INTRADAY_HEADER.join('|')) {
+    sheet.getRange(1, 1, 1, INTRADAY_HEADER.length).setValues([INTRADAY_HEADER]);
   }
-  if (usGrace) {
-    props.setProperty('us_close_logged_date', todayET);
-    const fxRate = Number(tracker.getRange(1, 17).getValue()); // Q1
+  return sheet;
+}
 
-    // USA market$ is only ever needed once a day here, at the close — this second pass over the
-    // already-fetched `data` sums Current Value ($) for the same US tickers, kept entirely
-    // separate from the main loop above so the per-tick chart-logging path is untouched.
-    const cValueUsd = headers.indexOf('Current Value ($)');
-    let usValueUsd = NaN;
-    if (cValueUsd !== -1) {
-      usValueUsd = 0;
-      for (let i = headerRowIdx + 1; i < data.length; i++) {
-        const ticker = String(data[i][cTicker] || '').trim();
-        if (!ticker) break;
-        if (israeliTickers.indexOf(ticker) === -1) {
-          const v = Number(data[i][cValueUsd]);
-          if (!isNaN(v)) usValueUsd += v;
-        }
+// One-time, after pasting this version: copies what only the old LastClose tab had -- each day's
+// USA value in dollars and its closing USD/ILS rate -- onto that day's USA close row in
+// IntradayLog, and fills every existing close row green. Afterwards the LastClose tab can be
+// deleted. Safe to re-run: it only fills cells that are still blank.
+function migrateLastCloseIntoIntradayLog() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const log = intradayLogSheet_(ss);
+  if (log.getLastRow() < 2) return;
+  const tz = 'Asia/Jerusalem';
+  const rows = log.getRange(2, 1, log.getLastRow() - 1, INTRADAY_HEADER.length).getValues();
+  const dayOf = t => Utilities.formatDate(t, tz, 'yyyy-MM-dd');
+  const usCloseFor = day => Utilities.parseDate(day + ' 16:00:00', 'America/New_York', 'yyyy-MM-dd HH:mm:ss');
+  const taseCloseFor = (day, t) => Utilities.parseDate(day + (Utilities.formatDate(t, tz, 'EEE') === 'Fri' ? ' 14:00:00' : ' 17:30:00'), tz, 'yyyy-MM-dd HH:mm:ss');
+
+  // The close row of a given day: the last row at or just after (within a minute of) the close.
+  const closeRowIndex = (day, closeMs) => {
+    let best = -1;
+    rows.forEach((r, i) => {
+      if (!(r[0] instanceof Date) || dayOf(r[0]) !== day) return;
+      const t = r[0].getTime();
+      if (t <= closeMs + 60000 && (best === -1 || t > rows[best][0].getTime())) best = i;
+    });
+    return best;
+  };
+
+  let colored = 0;
+  const days = [...new Set(rows.filter(r => r[0] instanceof Date).map(r => dayOf(r[0])))];
+  days.forEach(day => {
+    const sample = rows.find(r => r[0] instanceof Date && dayOf(r[0]) === day)[0];
+    [taseCloseFor(day, sample).getTime(), usCloseFor(day).getTime()].forEach(closeMs => {
+      const i = closeRowIndex(day, closeMs);
+      if (i !== -1 && Math.abs(rows[i][0].getTime() - closeMs) <= 60000) {
+        log.getRange(i + 2, 1, 1, INTRADAY_HEADER.length).setBackground(CLOSE_ROW_COLOR);
+        colored++;
       }
-    } else {
-      console.warn('Current Value ($) column not found. Sheet headers were:', headers);
-    }
-    setLastClose('US', usCloseInstant(), usValue, fxRate, usValueUsd);
+    });
+  });
+
+  let filled = 0;
+  const lc = ss.getSheetByName('LastClose');
+  if (lc && lc.getLastRow() > 1) {
+    lc.getRange(2, 1, lc.getLastRow() - 1, 5).getValues().forEach(r => {
+      const m = String(r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'dd/MM/yyyy') : r[0]).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) return;
+      const day = m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
+      const i = closeRowIndex(day, usCloseFor(day).getTime());
+      if (i === -1) return;
+      const usd = Number(r[3]), rate = Number(r[4]);
+      if (rows[i][4] === '' && r[3] !== '' && !isNaN(usd)) { log.getRange(i + 2, 5).setValue(usd); filled++; }
+      if (rows[i][2] === '' && r[4] !== '' && !isNaN(rate)) { log.getRange(i + 2, 3).setValue(rate).setNumberFormat('0.0000'); filled++; }
+    });
   }
+  console.log('IntradayLog: ' + colored + ' close row(s) filled green, ' + filled + ' value(s) copied from LastClose'
+    + (lc ? '' : ' (no LastClose tab found)'));
 }
