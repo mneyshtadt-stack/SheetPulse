@@ -797,7 +797,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790261108";
+const BUILD_ID = "1790261685";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1879,29 +1879,47 @@ const FX_CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
 function openFxDetail(){
   chartRange = '1D';
   marketDetailState = {marketKey:'fx', tickers:[], sortKey:'value', sortDir:-1, filter:''};
-  renderFxDetailHeader();
+  document.getElementById('marketDetailBody').innerHTML = '';
   document.getElementById('marketDetailModal').classList.add('open');
   startMarketDetailAutoRefresh();
+  renderFxDetailHeader();
 }
-function renderFxDetailHeader(){
+async function renderFxDetailHeader(){
   document.getElementById('marketDetailTitle').textContent = 'USD/ILS';
   document.getElementById('marketDetailSubtitle').textContent = 'US dollar in Israeli shekels';
   hideNwYearSwitcher();
   const rate = window.lastFxRate;
-  const fx = rate ? getFxDayChange(rate) : null;
-  const color = fx && fx.change < 0 ? 'var(--down-5)' : 'var(--up-5)';
+  // Previous close: PriceHistory's last USD/ILS close before today -- the same data as the longer
+  // ranges, and the reference Google Finance uses. The sheet's own Q2 change is only a fallback;
+  // it can lag well behind the live rate.
+  let prevClose;
+  try{
+    const ph = await fetchPriceHistory();
+    const col = ph.cols['USDILS'] || [];
+    const todayNoon = new Date(); todayNoon.setHours(12,0,0,0);
+    for(let i = ph.dates.length-1; i >= 0; i--){
+      if(ph.dates[i] < todayNoon.getTime() && col[i] > 0){ prevClose = col[i]; break; }
+    }
+  } catch(e){ /* fall back below */ }
+  if(!(prevClose > 0) && rate) prevClose = rate - getFxDayChange(rate).change;
+  if(marketDetailState.marketKey !== 'fx') return;
+  const change = (rate && prevClose > 0) ? rate - prevClose : null;
+  const changePct = change !== null ? change / prevClose * 100 : 0;
+  const color = change !== null && change < 0 ? 'var(--down-5)' : 'var(--up-5)';
   document.getElementById('marketDetailBody').innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
       <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
-      ${fx ? `<span class="md-headline-change" style="color:${color};">${fx.change>=0?'▲':'▼'} ${fx.change>=0?'+':''}${fx.change.toFixed(4)} (${fx.changePct>=0?'+':''}${fx.changePct.toFixed(2)}%)</span>` : ''}
+      ${change !== null ? `<span class="md-headline-change" style="color:${color};">${change>=0?'▲':'▼'} ${change>=0?'+':''}${change.toFixed(4)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%)</span>` : ''}
     </div>
-    <div class="md-headline-label">Live rate${window.lastFxAsOf ? ' · ' + window.lastFxAsOf : ''}</div>
+    <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) : ''}</div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
   `;
+  const {y, m, d} = todayInZone('Asia/Jerusalem');
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
-    fetchIntradayRaw: fetchIntradayFxRaw, prevClose: (rate && fx) ? rate - fx.change : undefined,
-    intradayNote: 'Live rate logged about every 5 minutes (IntradayLog); compared with the previous close, the same reference as the change above.',
+    fetchIntradayRaw: fetchIntradayFxRaw, prevClose,
+    dayStart: zonedTimeToMs(y, m, d, 10, 0, 'Asia/Jerusalem'), dayEnd: zonedTimeToMs(y, m, d, 23, 10, 'Asia/Jerusalem'),
+    intradayNote: 'Live rate logged about every 5 minutes (IntradayLog), from 10:00 to 23:10; compared with the previous close.',
     note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
   renderActiveChart();
 }
@@ -3877,8 +3895,14 @@ async function renderRangeChart(ctx, range){
     const gain = p.v - startV - added;
     return {gain, pct: (startV + added) ? gain / (startV + added) * 100 : 0, added};
   };
-  // Evenly spaced by point, not by clock time, so nights and weekends don't leave gaps.
-  const xFor = i => padL + (pts.length > 1 ? i/(pts.length-1) : 0) * (w - padL - padR);
+  // 1D runs on a real time axis across the whole logging day (ctx.dayStart..ctx.dayEnd), so the
+  // rest of the day shows as empty space; every other range is spaced evenly by point, so nights
+  // and weekends don't leave gaps.
+  const timeAxis = range === '1D';
+  const tA = timeAxis ? Math.min(pts[0].t, ctx.dayStart || pts[0].t) : 0;
+  const tB = timeAxis ? Math.max(pts[pts.length-1].t, ctx.dayEnd || pts[pts.length-1].t) : 1;
+  const xAt = t => padL + ((t - tA) / ((tB - tA) || 1)) * (w - padL - padR);
+  const xFor = i => timeAxis ? xAt(pts[i].t) : padL + (pts.length > 1 ? i/(pts.length-1) : 0) * (w - padL - padR);
   const yFor = v => h - padB - ((v - yMin)/(yMax - yMin)) * (h - padT - padB);
   const points = pts.map((p,i) => ({x: xFor(i), y: yFor(p.v)}));
   const total = changeVsStart(pts[pts.length-1]);
@@ -3904,7 +3928,10 @@ async function renderRangeChart(ctx, range){
     const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
     tickIdx = [...new Set(Array.from({length:n}, (_,k) => Math.round(k*(pts.length-1)/(n-1))))];
   }
-  const xLabels = tickIdx.map((i,k) => {
+  const xLabels = timeAxis
+    ? roundTicksInZone(tA, tB, 'Asia/Jerusalem', (w - padL - padR) > 900 ? 60 : 120).map(ms =>
+        `<text x="${xAt(ms).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="middle" ${font}>${tickLabel(ms)}</text>`).join('')
+    : tickIdx.map((i,k) => {
     const anchor = intraday5D ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
     const sep = intraday5D && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
     return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
@@ -3949,7 +3976,9 @@ async function renderRangeChart(ctx, range){
   overlay.addEventListener('mousemove', (e)=>{
     const rect = svgEl.getBoundingClientRect();
     const mx = (e.clientX - rect.left) * (w / rect.width);
-    const idx = Math.max(0, Math.min(pts.length-1, Math.round((mx - padL) / (w - padL - padR) * (pts.length-1))));
+    const idx = timeAxis
+      ? points.reduce((best, p, i) => Math.abs(p.x - mx) < Math.abs(points[best].x - mx) ? i : best, 0)
+      : Math.max(0, Math.min(pts.length-1, Math.round((mx - padL) / (w - padL - padR) * (pts.length-1))));
     const p = pts[idx], pt = points[idx];
     guide.setAttribute('x1', pt.x.toFixed(1)); guide.setAttribute('x2', pt.x.toFixed(1)); guide.style.display = 'block';
     hoverDot.setAttribute('cx', pt.x.toFixed(1)); hoverDot.setAttribute('cy', pt.y.toFixed(1)); hoverDot.style.display = 'block';
