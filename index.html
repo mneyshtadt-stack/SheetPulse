@@ -901,7 +901,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790340867";
+const BUILD_ID = "1790340967";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1175,7 +1175,7 @@ const TROUBLESHOOTING = [
     intro: 'Start here: two snapshots that cover the usual suspects in one paste each.',
     cmds: [
       {name: 'Health snapshot', note: 'Uptime, memory, disk, failed services, the four key services, clock sync (sign-in tokens fail if the clock drifts), whether earlier boots are logged, and whether a reboot is pending.', cmd: `echo "== uptime"; uptime; echo "== memory"; free -h | head -3; echo "== disk"; df -h / | tail -1; echo "== failed services"; systemctl --failed --no-legend; echo "== services"; for s in sheet-proxy caddy docker fail2ban; do printf '%-12s %s\\n' $s $(systemctl is-active $s); done; echo "== clock"; timedatectl | grep -E 'synchronized|NTP'; echo "== boots in log: $(sudo journalctl --list-boots | wc -l)"; echo "== reboot needed: $([ -f /var/run/reboot-required ] && echo yes || echo no)"`},
-      {name: 'Security snapshot', note: 'Expect 600 on both files, permitrootlogin no, rpcbind inactive, and 0 upgradable.', cmd: `stat -c '%a %n' ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env; sudo sshd -T | grep -i permitrootlogin; echo "rpcbind: $(systemctl is-active rpcbind)"; echo "upgradable: $(apt list --upgradable 2>/dev/null | grep -c upgradable)"`},
+      {name: 'Security snapshot', note: 'Expect 600 on both files, permitrootlogin no, rpcbind inactive, and 0 upgradable — or only updates apt lists as "deferred due to phasing" (Ubuntu rolls those out gradually; they install by themselves within days).', cmd: `stat -c '%a %n' ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env; sudo sshd -T | grep -i permitrootlogin; echo "rpcbind: $(systemctl is-active rpcbind)"; echo "upgradable: $(apt list --upgradable 2>/dev/null | grep -c upgradable)"`},
     ]},
   {title: 'Memory and load', where: 'putty',
     intro: 'The VM has 1 GB of memory. Without swap, running low makes Linux re-read program files from disk over and over ("thrashing") until nothing answers — SSH included — often without any out-of-memory message.',
@@ -1241,6 +1241,7 @@ const TROUBLESHOOTING = [
       {name: 'Update everything and restart the proxy', cmd: `sudo apt update && sudo apt upgrade -y && sudo systemctl restart sheet-proxy`},
       {name: '"Could not get lock" — who holds it?', note: 'Usually Ubuntu\'s own automatic update; never delete the lock file. Nothing listed = it has finished.', cmd: `ps aux | grep -E '[a]pt|[u]nattended|[d]pkg'`},
       {name: 'Wait for the automatic update, then update', cmd: `while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do echo "$(date +%T) waiting for the automatic update to finish..."; sleep 15; done; sudo apt update && sudo apt upgrade -y && sudo systemctl restart sheet-proxy && echo "reboot needed: $([ -f /var/run/reboot-required ] && echo yes || echo no)"`},
+      {name: 'Remove old kernels and unused packages', note: 'When apt says packages "are no longer required". Never removes the kernel that\'s running.', cmd: `sudo apt autoremove -y && df -h / | tail -1`},
       {name: 'Is a reboot needed?', cmd: `[ -f /var/run/reboot-required ] && echo "Reboot needed" || echo "No reboot needed"`},
     ]},
 ];
