@@ -229,6 +229,19 @@
   #universeQuoteCard .uq-ext-label svg{width:13px; height:13px; flex-shrink:0;}
   @media (max-width:600px){ #universeQuoteCard .uq-ext{margin-left:0; padding-left:0; border-left:none;} }
   #marketDetailSearchWrap{margin-top:16px;}
+  /* Portfolio window: Holdings | Pre-Market tabs under the chart */
+  .md-tabs{display:flex; gap:2px; margin-top:18px; border-bottom:1px solid var(--line);}
+  .md-tab{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--muted); background:none; border:none;
+    border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px 8px; cursor:pointer;
+  }
+  .md-tab:hover{color:var(--ink);}
+  .md-tab.active{color:var(--ink); font-weight:600; border-bottom-color:var(--accent);}
+  #mdPremarketArea{padding-top:12px;}
+  #premarketTreemap{position:relative; width:100%;}
+  .pm-note{font-size:12.5px; color:var(--muted); padding:18px 0; line-height:1.5;}
+  .pm-summary{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline; font-size:13px; color:var(--ink);}
+  .pm-session{font-weight:600; cursor:help;}
   #marketDetailSearch{
     width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
@@ -916,7 +929,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790342463";
+const BUILD_ID = "1790342733";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1944,24 +1957,36 @@ function hideUniverseQuoteCard(){
 // Also re-run once Market Universe's rows finish loading, since the card can open before they do.
 let universeCardTicker = null;
 const extSymbolKey = t => String(t || '').split(':').pop().trim().toUpperCase();
+const extNyDay = d => d.toLocaleDateString('en-CA', {timeZone:'America/New_York'});
+
+// A Market Universe row's extended-hours quote if it's still current, else null. A pre-market
+// figure only means something until that same day's regular open (09:30 New York) -- the logger
+// clears it then, and this guards against a stale one if the logger stops running. After-hours
+// figures stay valid until the next pre-market replaces them.
+function extQuoteFor(u){
+  const updated = u && u.extUpdated ? new Date(u.extUpdated) : null;
+  if(!(u && u.extPrice > 0 && u.extSession && updated && !isNaN(updated.getTime()))) return null;
+  const now = new Date();
+  const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hour12:false}).replace(':', ''));
+  if(u.extSession === 'Pre-market' && (extNyDay(updated) !== extNyDay(now) || nyHm >= 930)) return null;
+  return {price: u.extPrice, change: u.extChange, pct: u.extPct, session: u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours', updated};
+}
+// "9:17 AM" New York time, with the date in front when it isn't today there ("Sep 26, 7:59 PM").
+function extTimeLabel(updated){
+  const t = updated.toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'});
+  return extNyDay(updated) !== extNyDay(new Date())
+    ? updated.toLocaleDateString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric'}) + ', ' + t : t;
+}
+
 function renderUniverseQuoteExt(){
   const el = document.getElementById('uqExt');
   if(!el || !universeCardTicker) return;
-  const u = universeRows.find(r => extSymbolKey(r.ticker) === extSymbolKey(universeCardTicker));
-  const updated = u && u.extUpdated ? new Date(u.extUpdated) : null;
-  const ok = u && u.extPrice > 0 && u.extSession && updated && !isNaN(updated.getTime());
-  const nyDay = d => d.toLocaleDateString('en-CA', {timeZone:'America/New_York'});
-  const now = new Date();
-  // A pre-market figure only means something until that same day's regular open (09:30 New York);
-  // the logger clears it then, and this guards against a stale one if the logger stops running.
-  const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hour12:false}).replace(':', ''));
-  const stalePre = ok && u.extSession === 'Pre-market' && (nyDay(updated) !== nyDay(now) || nyHm >= 930);
-  if(!ok || stalePre){ el.style.display = 'none'; return; }
+  const q = extQuoteFor(universeRows.find(r => extSymbolKey(r.ticker) === extSymbolKey(universeCardTicker)));
+  if(!q){ el.style.display = 'none'; return; }
+  const u = {extPrice: q.price, extChange: q.change, extPct: q.pct, extSession: q.session};
+  const updated = q.updated;
 
   const up = !(u.extChange < 0);
-  const nyTime = updated.toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'});
-  const dayPrefix = nyDay(updated) !== nyDay(now)
-    ? updated.toLocaleDateString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric'}) + ', ' : '';
   const ilTime = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit'});
   const chg = isNaN(u.extChange) ? '' : ` (${u.extChange >= 0 ? '+' : '−'}${Math.abs(u.extChange).toFixed(2)})`;
   const pct = isNaN(u.extPct) ? '' : `${u.extPct >= 0 ? '+' : '−'}${Math.abs(u.extPct).toFixed(2)}%`;
@@ -1974,7 +1999,7 @@ function renderUniverseQuoteExt(){
     </span>
     <span class="uq-ext-label" title="New York time (${ilTime} Israel time) — from Google Finance">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-      ${u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours'} · ${dayPrefix}${nyTime}
+      ${u.extSession} · ${extTimeLabel(updated)}
     </span>`;
   el.style.display = '';
 }
@@ -2574,6 +2599,23 @@ async function renderFxDetailHeader(){
   renderActiveChart();
 }
 
+// Treemap tile colors by % change -- five shades each way, full strength at ±2.5%. Shared by the
+// main treemap (today's change) and the Portfolio window's Pre-Market map.
+function tileColorFor(c){
+  const g = ["var(--up-1)","var(--up-2)","var(--up-3)","var(--up-4)","var(--up-5)"];
+  const r = ["var(--down-1)","var(--down-2)","var(--down-3)","var(--down-4)","var(--down-5)"];
+  if(isNaN(c)) return "var(--flat)";
+  const a = Math.min(Math.abs(c)/2.5,1);
+  const idx = Math.min(Math.floor(a*4),4);
+  return c >= 0 ? g[idx] : r[idx];
+}
+function tileTextColorFor(c){
+  if(isNaN(c)) return "#4a463c";
+  const a = Math.min(Math.abs(c)/2.5,1);
+  if(a < 0.5) return c >= 0 ? "#27500a" : "#791f1f";
+  return "#ffffff";
+}
+
 function closeMarketDetail(){
   document.getElementById('marketDetailModal').classList.remove('open');
   document.getElementById('marketDetailCard').classList.remove('wide');
@@ -2647,8 +2689,18 @@ function renderPortfolioHeader(){
     </div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
+    <div class="md-tabs" role="tablist">
+      <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
+      <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
+    </div>
     <div id="marketDetailTableArea"></div>
+    <div id="mdPremarketArea" style="display:none;"></div>
   `;
+  body.querySelectorAll('.md-tab').forEach(b => b.addEventListener('click', () => {
+    portfolioTab = b.dataset.tab;
+    applyPortfolioTab();
+  }));
+  applyPortfolioTab();
   attachHoverTooltip(document.getElementById('mdDayChangeAsOf'), () => {
     const prevClose = totals.totalValue - totals.dayGain;
     const ilPart = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : null;
@@ -2697,8 +2749,124 @@ function renderPortfolioHeader(){
   return true;
 }
 
+// ---- Portfolio window tabs: Holdings (the table) | Pre-Market (treemap) ----
+// The header is rebuilt on every background refresh; the chosen tab survives that and is only
+// reset to Holdings when the window is opened again.
+let portfolioTab = 'holdings';
+let premarketFetchedAt = 0;
+function applyPortfolioTab(){
+  const table = document.getElementById('marketDetailTableArea');
+  const pre = document.getElementById('mdPremarketArea');
+  if(!table || !pre) return;
+  document.querySelectorAll('#marketDetailBody .md-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === portfolioTab));
+  table.style.display = portfolioTab === 'holdings' ? '' : 'none';
+  pre.style.display = portfolioTab === 'premarket' ? '' : 'none';
+  if(portfolioTab === 'premarket') renderPremarketTab();
+}
+
+// Treemap of the holdings that have a pre-market (or after-hours) trade right now: box size = the
+// holding's weight in the portfolio, color = its extended-hours % change. Holdings without such a
+// trade -- the TASE funds, quiet ETFs -- get no box; the summary line says how many are shown.
+// Prices come from the Ext columns ExtendedHours.gs keeps in the Investment Universe tab.
+async function renderPremarketTab(){
+  const area = document.getElementById('mdPremarketArea');
+  if(!area) return;
+  // Background refreshes and resizes re-run this; re-read the sheet at most once a minute.
+  if(Date.now() - premarketFetchedAt > 60000){
+    if(!area.childElementCount) area.innerHTML = `<div class="pm-note">Loading pre-market prices…</div>`;
+    try{
+      universeRows = await fetchUniverseRows();
+      premarketFetchedAt = Date.now();
+    } catch(e){
+      area.innerHTML = `<div class="pm-note">Could not load pre-market prices (${e.message}).</div>`;
+      return;
+    }
+    if(portfolioTab !== 'premarket' || !document.getElementById('mdPremarketArea')) return;
+  }
+  drawPremarketTreemap(area);
+}
+
+function drawPremarketTreemap(area){
+  const rows = window.lastRows || [];
+  const totals = window.lastTotals;
+  const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const byKey = {};
+  universeRows.forEach(u => { byKey[extSymbolKey(u.ticker)] = u; });
+  const usRows = rows.filter(r => !ISRAELI_TICKERS.includes(r.name) && r.value > 0);
+  const items = [];
+  usRows.forEach(r => {
+    const q = extQuoteFor(byKey[extSymbolKey(r.name)]);
+    if(q && !isNaN(q.pct)) items.push({row: r, name: r.name, value: r.value, q, ilsChange: r.value * q.pct / 100});
+  });
+
+  if(!items.length){
+    area.innerHTML = `<div class="pm-note">No pre-market or after-hours trades to show right now.
+      <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance via ExtendedHours.gs every 5 minutes.</div></div>`;
+    return;
+  }
+
+  // The newest reading's session and time head the map; the weighted move is over the boxes shown.
+  const latest = items.reduce((a, b) => (b.q.updated > a.q.updated ? b : a));
+  const shownValue = items.reduce((s, it) => s + it.value, 0);
+  const moveIls = items.reduce((s, it) => s + it.ilsChange, 0);
+  const movePct = shownValue ? moveIls / shownValue * 100 : 0;
+  const cls = movePct >= 0 ? 'up' : 'down';
+  const ilTime = latest.q.updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit'});
+  area.innerHTML = `
+    <div class="pm-summary">
+      <span class="pm-session" title="New York time (${ilTime} Israel time) — from Google Finance">${latest.q.session} · ${extTimeLabel(latest.q.updated)}</span>
+      <span>${items.length} of ${usRows.length} US holdings traded</span>
+      <span>Weighted move <b class="${cls}">${movePct >= 0 ? '+' : '−'}${Math.abs(movePct).toFixed(2)}%</b>
+        <span class="${cls}">(≈ ${moveIls >= 0 ? '+' : '−'}${fmtIlsSmart(moveIls)})</span></span>
+    </div>
+    <p class="chart-note" style="margin:2px 0 8px;">Box size = the holding's weight in your portfolio. Color = its ${latest.q.session.toLowerCase()} change vs. the last regular close. Holdings without a ${latest.q.session.toLowerCase()} trade aren't shown.</p>
+    <div id="premarketTreemap"></div>`;
+
+  const tmEl = document.getElementById('premarketTreemap');
+  const tmW = tmEl.clientWidth || 800;
+  const tmH = Math.min(900, Math.max(320, Math.round(380 * 1000 / Math.max(tmW, 1))));
+  tmEl.style.height = tmH + 'px';
+  const root = d3.hierarchy({children: items}).sum(d => d.value).sort((a, b) => b.value - a.value);
+  d3.treemap().size([tmW, tmH]).paddingInner(2).paddingOuter(1)(root);
+  const tt = document.getElementById('customTooltip');
+  root.leaves().forEach(n => {
+    const d = n.data, w = n.x1 - n.x0, h = n.y1 - n.y0;
+    const pct = d.q.pct, up = pct >= 0;
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.style.cssText = `left:${n.x0}px; top:${n.y0}px; width:${Math.max(w,0)}px; height:${Math.max(h,0)}px; background:${tileColorFor(pct)}; cursor:pointer;`;
+    const tc = tileTextColorFor(pct);
+    let inner = '';
+    if(w > 26 && h > 16){
+      inner += `<div class="t-name" style="color:${tc}; font-size:${Math.min(13, Math.max(9, w/6))}px">${d.name}</div>`;
+      if(w > 64 && h > 32) inner += `<div style="color:${tc}; font-size:${Math.min(10, Math.max(7, w/11))}px; white-space:nowrap;">${up?'+':''}${pct.toFixed(2)}% (${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)})</div>`;
+      if(w > 72 && h > 44) inner += `<div style="color:${tc}; opacity:0.85; font-size:${Math.min(10, Math.max(7, w/9))}px; white-space:nowrap;">$${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>`;
+    }
+    tile.innerHTML = inner;
+    const tName = TICKER_NAME_MAP[d.name];
+    const chg = isNaN(d.q.change) ? '' : ` (${d.q.change >= 0 ? '+' : '−'}$${Math.abs(d.q.change).toFixed(2)})`;
+    const tipHtml = `<b>${d.name}</b>${tName ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>` : ''}`
+      + `${d.q.session}: $${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} <span class="${up?'up':'down'}">${up?'+':'−'}${Math.abs(pct).toFixed(2)}%${chg}</span>`
+      + `<br>≈ <span class="${d.ilsChange>=0?'up':'down'}">${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)}</span> on ${fmt(d.value)}`
+      + (totals && totals.totalValue ? ` (${(d.value / totals.totalValue * 100).toFixed(2)}% of portfolio)` : '')
+      + `<br><span style="color:var(--muted); font-size:11px;">${extTimeLabel(d.q.updated)} New York · double-click for Market Universe</span>`;
+    tile.addEventListener('mouseenter', () => { tt.innerHTML = tipHtml; tt.style.display = 'block'; });
+    tile.addEventListener('mousemove', e => {
+      const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+      let x = e.clientX + 14, y = e.clientY + 14;
+      if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+      if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+      tt.style.left = x + 'px'; tt.style.top = y + 'px';
+    });
+    tile.addEventListener('mouseleave', () => { tt.style.display = 'none'; });
+    tile.addEventListener('dblclick', () => { tt.style.display = 'none'; openUniverseForTicker(d.row); });
+    tmEl.appendChild(tile);
+  });
+}
+
 function openPortfolioDetail(){
   chartRange = '1D';
+  portfolioTab = 'holdings';
   if(!renderPortfolioHeader()) return;
 
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -4683,20 +4851,7 @@ function render(rows, totals){
       + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; max-width:300px;">The treemap and holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
   }
 
-  function colorFor(c){
-    const g = ["var(--up-1)","var(--up-2)","var(--up-3)","var(--up-4)","var(--up-5)"];
-    const r = ["var(--down-1)","var(--down-2)","var(--down-3)","var(--down-4)","var(--down-5)"];
-    if(isNaN(c)) return "var(--flat)";
-    const a = Math.min(Math.abs(c)/2.5,1);
-    const idx = Math.min(Math.floor(a*4),4);
-    return c >= 0 ? g[idx] : r[idx];
-  }
-  function textColorFor(c){
-    if(isNaN(c)) return "#4a463c";
-    const a = Math.min(Math.abs(c)/2.5,1);
-    if(a < 0.5) return c >= 0 ? "#27500a" : "#791f1f";
-    return "#ffffff";
-  }
+  const colorFor = tileColorFor, textColorFor = tileTextColorFor;
   function fmtShort(n){
     return "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
   }
