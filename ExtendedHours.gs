@@ -3,10 +3,15 @@
 // attribute -- its "price" stays at the last regular close until the next open -- but the quote
 // page shows the extended-hours trade right under the regular price, and that part is plain HTML.
 //
-// Writes five columns into the Investment Universe tab (created at its right edge if missing), for
+// Google Finance is the primary source; for any ticker it gives nothing for (page failed, no
+// extended-hours block, or a layout change broke the parsing) Yahoo Finance's chart data is tried
+// as a backup. Yahoo is unofficial and can throttle, so it's never the first choice.
+//
+// Writes six columns into the Investment Universe tab (created at its right edge if missing), for
 // each current US holding in the Tracker:
-//   Ext Price | Ext Change | Ext Change % | Ext Session | Ext Updated
-//   (vs. the last regular close; "Pre-market" / "After hours"; ISO time of the reading, UTC)
+//   Ext Price | Ext Change | Ext Change % | Ext Session | Ext Updated | Ext Source
+//   (vs. the last regular close; "Pre-market" / "After hours"; ISO time of the reading, UTC;
+//    "Google" / "Yahoo")
 // Pre-market values are cleared once the regular session opens; after-hours values stay up
 // overnight (and over the weekend) until the next pre-market replaces them -- as Google shows them.
 //
@@ -17,7 +22,7 @@
 //   3. Run installExtendedHoursTrigger() -- repeats it every 5 minutes.
 
 const EXT_SHEET = 'Investment Universe';
-const EXT_HEADERS = ['Ext Price', 'Ext Change', 'Ext Change %', 'Ext Session', 'Ext Updated'];
+const EXT_HEADERS = ['Ext Price', 'Ext Change', 'Ext Change %', 'Ext Session', 'Ext Updated', 'Ext Source'];
 // Tried in this order to find a bare ticker's listing; the answer is remembered per ticker.
 const EXT_EXCHANGES = ['NASDAQ', 'NYSEARCA', 'NYSE', 'BATS', 'NYSEAMERICAN'];
 const EXT_BATCH = 6;             // pages fetched in parallel (each is ~1.3 MB)
@@ -57,18 +62,38 @@ function updateExtendedHours() {
   const symbols = extResolveSymbols_(extUsHoldings_(ss), props);
   const results = {};
   const nowIso = Utilities.formatDate(new Date(), 'UTC', "yyyy-MM-dd'T'HH:mm:ss'Z'");
+  const put = (ticker, q, source) => {
+    results[extKey_(ticker)] = [q.price, q.change, q.pct, q.session, nowIso, source];
+  };
   for (let i = 0; i < symbols.length; i += EXT_BATCH) {
     const batch = symbols.slice(i, i + EXT_BATCH);
     const responses = UrlFetchApp.fetchAll(batch.map(s => extRequest_(s.url)));
     responses.forEach((res, j) => {
       if (res.getResponseCode() !== 200) return;
       const q = extParse_(res.getContentText());
-      if (q) results[extKey_(batch[j].ticker)] = [q.price, q.change, q.pct, q.session, nowIso];
+      if (q) put(batch[j].ticker, q, 'Google');
     });
   }
+
+  // Backup: Yahoo for whatever Google gave nothing for. Tickers Google knows no US listing for
+  // (the TASE funds) aren't in symbols at all, so they're never sent here.
+  const missing = symbols.filter(s => !results[extKey_(s.ticker)]);
+  let fromYahoo = 0;
+  for (let i = 0; i < missing.length; i += EXT_BATCH) {
+    const batch = missing.slice(i, i + EXT_BATCH);
+    const responses = UrlFetchApp.fetchAll(batch.map(s => ({url: extYahooUrl_(s.ticker), muteHttpExceptions: true})));
+    responses.forEach((res, j) => {
+      if (res.getResponseCode() !== 200) return;
+      let json;
+      try { json = JSON.parse(res.getContentText()); } catch (e) { return; }
+      const q = extParseYahoo_(json, session);
+      if (q) { put(batch[j].ticker, q, 'Yahoo'); fromYahoo++; }
+    });
+  }
+
   extWrite_(sheet, results);
   console.log('Extended hours (' + session + '): ' + Object.keys(results).length + ' of '
-    + symbols.length + ' tickers have a price');
+    + symbols.length + ' tickers have a price (' + fromYahoo + ' from Yahoo)');
 }
 
 // Every 5 minutes; the function itself decides whether it's pre-market / after-hours.
@@ -177,7 +202,37 @@ function extParse_(html) {
   };
 }
 
-// Writes results ({SYMBOL: [price, change, pct, session, updated]}, keyed by extKey_) into the Ext columns; every
+function extYahooUrl_(ticker) {
+  return 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(extKey_(ticker))
+    + '?interval=5m&range=1d&includePrePost=true';
+}
+
+// Yahoo's 5-minute chart for today, extended hours included: the last bar inside the current
+// session's pre-market / after-hours window, against regularMarketPrice -- which during pre-market
+// is still yesterday's close and during after-hours today's close, the same reference Google uses.
+function extParseYahoo_(json, session) {
+  const res = json && json.chart && json.chart.result && json.chart.result[0];
+  if (!res || !res.meta || !res.meta.currentTradingPeriod) return null;
+  const period = res.meta.currentTradingPeriod[session === 'pre' ? 'pre' : 'post'];
+  const ts = res.timestamp || [];
+  const quote = res.indicators && res.indicators.quote && res.indicators.quote[0];
+  const close = (quote && quote.close) || [];
+  let ext = null;
+  for (let i = 0; i < ts.length; i++) {
+    if (period && ts[i] >= period.start && ts[i] < period.end && typeof close[i] === 'number') ext = close[i];
+  }
+  const regular = res.meta.regularMarketPrice;
+  if (!(ext > 0 && regular > 0) || Math.abs(ext / regular - 1) > 0.5) return null;
+  const change = ext - regular;
+  return {
+    price: Math.round(ext * 100) / 100,
+    change: Math.round(change * 100) / 100,
+    pct: Math.round(change / regular * 10000) / 100,
+    session: session === 'pre' ? 'Pre-market' : 'After hours',
+  };
+}
+
+// Writes results ({SYMBOL: [price, change, pct, session, updated, source]}, keyed by extKey_) into the Ext columns; every
 // other row's Ext cells are blanked, so a ticker without a trade this run shows nothing.
 function extWrite_(sheet, results) {
   const lastCol = sheet.getLastColumn();
@@ -199,7 +254,7 @@ function extWrite_(sheet, results) {
   EXT_HEADERS.forEach((h, k) => {
     const values = tickers.map(t => { const r = t && results[extKey_(t)]; return [r ? r[k] : '']; });
     const range = sheet.getRange(2, cols[k] + 1, rows, 1);
-    if (h === 'Ext Updated' || h === 'Ext Session') range.setNumberFormat('@');
+    if (h === 'Ext Updated' || h === 'Ext Session' || h === 'Ext Source') range.setNumberFormat('@');
     range.setValues(values);
   });
 }
