@@ -41,12 +41,12 @@
     border:1px solid var(--line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color 0.15s ease, color 0.15s ease;
   }
   #autoRefreshSelect:hover{border-color:var(--accent); color:var(--ink);}
-  #universeBtn, #netWorthBtn{
+  #universeBtn, #netWorthBtn, #diagBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:9px 14px; cursor:pointer;
     transition:border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   }
-  #universeBtn:hover, #netWorthBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
+  #universeBtn:hover, #netWorthBtn:hover, #diagBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
   #digestBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
@@ -381,6 +381,42 @@
   #lockError{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5); margin-top:12px; min-height:16px;
   }
+  #lockDiagLink{display:inline-block; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent);}
+  /* Above the lock screen too, so a sign-in that fails because the server is down can be diagnosed. */
+  #diagModal{
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:10000;
+    align-items:center; justify-content:center; padding:16px;
+  }
+  #diagModal.open{display:flex;}
+  #diagCard{
+    background:var(--paper); width:min(640px, 100%); max-height:90vh; display:flex; flex-direction:column;
+    box-shadow:0 12px 40px rgba(0,0,0,0.25); font-family:'Helvetica Neue',Arial,sans-serif;
+  }
+  #diagHeader{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 12px; border-bottom:1px solid var(--line);}
+  #diagHeader h3{font-family:'Iowan Old Style','Georgia',serif; font-size:21px; font-weight:400; margin:0 0 3px;}
+  #diagHeader p{margin:0; font-size:12px; color:var(--muted);}
+  #diagClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #diagList{overflow-y:auto; padding:6px 20px;}
+  .diagRow{display:grid; grid-template-columns:18px 1fr auto; gap:4px 10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .diagRow:last-child{border-bottom:none;}
+  .diagDot{width:10px; height:10px; border-radius:50%; margin-top:3px; background:var(--flat);}
+  .diagRow.ok .diagDot{background:var(--up-4);}
+  .diagRow.warn .diagDot{background:#d99a1e;}
+  .diagRow.fail .diagDot{background:var(--down-4);}
+  .diagRow.running .diagDot{background:var(--accent); animation:diagPulse 0.9s ease-in-out infinite alternate;}
+  @keyframes diagPulse{to{opacity:0.25;}}
+  .diagName{font-weight:600; color:var(--ink);}
+  .diagMs{color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .diagDetail{grid-column:2 / 4; color:var(--muted); line-height:1.45; overflow-wrap:anywhere;}
+  .diagRow.fail .diagDetail{color:var(--down-5);}
+  #diagFooter{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 20px 16px; border-top:1px solid var(--line);}
+  #diagSummary{flex:1; min-width:180px; font-size:12px; color:var(--muted);}
+  #diagFooter button{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--ink); background:var(--panel);
+    border:1px solid var(--line); border-radius:6px; padding:8px 14px; cursor:pointer;
+  }
+  #diagFooter button:hover{border-color:var(--accent);}
+  #diagFooter button:disabled{opacity:0.5; cursor:default;}
 </style>
 </head>
 <body>
@@ -406,6 +442,24 @@
     <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--ink); font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
     <div id="googleSignInBtn"></div>
     <div id="lockError"></div>
+    <a href="#" id="lockDiagLink">Connection diagnostics</a>
+  </div>
+</div>
+<div id="diagModal" role="dialog" aria-modal="true" aria-labelledby="diagTitle">
+  <div id="diagCard">
+    <div id="diagHeader">
+      <div>
+        <h3 id="diagTitle">Connection diagnostics</h3>
+        <p>Checks each link between this page and your Google Sheet, in order — the first red one is where it breaks.</p>
+      </div>
+      <button id="diagClose" aria-label="Close">&times;</button>
+    </div>
+    <div id="diagList"></div>
+    <div id="diagFooter">
+      <span id="diagSummary"></span>
+      <button id="diagRerun" type="button">Run again</button>
+      <button id="diagCopy" type="button">Copy report</button>
+    </div>
   </div>
 </div>
 <script>
@@ -432,7 +486,9 @@
     const extra = canOfferWebAuthn
       ? ` &middot; <a href="#" id="pfEnableWebAuthnLink" style="color:var(--accent);">Enable Face ID / Fingerprint</a>`
       : '';
-    el.innerHTML = `${avatar}<a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>${extra}`;
+    // A Windows Hello / biometric session token carries no photo -- name the account in words instead.
+    const who = payload.picture ? '' : `Signed in as ${String(payload.email || '').replace(/[<>&"]/g, '')} &middot; `;
+    el.innerHTML = `${avatar}${who}<a href="#" id="pfSignOutLink" style="color:var(--accent);">Sign out</a>${extra}`;
     const link = document.getElementById('pfSignOutLink');
     if(link) link.addEventListener('click', function(e){ e.preventDefault(); pfSignOut(); });
     const enableLink = document.getElementById('pfEnableWebAuthnLink');
@@ -596,7 +652,9 @@
       const payload = pfDecodeJwt(existing);
       if(payload.email === ALLOWED_GOOGLE_EMAIL && payload.exp > Date.now()/1000){
         document.body.classList.add('pf-unlocked');
-        pfSetAccountLine(payload);
+        // This script runs before the header (and its #accountLine) is parsed -- fill the line,
+        // with its Sign out link, once the page's markup is all there.
+        document.addEventListener('DOMContentLoaded', function(){ pfSetAccountLine(payload); });
       } else {
         localStorage.removeItem('pf_idToken');
       }
@@ -651,6 +709,7 @@
       </select>
       <button id="universeBtn" title="Browse the full research watchlist">Market Universe</button>
       <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension">Net Worth</button>
+      <button id="diagBtn" title="Check the connection to the server and the Google Sheet">Diagnostics</button>
       <button id="refreshBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
         Refresh from sheet
@@ -797,7 +856,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790282349";
+const BUILD_ID = "1790326575";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -866,6 +925,223 @@ function fetchViaProxy(url){
     return res;
   });
 }
+
+// ---- Connection diagnostics ----
+// Walks the chain page -> internet -> api.sheetpulse.org (Oracle VM + Caddy) -> sign-in session ->
+// proxy -> Google Sheets one link at a time, so a failure names the broken link instead of a bare
+// "Failed to fetch". Uses plain fetch, not fetchViaProxy: a rejected session must be reported here,
+// not sign you out mid-check. The copied report never contains the session token itself.
+const DIAG_TIMEOUT_MS = 12000;
+let diagRunning = false, diagResults = [];
+
+async function diagFetch(url, opts, timeoutMs){
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs || DIAG_TIMEOUT_MS);
+  const t0 = performance.now();
+  try{
+    const res = await fetch(url, Object.assign({cache:'no-store'}, opts, {signal: ac.signal}));
+    return {res, ms: Math.round(performance.now() - t0)};
+  } catch(err){
+    return {err, timedOut: err.name === 'AbortError', ms: Math.round(performance.now() - t0)};
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function diagToken(){
+  const raw = localStorage.getItem('pf_idToken');
+  if(!raw) return null;
+  try{ return {raw, payload: pfDecodeJwt(raw)}; } catch(e){ return {raw, payload: null}; }
+}
+function diagAuth(){
+  const t = diagToken();
+  return {headers: {Authorization: 'Bearer ' + (t ? t.raw : '')}};
+}
+
+function diagDuration(ms){
+  const m = Math.round(Math.abs(ms) / 60000);
+  if(m < 60) return m + ' min';
+  const h = Math.floor(m / 60);
+  return h < 48 ? h + ' h ' + (m % 60) + ' min' : Math.floor(h / 24) + ' days';
+}
+
+// A failed data fetch -- shared by the Tracker and IntradayLog checks.
+function diagFetchFailure(r, what){
+  if(r.res) return {status:'fail', ms:r.ms, detail:`The proxy answered HTTP ${r.res.status} for ${what} — check the proxy log: journalctl -u sheet-proxy -n 30`};
+  return {status:'fail', ms:r.ms, detail: r.timedOut
+    ? `No ${what} within ${Math.round(r.ms / 1000)} s — the Google Sheets call is hanging (proxy or Google side).`
+    : `Could not load ${what} (${r.err.message}).`};
+}
+
+// Each check returns {status: ok|warn|fail, detail, ms?, stop?}. stop on a failure skips the
+// remaining checks that depend on that link (all but the ones marked always).
+const DIAG_CHECKS = [
+  {name: 'Browser online', run: async () => navigator.onLine
+    ? {status:'ok', detail:'The browser reports a network connection.'}
+    : {status:'fail', detail:'The browser reports no network connection — check Wi-Fi / cable.'}},
+
+  {name: 'Internet (Google)', run: async () => {
+    const r = await diagFetch('https://www.gstatic.com/generate_204', {mode:'no-cors'}, 8000);
+    if(r.res) return {status:'ok', ms:r.ms, detail:'The general internet is reachable from this device.'};
+    return {status:'fail', ms:r.ms, detail: r.timedOut
+      ? 'No answer from Google in 8 s — this device\'s internet is down or very slow.'
+      : 'Could not reach Google — this device\'s internet is down.'};
+  }},
+
+  {name: 'Server api.sheetpulse.org', run: async () => {
+    // no-cors: any answer at all (even a 401) proves the VM and Caddy are alive.
+    const r = await diagFetch(PROXY_BASE_URL + '/?diag=' + Date.now(), {mode:'no-cors'});
+    if(r.res) return r.ms > 5000
+      ? {status:'warn', ms:r.ms, detail:'The server answered, but slowly — it may be short on memory (SSH in: free -h; uptime).'}
+      : {status:'ok', ms:r.ms, detail:'The Oracle VM and Caddy are answering.'};
+    if(r.timedOut) return {status:'fail', ms:r.ms, stop:true, detail:`No answer in ${DIAG_TIMEOUT_MS / 1000} s — the VM is frozen or down (often out of memory). SSH in with PuTTY and run: free -h; uptime — or reboot it from the Oracle Console (Compute → Instances → n8n-server → Reboot).`};
+    return {status:'fail', ms:r.ms, stop:true, detail:'Refused or blocked immediately — the domain doesn\'t resolve, this network blocks it (office firewall?), or Caddy is stopped (sudo systemctl status caddy).'};
+  }},
+
+  {name: 'Sign-in session', run: async () => {
+    const t = diagToken();
+    if(!t) return {status:'fail', stop:true, detail:'Not signed in on this device — sign in again.'};
+    if(!t.payload) return {status:'fail', stop:true, detail:'The saved session is unreadable — sign out and sign in again.'};
+    const kind = /accounts\.google\.com/.test(t.payload.iss || '') ? 'Google sign-in' : 'Windows Hello / biometric session';
+    const left = t.payload.exp * 1000 - Date.now();
+    if(left <= 0) return {status:'fail', stop:true, detail:`${kind} expired ${diagDuration(left)} ago — sign out and sign in again.`};
+    return {status: left < 10 * 60000 ? 'warn' : 'ok', detail:`${kind} for ${t.payload.email || '?'}, valid for another ${diagDuration(left)}.`};
+  }},
+
+  {name: 'Proxy accepts the session', run: async () => {
+    const r = await diagFetch(proxyListUrl(SHEET_ID), diagAuth());
+    if(!r.res) return {status:'fail', ms:r.ms, stop:true, detail: r.timedOut
+      ? 'Caddy is up but the proxy didn\'t answer in time — check: sudo systemctl status sheet-proxy'
+      : `Blocked (${r.err.message}) — the proxy may have crashed; check: journalctl -u sheet-proxy -n 30`};
+    if(r.res.status === 401) return {status:'fail', ms:r.ms, stop:true, detail:'The proxy rejected this session (401) — sign out and sign in again.'};
+    if(!r.res.ok) return {status:'fail', ms:r.ms, stop:true, detail:`The proxy answered HTTP ${r.res.status} — its Google Sheets access failed; check: journalctl -u sheet-proxy -n 30`};
+    let tabs = [];
+    try{ tabs = ((await r.res.json()).tabs || []).map(x => x.title); } catch(e){}
+    const missing = ['Tracker', 'IntradayLog', 'PriceHistory'].filter(n => tabs.indexOf(n) === -1);
+    return {status: missing.length ? 'warn' : 'ok', ms:r.ms,
+      detail:`${tabs.length} tabs in the Tracker spreadsheet` + (missing.length ? ` — missing: ${missing.join(', ')}` : '.')};
+  }},
+
+  {name: 'Tracker data', run: async () => {
+    const r = await diagFetch(CSV_URL, diagAuth(), 20000);
+    if(!r.res || !r.res.ok) return diagFetchFailure(r, 'Tracker data');
+    const text = await r.res.text();
+    const rows = Papa.parse(text, {skipEmptyLines:true}).data;
+    const na = (text.match(/#N\/A/g) || []).length;
+    return {status: na ? 'warn' : 'ok', ms:r.ms,
+      detail:`${rows.length} rows, ${Math.max(1, Math.round(text.length / 1024))} KB` + (na ? ` — ${na} cell(s) show #N/A (Google prices not loaded yet?).` : '.')};
+  }},
+
+  {name: 'IntradayLog logging', run: async () => {
+    const r = await diagFetch(proxyUrl(SHEET_ID, 'IntradayLog'), diagAuth(), 20000);
+    if(!r.res || !r.res.ok) return diagFetchFailure(r, 'IntradayLog');
+    const rows = Papa.parse(await r.res.text(), {skipEmptyLines:true}).data;
+    const m = String((rows[1] || [])[0] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if(!m) return {status:'warn', ms:r.ms, detail:'The newest IntradayLog row has no readable timestamp.'};
+    const ts = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] || 0));
+    const age = Date.now() - ts.getTime();
+    // The logger writes about every 5 minutes while a market trades -- a much older newest row
+    // then means the Apps Script trigger has stopped.
+    const marketOpen = getTaseStatus() || getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+    const stale = marketOpen && age > 20 * 60000;
+    const when = `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')} ${m[4].padStart(2, '0')}:${m[5]}`;
+    return {status: stale ? 'warn' : 'ok', ms:r.ms,
+      detail:`${rows.length - 1} row${rows.length === 2 ? '' : 's'}; newest ${when} (${age < 0 ? 'in ' + diagDuration(age) : diagDuration(age) + ' ago'})`
+        + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
+  }},
+
+  {name: 'Page version', always: true, run: async () => {
+    const r = await diagFetch(location.pathname, {}, 10000);
+    if(!r.res || !r.res.ok) return {status:'warn', ms:r.ms, detail:'Could not check GitHub Pages for a newer build.'};
+    const mm = (await r.res.text()).match(/const BUILD_ID = "([^"]*)"/);
+    const live = mm ? mm[1] : '';
+    return live && live !== BUILD_ID
+      ? {status:'warn', ms:r.ms, detail:'A newer build is live — reload the page.'}
+      : {status:'ok', ms:r.ms, detail:'This is the latest deployed build.'};
+  }},
+];
+
+async function runDiagnostics(){
+  if(diagRunning) return;
+  diagRunning = true;
+  const list = document.getElementById('diagList');
+  const summary = document.getElementById('diagSummary');
+  const rerun = document.getElementById('diagRerun');
+  rerun.disabled = true;
+  summary.textContent = 'Running…';
+  list.innerHTML = '';
+  diagResults = [];
+  const rowEls = DIAG_CHECKS.map(c => {
+    const row = document.createElement('div');
+    row.className = 'diagRow';
+    row.innerHTML = '<span class="diagDot"></span><span class="diagName"></span><span class="diagMs"></span><span class="diagDetail"></span>';
+    row.querySelector('.diagName').textContent = c.name;
+    row.querySelector('.diagDetail').textContent = 'Waiting…';
+    list.appendChild(row);
+    return row;
+  });
+  let stopped = false;
+  for(let i = 0; i < DIAG_CHECKS.length; i++){
+    const row = rowEls[i];
+    let res;
+    if(stopped && !DIAG_CHECKS[i].always){
+      res = {status:'skip', detail:'Skipped — depends on the step that failed above.'};
+    } else {
+      row.className = 'diagRow running';
+      row.querySelector('.diagDetail').textContent = 'Checking…';
+      try{ res = await DIAG_CHECKS[i].run(); } catch(e){ res = {status:'fail', detail:'The check itself crashed: ' + e.message}; }
+      if(res.stop && res.status === 'fail') stopped = true;
+    }
+    row.className = 'diagRow ' + res.status;
+    row.querySelector('.diagMs').textContent = typeof res.ms === 'number' ? res.ms + ' ms' : '';
+    row.querySelector('.diagDetail').textContent = res.detail;
+    diagResults.push(Object.assign({name: DIAG_CHECKS[i].name}, res));
+  }
+  const fails = diagResults.filter(r => r.status === 'fail');
+  const warns = diagResults.filter(r => r.status === 'warn');
+  summary.textContent = fails.length ? 'Broken at: ' + fails[0].name
+    : warns.length ? `Working, with ${warns.length} warning${warns.length > 1 ? 's' : ''}.` : 'All checks passed.';
+  rerun.disabled = false;
+  diagRunning = false;
+}
+
+function diagReportText(){
+  const lines = ['SheetPulse diagnostics — ' + formatRefreshTimestamp(new Date()), 'Build ' + BUILD_ID + ' · ' + navigator.userAgent];
+  diagResults.forEach(r => lines.push(`[${r.status.toUpperCase()}] ${r.name}${typeof r.ms === 'number' ? ' (' + r.ms + ' ms)' : ''}: ${r.detail}`));
+  return lines.join('\n');
+}
+
+function openDiagnostics(){
+  document.getElementById('diagModal').classList.add('open');
+  runDiagnostics();
+}
+function closeDiagnostics(){
+  document.getElementById('diagModal').classList.remove('open');
+}
+document.getElementById('diagBtn').addEventListener('click', openDiagnostics);
+document.getElementById('lockDiagLink').addEventListener('click', e => { e.preventDefault(); openDiagnostics(); });
+document.getElementById('diagClose').addEventListener('click', closeDiagnostics);
+document.getElementById('diagRerun').addEventListener('click', runDiagnostics);
+document.getElementById('diagModal').addEventListener('click', e => { if(e.target.id === 'diagModal') closeDiagnostics(); });
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.getElementById('diagModal').classList.contains('open')) closeDiagnostics();
+});
+document.getElementById('diagCopy').addEventListener('click', async () => {
+  const btn = document.getElementById('diagCopy');
+  const text = diagReportText();
+  try{
+    await navigator.clipboard.writeText(text);
+  } catch(e){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  btn.textContent = 'Copied ✓';
+  setTimeout(() => { btn.textContent = 'Copy report'; }, 1800);
+});
 
 const CSV_URL = proxyUrl(SHEET_ID, 'Tracker');
 // Same workbook as the Tracker sheet, "Investment Universe" tab — its "logo" column is looked up
@@ -4635,7 +4911,7 @@ async function refresh(){
     retryFxIfLoading();
     refreshOpenMarketDetailIfNeeded();
   } catch(err){
-    setStatus('Refresh failed (' + err.message + '). If this persists, try signing out and back in with Google.', true);
+    setStatus('Refresh failed (' + err.message + '). Press Diagnostics to see where the connection breaks.', true);
   } finally {
     btn.disabled = false;
   }
