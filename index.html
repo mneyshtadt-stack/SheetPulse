@@ -887,7 +887,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790340029";
+const BUILD_ID = "1790340261";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1156,6 +1156,12 @@ const TROUBLESHOOTING = [
       {name: 'Wait until it\'s back', note: 'Checks every 30 s; stops at RUNNING (wait one more minute, then run Checks) or STOPPED.', cmd: `while s=$(oci compute instance get --instance-id $ID --query 'data."lifecycle-state"' --raw-output); [ "$s" != RUNNING ] && [ "$s" != STOPPED ]; do echo "$(date +%T) $s"; sleep 30; done; echo "$(date +%T) $s"`},
       {name: 'Start it (if STOPPED)', cmd: `oci compute instance action --instance-id $ID --action START --query 'data."lifecycle-state"'`},
       {name: 'Hard reset', note: 'Immediate power cycle — only if it\'s RUNNING but still frozen after a reboot. Refused ("being modified") while another action is in progress.', cmd: `oci compute instance action --instance-id $ID --action RESET --query 'data."lifecycle-state"'`},
+    ]},
+  {title: 'Quick health check', where: 'putty',
+    intro: 'Start here: two snapshots that cover the usual suspects in one paste each.',
+    cmds: [
+      {name: 'Health snapshot', note: 'Uptime, memory, disk, failed services, the four key services, clock sync (sign-in tokens fail if the clock drifts), whether earlier boots are logged, and whether a reboot is pending.', cmd: `echo "== uptime"; uptime; echo "== memory"; free -h | head -3; echo "== disk"; df -h / | tail -1; echo "== failed services"; systemctl --failed --no-legend; echo "== services"; for s in sheet-proxy caddy docker fail2ban; do printf '%-12s %s\\n' $s $(systemctl is-active $s); done; echo "== clock"; timedatectl | grep -E 'synchronized|NTP'; echo "== boots in log: $(sudo journalctl --list-boots | wc -l)"; echo "== reboot needed: $([ -f /var/run/reboot-required ] && echo yes || echo no)"`},
+      {name: 'Security snapshot', note: 'Expect 600 on both files, permitrootlogin no, rpcbind inactive, and 0 upgradable.', cmd: `stat -c '%a %n' ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env; sudo sshd -T | grep -i permitrootlogin; echo "rpcbind: $(systemctl is-active rpcbind)"; echo "upgradable: $(apt list --upgradable 2>/dev/null | grep -c upgradable)"`},
     ]},
   {title: 'Memory and load', where: 'putty',
     intro: 'The VM has 1 GB of memory. Without swap, running low makes Linux re-read program files from disk over and over ("thrashing") until nothing answers — SSH included — often without any out-of-memory message.',
