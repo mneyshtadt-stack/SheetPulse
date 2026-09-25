@@ -16,7 +16,8 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
 - **USD/ILS chart** — clicking the USD/ILS line on the main page opens its own window: the live rate, a 1D chart from `IntradayLog`'s live rate (vs. the previous close), and 5D–MAX from `PriceHistory`'s daily closes.
 - **Ticker charts in Market Universe** — whenever the live-price card shows a ticker, a 5D–MAX chart of that ticker's daily closes (from `PriceHistory`, in USD or ILA) appears under the search row, with its own range buttons next to the card.
 - **Installable as an app** — a web app manifest and service worker let Android's Chrome (and other browsers) install this as a real full-screen app with its own icon, no browser chrome, via "Add to Home screen" / "Install app".
-- **Biometric quick-unlock** — after signing in with Google once on a device, you can enable Face ID / Fingerprint (via WebAuthn) as a faster way back in on that same device, without repeating the full Google sign-in flow every time.
+- **Biometric quick-unlock** — after signing in with Google once on a device, you can enable Face ID / Fingerprint (via WebAuthn) as a faster way back in on that same device, without repeating the full Google sign-in flow every time. **Sign out** sits under the page title.
+- **Connection diagnostics** — the **Diagnostics** button (also on the sign-in screen) checks each link in turn: this device's internet, the server at `api.sheetpulse.org`, the sign-in session and its expiry, the proxy accepting it, Tracker data, how fresh the newest IntradayLog row is, and whether a newer build is live. The first red row is where it breaks, with what to do about it; **Copy report** copies the results (never the session token) to paste elsewhere.
 
 ## How it works
 
