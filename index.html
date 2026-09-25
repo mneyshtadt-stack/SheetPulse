@@ -424,7 +424,21 @@
   }
   .diagTab:hover{color:var(--ink);}
   .diagTab.active{color:var(--ink); font-weight:600; border-bottom-color:var(--accent);}
-  #diagTrouble{overflow-y:auto; padding:4px 20px 16px;}
+  #diagTrouble{overflow-y:auto; padding:0 20px 16px; position:relative;}
+  .tsBar{
+    position:sticky; top:0; z-index:1; background:var(--paper); display:flex; gap:8px; flex-wrap:wrap;
+    padding:10px 0 9px; border-bottom:1px solid var(--line);
+  }
+  .tsBar input, .tsBar select{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--ink); background:var(--panel);
+    border:1px solid var(--line); border-radius:6px; padding:7px 10px;
+  }
+  .tsBar input{flex:1 1 200px; min-width:0;}
+  .tsBar select{flex:0 1 230px; min-width:0; cursor:pointer;}
+  .tsBar input:focus, .tsBar select:focus{outline:none; border-color:var(--accent);}
+  .tsEmpty{padding:18px 0; font-size:12.5px; color:var(--muted);}
+  .tsGroup.tsFlash h4{animation:tsFlash 1.2s ease;}
+  @keyframes tsFlash{0%,40%{color:var(--accent);}100%{color:var(--ink);}}
   .tsGroup h4{margin:16px 0 2px; font-size:13px; color:var(--ink);}
   .tsWhere{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:9px; font-size:10.5px; font-weight:600; vertical-align:1px;}
   .tsWhere.oracle{background:#fbe9dc; color:#9a4a12;}
@@ -887,7 +901,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790340261";
+const BUILD_ID = "1790340867";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1174,6 +1188,7 @@ const TROUBLESHOOTING = [
       {name: 'Which boots the log covers', note: 'Needs sudo to see the system log. Only one line = logs from before a reboot are not kept.', cmd: `sudo journalctl --list-boots | tail -3`},
       {name: 'Why it froze last time', note: 'Out-of-memory kills from before the last reboot (empty is common with thrashing).', cmd: `sudo journalctl -k -b -1 | grep -i -E 'out of memory|oom|killed process' | tail -20`},
       {name: 'Errors from before the last reboot', cmd: `sudo journalctl -b -1 -p err --no-pager | tail -30`},
+      {name: 'Last log lines before the last reboot', note: 'When it stopped responding, and what it was doing just before.', cmd: `sudo journalctl -b -1 -n 25 --no-pager`},
       {name: 'Disk space', cmd: `df -h /`},
     ]},
   {title: 'Freeze protection (one-time setup)', where: 'putty',
@@ -1212,10 +1227,20 @@ const TROUBLESHOOTING = [
       {name: 'Firewall rules', cmd: `sudo iptables -L INPUT -n --line-numbers`},
       {name: 'SSH lockouts (fail2ban)', cmd: `sudo fail2ban-client status sshd`},
     ]},
+  {title: 'Security hardening (one-time fixes)', where: 'putty',
+    intro: 'Run "Security snapshot" (Quick health check) first and fix only what it flags.',
+    cmds: [
+      {name: 'Block root login over SSH', note: 'You log in as ubuntu, so nothing changes for you. Keep this PuTTY window open and test a new login before closing it. Should end with "permitrootlogin no".', cmd: `echo 'PermitRootLogin no' | sudo tee /etc/ssh/sshd_config.d/00-hardening.conf && sudo sshd -t && sudo systemctl reload ssh && sudo sshd -T | grep -i permitrootlogin`},
+      {name: 'Turn off rpcbind', note: 'Only used for network file sharing (NFS), which this VM doesn\'t use.', cmd: `sudo systemctl disable --now rpcbind.socket rpcbind.service && echo "rpcbind: $(systemctl is-active rpcbind)"`},
+      {name: 'Lock down the proxy\'s secret files', cmd: `chmod 600 ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env && stat -c '%a %n' ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env`},
+      {name: 'Install fail2ban (blocks SSH password guessing)', cmd: `sudo apt install -y fail2ban && sudo systemctl enable --now fail2ban && sudo fail2ban-client status sshd`},
+    ]},
   {title: 'Updates', where: 'putty',
     intro: 'Automatic updates cover Ubuntu\'s security fixes but not Node (from NodeSource) — run this about once a month.',
     cmds: [
       {name: 'Update everything and restart the proxy', cmd: `sudo apt update && sudo apt upgrade -y && sudo systemctl restart sheet-proxy`},
+      {name: '"Could not get lock" — who holds it?', note: 'Usually Ubuntu\'s own automatic update; never delete the lock file. Nothing listed = it has finished.', cmd: `ps aux | grep -E '[a]pt|[u]nattended|[d]pkg'`},
+      {name: 'Wait for the automatic update, then update', cmd: `while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock >/dev/null 2>&1; do echo "$(date +%T) waiting for the automatic update to finish..."; sleep 15; done; sudo apt update && sudo apt upgrade -y && sudo systemctl restart sheet-proxy && echo "reboot needed: $([ -f /var/run/reboot-required ] && echo yes || echo no)"`},
       {name: 'Is a reboot needed?', cmd: `[ -f /var/run/reboot-required ] && echo "Reboot needed" || echo "No reboot needed"`},
     ]},
 ];
@@ -1242,8 +1267,27 @@ function renderTroubleshooting(){
     if(text != null) n.textContent = text;
     return n;
   };
-  TROUBLESHOOTING.forEach(g => {
+  // Search (filters commands as you type) + chapter jump, pinned above the scrolling list.
+  const bar = el('div', 'tsBar');
+  const search = el('input');
+  search.type = 'search';
+  search.placeholder = 'Search commands — e.g. swap, restart, log, lock';
+  search.setAttribute('aria-label', 'Search troubleshooting commands');
+  const jump = el('select');
+  jump.setAttribute('aria-label', 'Jump to chapter');
+  jump.appendChild(el('option', null, 'Jump to chapter…')).value = '';
+  TROUBLESHOOTING.forEach((g, i) => { jump.appendChild(el('option', null, g.title)).value = String(i); });
+  bar.appendChild(search);
+  bar.appendChild(jump);
+  box.appendChild(bar);
+  const empty = el('div', 'tsEmpty', 'No commands match.');
+  empty.style.display = 'none';
+
+  const groupEls = [];
+  const itemEls = [];   // {group index, element, searchable text}
+  TROUBLESHOOTING.forEach((g, gi) => {
     const group = el('div', 'tsGroup');
+    groupEls.push(group);
     const h = el('h4', null, g.title);
     h.appendChild(el('span', 'tsWhere ' + g.where, g.where === 'oracle' ? 'Oracle Cloud Shell' : 'PuTTY'));
     group.appendChild(h);
@@ -1266,8 +1310,39 @@ function renderTroubleshooting(){
       pre.appendChild(el('code', null, c.cmd));
       item.appendChild(pre);
       group.appendChild(item);
+      itemEls.push({gi, item, text: [g.title, c.name, c.note || '', c.cmd].join(' ').toLowerCase()});
     });
     box.appendChild(group);
+  });
+  box.appendChild(empty);
+
+  // Every word typed must appear somewhere in the command's chapter, name, note or text.
+  const applySearch = () => {
+    const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const shown = groupEls.map(() => 0);
+    itemEls.forEach(({gi, item, text}) => {
+      const hit = words.every(w => text.includes(w));
+      item.style.display = hit ? '' : 'none';
+      if(hit) shown[gi]++;
+    });
+    groupEls.forEach((grp, i) => {
+      grp.style.display = shown[i] ? '' : 'none';
+      // A chapter's intro only helps when its commands show in full.
+      const intro = grp.querySelector('.tsIntro');
+      if(intro) intro.style.display = words.length ? 'none' : '';
+    });
+    empty.style.display = shown.some(n => n) ? 'none' : '';
+  };
+  search.addEventListener('input', applySearch);
+
+  jump.addEventListener('change', () => {
+    const grp = groupEls[Number(jump.value)];
+    if(!grp) return;
+    if(search.value){ search.value = ''; applySearch(); }
+    box.scrollTo({top: grp.offsetTop - bar.offsetHeight - 4, behavior: 'smooth'});
+    grp.classList.remove('tsFlash');
+    void grp.offsetWidth;
+    grp.classList.add('tsFlash');
   });
 }
 
