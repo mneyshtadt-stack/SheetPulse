@@ -901,7 +901,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790340967";
+const BUILD_ID = "1790341818";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1095,6 +1095,16 @@ const DIAG_CHECKS = [
         + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
   }},
 
+  {name: 'n8n.sheetpulse.org', always: true, run: async () => {
+    // Same VM and Caddy, separate service (Docker) -- a failure here alone means only n8n is down.
+    // /healthz is n8n's own health endpoint; its editor page refuses to be fetched from another site.
+    const r = await diagFetch('https://n8n.sheetpulse.org/healthz', {mode:'no-cors'});
+    if(r.res) return {status:'ok', ms:r.ms, detail:'n8n is answering through Caddy (HTTPS).'};
+    return {status:'fail', ms:r.ms, detail: r.timedOut
+      ? 'No answer — if the server check above is fine, only n8n is stuck. PuTTY: docker ps -a; docker logs n8n --tail 25'
+      : 'Not reachable — PuTTY: docker ps -a (is n8n Up?), then Troubleshooting → n8n.'};
+  }},
+
   {name: 'Page version', always: true, run: async () => {
     const r = await diagFetch(location.pathname, {}, 10000);
     if(!r.res || !r.res.ok) return {status:'warn', ms:r.ms, detail:'Could not check GitHub Pages for a newer build.'};
@@ -1215,8 +1225,13 @@ const TROUBLESHOOTING = [
       {name: 'Check the config, then reload it', cmd: `sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && sudo systemctl reload caddy`},
     ]},
   {title: 'n8n (Docker)', where: 'putty',
+    intro: 'n8n is at https://n8n.sheetpulse.org — Caddy forwards to it on 127.0.0.1:5678, and the port is closed to the internet. Its data lives in ~/.n8n.',
     cmds: [
-      {name: 'Containers', cmd: `docker ps`},
+      {name: 'Containers', note: 'Status "Exited" = stopped; ports should read 127.0.0.1:5678->5678/tcp.', cmd: `docker ps -a --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'`},
+      {name: 'Why did it stop?', note: 'Out-of-memory kill, restart count and exit code; exit 0 after "Received SIGTERM" = it was told to stop, not a crash.', cmd: `docker inspect n8n --format 'OOMKilled={{.State.OOMKilled}} Restarts={{.RestartCount}} ExitCode={{.State.ExitCode}} Finished={{.State.FinishedAt}}'; journalctl -u docker --since "-1 day" --no-pager | grep -iE 'stop|kill|restart|shutdown' | tail -10`},
+      {name: 'Test it on the VM itself', note: '200 = n8n is up behind Caddy; 000 = not running.', cmd: `curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:5678/`},
+      {name: 'Start it (if Exited)', cmd: `cd ~ && docker compose up -d`},
+      {name: 'Back up n8n\'s data', note: 'Readable only by you — the archive holds n8n\'s encryption key and saved credentials.', cmd: `sudo tar czf ~/n8n-backup-$(date +%F).tar.gz -C /home/ubuntu .n8n && sudo chmod 600 ~/n8n-backup-*.tar.gz && ls -lh ~/n8n-backup-*.tar.gz`},
       {name: 'Recent log', cmd: `docker logs n8n --tail 30`},
       {name: 'Restart', cmd: `docker restart n8n`},
       {name: 'Apply docker-compose.yml changes', note: 'Recreates the n8n container with the edited settings; workflows in ~/.n8n are kept.', cmd: `cd ~ && docker compose up -d`},
@@ -1225,6 +1240,7 @@ const TROUBLESHOOTING = [
     cmds: [
       {name: 'What\'s listening', cmd: `sudo ss -tlnp`},
       {name: 'Firewall rules', cmd: `sudo iptables -L INPUT -n --line-numbers`},
+      {name: 'Remove every firewall rule for a port', note: 'Here 5678 (old n8n). Deletes one matching rule at a time (numbers shift after each), then saves so it survives reboots.', cmd: `while n=$(sudo iptables -L INPUT -n --line-numbers | awk '/dpt:5678/{print $1; exit}'); [ -n "$n" ]; do sudo iptables -D INPUT $n; echo "removed rule $n"; done; sudo netfilter-persistent save`},
       {name: 'SSH lockouts (fail2ban)', cmd: `sudo fail2ban-client status sshd`},
     ]},
   {title: 'Security hardening (one-time fixes)', where: 'putty',
