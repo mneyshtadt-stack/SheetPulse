@@ -929,7 +929,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790342733";
+const BUILD_ID = "1790343063";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1969,7 +1969,8 @@ function extQuoteFor(u){
   const now = new Date();
   const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hour12:false}).replace(':', ''));
   if(u.extSession === 'Pre-market' && (extNyDay(updated) !== extNyDay(now) || nyHm >= 930)) return null;
-  return {price: u.extPrice, change: u.extChange, pct: u.extPct, session: u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours', updated};
+  return {price: u.extPrice, change: u.extChange, pct: u.extPct, session: u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours', updated,
+    source: u.extSource === 'Yahoo' ? 'Yahoo Finance (backup)' : 'Google Finance'};
 }
 // "9:17 AM" New York time, with the date in front when it isn't today there ("Sep 26, 7:59 PM").
 function extTimeLabel(updated){
@@ -1997,7 +1998,7 @@ function renderUniverseQuoteExt(){
       <span class="uq-ext-dot">${up ? '↑' : '↓'}</span>
       <span class="uq-ext-chg">${pct}${chg}</span>
     </span>
-    <span class="uq-ext-label" title="New York time (${ilTime} Israel time) — from Google Finance">
+    <span class="uq-ext-label" title="New York time (${ilTime} Israel time) — from ${q.source}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
       ${u.extSession} · ${extTimeLabel(updated)}
     </span>`;
@@ -2801,7 +2802,7 @@ function drawPremarketTreemap(area){
 
   if(!items.length){
     area.innerHTML = `<div class="pm-note">No pre-market or after-hours trades to show right now.
-      <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance via ExtendedHours.gs every 5 minutes.</div></div>`;
+      <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance (Yahoo Finance as backup) via ExtendedHours.gs every 5 minutes.</div></div>`;
     return;
   }
 
@@ -2814,7 +2815,7 @@ function drawPremarketTreemap(area){
   const ilTime = latest.q.updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit'});
   area.innerHTML = `
     <div class="pm-summary">
-      <span class="pm-session" title="New York time (${ilTime} Israel time) — from Google Finance">${latest.q.session} · ${extTimeLabel(latest.q.updated)}</span>
+      <span class="pm-session" title="New York time (${ilTime} Israel time) — from Google Finance${items.some(it => it.q.source.startsWith('Yahoo')) ? `, ${items.filter(it => it.q.source.startsWith('Yahoo')).length} via Yahoo Finance as backup` : ''}">${latest.q.session} · ${extTimeLabel(latest.q.updated)}</span>
       <span>${items.length} of ${usRows.length} US holdings traded</span>
       <span>Weighted move <b class="${cls}">${movePct >= 0 ? '+' : '−'}${Math.abs(movePct).toFixed(2)}%</b>
         <span class="${cls}">(≈ ${moveIls >= 0 ? '+' : '−'}${fmtIlsSmart(moveIls)})</span></span>
@@ -2849,7 +2850,7 @@ function drawPremarketTreemap(area){
       + `${d.q.session}: $${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} <span class="${up?'up':'down'}">${up?'+':'−'}${Math.abs(pct).toFixed(2)}%${chg}</span>`
       + `<br>≈ <span class="${d.ilsChange>=0?'up':'down'}">${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)}</span> on ${fmt(d.value)}`
       + (totals && totals.totalValue ? ` (${(d.value / totals.totalValue * 100).toFixed(2)}% of portfolio)` : '')
-      + `<br><span style="color:var(--muted); font-size:11px;">${extTimeLabel(d.q.updated)} New York · double-click for Market Universe</span>`;
+      + `<br><span style="color:var(--muted); font-size:11px;">${extTimeLabel(d.q.updated)} New York · ${d.q.source} · double-click for Market Universe</span>`;
     tile.addEventListener('mouseenter', () => { tt.innerHTML = tipHtml; tt.style.display = 'block'; });
     tile.addEventListener('mousemove', e => {
       const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
@@ -5774,7 +5775,7 @@ async function fetchUniverseRows(){
         cRoleName = col('Role Name'), cWhenItHelps = col('When It Helps'),
         cLogo = headers.findIndex(h => h.toLowerCase() === 'logo'),
         cExtPrice = col('Ext Price'), cExtChange = col('Ext Change'), cExtPct = col('Ext Change %'),
-        cExtSession = col('Ext Session'), cExtUpdated = col('Ext Updated');
+        cExtSession = col('Ext Session'), cExtUpdated = col('Ext Updated'), cExtSource = col('Ext Source');
   const num = (r, c) => c >= 0 ? parseFloat(String(r[c] || '').replace(/[,$%\s]/g, '')) : NaN;
   if(cTicker === -1) throw new Error('Could not find the Ticker column');
   const rows = [];
@@ -5796,7 +5797,8 @@ async function fetchUniverseRows(){
       // Pre-market / after-hours quote kept by ExtendedHours.gs (blank outside those sessions).
       extPrice: num(r, cExtPrice), extChange: num(r, cExtChange), extPct: num(r, cExtPct),
       extSession: cExtSession>=0 ? (r[cExtSession]||'').trim() : '',
-      extUpdated: cExtUpdated>=0 ? (r[cExtUpdated]||'').trim() : ''
+      extUpdated: cExtUpdated>=0 ? (r[cExtUpdated]||'').trim() : '',
+      extSource: cExtSource>=0 ? (r[cExtSource]||'').trim() : ''
     });
   }
   if(!rows.length) throw new Error('No ticker rows found in the sheet');
