@@ -213,6 +213,21 @@
   #universeQuoteCard .uq-today.up{color:var(--up-5);}
   #universeQuoteCard .uq-today.down{color:var(--down-5);}
   #universeQuoteCard .uq-loading{font-size:12.5px; color:var(--muted);}
+  /* Pre-market / after-hours quote beside the regular one, laid out like Google Finance's own:
+     price, a round arrow badge and the change on top; the session and its time underneath. */
+  #universeQuoteCard .uq-row{flex-wrap:wrap; row-gap:8px;}
+  #universeQuoteCard .uq-ext{display:flex; flex-direction:column; gap:3px; align-self:center; margin-left:8px; padding-left:18px; border-left:1px solid var(--line);}
+  #universeQuoteCard .uq-ext-top{display:flex; align-items:center; gap:7px; font-size:15px;}
+  #universeQuoteCard .uq-ext-price{font-weight:600; color:var(--ink);}
+  #universeQuoteCard .uq-ext-dot{width:17px; height:17px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:700; line-height:1;}
+  #universeQuoteCard .uq-ext.up .uq-ext-dot{background:var(--up-4);}
+  #universeQuoteCard .uq-ext.down .uq-ext-dot{background:var(--down-4);}
+  #universeQuoteCard .uq-ext-chg{font-weight:600;}
+  #universeQuoteCard .uq-ext.up .uq-ext-chg{color:var(--up-5);}
+  #universeQuoteCard .uq-ext.down .uq-ext-chg{color:var(--down-5);}
+  #universeQuoteCard .uq-ext-label{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:help;}
+  #universeQuoteCard .uq-ext-label svg{width:13px; height:13px; flex-shrink:0;}
+  @media (max-width:600px){ #universeQuoteCard .uq-ext{margin-left:0; padding-left:0; border-left:none;} }
   #marketDetailSearchWrap{margin-top:16px;}
   #marketDetailSearch{
     width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
@@ -901,7 +916,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790341818";
+const BUILD_ID = "1790342463";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1911,13 +1926,57 @@ function showUniverseQuoteCard(row){
       <span>${logoImg}<span class="uq-price">${row.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
       <span class="uq-pct ${cls}">${arrow} ${Math.abs(row.change).toFixed(2)}%</span>
       <span class="uq-today ${cls}">${dayChangeAmt>=0?'+':''}${dayChangeAmt.toFixed(2)} today</span>
+      <span class="uq-ext" id="uqExt" style="display:none;"></span>
     </div>
   `;
+  universeCardTicker = row.name;
+  renderUniverseQuoteExt();
 }
 function hideUniverseQuoteCard(){
   const card = document.getElementById('universeQuoteCard');
   if(card) card.className = '';
+  universeCardTicker = null;
   hideUniverseChart();
+}
+
+// The card's pre-market / after-hours part, from the Ext columns ExtendedHours.gs keeps in the
+// Investment Universe tab (Google Finance's own quote page -- GOOGLEFINANCE() has no extended hours).
+// Also re-run once Market Universe's rows finish loading, since the card can open before they do.
+let universeCardTicker = null;
+const extSymbolKey = t => String(t || '').split(':').pop().trim().toUpperCase();
+function renderUniverseQuoteExt(){
+  const el = document.getElementById('uqExt');
+  if(!el || !universeCardTicker) return;
+  const u = universeRows.find(r => extSymbolKey(r.ticker) === extSymbolKey(universeCardTicker));
+  const updated = u && u.extUpdated ? new Date(u.extUpdated) : null;
+  const ok = u && u.extPrice > 0 && u.extSession && updated && !isNaN(updated.getTime());
+  const nyDay = d => d.toLocaleDateString('en-CA', {timeZone:'America/New_York'});
+  const now = new Date();
+  // A pre-market figure only means something until that same day's regular open (09:30 New York);
+  // the logger clears it then, and this guards against a stale one if the logger stops running.
+  const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hour12:false}).replace(':', ''));
+  const stalePre = ok && u.extSession === 'Pre-market' && (nyDay(updated) !== nyDay(now) || nyHm >= 930);
+  if(!ok || stalePre){ el.style.display = 'none'; return; }
+
+  const up = !(u.extChange < 0);
+  const nyTime = updated.toLocaleTimeString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit'});
+  const dayPrefix = nyDay(updated) !== nyDay(now)
+    ? updated.toLocaleDateString('en-US', {timeZone:'America/New_York', month:'short', day:'numeric'}) + ', ' : '';
+  const ilTime = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit'});
+  const chg = isNaN(u.extChange) ? '' : ` (${u.extChange >= 0 ? '+' : '−'}${Math.abs(u.extChange).toFixed(2)})`;
+  const pct = isNaN(u.extPct) ? '' : `${u.extPct >= 0 ? '+' : '−'}${Math.abs(u.extPct).toFixed(2)}%`;
+  el.className = 'uq-ext ' + (up ? 'up' : 'down');
+  el.innerHTML = `
+    <span class="uq-ext-top">
+      <span class="uq-ext-price">$${u.extPrice.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</span>
+      <span class="uq-ext-dot">${up ? '↑' : '↓'}</span>
+      <span class="uq-ext-chg">${pct}${chg}</span>
+    </span>
+    <span class="uq-ext-label" title="New York time (${ilTime} Israel time) — from Google Finance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+      ${u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours'} · ${dayPrefix}${nyTime}
+    </span>`;
+  el.style.display = '';
 }
 
 // A ticker's own price chart in Market Universe, shown alongside its price card: daily closes from
@@ -5558,7 +5617,10 @@ async function fetchUniverseRows(){
   const cTicker = col('Ticker'), cName = col('Name'), cSector = col('Sector'), cSubtheme = col('Sub Theme'),
         cCategory = col('Category'), cRoleInPortfolio = col('Role in Portfolio'), cOverview = col('Overview'),
         cRoleName = col('Role Name'), cWhenItHelps = col('When It Helps'),
-        cLogo = headers.findIndex(h => h.toLowerCase() === 'logo');
+        cLogo = headers.findIndex(h => h.toLowerCase() === 'logo'),
+        cExtPrice = col('Ext Price'), cExtChange = col('Ext Change'), cExtPct = col('Ext Change %'),
+        cExtSession = col('Ext Session'), cExtUpdated = col('Ext Updated');
+  const num = (r, c) => c >= 0 ? parseFloat(String(r[c] || '').replace(/[,$%\s]/g, '')) : NaN;
   if(cTicker === -1) throw new Error('Could not find the Ticker column');
   const rows = [];
   for(let i=1;i<table.length;i++){
@@ -5575,7 +5637,11 @@ async function fetchUniverseRows(){
       overview: cOverview>=0 ? (r[cOverview]||'').trim() : '',
       roleName: cRoleName>=0 ? (r[cRoleName]||'').trim() : '',
       whenItHelps: cWhenItHelps>=0 ? (r[cWhenItHelps]||'').trim() : '',
-      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : ''
+      logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : '',
+      // Pre-market / after-hours quote kept by ExtendedHours.gs (blank outside those sessions).
+      extPrice: num(r, cExtPrice), extChange: num(r, cExtChange), extPct: num(r, cExtPct),
+      extSession: cExtSession>=0 ? (r[cExtSession]||'').trim() : '',
+      extUpdated: cExtUpdated>=0 ? (r[cExtUpdated]||'').trim() : ''
     });
   }
   if(!rows.length) throw new Error('No ticker rows found in the sheet');
@@ -5590,6 +5656,7 @@ async function refreshUniverseRows(){
   try{
     universeRows = await fetchUniverseRows();
     renderUniverseTable();
+    renderUniverseQuoteExt();
   } catch(e){
     console.error('Market Universe refresh failed:', e.message);
     if(statusEl) statusEl.textContent = 'Could not refresh from sheet (' + e.message + ')';
