@@ -23,6 +23,11 @@
   .wrap{max-width:1120px; margin:0 auto; padding:48px 28px 80px;}
   header{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:36px; border-bottom:1px solid var(--line); padding-bottom:24px; flex-wrap:wrap;}
   h1{font-size:34px; font-weight:400; margin:0 0 4px; letter-spacing:-0.01em;}
+  /* The brand logo is the app icon itself (icon-512.png, bars + "SheetPulse" wordmark) -- the same
+     image as the home-screen icon and the GitHub repo, so the name lives inside the logo. */
+  .brand-logo{display:block; width:92px; height:92px;}
+  .brand-logo-lock{width:140px; height:140px; margin:0 auto 6px;}
+  @media (max-width:600px){ .brand-logo{width:76px; height:76px;} .brand-logo-lock{width:124px; height:124px;} }
   .meta{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
   #refreshBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; color:#fff; background:var(--accent);
@@ -491,21 +496,7 @@
 <script src="https://accounts.google.com/gsi/client?hl=en" async defer></script>
 <div id="lockScreen">
   <div id="lockCard">
-    <h1 style="display:flex; align-items:center; gap:10px;">
-      <svg viewBox="0 0 192 192" width="1.2em" height="1.2em" aria-hidden="true" style="flex-shrink:0;">
-        <rect x="0" y="0" width="192" height="192" rx="36" fill="#0d1b2a"></rect>
-        <rect x="23" y="103" width="26" height="46" rx="5" fill="#2dd4bf"></rect>
-        <rect x="63" y="69" width="26" height="80" rx="5" fill="#2dd4bf"></rect>
-        <rect x="103" y="85" width="26" height="64" rx="5" fill="#2dd4bf"></rect>
-        <rect x="143" y="51" width="26" height="98" rx="5" fill="#2dd4bf"></rect>
-        <polyline points="36,103 76,69 116,85 156,51" fill="none" stroke="#2dd4bf" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"></polyline>
-        <circle cx="36" cy="103" r="9" fill="#2dd4bf"></circle>
-        <circle cx="76" cy="69" r="9" fill="#2dd4bf"></circle>
-        <circle cx="116" cy="85" r="9" fill="#2dd4bf"></circle>
-        <circle cx="156" cy="51" r="9" fill="#2dd4bf"></circle>
-      </svg>
-      SheetPulse
-    </h1>
+    <h1><img src="icon-512.png" alt="SheetPulse" class="brand-logo brand-logo-lock"></h1>
     <p>Sign in with Google to continue</p>
     <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--ink); font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
     <div id="googleSignInBtn"></div>
@@ -752,21 +743,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1 style="display:flex; align-items:center; gap:10px;">
-      <svg viewBox="0 0 192 192" width="1.2em" height="1.2em" aria-hidden="true" style="flex-shrink:0;">
-        <rect x="0" y="0" width="192" height="192" rx="36" fill="#0d1b2a"></rect>
-        <rect x="23" y="103" width="26" height="46" rx="5" fill="#2dd4bf"></rect>
-        <rect x="63" y="69" width="26" height="80" rx="5" fill="#2dd4bf"></rect>
-        <rect x="103" y="85" width="26" height="64" rx="5" fill="#2dd4bf"></rect>
-        <rect x="143" y="51" width="26" height="98" rx="5" fill="#2dd4bf"></rect>
-        <polyline points="36,103 76,69 116,85 156,51" fill="none" stroke="#2dd4bf" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"></polyline>
-        <circle cx="36" cy="103" r="9" fill="#2dd4bf"></circle>
-        <circle cx="76" cy="69" r="9" fill="#2dd4bf"></circle>
-        <circle cx="116" cy="85" r="9" fill="#2dd4bf"></circle>
-        <circle cx="156" cy="51" r="9" fill="#2dd4bf"></circle>
-      </svg>
-      SheetPulse
-    </h1>
+      <h1><img src="icon-512.png" alt="SheetPulse" class="brand-logo"></h1>
       <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
       <div id="status"></div>
       <div class="meta" id="accountLine"></div>
@@ -929,7 +906,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790343063";
+const BUILD_ID = "1790425044";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
