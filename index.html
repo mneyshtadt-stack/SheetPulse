@@ -25,9 +25,10 @@
   h1{font-size:34px; font-weight:400; margin:0 0 4px; letter-spacing:-0.01em;}
   /* The brand logo is the app icon itself (icon-512.png, bars + "SheetPulse" wordmark) -- the same
      image as the home-screen icon and the GitHub repo, so the name lives inside the logo. */
-  .brand-logo{display:block; width:92px; height:92px;}
+  .brand-logo{display:block; width:92px; height:92px; flex-shrink:0;}
   .brand-logo-lock{width:140px; height:140px; margin:0 auto 6px;}
-  @media (max-width:600px){ .brand-logo{width:76px; height:76px;} .brand-logo-lock{width:124px; height:124px;} }
+  .brand-title{display:flex; align-items:center; gap:16px; font-size:40px;}
+  @media (max-width:600px){ .brand-logo{width:76px; height:76px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:32px; gap:12px;} }
   .meta{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
   #refreshBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; color:#fff; background:var(--accent);
@@ -743,7 +744,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1><img src="icon-512.png" alt="SheetPulse" class="brand-logo"></h1>
+      <h1 class="brand-title"><img src="icon-512.png" alt="" class="brand-logo">SheetPulse</h1>
       <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
       <div id="status"></div>
       <div class="meta" id="accountLine"></div>
@@ -906,7 +907,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790425044";
+const BUILD_ID = "1790425485";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
