@@ -387,6 +387,11 @@
   .wltrack{flex:1; height:16px; position:relative; background:var(--line);}
   .wlbar{position:absolute; top:0; height:100%;}
   .wlval{width:70px; flex-shrink:0; text-align:right; padding-left:8px;}
+  .wlcheck{margin:0 8px 0 0; flex-shrink:0; accent-color:var(--accent); cursor:pointer;}
+  .wlrow.wl-off .wlname, .wlrow.wl-off .wlval{opacity:0.45;}
+  .wlbar{transition:width 0.25s ease;}
+  #winloseScaleNote{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin:8px 0 0;}
+  #winloseScaleNote a{color:var(--accent);}
   .chart-note{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin:-8px 0 14px; line-height:1.5;}
   #winloseInsights{
     display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
@@ -833,6 +838,7 @@
     </div>
     <div id="winloseHeadline"></div>
     <div id="winlose"></div>
+    <div id="winloseScaleNote"></div>
     <div id="winloseInsights"></div>
   </section>
 
@@ -918,7 +924,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790502579";
+const BUILD_ID = "1790520908";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4988,15 +4994,24 @@ function render(rows, totals){
   wlEl.innerHTML = '';
   const ranked = rows.filter(d => !isNaN(d.ret)).slice().sort((a,b)=>b.ret-a.ret);
   const tt = document.getElementById('customTooltip');
-  const maxAbsRet = Math.max(...ranked.map(d=>Math.abs(d.ret)), 1);
+  const wlRows = [];
   ranked.forEach(d=>{
     const row = document.createElement('div'); row.className='wlrow';
-    const barPct = (Math.abs(d.ret)/maxAbsRet*50).toFixed(1);
     const isUp = d.ret >= 0;
     const barStyle = isUp
-      ? `left:50%; width:${barPct}%; background:${colorFor(2.5)};`
-      : `right:50%; width:${barPct}%; background:${colorFor(-2.5)};`;
-    row.innerHTML = `<div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'#3b6d11':'#a32d2d'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+      ? `left:50%; background:${colorFor(2.5)};`
+      : `right:50%; background:${colorFor(-2.5)};`;
+    row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'#3b6d11':'#a32d2d'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+    const check = row.querySelector('.wlcheck');
+    check.checked = !wlExcluded().has(d.name);
+    check.addEventListener('click', e => e.stopPropagation());
+    check.addEventListener('change', () => {
+      const set = wlExcluded();
+      if(check.checked) set.delete(d.name); else set.add(d.name);
+      saveWlExcluded(set);
+      scaleWinLoseBars(wlRows);
+    });
+    wlRows.push({d, row, bar: row.querySelector('.wlbar')});
     if(!isNaN(d.cost) && d.cost){
       const gain = d.value - d.cost;
       const holdingPeriod = formatHoldingPeriod(d.buyDate);
@@ -5030,10 +5045,46 @@ function render(rows, totals){
     }
     wlEl.appendChild(row);
   });
+  scaleWinLoseBars(wlRows);
 
   renderWinLoseHeadline(rows);
   renderWinLoseInsights(rows, totals);
   renderContributionWaterfalls(rows);
+}
+
+// Winners & losers: holdings unchecked in the list (e.g. one outlier like a +200% return) are left
+// out of the bar scale, so the rest are sized against the biggest checked return instead of being
+// squashed. Remembered per device; the headline and Analysis still count every holding.
+const WL_EXCLUDED_KEY = 'pf_wlExcluded';
+function wlExcluded(){
+  try{ return new Set(JSON.parse(localStorage.getItem(WL_EXCLUDED_KEY) || '[]')); } catch(e){ return new Set(); }
+}
+function saveWlExcluded(set){
+  try{ localStorage.setItem(WL_EXCLUDED_KEY, JSON.stringify([...set])); } catch(e){}
+}
+function scaleWinLoseBars(wlRows){
+  const excluded = wlExcluded();
+  const shown = wlRows.filter(r => !excluded.has(r.d.name));
+  const maxAbsRet = Math.max(...shown.map(r => Math.abs(r.d.ret)), 1);
+  wlRows.forEach(r => {
+    const off = excluded.has(r.d.name);
+    r.row.classList.toggle('wl-off', off);
+    r.bar.style.width = off ? '0' : (Math.abs(r.d.ret) / maxAbsRet * 50).toFixed(1) + '%';
+  });
+  const note = document.getElementById('winloseScaleNote');
+  if(!note) return;
+  const offNames = wlRows.filter(r => excluded.has(r.d.name)).map(r => r.d.name);
+  if(!offNames.length){
+    note.innerHTML = 'Uncheck a holding to leave it out of the bar scale.';
+    return;
+  }
+  note.innerHTML = `Bar scale leaves out ${offNames.join(', ')} — the longest bar is now the biggest checked return. <a href="#" id="winloseScaleReset">Include all</a>`;
+  document.getElementById('winloseScaleReset').addEventListener('click', e => {
+    e.preventDefault();
+    saveWlExcluded(new Set());
+    wlRows.forEach(r => { r.row.querySelector('.wlcheck').checked = true; });
+    scaleWinLoseBars(wlRows);
+  });
 }
 
 function fmtIls3(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
