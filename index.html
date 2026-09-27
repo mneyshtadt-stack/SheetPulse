@@ -19,7 +19,12 @@
     --flat:#d9d4c7; --accent:#8a6d3b;
   }
   *{box-sizing:border-box;}
-  body{margin:0; background:var(--paper); color:var(--ink); font-family:'Iowan Old Style','Georgia',serif; -webkit-font-smoothing:antialiased;}
+  /* tabular-nums everywhere: every digit the same width, so figures don't jiggle sideways as they
+     update on refresh and columns of numbers line up. */
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:'Iowan Old Style','Georgia',serif; -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;}
+  /* No single word left alone on a heading's or note's last line. */
+  h1, h2, h3, h4{text-wrap:balance;}
+  p, .chart-note, footer{text-wrap:pretty;}
   .wrap{max-width:1120px; margin:0 auto; padding:48px 28px 80px;}
   header{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:36px; border-bottom:1px solid var(--line); padding-bottom:24px; flex-wrap:wrap;}
   h1{font-size:34px; font-weight:400; margin:0 0 4px; letter-spacing:-0.01em;}
@@ -39,7 +44,7 @@
   #refreshBtn:active{transform:translateY(1px); box-shadow:0 1px 2px rgba(26,35,50,0.1);}
   #refreshBtn:disabled{opacity:0.6; cursor:default; transform:none;}
   #refreshBtn svg{width:12px; height:12px;}
-  #status{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-top:6px; min-height:14px;}
+  #status{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:6px; min-height:14px;}
   #status.err{color:var(--down-5);}
   .btnrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   #autoRefreshSelect{
@@ -107,7 +112,7 @@
   #marketDetailBody{padding:14px 24px 18px; font-family:'Helvetica Neue',Arial,sans-serif; overflow:auto; flex:1; min-height:0;}
   .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
   .md-headline-change{font-size:15px; font-weight:600;}
-  .md-headline-label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
+  .md-headline-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
   .md-stat-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:14px;}
   .md-stat-row:last-of-type{border-bottom:none;}
   .md-stat-label{color:var(--muted);}
@@ -116,7 +121,7 @@
   .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
   .md-holdings-table thead th{
     position:sticky; top:0; background:var(--paper); z-index:1;
-    text-align:left; padding:6px 8px 10px; font-size:10.5px; color:var(--muted); text-transform:uppercase;
+    text-align:left; padding:6px 8px 10px; font-size:11.5px; color:var(--muted); text-transform:uppercase;
     letter-spacing:0.02em; border-bottom:2px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
   }
   .md-holdings-table thead th:hover{color:var(--accent);}
@@ -128,11 +133,11 @@
   .md-holdings-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
   .md-th-symbol{font-weight:700; color:var(--ink);}
   .md-th-sub{
-    color:var(--muted); font-size:11px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
+    color:var(--muted); font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; margin-top:1px;
   }
-  .md-th-pct{font-size:11px; margin-top:1px;}
-  .nw-group-row td{background:var(--panel); font-weight:700; text-transform:uppercase; font-size:10.5px; letter-spacing:0.03em; padding-top:13px; padding-bottom:13px;}
+  .md-th-pct{font-size:12px; margin-top:1px;}
+  .nw-group-row td{background:var(--panel); font-weight:700; text-transform:uppercase; font-size:11.5px; letter-spacing:0.03em; padding-top:13px; padding-bottom:13px;}
   .nw-group-row td:first-child{color:var(--ink); border-left:3px solid var(--group-color, var(--accent)); padding-left:11px;}
   .nw-group-row td.num:not(.down){color:var(--ink);}
   .nw-group-row .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:middle;}
@@ -141,9 +146,9 @@
   .md-stat-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:12px 0 14px;}
   .md-stat-tiles.cols-4{grid-template-columns:repeat(4,1fr);}
   .md-stat-tile{background:var(--panel); padding:9px 14px;}
-  .md-stat-tile-label{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
+  .md-stat-tile-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
   .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums;}
-  .md-stat-tile-sub{font-size:11px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
+  .md-stat-tile-sub{font-size:12px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
   .md-stat-tile-sub.up{color:var(--up-5);} .md-stat-tile-sub.down{color:var(--down-5);}
   @media (max-width:520px){
     .md-stat-tiles{grid-template-columns:1fr;}
@@ -152,7 +157,7 @@
   .md-split-bar{display:flex; width:100%; height:10px; border-radius:5px; overflow:hidden; margin-bottom:8px; box-shadow:0 0 0 1px var(--line) inset;}
   .md-split-bar .seg{height:100%; cursor:help;}
   .md-split-legend{
-    display:flex; gap:18px; flex-wrap:wrap; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px;
+    display:flex; gap:18px; flex-wrap:wrap; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
     color:var(--muted); margin-bottom:20px;
   }
   .md-split-legend .dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px;}
@@ -163,12 +168,12 @@
   .md-tc-symbol{font-size:15px; font-weight:700; color:var(--ink);}
   .md-tc-price{font-size:15px; font-weight:700; font-variant-numeric:tabular-nums;}
   .md-tc-name{
-    font-size:11px; color:var(--muted); margin:1px 0 14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    font-size:12px; color:var(--muted); margin:1px 0 14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .md-tc-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; font-family:'Helvetica Neue',Arial,sans-serif;}
-  .md-tc-item-label{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
+  .md-tc-item-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
   .md-tc-item-val{font-size:13px; font-weight:600; font-variant-numeric:tabular-nums;}
-  .md-tc-item-sub{font-size:11px; margin-top:1px; font-variant-numeric:tabular-nums;}
+  .md-tc-item-sub{font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
   .md-pf-table th.expand-col, .md-pf-table td.expand-col{width:24px; padding-left:12px; padding-right:0;}
   .pf-expand-btn{
     background:none; border:none; cursor:pointer; font-size:14px; color:var(--muted); padding:2px 4px; line-height:1;
@@ -198,7 +203,7 @@
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
   }
   #universeSearch:focus{outline:none; border-color:var(--accent);}
-  #universeStatus{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--down-5);}
+  #universeStatus{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5);}
   /* Shown only when the search was populated by double-clicking a treemap tile (showUniverseQuoteCard) —
      a quick live-price glance without having to also scan the table below for that one ticker's row.
      A normal flex sibling of the search box (not absolutely positioned) so it sits reliably right next
@@ -264,7 +269,7 @@
   #universeTable{width:100%; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; table-layout:fixed;}
   #universeTable thead th{
     position:sticky; top:0; background:var(--paper); text-align:left; padding:10px 12px; cursor:pointer;
-    font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
+    font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
     white-space:normal; user-select:none; vertical-align:bottom;
   }
   #universeTable thead th:hover{color:var(--accent);}
@@ -292,7 +297,7 @@
   .card::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--flat);}
   .card.card-up::before{background:var(--up-4);}
   .card.card-down::before{background:var(--down-4);}
-  .card .label{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
+  .card .label{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
   .card .value{font-size:26px; line-height:1.1;}
   .card .sub{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:4px;}
   .up{color:var(--up-5);} .down{color:var(--down-5);}
@@ -311,7 +316,7 @@
   .market-dot.open{background:#3b6d11;} .market-dot.closed{background:#a32d2d;}
   section{margin-bottom:52px;}
   h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em;}
-  .legend{display:flex; gap:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
+  .legend{display:flex; gap:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
   .legend span{display:inline-flex; align-items:center; gap:5px;}
   .nw-series-toggle{display:inline-flex; align-items:center; gap:5px; margin-right:16px; cursor:pointer; user-select:none; border-radius:3px;}
   .nw-series-toggle:hover{color:var(--ink);}
@@ -362,7 +367,7 @@
   .legend-arrow:hover{color:var(--ink); border-color:var(--accent);}
   .legend-row{
     display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer; flex-shrink:0;
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; white-space:nowrap;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; white-space:nowrap;
     border:1px solid var(--line); border-radius:14px; background:var(--panel);
   }
   .legend-row:hover{background:var(--up-1); border-color:var(--up-3);}
@@ -391,7 +396,7 @@
   #winloseInsights .wli-title{font-weight:600; margin-bottom:6px; display:block;}
   #winloseInsights p{margin:0 0 8px;}
   #winloseInsights p:last-of-type{margin-bottom:0;}
-  #winloseInsights .wli-caveat{color:var(--muted); font-size:11px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
+  #winloseInsights .wli-caveat{color:var(--muted); font-size:12px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
   .info-icon{
     display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
     background:var(--line); color:var(--muted); font-size:11px; font-weight:700; font-family:'Helvetica Neue',Arial,sans-serif;
@@ -399,7 +404,7 @@
   }
   .info-icon:hover{background:var(--accent); color:#fff;}
   .waterfall-bar-label{font-family:'Helvetica Neue',Arial,sans-serif;}
-  footer{font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
+  footer{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
   @media (max-width:720px){ .cards{grid-template-columns:repeat(2,1fr);} .sname{width:100px;} }
   .wrap{display:none;}
   body.pf-unlocked .wrap{display:block;}
@@ -474,20 +479,20 @@
   .tsGroup.tsFlash h4{animation:tsFlash 1.2s ease;}
   @keyframes tsFlash{0%,40%{color:var(--accent);}100%{color:var(--ink);}}
   .tsGroup h4{margin:16px 0 2px; font-size:13px; color:var(--ink);}
-  .tsWhere{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:9px; font-size:10.5px; font-weight:600; vertical-align:1px;}
+  .tsWhere{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:9px; font-size:12px; font-weight:600; vertical-align:1px;}
   .tsWhere.oracle{background:#fbe9dc; color:#9a4a12;}
   .tsWhere.putty{background:#e3ecf6; color:#2b5480;}
   .tsIntro{margin:0 0 4px; font-size:12px; color:var(--muted); line-height:1.45;}
   .tsCmd{margin-top:10px;}
   .tsCmdHead{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; color:var(--ink);}
-  .tsCmdNote{font-size:11.5px; color:var(--muted); margin:2px 0 0; line-height:1.4;}
+  .tsCmdNote{font-size:12px; color:var(--muted); margin:2px 0 0; line-height:1.4;}
   .tsCmd pre{
     margin:5px 0 0; padding:8px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px;
-    font-family:Consolas,'SF Mono',Menlo,monospace; font-size:11.5px; line-height:1.45; color:var(--ink);
+    font-family:Consolas,'SF Mono',Menlo,monospace; font-size:12px; line-height:1.45; color:var(--ink);
     white-space:pre-wrap; overflow-wrap:anywhere;
   }
   .tsCopy{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--accent); background:none;
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:none;
     border:1px solid var(--line); border-radius:5px; padding:3px 9px; cursor:pointer; white-space:nowrap; flex-shrink:0;
   }
   .tsCopy:hover{border-color:var(--accent);}
@@ -602,6 +607,12 @@
     return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
+  // A message in the status line under the logo (setStatus, defined in the main script further
+  // down) rather than a browser alert() pop-up.
+  function pfNotice(msg, isErr){
+    if(typeof setStatus === 'function') setStatus(msg, isErr);
+  }
+
   // Registers this device's fingerprint / Face ID as a WebAuthn credential, so future visits
   // on this same device can skip the Google sign-in flow (see pfWebAuthnLogin below). Requires
   // a real, freshly-verified Google ID token -- the proxy will not let a WebAuthn session token
@@ -642,7 +653,7 @@
       if(!verifyRes.ok) throw new Error('Registration could not be verified');
       localStorage.setItem('pf_webauthn_device', '1');
       pfSetAccountLine(pfDecodeJwt(idToken));
-      alert('Face ID / Fingerprint unlock is now enabled on this device.');
+      pfNotice('Face ID / Fingerprint unlock is now enabled on this device.', false);
     } catch(e){
       // The server already told the platform authenticator about this device's existing
       // credential via excludeCredentials (see above) -- an InvalidStateError here means it's
@@ -654,10 +665,10 @@
         localStorage.setItem('pf_webauthn_device', '1');
         const idToken = localStorage.getItem('pf_idToken');
         if(idToken) pfSetAccountLine(pfDecodeJwt(idToken));
-        alert('This device is already set up for Face ID / Fingerprint unlock — no need to enable it again. Sign out and back in to use it.');
+        pfNotice('This device is already set up for Face ID / Fingerprint unlock — sign out and back in to use it.', false);
         return;
       }
-      alert('Could not enable biometric unlock: ' + e.message);
+      pfNotice('Could not enable Face ID / Fingerprint unlock (' + e.message + ').', true);
     }
   }
 
@@ -848,10 +859,10 @@
   </section>
 
   <footer>
-    "Refresh from sheet" fetches your published CSV directly from your browser — it requires the sheet's
-    "Publish to web" (CSV) setting to stay on, and works only while you have internet access. If refresh
-    fails, re-publish the sheet or paste an updated CSV URL under Credentials. Nothing is sent to Claude or
-    any third party when you refresh — the request goes straight from this page to Google.
+    "Refresh from sheet" reads your Google Sheets through SheetPulse's private server (api.sheetpulse.org),
+    which checks your Google or Windows Hello sign-in on every request — the sheets themselves are not
+    published anywhere. Nothing is sent to Claude or any other third party. If a refresh fails, press
+    Diagnostics to see which link in the chain is broken.
   </footer>
 </div>
 
@@ -859,7 +870,7 @@
   <div id="marketDetailCard">
     <div id="marketDetailHeader">
       <div>
-        <h3 id="marketDetailTitle">Holdings Summary</h3>
+        <h3 id="marketDetailTitle">Holdings summary</h3>
         <p id="marketDetailSubtitle"></p>
         <div id="nwYearSwitcher"></div>
       </div>
@@ -907,7 +918,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790425485";
+const BUILD_ID = "1790502579";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2385,10 +2396,10 @@ function renderMarketDetailHeader(marketKey){
   const rows = window.lastRows || [];
   const split = splitByMarket(rows);
   const seg = marketKey === 'il' ? split.il : split.us;
-  const title = marketKey === 'il' ? 'Israeli (TASE) Holdings' : 'USA Holdings';
+  const title = marketKey === 'il' ? 'Israeli (TASE) holdings' : 'USA holdings';
 
   document.getElementById('marketDetailTitle').textContent = title;
-  document.getElementById('marketDetailSubtitle').textContent = 'Holdings Summary';
+  document.getElementById('marketDetailSubtitle').textContent = 'Holdings summary';
   hideNwYearSwitcher();
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -2410,13 +2421,13 @@ function renderMarketDetailHeader(marketKey){
   const statsHtml = marketKey === 'il' ? `
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Day Change</div>
+        <div class="md-stat-tile-label">Day change</div>
         <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
         <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Total Gain</div>
+        <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)}</div>
         <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%</div>
       </div>
@@ -2429,18 +2440,18 @@ function renderMarketDetailHeader(marketKey){
     </div>` : `
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Day Change</div>
+        <div class="md-stat-tile-label">Day change</div>
         <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
         <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)}${typeof window.lastCloseFxRate === 'number' ? ` (at USD/ILS ${window.lastCloseFxRate.toFixed(4)})` : ''} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Total Gain</div>
+        <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)}</div>
         <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%</div>
       </div>
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Market Value (USD)</div>
+        <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsd !== null ? "$" + Math.round(todayUsd).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
           ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
@@ -2464,11 +2475,11 @@ function renderMarketDetailHeader(marketKey){
   if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
     attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
       const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
-      return `<b>How Market Value (USD) is calculated</b>
+      return `<b>How market value (USD) is calculated</b>
         <div>Today's total: ${fmtUsd(todayUsd)}</div>
         <div>&minus; Prev. close: ${fmtUsd(window.lastCloseUSD)}</div>
         <div style="margin-top:2px;">= <span class="${usdChange>=0?'up':'down'}">${usdChange>=0?'+':'-'}${fmtUsd(Math.abs(usdChange))} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)</span></div>
-        <div style="margin-top:6px; color:var(--muted); font-size:11px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and the USA dollar value recorded at the previous close — never derived by converting the ILS total through a rate.</div>`;
+        <div style="margin-top:6px; color:var(--muted); font-size:12px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and the USA dollar value recorded at the previous close — never derived by converting the ILS total through a rate.</div>`;
     });
   }
   if(marketKey === 'il'){
@@ -2611,7 +2622,7 @@ function renderPortfolioHeader(){
   const split = splitByMarket(rows);
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
-  document.getElementById('marketDetailSubtitle').textContent = 'All Holdings';
+  document.getElementById('marketDetailSubtitle').textContent = 'All holdings';
   hideNwYearSwitcher();
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -2645,18 +2656,18 @@ function renderPortfolioHeader(){
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Day Change</div>
+        <div class="md-stat-tile-label">Day change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
         <div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>
       </div>
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Total Gain</div>
+        <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${totals.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${totals.totalGain>=0?'+':'-'}${fmt(totals.totalGain)}</div>
         <div class="md-stat-tile-sub ${totals.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${totals.totalGainPct>=0?'+':''}${totals.totalGainPct.toFixed(2)}%</div>
       </div>
       <div class="md-stat-tile">
-        <div class="md-stat-tile-label">Market Value (USD)</div>
+        <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsdTotal !== null ? "$" + Math.round(todayUsdTotal).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
           ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
@@ -2690,12 +2701,12 @@ function renderPortfolioHeader(){
         <div>Israeli (TASE): ${fmt(ilPart)}</div>
         <div>USA: ${fmt(usPart)}${rate ? ` (at USD/ILS ${rate.toFixed(4)})` : ''}</div>
       </div>` : '';
-    return `<b>How Day Change is calculated</b>
+    return `<b>How day change is calculated</b>
       <div>Today's value: ${fmt(totals.totalValue)}</div>
       <div>&minus; Prev. close: ${fmt(prevClose)}</div>
       <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
       ${breakdown}
-      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Prev. close is the value recorded at each market's actual close (IntradayLog's green close rows), frozen at that moment — never recalculated with today's live rate.</div>`;
+      <div style="margin-top:6px; color:var(--muted); font-size:12px;">Prev. close is the value recorded at each market's actual close (IntradayLog's green close rows), frozen at that moment — never recalculated with today's live rate.</div>`;
   });
   if(yesterdayUsdTotal !== null) attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
     const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
@@ -2706,12 +2717,12 @@ function renderPortfolioHeader(){
         <div>Israeli (TASE): ${fmtUsd(todayIlUsd)} &rarr; was ${fmtUsd(yesterdayIlUsd)} (&divide; USD/ILS ${window.lastFxRate.toFixed(4)} today, ${window.lastCloseFxRate.toFixed(4)} at close)</div>
         <div>USA: ${fmtUsd(todayUsdTotal - todayIlUsd)} &rarr; was $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} (real, recorded at the close)</div>
       </div>` : '';
-    return `<b>How Market Value (USD) is calculated</b>
+    return `<b>How market value (USD) is calculated</b>
       <div>Today's total: ${fmtUsd(todayUsdTotal)}</div>
       <div>&minus; Prev. close: ${fmtUsd(yesterdayUsdTotal)}</div>
       <div style="margin-top:2px;">= <span class="${portfolioUsdChange>=0?'up':'down'}">${portfolioUsdChange>=0?'+':'-'}${fmtUsd(Math.abs(portfolioUsdChange))} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)</span></div>
       ${breakdown}
-      <div style="margin-top:6px; color:var(--muted); font-size:11px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) and the recorded close, never converted.</div>`;
+      <div style="margin-top:6px; color:var(--muted); font-size:12px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) and the recorded close, never converted.</div>`;
   });
   chartCtx = {
     holdings: rows, liveValue: totals.totalValue,
@@ -2824,11 +2835,11 @@ function drawPremarketTreemap(area){
     tile.innerHTML = inner;
     const tName = TICKER_NAME_MAP[d.name];
     const chg = isNaN(d.q.change) ? '' : ` (${d.q.change >= 0 ? '+' : '−'}$${Math.abs(d.q.change).toFixed(2)})`;
-    const tipHtml = `<b>${d.name}</b>${tName ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>` : ''}`
+    const tipHtml = `<b>${d.name}</b>${tName ? `<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>` : ''}`
       + `${d.q.session}: $${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} <span class="${up?'up':'down'}">${up?'+':'−'}${Math.abs(pct).toFixed(2)}%${chg}</span>`
       + `<br>≈ <span class="${d.ilsChange>=0?'up':'down'}">${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)}</span> on ${fmt(d.value)}`
       + (totals && totals.totalValue ? ` (${(d.value / totals.totalValue * 100).toFixed(2)}% of portfolio)` : '')
-      + `<br><span style="color:var(--muted); font-size:11px;">${extTimeLabel(d.q.updated)} New York · ${d.q.source} · double-click for Market Universe</span>`;
+      + `<br><span style="color:var(--muted); font-size:12px;">${extTimeLabel(d.q.updated)} New York · ${d.q.source} · double-click for Market Universe</span>`;
     tile.addEventListener('mouseenter', () => { tt.innerHTML = tipHtml; tt.style.display = 'block'; });
     tile.addEventListener('mousemove', e => {
       const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
@@ -2970,7 +2981,7 @@ function nwChangeLine(value, refValue, refLabel, opts){
   if(isNaN(changePct)) return '';
   const cls = change>=0 ? 'up' : 'down';
   const arrow = change>=0 ? '▲' : '▼';
-  const size = opts.big ? 'font-size:12.5px; font-weight:700;' : 'font-size:11px;';
+  const size = opts.big ? 'font-size:12.5px; font-weight:700;' : 'font-size:12px;';
   return `<div style="${size} margin:2px 0 0;" class="${cls}">${arrow} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs ${refLabel}</div>`;
 }
 
@@ -2996,7 +3007,7 @@ function buildNetWorthMonthTooltip(nw, m, idx, crossYearPrev){
   const momLine = prev ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">${nwChangeLine(m.netWorth, prev.netWorth, 'previous month')}</div>` : '';
   const ytdLine = idx > 0 ? nwChangeLine(m.netWorth, first.netWorth, first.month) : '';
   return `<b>${m.month}</b>`
-    + `<div style="margin-top:6px;">Assets ${nwFmt(m.assetsTotal)} − Total Liabilities ${nwFmt(m.liabilitiesTotal)}<br>= <span class="${cls}">${nwFmt(m.netWorth)}</span></div>`
+    + `<div style="margin-top:6px;">Assets ${nwFmt(m.assetsTotal)} − Total liabilities ${nwFmt(m.liabilitiesTotal)}<br>= <span class="${cls}">${nwFmt(m.netWorth)}</span></div>`
     + momLine
     + ytdLine;
 }
@@ -3011,10 +3022,10 @@ function buildNetWorthTileTooltip(kind, nw, m){
       .filter(it => NW_CORE_KEYS.includes(it.key) && !isNaN(m.assets[it.key]))
       .map(it => `${it.label} ${nwFmt(m.assets[it.key])}`).join(' + ');
     return `<b>Assets</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(coreAssets)}</b></div>`
-      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px;">Excludes Kfir, Agam and Pension — those aren't counted here.</div>`;
+      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px;">Excludes Kfir, Agam and Pension — those aren't counted here.</div>`;
   }
   if(kind === 'liabilities'){
-    return `<b>Total Liabilities</b><div style="margin-top:6px;">${liabLine || '—'}<br>= <b>${nwFmt(m.liabilitiesTotal)}</b></div>`;
+    return `<b>Total liabilities</b><div style="margin-top:6px;">${liabLine || '—'}<br>= <b>${nwFmt(m.liabilitiesTotal)}</b></div>`;
   }
   if(kind === 'pension'){
     const line = nw.assetItems
@@ -3023,7 +3034,7 @@ function buildNetWorthTileTooltip(kind, nw, m){
     return `<b>Pension</b><div style="margin-top:6px;">${line || '—'}<br>= <b>${nwFmt(pensionTotal)}</b></div>`;
   }
   const pct = coreAssets ? (m.liabilitiesTotal/coreAssets*100) : 0;
-  return `<b>Debt-to-Asset</b>`
+  return `<b>Debt-to-asset</b>`
     + `<div style="margin-top:6px;">Liabilities ${nwFmt(m.liabilitiesTotal)} ÷ Assets ${nwFmt(coreAssets)} × 100</div>`
     + `<div style="margin-top:4px; padding-top:4px; border-top:1px solid var(--line);">= <b>${pct.toFixed(1)}%</b></div>`;
 }
@@ -3058,7 +3069,7 @@ function buildNwTrendChart(opts){
       ${dots}
       ${labels}
     </svg>
-    ${hasIncompleteHistory ? `<div style="font-size:11px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+    ${hasIncompleteHistory ? `<div style="font-size:12px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
   `;
 }
 
@@ -3102,13 +3113,13 @@ function buildNwMultiTrendChart(opts){
   return `
     <div id="${svgId}Wrap">
     <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
-    <div style="margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:11.5px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
+    <div style="margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
       ${seriesSvg}
       ${hits}
       ${labels}
     </svg>
-    ${hasIncompleteHistory ? `<div style="font-size:11px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+    ${hasIncompleteHistory ? `<div style="font-size:12px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
     </div>
   `;
 }
@@ -3361,11 +3372,11 @@ function renderNetWorthBody(nw, crossYearPrev, crossYearAgo){
         <div class="md-stat-tile-val up">${fmt(coreAssets)}</div>
       </div>
       <div class="md-stat-tile" id="nwTileLiabilities" style="cursor:help;">
-        <div class="md-stat-tile-label">Total Liabilities</div>
+        <div class="md-stat-tile-label">Total liabilities</div>
         <div class="md-stat-tile-val down">${fmt(latest.liabilitiesTotal)}</div>
       </div>
       <div class="md-stat-tile" id="nwTileDebt" style="cursor:help;">
-        <div class="md-stat-tile-label">Debt-to-Asset</div>
+        <div class="md-stat-tile-label">Debt-to-asset</div>
         <div class="md-stat-tile-val">${debtToAsset.toFixed(1)}%</div>
       </div>
       <div class="md-stat-tile" id="nwTilePension" style="cursor:help;">
@@ -4405,8 +4416,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   }
 
   el.innerHTML = `
-    ${sessionLabel ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:4px;">Showing last session — ${sessionLabel}${marketOpen ? ' · today\'s chart starts with its first logged point (about every 5 min)' : ''}</div>` : ''}
-    ${singlePoint ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-bottom:4px;">Opening point so far — the line starts with the next logged point (about every 5 min)</div>` : ''}
+    ${sessionLabel ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:4px;">Showing last session — ${sessionLabel}${marketOpen ? ' · today\'s chart starts with its first logged point (about every 5 min)' : ''}</div>` : ''}
+    ${singlePoint ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:4px;">Opening point so far — the line starts with the next logged point (about every 5 min)</div>` : ''}
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGridLines}
       ${statusBadgesSvg}
@@ -4757,7 +4768,7 @@ async function renderRangeChart(ctx, range){
       <circle id="rangeHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
       <rect id="rangeOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
     </svg>
-    ${note ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:11px; color:var(--muted); margin-top:2px;">${note}</div>` : ''}
+    ${note ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:2px;">${note}</div>` : ''}
   `;
 
   const svgEl = el.querySelector('svg');
@@ -4783,7 +4794,7 @@ async function renderRangeChart(ctx, range){
     const isToday = !intraday5D && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
       + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
-      + (c.added > 0 ? `<div style="color:var(--muted); font-size:11px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
+      + (c.added > 0 ? `<div style="color:var(--muted); font-size:12px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
@@ -4827,7 +4838,7 @@ function render(rows, totals){
       + (f.applied
         ? `<div style="margin-top:6px; max-width:300px;">Total value uses ${f.source} instead of the partial sum of the holdings that did come through (${fmt(f.partialValue)}). Today and Total gain follow it.</div>`
         : `<div style="margin-top:6px; max-width:300px;">No recorded total was available to fall back on, so Total value is only the holdings that did come through.</div>`)
-      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px; max-width:300px;">The treemap and holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
+      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:300px;">The treemap and holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
   }
 
   const colorFor = tileColorFor, textColorFor = tileTextColorFor;
@@ -4867,7 +4878,7 @@ function render(rows, totals){
     const logoImgHtml = (n.data.logoUrl && !tileFitsBadge)
       ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
       : '';
-    const tooltipHtml = `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+    const tooltipHtml = `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
     div.addEventListener('mouseenter', ()=>{
       tt.innerHTML = tooltipHtml;
       tt.style.display = 'block';
@@ -4990,8 +5001,8 @@ function render(rows, totals){
       const gain = d.value - d.cost;
       const holdingPeriod = formatHoldingPeriod(d.buyDate);
       const tooltipHtml = `<b>${d.name}</b>`
-        + (TICKER_NAME_MAP[d.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[d.name]}</div>` : '')
-        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + (TICKER_NAME_MAP[d.name] ? `<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${TICKER_NAME_MAP[d.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:12px; margin-bottom:6px;">`
         + `Current value: ${fmtIls3(d.value)}<br>`
         + `Cost basis: ${fmtIls3(d.cost)}`
         + (holdingPeriod ? `<br>Bought: ${d.buyDate} (held ${holdingPeriod})` : '')
@@ -4999,7 +5010,7 @@ function render(rows, totals){
         + `Return = (${fmtIls3(d.value)} \u2212 ${fmtIls3(d.cost)}) \u00f7 ${fmtIls3(d.cost)}<br>`
         + `= ${gain>=0?'+':'\u2212'}${fmtIls3(Math.abs(gain))} \u00f7 ${fmtIls3(d.cost)}<br>`
         + `= <span class="${isUp?'up':'down'}">${isUp?'+':''}${d.ret.toFixed(2)}%</span>`
-        + (holdingPeriod ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:11px;">That's ${isUp?'+':''}${d.ret.toFixed(2)}% over ${holdingPeriod}.</div>` : '');
+        + (holdingPeriod ? `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px;">That's ${isUp?'+':''}${d.ret.toFixed(2)}% over ${holdingPeriod}.</div>` : '');
       row.style.cursor = 'help';
       row.addEventListener('mouseenter', ()=>{
         tt.innerHTML = tooltipHtml;
@@ -5248,8 +5259,8 @@ function renderContributionWaterfalls(rows){
       const gain = r.value - r.cost;
       const pct = gain / totalCost * 100;
       const tooltip = `<b>${r.name}</b>`
-        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
-        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:12px; margin-bottom:6px;">`
         + `Current value: ${fmtIls2(r.value)}<br>`
         + `Cost basis: ${fmtIls2(r.cost)}<br>`
         + `Total portfolio cost: ${fmtIls2(totalCost)}`
@@ -5282,8 +5293,8 @@ function renderContributionWaterfalls(rows){
       const weight = r.value / totalValue * 100;
       const contrib = (r.value/totalValue) * r.ret;
       const tooltip = `<b>${r.name}</b>`
-        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:11px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
-        + `<div style="color:var(--muted); font-size:11px; margin-bottom:6px;">`
+        + (TICKER_NAME_MAP[r.name] ? `<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${TICKER_NAME_MAP[r.name]}</div>` : '')
+        + `<div style="color:var(--muted); font-size:12px; margin-bottom:6px;">`
         + `Current value: ${fmtIls2(r.value)}<br>`
         + `Total portfolio value: ${fmtIls2(totalValue)}<br>`
         + `${r.name}'s own total return: ${r.ret>=0?'+':''}${r.ret.toFixed(2)}%`
@@ -5306,7 +5317,7 @@ function renderContributionWaterfalls(rows){
   const currentTotal = currentItems.reduce((a,i)=>a+i.value,0);
   renderWaterfall('waterfallCurrent', currentBars, (total) =>
     `<b>Total</b>Sum of every bar above (each = today's weight \u00d7 that holding's own return)<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span><br>`
-    + `<span style="color:var(--muted); font-size:11px;">This won't match the cost-weighted total (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%) \u2014 different weighting basis, both are valid.</span>`
+    + `<span style="color:var(--muted); font-size:12px;">This won't match the cost-weighted total (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%) \u2014 different weighting basis, both are valid.</span>`
   );
 }
 
@@ -5591,7 +5602,7 @@ function buildInsights(rows, totals, withChange){
 async function renderFxSparkline(){
   const el = document.getElementById('fxSparkline');
   if(!el) return;
-  el.innerHTML = '<span style="font-size:11px; color:var(--muted)">loading trend…</span>';
+  el.innerHTML = '<span style="font-size:12px; color:var(--muted)">loading trend…</span>';
   try{
     const end = new Date();
     const start = new Date(end.getTime() - 7*24*3600*1000);
@@ -5633,9 +5644,9 @@ async function renderFxSparkline(){
     el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
       + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`
       + `</svg>`
-      + `<span style="font-size:11px; color:${color}; margin-left:4px;">${trendUp?'▲':'▼'} 7d</span>`;
+      + `<span style="font-size:12px; color:${color}; margin-left:4px;">${trendUp?'▲':'▼'} 7d</span>`;
   } catch(e){
-    el.innerHTML = '<span style="font-size:11px; color:var(--muted)">trend unavailable</span>';
+    el.innerHTML = '<span style="font-size:12px; color:var(--muted)">trend unavailable</span>';
   }
 }
 
