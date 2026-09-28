@@ -68,6 +68,38 @@
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
   }
   #winloseAnalysisBtn:hover{background:var(--accent); color:#fff;}
+  #aiAnalysisBtn{
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:#fff; background:var(--accent);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+  }
+  #aiAnalysisBtn:hover{background:#7a5e30;}
+  #aiPanel{
+    display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.65; color:var(--ink);
+  }
+  #aiPanel.open{display:block;}
+  #aiPanel .ai-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-bottom:10px;}
+  #aiPanel .ai-privacy{font-size:12px; color:var(--muted);}
+  #aiPanel .ai-ask{display:flex; gap:8px; margin:0 0 12px;}
+  #aiPanel .ai-ask input{
+    flex:1; min-width:0; font-family:inherit; font-size:13px; color:var(--ink); background:var(--paper);
+    border:1px solid var(--line); border-radius:6px; padding:8px 10px;
+  }
+  #aiPanel .ai-ask input:focus{outline:none; border-color:var(--accent);}
+  #aiPanel .ai-ask button{
+    font-family:inherit; font-size:12.5px; color:#fff; background:var(--accent); border:1px solid var(--accent);
+    border-radius:6px; padding:8px 16px; cursor:pointer;
+  }
+  #aiPanel .ai-ask button:disabled{opacity:0.55; cursor:default;}
+  #aiResult h4{font-size:13.5px; margin:14px 0 4px; color:var(--ink);}
+  #aiResult h4:first-child{margin-top:0;}
+  #aiResult p{margin:0 0 8px;}
+  #aiResult ul{margin:0 0 8px; padding-left:20px;}
+  #aiResult li{margin:2px 0;}
+  #aiResult .ai-foot{margin-top:12px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:var(--muted);}
+  #aiResult .ai-wait{color:var(--muted);}
+  #aiResult .ai-wait::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:8px; animation:diagPulse 0.9s ease-in-out infinite alternate;}
+  #aiResult .ai-err{color:var(--down-5);}
   #digestBox{
     display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
     padding:16px 20px; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.7;
@@ -834,12 +866,26 @@
   <section>
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
       <h2 style="margin-bottom:0;">Winners &amp; losers — total return since purchase</h2>
-      <button id="winloseAnalysisBtn">Analysis</button>
+      <span style="display:flex; gap:8px;">
+        <button id="winloseAnalysisBtn">Analysis</button>
+        <button id="aiAnalysisBtn" title="A written analysis of your portfolio by Google Gemini — only percentages are sent">AI analysis</button>
+      </span>
     </div>
     <div id="winloseHeadline"></div>
     <div id="winlose"></div>
     <div id="winloseScaleNote"></div>
     <div id="winloseInsights"></div>
+    <div id="aiPanel">
+      <div class="ai-head">
+        <b>AI analysis</b>
+        <span class="ai-privacy">Google Gemini (free tier) · only percentages are sent — no amounts, totals or share counts</span>
+      </div>
+      <form class="ai-ask" id="aiForm">
+        <input type="text" id="aiQuestion" maxlength="500" placeholder="Ask about your portfolio (optional) — e.g. How exposed am I to USD/ILS?" aria-label="Question for the AI">
+        <button type="submit" id="aiRun">Analyze</button>
+      </form>
+      <div id="aiResult"></div>
+    </div>
   </section>
 
   <section>
@@ -924,7 +970,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790520908";
+const BUILD_ID = "1790605375";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1118,6 +1164,18 @@ const DIAG_CHECKS = [
         + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
   }},
 
+  {name: 'AI analysis (Gemini)', run: async () => {
+    // Only asks the proxy whether the AI is set up -- never calls Gemini, so it costs no quota.
+    const r = await diagFetch(PROXY_BASE_URL + '/ai/status', diagAuth(), 10000);
+    if(!r.res) return {status:'warn', ms:r.ms, detail:'No answer from the AI status check.'};
+    let d = {};
+    try{ d = await r.res.json(); } catch(e){}
+    if(typeof d.configured !== 'boolean') return {status:'warn', ms:r.ms, detail:'The server has no AI module yet — Troubleshooting → AI analysis (Gemini).'};
+    if(!d.configured) return {status:'warn', ms:r.ms, detail:'The AI module is installed, but GEMINI_API_KEY is missing from ~/sheet-proxy/.env.'};
+    return {status: d.usedToday >= d.limit ? 'warn' : 'ok', ms:r.ms,
+      detail:`Set up (${d.model}); ${d.usedToday} of ${d.limit} analyses used today.`};
+  }},
+
   {name: 'n8n.sheetpulse.org', always: true, run: async () => {
     // Same VM and Caddy, separate service (Docker) -- a failure here alone means only n8n is down.
     // /healthz is n8n's own health endpoint; its editor page refuses to be fetched from another site.
@@ -1240,6 +1298,14 @@ const TROUBLESHOOTING = [
       {name: 'Restart', note: 'Takes about 25 s to start answering.', cmd: `sudo systemctl restart sheet-proxy`},
       {name: 'Memory use and cap', cmd: `systemctl show sheet-proxy -p MemoryCurrent -p MemoryMax`},
       {name: 'Node version', cmd: `node -v`},
+    ]},
+  {title: 'AI analysis (Gemini)', where: 'putty',
+    intro: 'The "AI analysis" button in Winners & losers. The proxy module ~/sheet-proxy/sheetpulse-ai.js sends percentages only to Google Gemini (free tier); the key is GEMINI_API_KEY in ~/sheet-proxy/.env.',
+    cmds: [
+      {name: 'Install or update the AI module', note: 'Downloads it from the SheetPulse GitHub repo, checks it parses, restarts the proxy (about 25 s).', cmd: `curl -fsSL https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/sheetpulse-ai.js -o ~/sheet-proxy/sheetpulse-ai.js && node --check ~/sheet-proxy/sheetpulse-ai.js && sudo systemctl restart sheet-proxy && echo "AI module installed"`},
+      {name: 'Hook it into index.js (once)', note: 'Adds two lines after the MedTracker ones; does nothing if they are already there. Should print 2 lines with handleAiRoutes.', cmd: `grep -q handleAiRoutes ~/sheet-proxy/index.js || sed -i -e "/require('.\\/medtracker-entry');/a const { handleAiRoutes } = require('./sheetpulse-ai');" -e "/if (await handleLabReport(req, res, parsed.pathname, send)) return;/a\\\\  if (await handleAiRoutes(req, res, parsed.pathname, { send, readJsonBody })) return;" ~/sheet-proxy/index.js && grep -n handleAiRoutes ~/sheet-proxy/index.js`},
+      {name: 'Is the Gemini key set?', note: '1 = set, 0 = missing. Never prints the key itself.', cmd: `grep -c '^GEMINI_API_KEY=.' ~/sheet-proxy/.env`},
+      {name: 'AI errors in the log', cmd: `journalctl -u sheet-proxy --since "-1 day" --no-pager | grep -i gemini | tail -10`},
     ]},
   {title: 'Caddy (HTTPS for api.sheetpulse.org)', where: 'putty',
     cmds: [
@@ -5763,6 +5829,99 @@ document.addEventListener('click', (e)=>{
 document.getElementById('winloseAnalysisBtn').addEventListener('click', ()=>{
   document.getElementById('winloseInsights').classList.toggle('open');
 });
+
+// ---- AI analysis (Google Gemini, via the proxy's /ai/analyze -- proxy/sheetpulse-ai.js) ----
+// Only percentages leave the page: each holding's weight, returns and changes, plus the split and
+// FX move. The proxy re-checks that with a field whitelist before anything reaches Google.
+function buildAiPayload(){
+  const rows = window.lastRows || [], totals = window.lastTotals;
+  const total = totals && totals.totalValue;
+  if(!rows.length || !(total > 0)) return null;
+  const pct = v => (typeof v === 'number' && isFinite(v)) ? Math.round(v * 100) / 100 : null;
+  const byKey = {};
+  (universeRows || []).forEach(u => { byKey[extSymbolKey(u.ticker)] = u; });
+  let usValue = 0, extSession = '';
+  const holdings = rows.filter(r => r.value > 0).map(r => {
+    const isIl = ISRAELI_TICKERS.includes(r.name);
+    if(!isIl) usValue += r.value;
+    const q = isIl ? null : extQuoteFor(byKey[extSymbolKey(r.name)]);
+    if(q && !extSession) extSession = q.session;
+    return {ticker: r.name, market: isIl ? 'TASE' : 'USA', weightPct: pct(r.value / total * 100),
+      returnPct: pct(r.ret), dayPct: pct(r.change), extPct: q ? pct(q.pct) : null,
+      sector: r.sector || '', role: r.role || ''};
+  });
+  const fx = window.lastFxRate, fxClose = window.lastCloseFxRate;
+  return {
+    holdings,
+    summary: {
+      asOf: new Date().toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}),
+      dayPct: pct(totals.dayGainPct), totalReturnPct: pct(totals.totalGainPct),
+      usaWeightPct: pct(usValue / total * 100), taseWeightPct: pct((total - usValue) / total * 100),
+      usdIls: typeof fx === 'number' ? Math.round(fx * 10000) / 10000 : null,
+      usdIlsChangePct: (typeof fx === 'number' && typeof fxClose === 'number' && fxClose) ? pct((fx / fxClose - 1) * 100) : null,
+      taseOpen: !!getTaseStatus(), usaOpen: !!getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']),
+      extSession,
+    },
+  };
+}
+
+// The answer is Markdown limited to "## " headings, "- " bullets and **bold** (the proxy asks for
+// exactly that). Escaped first, so nothing in it can become markup.
+function renderAiMarkdown(md){
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  let html = '', inList = false;
+  md.split(/\r?\n/).forEach(line => {
+    const t = line.trim();
+    const bullet = /^[-*•]\s+(.*)$/.exec(t);
+    if(bullet){ if(!inList){ html += '<ul>'; inList = true; } html += `<li>${inline(bullet[1])}</li>`; return; }
+    if(inList){ html += '</ul>'; inList = false; }
+    if(!t) return;
+    const head = /^#{1,4}\s+(.*)$/.exec(t);
+    html += head ? `<h4>${inline(head[1])}</h4>` : `<p>${inline(t)}</p>`;
+  });
+  if(inList) html += '</ul>';
+  return html;
+}
+
+let aiBusy = false, aiHasRun = false;
+async function runAiAnalysis(){
+  if(aiBusy) return;
+  const out = document.getElementById('aiResult');
+  const btn = document.getElementById('aiRun');
+  const payload = buildAiPayload();
+  if(!payload){ out.innerHTML = `<p class="ai-err">Portfolio data isn't loaded yet — refresh from the sheet first.</p>`; return; }
+  payload.question = document.getElementById('aiQuestion').value.trim();
+  aiBusy = true; aiHasRun = true; btn.disabled = true;
+  out.innerHTML = `<p class="ai-wait">Analyzing ${payload.holdings.length} holdings… usually 10–30 seconds.</p>`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 100000);
+  try{
+    const res = await fetch(PROXY_BASE_URL + '/ai/analyze', {
+      method: 'POST', cache: 'no-store', signal: ac.signal,
+      headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + (localStorage.getItem('pf_idToken') || '')},
+      body: JSON.stringify(payload),
+    });
+    let data = {};
+    try{ data = await res.json(); } catch(e){}
+    if(res.status === 401) throw new Error('Your sign-in has expired — sign out and sign in again.');
+    if(!res.ok || !data.text) throw new Error(data.error || ('HTTP ' + res.status + (res.status === 400 ? ' — the server may not have the AI module yet (see Diagnostics → Troubleshooting → AI analysis)' : '')));
+    // "gemini-3.8-flash" -> "Gemini 3.8 Flash"
+    const modelName = String(data.model || 'gemini').replace(/-/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase());
+    out.innerHTML = renderAiMarkdown(data.text)
+      + `<div class="ai-foot">${modelName} · ${data.usedToday} of ${data.limit} today · ${new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})}. AI can get things wrong — check the numbers. Not financial advice.</div>`;
+  } catch(e){
+    out.innerHTML = `<p class="ai-err">${e.name === 'AbortError' ? 'No answer after 100 seconds — try again.' : String(e.message).replace(/[<>&]/g, '')}</p>`;
+  } finally {
+    clearTimeout(timer); aiBusy = false; btn.disabled = false;
+  }
+}
+document.getElementById('aiAnalysisBtn').addEventListener('click', () => {
+  const panel = document.getElementById('aiPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open') && !aiHasRun) runAiAnalysis();
+});
+document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); runAiAnalysis(); });
 
 document.getElementById('digestBtn').addEventListener('click', ()=>{
   const box = document.getElementById('digestBox');
