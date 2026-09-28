@@ -155,7 +155,8 @@ async function handleAiRoutes(req, res, pathname, { send, readJsonBody }) {
   const question = text(body.question, MAX_QUESTION_CHARS);
   const prompt = buildPrompt(holdings, summary, question);
 
-  usage.count++;
+  // Only answered analyses count toward the daily limit -- retrying while Google's free tier is
+  // "busy" mustn't use it up.
   try {
     // The main model, again after a short pause if it was only busy, then each fallback model.
     // A 404 (model name retired) moves straight on; any other error (e.g. a bad request) stops.
@@ -188,6 +189,7 @@ async function handleAiRoutes(req, res, pathname, { send, readJsonBody }) {
       json(502, { error: 'Gemini returned no text (' + reason + ')' });
       return true;
     }
+    usage.count++;
     json(200, { text: answer, model, usedToday: usage.count, limit: DAILY_LIMIT });
   } catch (err) {
     console.error(new Date().toISOString(), 'gemini request failed:', err.message);
