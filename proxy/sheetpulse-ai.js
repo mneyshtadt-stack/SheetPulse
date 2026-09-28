@@ -13,13 +13,15 @@
 // .env:
 //   GEMINI_API_KEY          required (from aistudio.google.com -> API keys; no billing = free tier)
 //   GEMINI_MODEL            optional, default gemini-3.8-flash
-//   GEMINI_FALLBACK_MODELS  optional, comma-separated, default gemini-3.5-flash-lite,gemini-2.5-flash
+//   GEMINI_FALLBACK_MODELS  optional, comma-separated, default gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,
+//                           gemini-3.5-flash-lite (the other free-tier Flash models; older ones are often
+//                           less crowded when the newest is "high demand")
 //                           -- tried in order when the main model is busy ("high demand"), over its
 //                           free quota, or unavailable
 //   AI_DAILY_LIMIT          optional, default 40 analyses per day (Israel time)
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite,gemini-2.5-flash')
+const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.7-flash,gemini-3.6-flash,gemini-3.5-flash,gemini-3.5-flash-lite')
   .split(',').map((m) => m.trim()).filter((m) => m && m !== MODEL);
 // Free-tier "high demand" (503) and per-minute quota (429) spikes usually pass within seconds.
 const RETRYABLE = [429, 500, 503, 504];
