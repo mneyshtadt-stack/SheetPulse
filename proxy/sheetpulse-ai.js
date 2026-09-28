@@ -13,12 +13,17 @@
 // .env:
 //   GEMINI_API_KEY          required (from aistudio.google.com -> API keys; no billing = free tier)
 //   GEMINI_MODEL            optional, default gemini-3.8-flash
-//   GEMINI_FALLBACK_MODEL   optional, default gemini-3.5-flash-lite (tried once when the main model
-//                           is busy, over its free quota, or unavailable)
+//   GEMINI_FALLBACK_MODELS  optional, comma-separated, default gemini-3.5-flash-lite,gemini-2.5-flash
+//                           -- tried in order when the main model is busy ("high demand"), over its
+//                           free quota, or unavailable
 //   AI_DAILY_LIMIT          optional, default 40 analyses per day (Israel time)
 
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite';
+const FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS || process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash-lite,gemini-2.5-flash')
+  .split(',').map((m) => m.trim()).filter((m) => m && m !== MODEL);
+// Free-tier "high demand" (503) and per-minute quota (429) spikes usually pass within seconds.
+const RETRYABLE = [429, 500, 503, 504];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 40;
 const TIMEOUT_MS = 90000;
 const MAX_HOLDINGS = 200;
@@ -150,17 +155,28 @@ async function handleAiRoutes(req, res, pathname, { send, readJsonBody }) {
 
   usage.count++;
   try {
-    let model = MODEL;
-    let r = await callGemini(model, prompt);
-    // Busy, over the free quota, or the model name retired -> one try on the lighter model.
-    if ([404, 429, 500, 503].includes(r.status) && FALLBACK_MODEL && FALLBACK_MODEL !== MODEL) {
-      model = FALLBACK_MODEL;
+    // The main model, again after a short pause if it was only busy, then each fallback model.
+    // A 404 (model name retired) moves straight on; any other error (e.g. a bad request) stops.
+    const attempts = [
+      { model: MODEL, wait: 0 }, { model: MODEL, wait: 2500 },
+      ...FALLBACK_MODELS.map((m) => ({ model: m, wait: 0 })),
+    ];
+    let r = null, model = MODEL, busy = true;
+    for (const a of attempts) {
+      if (r && r.status === 404 && a.model === model) continue;  // don't retry a missing model
+      if (a.wait) await sleep(a.wait);
+      model = a.model;
       r = await callGemini(model, prompt);
+      if (r.status === 200) break;
+      const msg = (r.data && r.data.error && r.data.error.message) || `HTTP ${r.status}`;
+      console.error(new Date().toISOString(), 'gemini error:', model, r.status, msg);
+      if (!RETRYABLE.includes(r.status) && r.status !== 404) { busy = false; break; }
     }
     if (r.status !== 200) {
       const msg = (r.data && r.data.error && r.data.error.message) || `HTTP ${r.status}`;
-      console.error(new Date().toISOString(), 'gemini error:', r.status, msg);
-      json(r.status === 429 ? 429 : 502, { error: r.status === 429 ? 'Gemini free-tier limit reached -- try again in a minute.' : 'Gemini error: ' + msg });
+      json(busy ? 503 : 502, { error: busy
+        ? `Gemini's free tier is busy right now (tried ${[MODEL, ...FALLBACK_MODELS].join(', ')}). Spikes usually pass within a few minutes -- try again shortly.`
+        : 'Gemini error: ' + msg });
       return true;
     }
     const answer = extractText(r.data);
