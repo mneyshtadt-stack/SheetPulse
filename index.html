@@ -235,6 +235,14 @@
     font-family:'Helvetica Neue',Arial,sans-serif;
   }
   .pf-detail-grid .md-tc-item-val{font-weight:400;}
+  /* Each Transactions-tab line for the holding, under the summary (see applyTransactionLots). */
+  .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  .pf-detail-row .pf-lots th{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
+  .pf-detail-row .pf-lots td{background:none; padding:6px 14px 6px 0; border-bottom:1px solid var(--line); color:var(--ink);}
+  .pf-detail-row .pf-lots tr:last-child td{border-bottom:none;}
+  .pf-detail-row .pf-lots .num{text-align:right;}
+  .pf-detail-row .pf-lot-sale td{color:var(--muted);}
+  .pf-detail-row .pf-lot-tag{font-size:11px; color:var(--down-5); margin-left:4px;}
   #universeCard{
     background:var(--paper); width:min(1400px, 96vw); max-height:85vh; display:flex; flex-direction:column;
     box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease, height 0.15s ease, max-height 0.15s ease;
@@ -1004,7 +1012,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790667634";
+const BUILD_ID = "1790667757";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1767,9 +1775,10 @@ async function applyTransactionLots(rows){
     const avg = buyNotional / buyShares;
     const k = row.cost / (row.shares * avg);   // ILS per unit of (shares x price)
     row.lots = txs.map(x => ({
-      shares: x.shares, buyDate: x.date,
+      shares: x.shares, buyDate: x.date, price: x.price, fee: x.fee,
       cost: (x.shares > 0 && x.price > 0 ? x.shares * x.price + x.fee : x.shares * avg) * k,   // a sale: negative, at the average price
     }));
+    row.lotsFromTransactions = true;   // the Portfolio table lists them under the holding
   });
 }
 
@@ -2380,6 +2389,25 @@ function renderPortfolioTable(enriched){
       : '—';
     const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
     const holdingPeriod = formatHoldingPeriod(r.buyDate);
+    const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    // Each line of the Transactions tab for this holding, oldest first (see applyTransactionLots).
+    const txLots = r.lotsFromTransactions ? (r.lots || []).slice().sort((a,b) => (new Date(a.buyDate) - new Date(b.buyDate)) || 0) : [];
+    const multi = txLots.length > 1;
+    const lotsHtml = txLots.length ? `
+          <table class="pf-lots">
+            <thead><tr><th>Date</th><th class="num">Shares</th><th class="num">Cost/share</th><th class="num">Commission</th><th class="num">Total cost</th></tr></thead>
+            <tbody>${txLots.map(l => {
+              const sale = l.shares < 0;
+              const total = !sale && l.price > 0 ? l.shares * l.price + (l.fee || 0) : NaN;
+              return `<tr${sale ? ' class="pf-lot-sale"' : ''}>
+                <td>${String(l.buyDate || '—').replace(/[<>&]/g, '')}${sale ? ' <span class="pf-lot-tag">sold</span>' : ''}</td>
+                <td class="num">${l.shares.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
+                <td class="num">${l.price > 0 ? money(l.price) : '—'}</td>
+                <td class="num">${l.fee ? money(l.fee) : '—'}</td>
+                <td class="num">${isNaN(total) ? '—' : money(total)}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>` : '';
 
     html += `
       <tr class="pf-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
@@ -2406,12 +2434,12 @@ function renderPortfolioTable(enriched){
         <td colspan="${PF_COLS.length}">
           <div class="pf-detail-grid">
             <div>
-              <div class="md-tc-item-label">Purchase date</div>
+              <div class="md-tc-item-label">${multi ? 'First purchase' : 'Purchase date'}</div>
               <div class="md-tc-item-val">${r.buyDate || '—'}</div>
               <div class="md-tc-item-sub">${holdingPeriod ? `held ${holdingPeriod}` : ''}</div>
             </div>
             <div>
-              <div class="md-tc-item-label">Purchase price</div>
+              <div class="md-tc-item-label">${multi ? 'Average price' : 'Purchase price'}</div>
               <div class="md-tc-item-val">${avgCostStr}</div>
             </div>
             <div>
@@ -2426,7 +2454,7 @@ function renderPortfolioTable(enriched){
                   : (!isNaN(r.totalCostNative) ? `${priceCcy}${r.totalCostNative.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—')
               }</div>
             </div>
-          </div>
+          </div>${lotsHtml}
         </td>
       </tr>`;
   });
