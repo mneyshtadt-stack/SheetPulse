@@ -54,7 +54,7 @@
   <p class="subtitle">How SheetPulse went from a public "anyone with the link" Google Sheet to a private backend that only opens for one signed-in Google account — every component, every URL, and the exact steps that built it.</p>
 
   <h2><span class="eyebrow">The big picture</span>System map</h2>
-  <p>Twelve components, four "places" (your browser, GitHub, a small server you rent from Oracle, and Google's own identity service), and one Google account allowed to sign in.</p>
+  <p>Every component, grouped by where it runs: your browser, GitHub, a small server rented from Oracle, Google's identity service and Sheets API, and Google's Gemini API for the AI features — with one Google account allowed to sign in.</p>
   <div class="diagram-card">
 <pre class="mermaid">
 flowchart TB
@@ -70,16 +70,21 @@ flowchart TB
   end
 
   subgraph DNS["Spaceship DNS (sheetpulse.org)"]
-    DD["api.sheetpulse.org<br/>A record &rarr; VM's public IP"]
+    DD["api.sheetpulse.org + n8n.sheetpulse.org<br/>A records &rarr; VM's public IP"]
   end
 
-  subgraph VM["Oracle Cloud VM &mdash; n8n-server"]
-    SL["Oracle Security List &mdash; firewall #1<br/>allows TCP 80 + 443 in"]
-    IPT["Ubuntu iptables &mdash; firewall #2<br/>allows TCP 80 + 443 in"]
+  subgraph VM["Oracle Cloud VM &mdash; n8n-server (1 GB + 2 GB swap)"]
+    SL["Oracle Security List &mdash; firewall #1<br/>allows TCP 22 + 80 + 443 in"]
+    IPT["Ubuntu iptables &mdash; firewall #2<br/>allows TCP 22 + 80 + 443 in"]
     CADDY["Caddy<br/>automatic HTTPS via Let's Encrypt"]
-    PROXY["sheet-proxy (Node.js)<br/>verifies the ID token + email, every request"]
+    PROXY["sheet-proxy (Node.js 24, capped 250 MB)<br/>verifies the ID token + email, every request<br/>+ sheetpulse-ai.js: AI routes, 23:50 brief"]
+    N8N["n8n (Docker, capped 450 MB)<br/>127.0.0.1:5678 only"]
     SL --> IPT --> CADDY --> PROXY
+    CADDY --> N8N
   end
+
+  GEM["Google Gemini API (free tier)<br/>receives percentages only"]
+  PROXY -- "AI analysis + daily brief" --> GEM
 
   subgraph GCP["Google Cloud (Sheets access)"]
     OAUTH["Desktop OAuth client<br/>Client ID + Secret"]
@@ -391,6 +396,109 @@ sudo netfilter-persistent save</code></pre>
     </ol>
   </div>
 
+  <div class="phase">
+    <h3><span class="phase-num">24</span>Hardening the VM</h3>
+    <ol>
+      <li><b>SSH.</b> Password login was already off. Root login is now off too, via <code>/etc/ssh/sshd_config.d/00-hardening.conf</code> (<code>PermitRootLogin no</code>). <b>fail2ban</b> blocks repeated SSH login attempts.</li>
+      <li><b>Less exposed.</b> <code>rpcbind</code>, used only for network file sharing, is disabled. The proxy's secret files (<code>.env</code> and <code>webauthn-credentials.json</code>) are readable only by their owner (<code>600</code>). The system is fully updated.</li>
+      <li><b>Node 18 → 24.</b> Ubuntu's own Node 18 was out of support. Node 24, the current long-term version (supported until April 2028), comes from the NodeSource repository. Automatic Ubuntu updates don't cover it, so the Troubleshooting tab has a monthly update command.</li>
+      <li><b>n8n behind HTTPS.</b> n8n used to answer on <code>http://151.145.89.129:5678</code>, which was open to the internet, unencrypted, and had its secure-cookie protection turned off. It now listens on <code>127.0.0.1:5678</code> only. Caddy serves it at <code>https://n8n.sheetpulse.org</code> (a new A record in Spaceship), with <code>N8N_PROTOCOL=https</code> and <code>N8N_PROXY_HOPS=1</code>. The old port 5678 rules are gone from both firewall layers.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">25</span>The freeze, and freeze protection</h3>
+    <ol>
+      <li><b>What happened.</b> One night the VM stopped answering entirely. Connections were accepted, but SSH, Caddy and n8n never replied. The log showed no out-of-memory kill: with 1 GB of memory and <b>no swap</b>, Linux kept re-reading program files from disk ("thrashing") until nothing could run. n8n had read 1.49 GB from disk within hours of a reboot.</li>
+      <li><b>Getting it back.</b> When SSH doesn't answer, Oracle Cloud Shell still works, because it talks to Oracle's API rather than to the VM. The steps are to find the VM (<code>oci search resource structured-search …</code>), soft-reset it, and wait for <code>RUNNING</code>. All of this is in Diagnostics → Troubleshooting → <i>VM frozen or unreachable</i>.</li>
+      <li><b>Protection.</b> A 2 GB swap file, so idle memory can be parked instead of freezing the machine. The proxy is capped at 250 MB with a systemd drop-in (<code>MemoryHigh=150M</code>, <code>MemoryMax=250M</code>). n8n is capped at 450 MB in <code>docker-compose.yml</code> (<code>mem_limit</code>, plus <code>NODE_OPTIONS=--max-old-space-size=350</code>). Free memory after the change went from 187 MB to 586 MB. The system log keeps earlier boots, so the next incident leaves a trace.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">26</span>Diagnostics, a runbook, and smaller fixes</h3>
+    <ol>
+      <li><b>Diagnostics button</b>, also on the sign-in screen. It checks each link in order:
+        <ul>
+          <li>this device's internet;</li>
+          <li><code>api.sheetpulse.org</code> itself (a 12-second timeout detects a frozen VM);</li>
+          <li>the sign-in session and when it expires;</li>
+          <li>the proxy accepting it;</li>
+          <li>the Tracker data;</li>
+          <li>how fresh the newest IntradayLog row is;</li>
+          <li>whether the AI is set up;</li>
+          <li>n8n (its <code>/healthz</code> endpoint);</li>
+          <li>whether a newer build is live.</li>
+        </ul>
+        The first red row is where it breaks, with what to do. <b>Copy report</b> copies the results, never the session token.</li>
+      <li><b>Troubleshooting tab</b>: the commands from each investigation, grouped by where they run (Oracle Cloud Shell or PuTTY), each with a Copy button. A pinned bar at the top searches every command and jumps to a chapter. It's kept up to date with every deploy.</li>
+      <li><b>Sign out</b> finally shows under the title. It was always in the code, but on a restored session it was drawn before its place on the page existed. <b>The phone's Back button</b> now closes the open window instead of leaving the app: each window adds a history entry, and closing it with × removes that entry again.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">27</span>Pre-market and after-hours prices</h3>
+    <ol>
+      <li><b>The limitation.</b> <code>GOOGLEFINANCE()</code> has no extended-hours attribute; <code>price</code> stays at the last regular close. Google Finance's own quote page does show the pre-market or after-hours trade, in plain HTML.</li>
+      <li><b><code>ExtendedHours.gs</code></b> runs every 5 minutes during pre-market (04:00–09:30 New York time, 11:00–16:30 Israel) and after-hours (16:00–20:00 New York). For each current US holding, it reads Google Finance's page, finding the price by its "Pre-market" / "After hours" label rather than Google's generated class names. Each ticker's exchange is found once and remembered. If Google gives nothing for a ticker, Yahoo Finance's chart data is tried as a backup.</li>
+      <li><b>Where it goes.</b> Six columns at the right edge of the Investment Universe tab: <code>Ext Price</code>, <code>Ext Change</code>, <code>Ext Change %</code>, <code>Ext Session</code>, <code>Ext Updated</code>, <code>Ext Source</code>. Only the latest reading is kept. Pre-market values are cleared at the regular open; after-hours values stay until the next pre-market.</li>
+      <li><b>On the dashboard.</b> Market Universe's price card shows the extended-hours trade beside the regular price, in Google Finance's own layout. The Portfolio window's <b>Pre-Market</b> tab is a treemap of just the holdings that traded, sized by portfolio weight and colored by their extended-hours change. A summary line gives the session, the count and the weighted move.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">28</span>AI analysis — Google Gemini, percentages only</h3>
+    <ol>
+      <li><b>Why the proxy.</b> The AI key must never sit in the public page or repository, and the proxy already verifies the sign-in on every request. <code>sheetpulse-ai.js</code> is a module next to <code>index.js</code> (two lines hook it in after the sign-in check). It's published in the repo under <code>proxy/</code> and installed with one <code>curl</code> command.</li>
+      <li><b>Privacy.</b> On Gemini's free tier, Google may use what it's sent to improve its products. So only percentages leave the server: each holding's weight, total return, day change, pre-market change, sector and role, plus the USA/TASE split and the USD/ILS move. The module enforces this with a field whitelist, so no amount, total or share count can reach Google.</li>
+      <li><b>The free tier is often busy.</b> <code>gemini-3.8-flash</code> is tried, tried again after 2.5 seconds, then <code>gemini-3.7-flash</code>, <code>3.6-flash</code>, <code>3.5-flash</code> and <code>3.5-flash-lite</code>; <code>gemini-2.5-flash</code> is closed to new keys. Busy attempts don't count toward the 40-a-day limit. The key is sent in a header (<code>x-goog-api-key</code>), never in the URL.</li>
+      <li><b>On the dashboard.</b> <b>AI analysis</b> in Winners &amp; losers, with a question box and three suggested questions. Its instructions: explain, don't advise.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">29</span>The AI daily brief, written by the server</h3>
+    <ol>
+      <li><b>The problem.</b> A brief written in the morning described "0.00%, markets closed". The dashboard's portfolio day change resets overnight, while each holding still carried the last session's change, so the AI got contradictory numbers.</li>
+      <li><b>The fix.</b> The server writes the brief itself, automatically at <b>23:50 Israel time, Monday to Friday</b>, after both closes. It reads the Tracker directly, computes the portfolio's day move as the size-weighted change of the holdings (so the total always agrees with them), takes the USD/ILS change from <code>Q2</code> and the after-hours moves from the Ext columns, and saves the result in <code>ai-briefs.json</code> on the VM (the last 7 trading days). If Gemini is busy, it retries every 5 minutes until 03:00.</li>
+      <li><b>On the dashboard.</b> <b>AI daily brief</b> shows the saved brief instantly ("Brief for Monday, Sep 28 · written 23:50 automatically"), with a picker for earlier days. <b>Refresh</b> writes a new one: "so far today" while a market trades, otherwise the last finished session.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">30</span>Transactions: one line per purchase</h3>
+    <ol>
+      <li><b>The tab.</b> <code>Transactions</code> has the columns <code>Ticker</code> | <code>Shares</code> | <code>Buy Date</code> | <code>Cost/Share</code> | <code>Commission</code>, one line per purchase. A sale is a line with negative shares and no price.</li>
+      <li><b>The Tracker keeps one row per ticker.</b> For a converted ticker, its Shares, Average Cost and Buy Date are formulas over Transactions, written by hand per ticker:
+        <ul>
+          <li><code>SUMIFS</code> for the total shares;</li>
+          <li><code>SUMPRODUCT</code> for the share-weighted average cost, commissions included;</li>
+          <li><code>MINIFS</code> for the first purchase date.</li>
+        </ul>
+        Total Cost (=B×D) and Total Cost (ILS) (×Q1, today's rate) work unchanged on top of them. POWR was the first ticker converted.</li>
+      <li><b>History charts.</b> The dashboard reads each line as a separate purchase, so a purchase counts only from its own date and its cost is new money, not gain. A lot's ₪ cost is scaled from the row's own Total Cost (ILS), so it follows the Tracker's conventions. If a ticker ever has more than one Tracker row, the dashboard and the AI combine them into one holding.</li>
+    </ol>
+  </div>
+
+  <div class="phase">
+    <h3><span class="phase-num">31</span>Smaller dashboard changes</h3>
+    <ul>
+      <li><b>Always fresh.</b> Every open is a full "Refresh from sheet": on load, after signing in, and when the app returns to the foreground after more than a minute away. Auto-refresh defaults to every 5 minutes.</li>
+      <li><b>Winners &amp; losers.</b> Unchecking a holding (for example a +200% outlier) leaves it out of the bar scale, so the others aren't squashed. The choice is remembered per device.</li>
+      <li><b>Brand.</b> The header and the sign-in screen use the app icon itself (<code>icon-512.png</code>, bars plus the "SheetPulse" wordmark), with the name beside it in the header.</li>
+      <li><b>Design quick wins</b>, from a design audit:
+        <ul>
+          <li>an accurate footer (it still described "Publish to web");</li>
+          <li>a 12 px minimum text size;</li>
+          <li>fixed-width digits everywhere;</li>
+          <li>sentence-case labels;</li>
+          <li>in-page messages instead of <code>alert()</code> pop-ups;</li>
+          <li>balanced line wrapping.</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
   <h2><span class="eyebrow">Design rationale</span>Day Change and currency movement</h2>
   <p><code>Day Change</code> deliberately includes USD/ILS currency movement, not just each holding's own price movement — a considered design choice, not an oversight.</p>
   <p>Your net worth is denominated in shekels; that's the currency you'll actually spend. If a US stock's price doesn't move at all but USD strengthens 1% against ILS, you really are 1% richer in ILS terms today — that's real, realizable wealth change, not a measurement quirk. Comparing today's <code>$price &times; today's rate</code> against yesterday's <code>$price &times; yesterday's rate</code> (what <code>LastClose</code> + the live rate does, see phase 17) correctly captures the combined effect of stock performance and currency movement, which is exactly what "how much richer/poorer am I today" has to mean for an ILS-based investor.</p>
@@ -413,6 +521,9 @@ sudo netfilter-persistent save</code></pre>
     <tr><td><code>SESSION_JWT_SECRET</code></td><td>the VM's <code>.env</code> file</td><td>Signs the short-lived session tokens issued after a successful WebAuthn unlock (phase 14)</td></tr>
     <tr><td><code>RP_ID</code> / <code>RP_NAME</code> / <code>ORIGIN</code></td><td>the VM's <code>.env</code> file</td><td><i>Not secret</i> — WebAuthn's own relying-party domain/name/origin, checked on every biometric verification</td></tr>
     <tr><td><code>webauthn-credentials.json</code></td><td>next to <code>index.js</code> on the VM</td><td>One entry per registered device: a public key + counter only — never anything biometric</td></tr>
+    <tr><td><code>GEMINI_API_KEY</code></td><td>the VM's <code>.env</code> file</td><td>Lets <code>sheetpulse-ai.js</code> call Google Gemini (free tier — no billing on its AI Studio project, phase 28). Optional: <code>GEMINI_MODEL</code>, <code>GEMINI_FALLBACK_MODELS</code>, <code>AI_DAILY_LIMIT</code></td></tr>
+    <tr><td><code>ai-briefs.json</code></td><td>next to <code>index.js</code> on the VM</td><td><i>Not secret</i> — the last 7 saved daily briefs (percentages-based text only, phase 29)</td></tr>
+    <tr><td>n8n owner login</td><td>n8n's own database in <code>~/.n8n</code> (backed up as <code>~/n8n-backup-*.tar.gz</code>, readable only by its owner)</td><td>Signs in to <code>https://n8n.sheetpulse.org</code>; the backup also holds n8n's encryption key</td></tr>
     <tr><td><code>AUTH_TOKEN</code> <span style="color:var(--muted);">(retired)</span></td><td>still present in the VM's <code>.env</code> file, unused</td><td>The old shared static secret, superseded by Google Sign-In in phase 11</td></tr>
     <tr><td>GitHub fine-grained PAT</td><td><code>C:\Users\michaelne\github-deploy-token.txt</code> (outside the synced folder)</td><td>Lets <code>deploy-to-github.ps1</code> push updates without git installed</td></tr>
   </table>
@@ -423,13 +534,26 @@ sudo netfilter-persistent save</code></pre>
     <tr><td>SheetPulse (live)</td><td><a href="https://mneyshtadt-stack.github.io/SheetPulse/">mneyshtadt-stack.github.io/SheetPulse</a></td></tr>
     <tr><td>GitHub repo</td><td><a href="https://github.com/mneyshtadt-stack/SheetPulse">github.com/mneyshtadt-stack/SheetPulse</a></td></tr>
     <tr><td>Local test URL</td><td><code>http://localhost:8000/TestLocal.html</code> (via <code>TestLocal.bat</code>, phase 15)</td></tr>
-    <tr><td>Proxy base URL</td><td><code>https://api.sheetpulse.org</code></td></tr>
+    <tr><td>Proxy base URL</td><td><code>https://api.sheetpulse.org</code> (AI routes: <code>/ai/analyze</code>, <code>/ai/status</code>, <code>/ai/brief</code>, <code>/ai/brief/refresh</code>)</td></tr>
+    <tr><td>n8n</td><td><code>https://n8n.sheetpulse.org</code> (port 5678 is closed to the internet)</td></tr>
+    <tr><td>AI module download (for the VM)</td><td><code>https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/sheetpulse-ai.js</code></td></tr>
+    <tr><td>Gemini API key</td><td><a href="https://aistudio.google.com/apikey">aistudio.google.com/apikey</a> (personal Google account, project SheetPulse, no billing)</td></tr>
+    <tr><td>Oracle Cloud Shell (when the VM is frozen)</td><td>Oracle Console &rarr; the <code>&gt;_</code> icon at the top</td></tr>
     <tr><td>Domain and DNS (<code>sheetpulse.org</code>)</td><td><a href="https://www.spaceship.com">spaceship.com</a> &rarr; Launchpad &rarr; Domain Manager</td></tr>
     <tr><td>Old proxy name <span style="color:var(--muted);">(retired, no longer served)</span></td><td><code>https://michaelportfolio.duckdns.org</code> &middot; <a href="https://www.duckdns.org">duckdns.org</a></td></tr>
     <tr><td>Google Cloud Console</td><td><a href="https://console.cloud.google.com">console.cloud.google.com</a></td></tr>
     <tr><td>OAuth credentials page</td><td><a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a></td></tr>
   </table>
 
-  <div class="note">Everything on the Ubuntu/Oracle side — Node install, <code>google-auth-library</code>, <code>@simplewebauthn/server</code>, <code>jsonwebtoken</code>, the systemd unit, the Caddyfile, and both firewall layers — is already configured and running on the VM exactly as documented above; nothing here is a pending task.</div>
+  <div class="note">Everything on the Ubuntu/Oracle side is already configured and running on the VM exactly as documented above; nothing here is a pending task:
+    <ul>
+      <li>Node 24 from NodeSource, with <code>google-auth-library</code>, <code>@simplewebauthn/server</code>, <code>jsonwebtoken</code> and the <code>sheetpulse-ai.js</code> module;</li>
+      <li>the systemd unit with its 250 MB memory cap, and the 2 GB swap file;</li>
+      <li>the Caddyfile for <code>api.</code> and <code>n8n.sheetpulse.org</code>;</li>
+      <li>n8n in Docker, bound to 127.0.0.1 and capped at 450 MB;</li>
+      <li>fail2ban, root login off, rpcbind off;</li>
+      <li>both firewall layers.</li>
+    </ul>
+    Diagnostics &rarr; Troubleshooting has the commands to check each of them.</div>
 </div>
 
