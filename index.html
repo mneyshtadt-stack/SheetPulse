@@ -1004,7 +1004,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790666603";
+const BUILD_ID = "1790667634";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1337,6 +1337,8 @@ const TROUBLESHOOTING = [
     intro: 'The "AI analysis" button in Winners & losers. The proxy module ~/sheet-proxy/sheetpulse-ai.js sends percentages only to Google Gemini (free tier); the key is GEMINI_API_KEY in ~/sheet-proxy/.env.',
     cmds: [
       {name: 'Install or update the AI module', note: 'Downloads it from the SheetPulse GitHub repo (the ?v= part skips GitHub\'s 5-minute cache), checks it parses, restarts the proxy (about 25 s).', cmd: `curl -fsSL "https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/sheetpulse-ai.js?v=$(date +%s)" -o ~/sheet-proxy/sheetpulse-ai.js && node --check ~/sheet-proxy/sheetpulse-ai.js && sudo systemctl restart sheet-proxy && echo "AI module installed"`},
+      {name: 'Saved daily briefs', note: 'One line per saved brief: the trading day, how it was written (scheduled = the automatic 23:50 run, manual = Refresh), the model and when.', cmd: `node -e "for (const b of require(process.env.HOME + '/sheet-proxy/ai-briefs.json')) console.log(b.date, b.kind, b.model, b.generatedAt)"`},
+      {name: 'Did the 23:50 brief run?', note: '"daily brief written" = done; "scheduled run failed" lines show why (it retries every 5 minutes until 03:00).', cmd: `journalctl -u sheet-proxy --since "-2 day" --no-pager | grep -i "daily brief" | tail -10`},
       {name: 'Which Gemini models were busy?', note: '503 = Google\'s free tier overloaded ("high demand"), 429 = per-minute free quota; both pass on their own.', cmd: `journalctl -u sheet-proxy --since "-1 hour" --no-pager | grep -i "gemini error" | tail -10`},
       {name: 'Hook it into index.js (once)', note: 'Adds two lines after the MedTracker ones; does nothing if they are already there. Should print 2 lines with handleAiRoutes.', cmd: `grep -q handleAiRoutes ~/sheet-proxy/index.js || sed -i -e "/require('.\\/medtracker-entry');/a const { handleAiRoutes } = require('./sheetpulse-ai');" -e "/if (await handleLabReport(req, res, parsed.pathname, send)) return;/a\\\\  if (await handleAiRoutes(req, res, parsed.pathname, { send, readJsonBody })) return;" ~/sheet-proxy/index.js && grep -n handleAiRoutes ~/sheet-proxy/index.js`},
       {name: 'Is the Gemini key set?', note: '1 = set, 0 = missing. Never prints the key itself.', cmd: `grep -c '^GEMINI_API_KEY=.' ~/sheet-proxy/.env`},
