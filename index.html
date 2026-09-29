@@ -243,6 +243,7 @@
   .pf-detail-row .pf-lots .num{text-align:right;}
   .pf-detail-row .pf-lot-sale td{color:var(--muted);}
   .pf-detail-row .pf-lot-tag{font-size:11px; color:var(--down-5); margin-left:4px;}
+  .pf-detail-row .pf-lot-tag.gain{color:var(--up-5);}
   #universeCard{
     background:var(--paper); width:min(1400px, 96vw); max-height:85vh; display:flex; flex-direction:column;
     box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease, height 0.15s ease, max-height 0.15s ease;
@@ -1012,7 +1013,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790672285";
+const BUILD_ID = "1790678111";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1768,18 +1769,42 @@ async function applyTransactionLots(rows){
   rows.forEach(row => {
     const txs = byTicker[row.name];
     if(!txs || !(row.shares > 0) || !(row.cost > 0)) return;
-    const buys = txs.filter(x => x.shares > 0 && x.price > 0);
-    const buyShares = buys.reduce((s, x) => s + x.shares, 0);
-    const buyNotional = buys.reduce((s, x) => s + x.shares * x.price + x.fee, 0);
-    if(!buyShares) return;
-    const avg = buyNotional / buyShares;
-    const k = row.cost / (row.shares * avg);   // ILS per unit of (shares x price)
-    row.lots = txs.map(x => ({
-      shares: x.shares, buyDate: x.date, price: x.price, fee: x.fee,
-      cost: (x.shares > 0 && x.price > 0 ? x.shares * x.price + x.fee : x.shares * avg) * k,   // a sale: negative, at the average price
+    // Average-cost method, oldest first -- the same walk as the Tracker's formulas: a buy adds its
+    // shares and cost (price x shares + commission); a sale removes shares at the running average
+    // cost, so the average stays; a sale down to 0 closes the position and the next buy starts fresh.
+    const sorted = txs.map((x, i) => ({...x, i, ms: txDateMs(x.date)}))
+      .sort((a, b) => ((a.ms - b.ms) || 0) || a.i - b.i);
+    let sh = 0, cost = 0;
+    const walked = sorted.map(x => {
+      if(x.shares > 0){
+        const c = x.shares * (x.price > 0 ? x.price : 0) + x.fee;
+        sh += x.shares; cost += c;
+        return {...x, costNative: c};
+      }
+      const sold = Math.min(-x.shares, sh);
+      const basis = sh ? cost * sold / sh : 0;          // cost basis leaving with the sold shares
+      sh -= sold; cost -= basis;
+      if(sh <= 1e-9){ sh = 0; cost = 0; }
+      const proceeds = x.price > 0 ? sold * x.price - x.fee : NaN;
+      return {...x, costNative: -basis, realized: isNaN(proceeds) ? NaN : proceeds - basis};
+    });
+    if(!(cost > 0)) return;
+    const k = row.cost / cost;   // ILS per unit of native cost -- follows the Tracker's own Total Cost (ILS)
+    row.lots = walked.map(x => ({
+      shares: x.shares, buyDate: x.date, price: x.price, fee: x.fee, cost: x.costNative * k, realized: x.realized,
     }));
     row.lotsFromTransactions = true;   // the Portfolio table lists them under the holding
   });
+}
+// "2026-08-11" or "11/08/2026" (day first, as the sheet writes dates) -> ms; NaN when unreadable.
+function txDateMs(s){
+  const t = String(s || '').trim();
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t);
+  if(m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+  m = /^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/.exec(t);
+  if(m) return new Date(+m[3], +m[2] - 1, +m[1]).getTime();
+  const d = new Date(t).getTime();
+  return isNaN(d) ? NaN : d;
 }
 
 // A ticker bought more than once sits on one Tracker row per purchase, each with its own Buy Date
@@ -2391,7 +2416,7 @@ function renderPortfolioTable(enriched){
     const holdingPeriod = formatHoldingPeriod(r.buyDate);
     const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
     // Each line of the Transactions tab for this holding, oldest first (see applyTransactionLots).
-    const txLots = r.lotsFromTransactions ? (r.lots || []).slice().sort((a,b) => (new Date(a.buyDate) - new Date(b.buyDate)) || 0) : [];
+    const txLots = r.lotsFromTransactions ? r.lots : [];   // already oldest first
     const multi = txLots.length > 1;
     const lotsHtml = txLots.length ? `
           <table class="pf-lots">
@@ -2400,7 +2425,7 @@ function renderPortfolioTable(enriched){
               const sale = l.shares < 0;
               const total = !sale && l.price > 0 ? l.shares * l.price + (l.fee || 0) : NaN;
               return `<tr${sale ? ' class="pf-lot-sale"' : ''}>
-                <td>${String(l.buyDate || '—').replace(/[<>&]/g, '')}${sale ? ' <span class="pf-lot-tag">sold</span>' : ''}</td>
+                <td>${String(l.buyDate || '—').replace(/[<>&]/g, '')}${sale ? ` <span class="pf-lot-tag${isFinite(l.realized) && l.realized >= 0 ? ' gain' : ''}">sold${isFinite(l.realized) ? ` · ${l.realized >= 0 ? 'gain' : 'loss'} ${l.realized >= 0 ? '+' : '−'}${money(Math.abs(l.realized))}` : ''}</span>` : ''}</td>
                 <td class="num">${l.shares.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
                 <td class="num">${l.price > 0 ? money(l.price) : '—'}</td>
                 <td class="num">${l.fee ? money(l.fee) : '—'}</td>
