@@ -268,15 +268,26 @@ function snapshotFromTables(tracker, universe, now = new Date()) {
     cSector = c('Sector'), cRole = c('Role Group'), cCost = c('Total Cost (ILS)'), cPrice = c('Current Price');
   if ([cTicker, cValue, cDay, cRet, cSector].some((i) => i === -1)) throw new Error('Tracker columns have changed -- expected headers not found');
 
+  // A ticker bought more than once has one row per purchase -- combined here into one holding
+  // (value and cost summed, return recomputed), the same way the dashboard shows it.
   const rows = [];
+  const byTicker = {};
   for (let i = headerIdx + 1; i < tracker.length; i++) {
     const r = tracker[i];
     const ticker = String(r[cTicker] || '').trim();
     if (!ticker) break;
     const value = parseNum(r[cValue]);
     if (!(value > 0) || (cPrice >= 0 && !(parseNum(r[cPrice]) > 0))) continue;  // no live price (#N/A)
-    rows.push({
-      ticker, value, cost: cCost >= 0 ? parseNum(r[cCost]) : NaN,
+    const rowCost = cCost >= 0 ? parseNum(r[cCost]) : NaN;
+    const seen = byTicker[ticker];
+    if (seen) {
+      seen.value += value;
+      seen.cost += rowCost > 0 ? rowCost : value;
+      seen.ret = seen.cost ? (seen.value - seen.cost) / seen.cost * 100 : seen.ret;
+      continue;
+    }
+    rows.push(byTicker[ticker] = {
+      ticker, value, cost: rowCost > 0 ? rowCost : value,
       day: parseNum(r[cDay]), ret: parseNum(r[cRet]),
       sector: (String(r[cSector] || 'Other').trim() || 'Other').split('/')[0].trim(),
       role: cRole >= 0 ? (String(r[cRole] || 'Other').trim() || 'Other') : 'Other',
@@ -285,7 +296,7 @@ function snapshotFromTables(tracker, universe, now = new Date()) {
   }
   if (!rows.length) throw new Error('No holdings with a live price in the Tracker');
   const total = rows.reduce((s, r) => s + r.value, 0);
-  const cost = rows.reduce((s, r) => s + (r.cost > 0 ? r.cost : r.value), 0);
+  const cost = rows.reduce((s, r) => s + r.cost, 0);
   const usa = rows.filter((r) => !r.tase).reduce((s, r) => s + r.value, 0);
   const dayPct = rows.reduce((s, r) => s + (Number.isFinite(r.day) ? r.value / total * r.day : 0), 0);
 
