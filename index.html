@@ -436,6 +436,12 @@
   .sbar-fill{background:var(--accent); height:100%;}
   .spct{width:56px; text-align:right; color:var(--muted); flex-shrink:0; padding-left:10px;}
   #winloseHeadline{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink); margin:2px 0 12px;}
+  #winloseSearch{
+    display:block; width:100%; max-width:260px; margin:0 0 10px; padding:7px 11px; border:1px solid var(--line); background:var(--panel);
+    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink); border-radius:6px;
+  }
+  #winloseSearch:focus{outline:none; border-color:var(--accent);}
+  #winloseNoMatch{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:8px 0;}
   #winloseHeadline b{font-weight:600;}
   #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
@@ -909,6 +915,8 @@
       </span>
     </div>
     <div id="winloseHeadline"></div>
+    <input type="search" id="winloseSearch" placeholder="Find a ticker…" aria-label="Find a ticker in Winners &amp; losers" autocomplete="off">
+    <div id="winloseNoMatch" style="display:none;"></div>
     <div id="winlose"></div>
     <div id="winloseScaleNote"></div>
     <div id="winloseInsights"></div>
@@ -1013,7 +1021,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790686558";
+const BUILD_ID = "1790687918";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5348,6 +5356,7 @@ function render(rows, totals){
       saveWlExcluded(set);
       scaleWinLoseBars(wlRows);
     });
+    row.dataset.ticker = d.name;
     wlRows.push({d, row, bar: row.querySelector('.wlbar')});
     if(!isNaN(d.cost) && d.cost){
       const gain = d.value - d.cost;
@@ -5383,6 +5392,7 @@ function render(rows, totals){
     wlEl.appendChild(row);
   });
   scaleWinLoseBars(wlRows);
+  filterWinLose();   // keep a search that was typed before this refresh
 
   renderWinLoseHeadline(rows);
   renderWinLoseInsights(rows, totals);
@@ -5423,6 +5433,26 @@ function scaleWinLoseBars(wlRows){
     scaleWinLoseBars(wlRows);
   });
 }
+
+// Winners & losers search: shows only the bars whose ticker contains what's typed. It only hides
+// rows -- the list keeps its return order and the bar scale stays the full list's, so a bar is the
+// same length filtered or not. Rows aren't rebuilt, so the box keeps the cursor while typing.
+function filterWinLose(){
+  const input = document.getElementById('winloseSearch');
+  const q = input ? input.value.trim().toUpperCase() : '';
+  let shown = 0;
+  document.querySelectorAll('#winlose .wlrow').forEach(row => {
+    const hit = !q || String(row.dataset.ticker || '').toUpperCase().includes(q);
+    row.style.display = hit ? '' : 'none';
+    if(hit) shown++;
+  });
+  const none = document.getElementById('winloseNoMatch');
+  if(none){
+    none.style.display = q && !shown ? '' : 'none';
+    none.textContent = q && !shown ? `No holding matches "${input.value.trim()}".` : '';
+  }
+}
+document.getElementById('winloseSearch').addEventListener('input', filterWinLose);
 
 function fmtIls3(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
 function fmtIlsSmart(n){
