@@ -30,7 +30,12 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
     - **Opening the panel** shows the saved brief instantly, for example "Brief for Monday, Sep 28 · written 23:50 automatically", with a picker for earlier days.
     - **Refresh** writes a new one: "so far today" while a market trades, otherwise the last finished session again. It never describes the morning's reset "0% day change".
     - **The day change** in the brief is the size-weighted day change of the holdings themselves, so it always agrees with them.
-- **A ticker bought more than once** — add a new Tracker row for each purchase, with that purchase's own Buy Date, shares and cost, placed inside the table (the table ends at the first empty Ticker cell). The dashboard, and the AI, combine the rows into one holding: shares, value and cost summed, return recomputed from the sums, the earliest Buy Date shown. The history charts keep each purchase separate, so new shares count only from their own buy date and their cost is new money, not gain.
+- **Transactions** — every purchase and sale is one line in the **Transactions** tab, while the Tracker keeps one row per ticker. Set up once with [`Transactions.gs`](Transactions.gs): `previewTransactionsMigration()`, then `migrateToTransactions()`.
+  - **Columns:** Date | Ticker | Shares | Price | Note. Price is per share, in the ticker's own currency.
+  - **Buying more:** add one line. The Tracker's **Shares** (the total), **price** (the share-weighted average of the buys) and **Buy Date** (the first purchase) are formulas over this tab, so Total Cost (=B×D), Total Cost (ILS) and the rest update themselves.
+  - **Selling:** a line with negative shares and no price. That's the average-cost method: Shares go down and the average price stays.
+  - **History charts:** the dashboard reads each line, so every purchase counts from its own date, its cost is new money rather than gain, and a sale lowers the holding from its date.
+  - **Duplicate Tracker rows** for one ticker (a row per purchase) still work: the dashboard and the AI combine them into one holding.
 - **Always fresh** — every open is a full "Refresh from sheet": on page load, right after signing in, and when the app comes back to the foreground after more than a minute away. Auto-refresh defaults to every 5 minutes.
 - **Phone Back button** — closes the open window (a chart, Market Universe or Diagnostics) and returns to the dashboard, instead of leaving the app.
 
