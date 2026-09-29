@@ -25,7 +25,12 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
   - **Setup:** `GEMINI_API_KEY` goes in the VM's `~/sheet-proxy/.env`, with no billing on the project. The route sits behind the same sign-in check as the sheet data and is limited to 40 analyses a day (`AI_DAILY_LIMIT`).
   - **Checks:** Diagnostics shows whether the AI is set up, and Troubleshooting has the install and log commands.
   - **Suggested questions:** three one-click questions sit under the box: what's driving today's move, how much of the return comes from USD/ILS, and which sectors are overweight.
-  - **AI daily brief:** a button next to **Daily Brief** above the treemap gives a short brief on today: the day change, the biggest movers by their effect on the portfolio, the USD/ILS effect, and anything unusual. It uses the same route with a fixed question, and **Refresh** asks again.
+  - **AI daily brief:** a button next to **Daily Brief** above the treemap.
+    - **Written by the server** (`/ai/brief`) automatically at **23:50 Israel time, Monday to Friday**, after both markets have closed. It's built from the Tracker sheet itself, percentages only, and saved on the VM in `ai-briefs.json` (the last 7 trading days). If Gemini is busy, the server retries every 5 minutes until 03:00.
+    - **Opening the panel** shows the saved brief instantly, for example "Brief for Monday, Sep 28 · written 23:50 automatically", with a picker for earlier days.
+    - **Refresh** writes a new one: "so far today" while a market trades, otherwise the last finished session again. It never describes the morning's reset "0% day change".
+    - **The day change** in the brief is the size-weighted day change of the holdings themselves, so it always agrees with them.
+- **A ticker bought more than once** — add a new Tracker row for each purchase, with that purchase's own Buy Date, shares and cost, placed inside the table (the table ends at the first empty Ticker cell). The dashboard, and the AI, combine the rows into one holding: shares, value and cost summed, return recomputed from the sums, the earliest Buy Date shown. The history charts keep each purchase separate, so new shares count only from their own buy date and their cost is new money, not gain.
 - **Always fresh** — every open is a full "Refresh from sheet": on page load, right after signing in, and when the app comes back to the foreground after more than a minute away. Auto-refresh defaults to every 5 minutes.
 - **Phone Back button** — closes the open window (a chart, Market Universe or Diagnostics) and returns to the dashboard, instead of leaving the app.
 
