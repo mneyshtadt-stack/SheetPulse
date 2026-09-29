@@ -109,6 +109,13 @@
   .ai-result .ai-wait{color:var(--muted);}
   .ai-result .ai-wait::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:8px; animation:diagPulse 0.9s ease-in-out infinite alternate;}
   .ai-result .ai-err{color:var(--down-5);}
+  .ai-result .ai-brief-label{font-size:12px; color:var(--muted); margin:0 0 10px;}
+  .ai-result .ai-brief-label b{color:var(--ink); font-weight:600;}
+  .ai-result .ai-live{color:var(--accent);}
+  .ai-result .ai-brief-label select{
+    font-family:inherit; font-size:12px; color:var(--ink); background:var(--paper);
+    border:1px solid var(--line); border-radius:5px; padding:2px 6px; cursor:pointer;
+  }
   #digestBox{
     display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
     padding:16px 20px; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.7;
@@ -997,7 +1004,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790657842";
+const BUILD_ID = "1790658795";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5961,10 +5968,73 @@ function runAiAnalysis(){
   aiHasRun = true;
   return askAi(document.getElementById('aiQuestion').value.trim(), document.getElementById('aiResult'));
 }
-function runAiDaily(){
+// Pre-server-brief fallback: the same fixed question sent with the page's own numbers. Only used
+// while the VM still runs a sheetpulse-ai.js without the /ai/brief routes.
+function runAiDailyLegacy(){
   if(aiBusy) return;
   aiDailyHasRun = true;
   return askAi(AI_DAILY_QUESTION, document.getElementById('aiDailyResult'), "Writing today's brief…");
+}
+
+// The daily brief is written by the server -- automatically at 23:50 Monday-Friday, from the sheet --
+// and saved there (last 7 trading days). Opening the panel shows the saved one straight away;
+// Refresh has the server write a new one: "so far today" while a market trades, otherwise the last
+// finished session again.
+const aiAuthHeaders = () => ({Authorization: 'Bearer ' + (localStorage.getItem('pf_idToken') || '')});
+function renderAiBrief(brief, dates){
+  const out = document.getElementById('aiDailyResult');
+  const written = new Date(brief.generatedAt).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+  const modelName = String(brief.model || 'gemini').replace(/-/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase());
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const picker = (dates || []).length > 1
+    ? ` · <select id="aiDailyDates" aria-label="Earlier briefs">${dates.map(d => `<option value="${esc(d)}"${d === brief.date ? ' selected' : ''}>${esc(new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', {timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric'}))}</option>`).join('')}</select>`
+    : '';
+  out.innerHTML = `<div class="ai-brief-label">Brief for <b>${esc(brief.label)}</b>${brief.live ? ' · <span class="ai-live">so far — markets were still trading</span>' : ''}${picker}</div>`
+    + renderAiMarkdown(brief.text)
+    + `<div class="ai-foot">${esc(modelName)} · written ${esc(written)}${brief.kind === 'scheduled' ? ' automatically' : ''}. AI can get things wrong — check the numbers. Not financial advice.</div>`;
+  const sel = document.getElementById('aiDailyDates');
+  if(sel) sel.addEventListener('change', () => loadAiDaily(sel.value));
+}
+async function loadAiDaily(date){
+  const out = document.getElementById('aiDailyResult');
+  aiDailyHasRun = true;
+  out.innerHTML = `<p class="ai-wait">Loading the latest brief…</p>`;
+  let res, data = {};
+  try{
+    res = await fetch(PROXY_BASE_URL + '/ai/brief' + (date ? '?date=' + encodeURIComponent(date) : ''), {cache: 'no-store', headers: aiAuthHeaders()});
+    try{ data = await res.json(); } catch(e){}
+  } catch(e){
+    out.innerHTML = `<p class="ai-err">Could not reach the server (${String(e.message).replace(/[<>&]/g, '')}).</p>`;
+    return;
+  }
+  if(res.status === 401){ out.innerHTML = `<p class="ai-err">Your sign-in has expired — sign out and sign in again.</p>`; return; }
+  if(!res.ok || !Array.isArray(data.dates)) return runAiDailyLegacy();  // server module not updated yet
+  if(data.brief) renderAiBrief(data.brief, data.dates);
+  else refreshAiDaily();                                              // nothing saved yet: write the first
+}
+async function refreshAiDaily(){
+  if(aiBusy) return;
+  const out = document.getElementById('aiDailyResult');
+  aiDailyHasRun = true;
+  aiBusy = true; setAiControlsDisabled(true);
+  out.innerHTML = `<p class="ai-wait">Writing a fresh brief from the sheet… usually 10–30 seconds.</p>`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 100000);
+  let legacy = false;
+  try{
+    const res = await fetch(PROXY_BASE_URL + '/ai/brief/refresh', {method: 'POST', cache: 'no-store', signal: ac.signal, headers: aiAuthHeaders()});
+    let data = {};
+    try{ data = await res.json(); } catch(e){}
+    if(res.status === 401) throw new Error('Your sign-in has expired — sign out and sign in again.');
+    if(res.status === 400 && !data.brief){ legacy = true; return; }   // server module not updated yet
+    if(!res.ok || !data.brief) throw new Error(data.error || ('HTTP ' + res.status));
+    renderAiBrief(data.brief, data.dates);
+  } catch(e){
+    out.innerHTML = `<p class="ai-err">${e.name === 'AbortError' ? 'No answer after 100 seconds — try again.' : String(e.message).replace(/[<>&]/g, '')}</p>`;
+  } finally {
+    clearTimeout(timer); aiBusy = false; setAiControlsDisabled(false);
+    if(legacy) runAiDailyLegacy();
+  }
 }
 document.getElementById('aiAnalysisBtn').addEventListener('click', () => {
   const panel = document.getElementById('aiPanel');
@@ -5974,9 +6044,9 @@ document.getElementById('aiAnalysisBtn').addEventListener('click', () => {
 document.getElementById('aiDailyBtn').addEventListener('click', () => {
   const panel = document.getElementById('aiDailyPanel');
   panel.classList.toggle('open');
-  if(panel.classList.contains('open') && !aiDailyHasRun) runAiDaily();
+  if(panel.classList.contains('open') && !aiDailyHasRun) loadAiDaily();
 });
-document.getElementById('aiDailyRerun').addEventListener('click', runAiDaily);
+document.getElementById('aiDailyRerun').addEventListener('click', refreshAiDaily);
 document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); runAiAnalysis(); });
 // Suggested questions: a click fills the box and asks it right away.
 document.querySelectorAll('#aiPanel .ai-chip').forEach(chip => chip.addEventListener('click', () => {
