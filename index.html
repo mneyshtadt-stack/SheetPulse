@@ -235,6 +235,12 @@
     font-family:'Helvetica Neue',Arial,sans-serif;
   }
   .pf-detail-grid .md-tc-item-val{font-weight:400;}
+  /* Expanded holding: one row per purchase, in the holding row's own columns. */
+  .md-pf-table tr.pf-lot-head td{background:var(--paper); font-size:12.5px; font-weight:600; color:var(--ink); padding-top:10px; padding-bottom:8px; border-bottom:1px solid var(--line);}
+  .md-pf-table tr.pf-lot-row td{background:var(--paper); font-size:13px;}
+  .md-pf-table tr.pf-lot-row .pf-lot-date{color:var(--ink);}
+  .md-pf-table tr.pf-lot-sale td{color:var(--muted);}
+  .md-pf-table tr.pf-lot-sale .up, .md-pf-table tr.pf-lot-sale .down{opacity:0.85;}
   /* Each Transactions-tab line for the holding, under the summary (see applyTransactionLots). */
   .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
   .pf-detail-row .pf-lots th{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
@@ -1021,7 +1027,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790687918";
+const BUILD_ID = "1790689475";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2459,6 +2465,79 @@ function renderIlTickerCards(enriched){
   populateIlFxTile();
 }
 
+// Expanded holding, Google Finance-style: one row per open purchase in the same columns and order as
+// the holding row -- Purchase date | Purchase price (cost/share, + commission) | Quantity | Day change
+// | Total gain/loss | Market value | Cost basis (per share, commission included). Open purchases are
+// the buys since the position last went to 0; a partial sale after them shrinks each in proportion
+// (the average-cost method the Tracker uses). Sales follow as muted rows with their realized result.
+// A ticker not in Transactions shows one row from the Tracker's own figures.
+function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const tkr = esc(r.name);
+  const fmtDay = s => { const ms = txDateMs(s); return isNaN(ms) ? esc(s || '—') : new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}); };
+  const qty = n => isFinite(n) ? n.toLocaleString('en-US', {maximumFractionDigits: 4}) : '—';
+  const signed = (n, f) => (n >= 0 ? '+' : '-') + f(Math.abs(n));
+  let open = [], sales = [];
+  if(r.lotsFromTransactions && (r.lots || []).length){
+    let sh = 0;
+    r.lots.forEach(l => {
+      if(l.shares > 0){
+        open.push({date: l.buyDate, price: l.price, fee: l.fee || 0, shares: l.shares, costNative: l.costNative, cost: l.cost});
+        sh += l.shares;
+      } else {
+        const sold = Math.min(-l.shares, sh);
+        const keep = sh ? (sh - sold) / sh : 0;
+        open.forEach(o => { o.shares *= keep; o.costNative *= keep; o.cost *= keep; o.fee *= keep; });
+        sh -= sold;
+        sales.push(l);
+        if(sh <= 1e-9){ open = []; sh = 0; }
+      }
+    });
+  } else {
+    open = [{date: r.buyDate, price: r.avgCost, fee: 0, shares: r.shares, costNative: r.totalCostNative, cost: r.cost, fromTracker: true}];
+  }
+  const head = `
+      <tr class="pf-lot-head" data-ticker-detail="${tkr}" style="display:none;">
+        <td></td><td>Purchase date</td><td class="num">Purchase price</td><td class="num">Quantity</td>
+        <td class="num">Day change</td><td class="num">Total gain/loss</td><td class="num">Market value</td><td class="num">Cost basis</td>
+      </tr>`;
+  const lotRows = open.filter(o => o.fromTracker || o.shares > 1e-9).map(o => {
+    // One row from the Tracker's own figures is the whole holding.
+    const part = o.fromTracker ? 1 : (r.shares ? o.shares / r.shares : NaN);
+    const mv = r.value * part;
+    const day = !isNaN(r.dayGain) ? r.dayGain * part : NaN;
+    const gain = o.fromTracker && !isNaN(r.totalGain) ? r.totalGain : mv - o.cost;
+    const gainPct = o.cost ? gain / o.cost * 100 : NaN;
+    const perShare = o.shares ? o.costNative / o.shares : NaN;
+    const dayCls = !isNaN(r.change) ? (r.change >= 0 ? 'up' : 'down') : '';
+    const gainCls = !isNaN(gain) ? (gain >= 0 ? 'up' : 'down') : '';
+    const held = formatHoldingPeriod(o.date);
+    return `
+      <tr class="pf-lot-row" data-ticker-detail="${tkr}" style="display:none;">
+        <td></td>
+        <td><div class="pf-lot-date">${fmtDay(o.date)}</div><div class="md-th-sub">${held ? 'held ' + held : ''}</div></td>
+        <td class="num">${o.price > 0 ? money(o.price) : '—'}${o.fee > 0 ? `<div class="md-th-sub">+ ${money(o.fee)} commission</div>` : ''}</td>
+        <td class="num">${qty(o.shares)}</td>
+        <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div></td>
+        <td class="num"><div class="${gainCls}">${isNaN(gain) ? 'n/a' : signed(gain, fmt2)}</div><div class="md-th-pct ${gainCls}">${isNaN(gainPct) ? '' : '(' + (gainPct >= 0 ? '+' : '') + gainPct.toFixed(2) + '%)'}</div></td>
+        <td class="num">${isNaN(mv) ? '—' : fmt2(mv)}</td>
+        <td class="num" title="${o.fromTracker ? 'Average cost from the Tracker' : 'Cost per share including the commission'}">${isNaN(perShare) ? '—' : money(perShare)}</td>
+      </tr>`;
+  }).join('');
+  const saleRows = sales.map(l => `
+      <tr class="pf-lot-row pf-lot-sale" data-ticker-detail="${tkr}" style="display:none;">
+        <td></td>
+        <td><div class="pf-lot-date">${fmtDay(l.buyDate)}</div><div class="md-th-sub">sold</div></td>
+        <td class="num">${l.price > 0 ? money(l.price) : '—'}${l.fee > 0 ? `<div class="md-th-sub">+ ${money(l.fee)} commission</div>` : ''}</td>
+        <td class="num">${qty(l.shares)}</td>
+        <td class="num">—</td>
+        <td class="num">${isFinite(l.realized) ? `<div class="${l.realized >= 0 ? 'up' : 'down'}">${signed(l.realized, money)}</div><div class="md-th-sub">realized</div>` : '—'}</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+      </tr>`).join('');
+  return head + lotRows + saleRows;
+}
+
 function renderPortfolioTable(enriched){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   // "Total Cost (ILS)" from the sheet is always in ILS, regardless of the ticker's own
@@ -2511,24 +2590,7 @@ function renderPortfolioTable(enriched){
     const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
     const holdingPeriod = formatHoldingPeriod(r.buyDate);
     const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
-    // Each line of the Transactions tab for this holding, oldest first (see applyTransactionLots).
-    const txLots = r.lotsFromTransactions ? r.lots : [];   // already oldest first
-    const multi = txLots.length > 1;
-    const lotsHtml = txLots.length ? `
-          <table class="pf-lots">
-            <thead><tr><th>Date</th><th class="num">Shares</th><th class="num">Cost/share</th><th class="num">Commission</th><th class="num">Total cost</th></tr></thead>
-            <tbody>${txLots.map(l => {
-              const sale = l.shares < 0;
-              const total = !sale && l.price > 0 ? l.shares * l.price + (l.fee || 0) : NaN;
-              return `<tr${sale ? ' class="pf-lot-sale"' : ''}>
-                <td>${String(l.buyDate || '—').replace(/[<>&]/g, '')}${sale ? ` <span class="pf-lot-tag${isFinite(l.realized) && l.realized >= 0 ? ' gain' : ''}">sold${isFinite(l.realized) ? ` · ${l.realized >= 0 ? 'gain' : 'loss'} ${l.realized >= 0 ? '+' : '−'}${money(Math.abs(l.realized))}` : ''}</span>` : ''}</td>
-                <td class="num">${l.shares.toLocaleString('en-US',{maximumFractionDigits:4})}</td>
-                <td class="num">${l.price > 0 ? money(l.price) : '—'}</td>
-                <td class="num">${l.fee ? money(l.fee) : '—'}</td>
-                <td class="num">${isNaN(total) ? '—' : money(total)}</td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table>` : '';
+    const lotRowsHtml = portfolioLotRowsHtml(r, {priceCcy, fmt2, money});
 
     html += `
       <tr class="pf-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
@@ -2550,34 +2612,7 @@ function renderPortfolioTable(enriched){
         <td class="num">${fmt2(r.value)}</td>
         <td class="num pf-avg">${avgCostStr}</td>
       </tr>
-      <tr class="pf-detail-row" data-ticker-detail="${r.name}" style="display:none;">
-        <td></td>
-        <td colspan="${PF_COLS.length}">
-          <div class="pf-detail-grid">
-            <div>
-              <div class="md-tc-item-label">${multi ? 'First purchase' : 'Purchase date'}</div>
-              <div class="md-tc-item-val">${r.buyDate || '—'}</div>
-              <div class="md-tc-item-sub">${holdingPeriod ? `held ${holdingPeriod}` : ''}</div>
-            </div>
-            <div>
-              <div class="md-tc-item-label">${multi ? 'Average price' : 'Purchase price'}</div>
-              <div class="md-tc-item-val pf-avg-val">${avgCostStr}</div>
-            </div>
-            <div>
-              <div class="md-tc-item-label">Quantity</div>
-              <div class="md-tc-item-val">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</div>
-            </div>
-            <div>
-              <div class="md-tc-item-label">Total cost basis</div>
-              <div class="md-tc-item-val">${
-                priceCcy === 'ILA'
-                  ? (!isNaN(r.cost) ? fmt2(r.cost) : '—')
-                  : (!isNaN(r.totalCostNative) ? `${priceCcy}${r.totalCostNative.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—')
-              }</div>
-            </div>
-          </div>${lotsHtml}
-        </td>
-      </tr>`;
+${lotRowsHtml}`;
   });
 
   html += `</tbody></table>`;
@@ -2596,10 +2631,11 @@ function renderPortfolioTable(enriched){
   document.querySelectorAll('.pf-expand-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const ticker = btn.closest('tr').dataset.ticker;
-      const detailRow = document.querySelector(`.pf-detail-row[data-ticker-detail="${ticker}"]`);
-      if(!detailRow) return;
-      const isOpen = detailRow.style.display !== 'none';
-      detailRow.style.display = isOpen ? 'none' : 'table-row';
+      const detailRows = [...document.querySelectorAll(`.md-pf-table tr[data-ticker-detail="${String(ticker).replace(/["\\]/g, '\\$&')}"]`)];
+      if(!detailRows.length) return;
+      const detailRow = detailRows[detailRows.length - 1];   // the last one, for the scroll below
+      const isOpen = detailRows[0].style.display !== 'none';
+      detailRows.forEach(tr => { tr.style.display = isOpen ? 'none' : 'table-row'; });
       btn.classList.toggle('open', !isOpen);
       // Opening a holding near the bottom of the window: scroll just enough to show all of its
       // details (purchases included) -- but never so far that the holding's own row leaves the top.
