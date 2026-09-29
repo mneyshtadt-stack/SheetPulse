@@ -1004,7 +1004,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790658937";
+const BUILD_ID = "1790662646";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1724,6 +1724,45 @@ function parseTableToRows(table){
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
   window.lastMissingPrices = missing;
   return mergeLots(rows);
+}
+
+// Transactions tab (Transactions.gs): one line per purchase or sale -- Date | Ticker | Shares | Price.
+// The Tracker keeps one row per ticker (its Shares / price / Buy Date are formulas over this tab);
+// here each line becomes a lot for the history charts, so every purchase counts from its own date
+// and its cost is new money, not gain. A lot's ILS cost is scaled from the row's own Total Cost
+// (ILS), so it follows whatever the Tracker does (USD at the live rate, agorot for TASE funds).
+// No tab, or a ticker with no lines: the row's own Buy Date is used, as before.
+const TRANSACTIONS_CSV_URL = proxyUrl(SHEET_ID, 'Transactions');
+async function applyTransactionLots(rows){
+  let table;
+  try{
+    const res = await fetchViaProxy(TRANSACTIONS_CSV_URL);
+    if(!res.ok) return;
+    table = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+  } catch(e){ return; }
+  const h = (table[0] || []).map(x => String(x).trim());
+  const cDate = h.indexOf('Date'), cTicker = h.indexOf('Ticker'), cShares = h.indexOf('Shares'), cPrice = h.indexOf('Price');
+  if([cDate, cTicker, cShares].some(i => i === -1)) return;
+  const byTicker = {};
+  table.slice(1).forEach(r => {
+    const t = String(r[cTicker] || '').trim(), shares = num(r[cShares]);
+    if(!t || !isFinite(shares) || !shares) return;
+    (byTicker[t] = byTicker[t] || []).push({date: String(r[cDate] || '').trim() || null, shares, price: cPrice >= 0 ? num(r[cPrice]) : NaN});
+  });
+  rows.forEach(row => {
+    const txs = byTicker[row.name];
+    if(!txs || !(row.shares > 0) || !(row.cost > 0)) return;
+    const buys = txs.filter(x => x.shares > 0 && x.price > 0);
+    const buyShares = buys.reduce((s, x) => s + x.shares, 0);
+    const buyNotional = buys.reduce((s, x) => s + x.shares * x.price, 0);
+    if(!buyShares) return;
+    const avg = buyNotional / buyShares;
+    const k = row.cost / (row.shares * avg);   // ILS per unit of (shares x price)
+    row.lots = txs.map(x => ({
+      shares: x.shares, buyDate: x.date,
+      cost: (x.shares > 0 && x.price > 0 ? x.shares * x.price : x.shares * avg) * k,   // a sale: negative, at the average price
+    }));
+  });
 }
 
 // A ticker bought more than once sits on one Tracker row per purchase, each with its own Buy Date
@@ -5591,7 +5630,7 @@ async function doRefresh(){
   try{
     setStatus('Fetching latest from Google Sheet…', false);
     const rows = await fetchAndParseWithRetry(2, 2000);
-    await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
+    await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows)]);
     const totals = await applyTotalFallback(computeTotals(rows));
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
