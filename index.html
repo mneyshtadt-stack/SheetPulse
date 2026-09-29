@@ -1013,7 +1013,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790685547";
+const BUILD_ID = "1790686558";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1226,19 +1226,16 @@ const DIAG_CHECKS = [
       const trkShares = rows.reduce((s, r) => s + (isFinite(r.shares) ? r.shares : 0), 0);
       if(Math.abs(trkShares - txShares) > 1e-9) issues.push(`${t}: Tracker shows ${trkShares} shares, Transactions add up to ${txShares}`);
     });
-    // Same ticker and date: identical lines are almost certainly one purchase typed twice; different
-    // shares or prices are normal (an order filled in parts) -- only mentioned, not flagged.
-    let sameDayFills = 0;
+    // Same ticker and date: identical lines are almost certainly one purchase typed twice. Different
+    // shares or prices on one day are normal (an order filled in parts) and not reported.
     Object.values(dayBy).filter(v => v.length > 1).forEach(v => {
       const exact = v.every(l => l.shares === v[0].shares && l.price === v[0].price);
       if(exact) issues.push(`${v[0].t} ${v[0].date}: ${v.length} identical lines (${v.map(l => l.line).join(', ')}: ${v[0].shares} @ ${v[0].price}) — likely entered twice`);
-      else sameDayFills++;
     });
     const converted = Object.keys(txBy).filter(t => rowsBy[t]).length;
-    const fillsNote = sameDayFills ? ` ${sameDayFills} day(s) with several fills of one ticker at different prices — fine if those were separate executions.` : '';
     return issues.length
-      ? {status:'warn', ms:rTx.ms, detail:`${issues.length} to check: ` + issues.join(' · ') + fillsNote}
-      : {status:'ok', ms:rTx.ms, detail:`${lines.length} lines for ${converted} converted tickers; Tracker shares match, no duplicate lines.` + fillsNote};
+      ? {status:'warn', ms:rTx.ms, detail:`${issues.length} to check: ` + issues.join(' · ')}
+      : {status:'ok', ms:rTx.ms, detail:`${lines.length} lines for ${converted} converted tickers; Tracker shares match, no duplicate lines.`};
   }},
 
   {name: 'IntradayLog logging', run: async () => {
