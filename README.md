@@ -40,6 +40,7 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
   - **Switching a ticker over:** add its purchase lines **first**, then paste the three formulas. A ticker with the formulas but no lines shows 0 shares. Tickers not yet switched keep working exactly as before.
   - **Buying more:** add one line in Transactions; nothing changes in the Tracker.
   - **Selling:** a line with negative shares and an empty price. That's the average-cost method: Shares go down and the average cost stays.
+  - **In the Portfolio table:** expanding a holding lists each of its Transactions lines, oldest first, with date, shares, cost per share, commission and total cost; a sale is marked "sold". The summary above it then reads "First purchase" and "Average price".
   - **History charts:** the dashboard reads each line, so every purchase counts from its own date, its cost is new money rather than gain, and a sale lowers the holding from its date. Each lot's ₪ cost is scaled from the row's own Total Cost (ILS).
   - **Duplicate Tracker rows** for one ticker (a row per purchase) also work: the dashboard and the AI combine them into one holding. [`Transactions.gs`](Transactions.gs) is an optional one-time helper that converts every ticker at once; it isn't used.
 - **Always fresh** — every open is a full "Refresh from sheet": on page load, right after signing in, and when the app comes back to the foreground after more than a minute away. Auto-refresh defaults to every 5 minutes.
