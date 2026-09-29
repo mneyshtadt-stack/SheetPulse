@@ -1004,7 +1004,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790658795";
+const BUILD_ID = "1790658937";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1723,7 +1723,28 @@ function parseTableToRows(table){
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
   window.lastMissingPrices = missing;
-  return rows;
+  return mergeLots(rows);
+}
+
+// A ticker bought more than once sits on one Tracker row per purchase, each with its own Buy Date
+// and cost -- what the history charts need (a lot counts only from its own buy date, and its cost
+// is new money, not gain). Everywhere else shows one combined holding: shares, value and cost summed,
+// return recomputed from the sums, the earliest Buy Date. `lots` keeps each purchase for the charts.
+function mergeLots(rows){
+  const byTicker = new Map();
+  const ms = d => d ? new Date(d).getTime() : NaN;
+  rows.forEach(r => {
+    const lot = {shares: r.shares, buyDate: r.buyDate, cost: r.cost};
+    const m = byTicker.get(r.name);
+    if(!m){ byTicker.set(r.name, {...r, lots: [lot]}); return; }
+    m.lots.push(lot);
+    m.value += r.value;
+    m.cost += r.cost;
+    m.shares = (isNaN(m.shares) || isNaN(r.shares)) ? NaN : m.shares + r.shares;
+    m.valueUsd = (isNaN(m.valueUsd) || isNaN(r.valueUsd)) ? NaN : m.valueUsd + r.valueUsd;
+    if(ms(r.buyDate) < ms(m.buyDate) || (r.buyDate && !m.buyDate)) m.buyDate = r.buyDate;
+  });
+  return [...byTicker.values()].map(m => (m.lots.length > 1 && m.cost) ? {...m, ret: (m.value - m.cost) / m.cost * 100} : m);
 }
 
 // When some holdings have no live price, the plain sum undercounts. Substitutes a recorded total:
@@ -4687,10 +4708,13 @@ function buildDailyValueSeries(ph, holdings){
     const lc = lastClose(col);
     return !isNaN(lc) && Math.abs(lc / h.price - 1) > 0.3;
   }).map(h => h.name);
-  const tracked = holdings.filter(h => ph.cols[h.name] && !isNaN(h.shares) && !mismatched.includes(h.name)).map(h => {
-    const buy = h.buyDate ? new Date(h.buyDate) : null;
-    return {h, col: ph.cols[h.name], isIl: ISRAELI_TICKERS.includes(h.name), buyMs: buy && !isNaN(buy.getTime()) ? buy.getTime() : -Infinity, last: NaN};
-  });
+  // One entry per purchase (lot): a ticker bought twice adds its second lot's shares only from that
+  // lot's own Buy Date (see mergeLots).
+  const tracked = holdings.filter(h => ph.cols[h.name] && !mismatched.includes(h.name))
+    .flatMap(h => (h.lots || [h]).filter(lot => !isNaN(lot.shares)).map(lot => {
+      const buy = lot.buyDate ? new Date(lot.buyDate) : null;
+      return {h, shares: lot.shares, col: ph.cols[h.name], isIl: ISRAELI_TICKERS.includes(h.name), buyMs: buy && !isNaN(buy.getTime()) ? buy.getTime() : -Infinity, last: NaN};
+    }));
   let lastFx = NaN;
   const points = [];
   ph.dates.forEach((t, i) => {
@@ -4699,8 +4723,8 @@ function buildDailyValueSeries(ph, holdings){
     tracked.forEach(x => {
       if(!isNaN(x.col[i])) x.last = x.col[i];
       if(t < x.buyMs || isNaN(x.last)) return;
-      if(x.isIl){ total += x.h.shares * x.last / 100; any = true; }
-      else if(!isNaN(lastFx)){ total += x.h.shares * x.last * lastFx; any = true; }
+      if(x.isIl){ total += x.shares * x.last / 100; any = true; }
+      else if(!isNaN(lastFx)){ total += x.shares * x.last * lastFx; any = true; }
     });
     if(any) points.push({t, v: total});
   });
@@ -4801,7 +4825,7 @@ async function renderRangeChart(ctx, range){
   // Holdings bought after the range's first point step the value up by their own cost -- that's new
   // money, not gain. The change figures subtract it; the percentage is on start value + new money.
   const firstT = pts[0].t;
-  const buys = ctx.holdings.map(hd => ({ms: hd.buyDate ? new Date(hd.buyDate).getTime() : NaN, cost: hd.cost}))
+  const buys = ctx.holdings.flatMap(hd => hd.lots || [hd]).map(lot => ({ms: lot.buyDate ? new Date(lot.buyDate).getTime() : NaN, cost: lot.cost}))
     .filter(b => !isNaN(b.ms) && b.ms > firstT && !isNaN(b.cost));
   const newMoneyUntil = t => buys.reduce((s,b) => b.ms <= t ? s + b.cost : s, 0);
   const changeVsStart = p => {
