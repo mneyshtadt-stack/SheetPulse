@@ -24,6 +24,9 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
   - **Privacy:** on Gemini's free tier, Google may use what it's sent to improve its products, so **only percentages leave the server**: each holding's weight, total return, day change, pre-market change, sector and role, plus the USA/TASE split and the USD/ILS move. The proxy module [`proxy/sheetpulse-ai.js`](proxy/sheetpulse-ai.js) enforces this with a field whitelist, so no amount, total value or share count can reach Google.
   - **Setup:** `GEMINI_API_KEY` goes in the VM's `~/sheet-proxy/.env`, with no billing on the project. The route sits behind the same sign-in check as the sheet data and is limited to 40 analyses a day (`AI_DAILY_LIMIT`).
   - **Checks:** Diagnostics shows whether the AI is set up, and Troubleshooting has the install and log commands.
+  - **Suggested questions:** three one-click questions sit under the box: what's driving today's move, how much of the return comes from USD/ILS, and which sectors are overweight.
+  - **AI daily brief:** a button next to **Daily Brief** above the treemap gives a short brief on today: the day change, the biggest movers by their effect on the portfolio, the USD/ILS effect, and anything unusual. It uses the same route with a fixed question, and **Refresh** asks again.
+- **Always fresh** — every open is a full "Refresh from sheet": on page load, right after signing in, and when the app comes back to the foreground after more than a minute away. Auto-refresh defaults to every 5 minutes.
 - **Phone Back button** — closes the open window (a chart, Market Universe or Diagnostics) and returns to the dashboard, instead of leaving the app.
 
 ## How it works
