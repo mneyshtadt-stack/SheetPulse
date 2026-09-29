@@ -68,38 +68,47 @@
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
   }
   #winloseAnalysisBtn:hover{background:var(--accent); color:#fff;}
-  #aiAnalysisBtn{
+  #aiAnalysisBtn, #aiDailyBtn{
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:#fff; background:var(--accent);
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
   }
-  #aiAnalysisBtn:hover{background:#7a5e30;}
-  #aiPanel{
+  #aiAnalysisBtn:hover, #aiDailyBtn:hover{background:#7a5e30;}
+  .ai-panel{
     display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
     font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.65; color:var(--ink);
   }
-  #aiPanel.open{display:block;}
-  #aiPanel .ai-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-bottom:10px;}
-  #aiPanel .ai-privacy{font-size:12px; color:var(--muted);}
-  #aiPanel .ai-ask{display:flex; gap:8px; margin:0 0 12px;}
-  #aiPanel .ai-ask input{
+  .ai-panel.open{display:block;}
+  .ai-panel .ai-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-bottom:10px;}
+  .ai-panel .ai-privacy{font-size:12px; color:var(--muted);}
+  .ai-panel .ai-ask{display:flex; gap:8px; margin:0 0 12px;}
+  .ai-panel .ai-ask input{
     flex:1; min-width:0; font-family:inherit; font-size:13px; color:var(--ink); background:var(--paper);
     border:1px solid var(--line); border-radius:6px; padding:8px 10px;
   }
-  #aiPanel .ai-ask input:focus{outline:none; border-color:var(--accent);}
-  #aiPanel .ai-ask button{
+  .ai-panel .ai-ask input:focus{outline:none; border-color:var(--accent);}
+  .ai-panel .ai-ask button{
     font-family:inherit; font-size:12.5px; color:#fff; background:var(--accent); border:1px solid var(--accent);
     border-radius:6px; padding:8px 16px; cursor:pointer;
   }
-  #aiPanel .ai-ask button:disabled{opacity:0.55; cursor:default;}
-  #aiResult h4{font-size:13.5px; margin:14px 0 4px; color:var(--ink);}
-  #aiResult h4:first-child{margin-top:0;}
-  #aiResult p{margin:0 0 8px;}
-  #aiResult ul{margin:0 0 8px; padding-left:20px;}
-  #aiResult li{margin:2px 0;}
-  #aiResult .ai-foot{margin-top:12px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:var(--muted);}
-  #aiResult .ai-wait{color:var(--muted);}
-  #aiResult .ai-wait::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:8px; animation:diagPulse 0.9s ease-in-out infinite alternate;}
-  #aiResult .ai-err{color:var(--down-5);}
+  .ai-panel .ai-ask button:disabled{opacity:0.55; cursor:default;}
+  .ai-panel .ai-ask{margin-bottom:8px;}
+  .ai-panel .ai-suggest{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 14px; font-size:12px; color:var(--muted);}
+  .ai-panel .ai-chip{
+    font-family:inherit; font-size:12px; color:var(--accent); background:var(--paper);
+    border:1px solid var(--line); border-radius:14px; padding:4px 11px; cursor:pointer;
+    transition:border-color 0.15s ease, background 0.15s ease;
+  }
+  .ai-panel .ai-chip:hover{border-color:var(--accent); background:var(--panel);}
+  .ai-panel .ai-chip:disabled{opacity:0.55; cursor:default;}
+  .ai-result h4{font-size:13.5px; margin:14px 0 4px; color:var(--ink);}
+  .ai-result h4:first-child{margin-top:0;}
+  .ai-result p{margin:0 0 8px;}
+  .ai-result ul{margin:0 0 8px; padding-left:20px;}
+  .ai-result li{margin:2px 0;}
+  .ai-result .ai-foot{margin-top:12px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:var(--muted);}
+  .ai-result .ai-wait{color:var(--muted);}
+  .ai-result .ai-wait::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:8px; animation:diagPulse 0.9s ease-in-out infinite alternate;}
+  .ai-result .ai-err{color:var(--down-5);}
   #digestBox{
     display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
     padding:16px 20px; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.7;
@@ -622,6 +631,7 @@
     errEl.textContent = '';
     document.body.classList.add('pf-unlocked');
     pfSetAccountLine(payload, {offerWebAuthn: true});
+    if(typeof refresh === 'function') refresh();
   }
 
   // Native WebAuthn helpers -- base64url is what the wire format uses everywhere (challenge,
@@ -827,9 +837,20 @@
         <h2 style="margin-bottom:2px; font-size:18px; font-weight:400; color:var(--ink);">Your investments visualized</h2>
         <p style="margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
       </div>
-      <button id="digestBtn">Daily Brief</button>
+      <span style="display:flex; gap:8px;">
+        <button id="digestBtn">Daily Brief</button>
+        <button id="aiDailyBtn" title="Today's moves summarised by Google Gemini — only percentages are sent">AI daily brief</button>
+      </span>
     </div>
     <div id="digestBox"></div>
+    <div id="aiDailyPanel" class="ai-panel">
+      <div class="ai-head">
+        <b>AI daily brief</b>
+        <span class="ai-privacy">Google Gemini (free tier) · only percentages are sent — no amounts, totals or share counts</span>
+        <button type="button" id="aiDailyRerun" class="ai-chip">Refresh</button>
+      </div>
+      <div id="aiDailyResult" class="ai-result"></div>
+    </div>
     <div class="legend" style="margin-top:16px;">
       <span><span class="swatch" style="background:var(--down-4)"></span>Down today</span>
       <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
@@ -875,7 +896,7 @@
     <div id="winlose"></div>
     <div id="winloseScaleNote"></div>
     <div id="winloseInsights"></div>
-    <div id="aiPanel">
+    <div id="aiPanel" class="ai-panel">
       <div class="ai-head">
         <b>AI analysis</b>
         <span class="ai-privacy">Google Gemini (free tier) · only percentages are sent — no amounts, totals or share counts</span>
@@ -884,7 +905,13 @@
         <input type="text" id="aiQuestion" maxlength="500" placeholder="Ask about your portfolio (optional) — e.g. How exposed am I to USD/ILS?" aria-label="Question for the AI">
         <button type="submit" id="aiRun">Analyze</button>
       </form>
-      <div id="aiResult"></div>
+      <div class="ai-suggest" aria-label="Suggested questions">
+        <span>Try:</span>
+        <button type="button" class="ai-chip">What's driving today's move?</button>
+        <button type="button" class="ai-chip">How much of my return comes from USD/ILS?</button>
+        <button type="button" class="ai-chip">Which sectors am I overweight in?</button>
+      </div>
+      <div id="aiResult" class="ai-result"></div>
     </div>
   </section>
 
@@ -970,7 +997,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790605706";
+const BUILD_ID = "1790657842";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5520,7 +5547,14 @@ function formatRefreshTimestamp(d){
   return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-async function refresh(){
+// One refresh at a time: a click, the auto-refresh timer and "the app came back to the foreground"
+// can all ask at once -- later callers just wait for the one already running.
+let refreshInFlight = null, lastRefreshAt = 0;
+function refresh(){
+  if(!refreshInFlight) refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   try{
@@ -5532,6 +5566,7 @@ async function refresh(){
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
     document.getElementById('asOf').textContent = asOfText;
     setStatus('Up to date.', false);
+    lastRefreshAt = Date.now();
     saveCache(rows, totals, asOfText);
     retryFxIfLoading();
     refreshOpenMarketDetailIfNeeded();
@@ -5542,21 +5577,16 @@ async function refresh(){
   }
 }
 
-// Try a quiet background refresh on load — if it fails (e.g. opened by
-// double-click instead of via the local server), the cached/snapshot view
-// above stays put and no error is shown.
-(async function autoRefreshOnLoad(){
-  try{
-    const rows = await fetchAndParseWithRetry(2, 2000);
-    await Promise.all([applyTickerLogos(rows), fetchLastClose()]);
-    const totals = await applyTotalFallback(computeTotals(rows));
-    render(rows, totals);
-    const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
-    document.getElementById('asOf').textContent = asOfText;
-    saveCache(rows, totals, asOfText);
-    retryFxIfLoading();
-    refreshOpenMarketDetailIfNeeded();
-  } catch(e){ /* silent — cached view already shown */ }
+// Every open is a full "Refresh from sheet" (the cached snapshot shows meanwhile): on page load
+// when already signed in, right after signing in (pfHandleGoogleCredential / pfWebAuthnLogin), and
+// whenever the app comes back to the foreground after more than a minute away -- a phone keeps an
+// installed app alive in the background, so returning to it never reloads the page.
+(function refreshOnOpen(){
+  const signedIn = () => document.body.classList.contains('pf-unlocked');
+  if(signedIn()) refresh();
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && signedIn() && Date.now() - lastRefreshAt > 60000) refresh();
+  });
 })();
 
 // The treemap (and the intraday charts inside an open modal) size themselves in pixels from
@@ -5582,14 +5612,18 @@ function applyAutoRefreshSetting(minutes){
   }
 }
 
+// Default: every 5 minutes. A new storage key, so every device starts at 5 once (an older saved
+// "Off" doesn't carry over); a choice made from here on is remembered.
+const AUTO_REFRESH_KEY = 'pf_autoRefreshMin2';
 (function initAutoRefresh(){
-  const saved = parseInt(localStorage.getItem('pf_autoRefreshMin') || '0', 10);
+  let saved = 5;
+  try{ const v = localStorage.getItem(AUTO_REFRESH_KEY); if(v !== null) saved = parseInt(v, 10) || 0; } catch(e){}
   const select = document.getElementById('autoRefreshSelect');
   select.value = String(saved);
   applyAutoRefreshSetting(saved);
   select.addEventListener('change', ()=>{
     const minutes = parseInt(select.value, 10);
-    localStorage.setItem('pf_autoRefreshMin', String(minutes));
+    try{ localStorage.setItem(AUTO_REFRESH_KEY, String(minutes)); } catch(e){}
     applyAutoRefreshSetting(minutes);
     setStatus(minutes > 0 ? `Auto-refresh set to every ${minutes} min.` : 'Auto-refresh turned off.', false);
   });
@@ -5885,16 +5919,21 @@ function renderAiMarkdown(md){
   return html;
 }
 
-let aiBusy = false, aiHasRun = false;
-async function runAiAnalysis(){
+// Both AI panels (Winners & losers' "AI analysis" and the treemap's "AI daily brief") go through
+// askAi -- one request at a time, so every AI button is disabled while one is in flight.
+let aiBusy = false, aiHasRun = false, aiDailyHasRun = false;
+// The daily brief is the same /ai/analyze call with this fixed question -- no server change.
+const AI_DAILY_QUESTION = "Write today's daily brief for my portfolio, about 150-200 words. Use the sections: Today (the portfolio's day change, and TASE vs. USA), Biggest movers (the holdings with the largest effect on the portfolio today, weight x day change -- up and down), Currency (how the USD/ILS move affects the USA holdings), and Worth a look (anything unusual, including pre-market or after-hours moves if the data has them).";
+function setAiControlsDisabled(disabled){
+  document.querySelectorAll('#aiRun, #aiPanel .ai-chip, #aiDailyRerun').forEach(b => { b.disabled = disabled; });
+}
+async function askAi(question, out, waitText){
   if(aiBusy) return;
-  const out = document.getElementById('aiResult');
-  const btn = document.getElementById('aiRun');
   const payload = buildAiPayload();
   if(!payload){ out.innerHTML = `<p class="ai-err">Portfolio data isn't loaded yet — refresh from the sheet first.</p>`; return; }
-  payload.question = document.getElementById('aiQuestion').value.trim();
-  aiBusy = true; aiHasRun = true; btn.disabled = true;
-  out.innerHTML = `<p class="ai-wait">Analyzing ${payload.holdings.length} holdings… usually 10–30 seconds.</p>`;
+  payload.question = question;
+  aiBusy = true; setAiControlsDisabled(true);
+  out.innerHTML = `<p class="ai-wait">${waitText || `Analyzing ${payload.holdings.length} holdings…`} usually 10–30 seconds.</p>`;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 100000);
   try{
@@ -5914,15 +5953,37 @@ async function runAiAnalysis(){
   } catch(e){
     out.innerHTML = `<p class="ai-err">${e.name === 'AbortError' ? 'No answer after 100 seconds — try again.' : String(e.message).replace(/[<>&]/g, '')}</p>`;
   } finally {
-    clearTimeout(timer); aiBusy = false; btn.disabled = false;
+    clearTimeout(timer); aiBusy = false; setAiControlsDisabled(false);
   }
+}
+function runAiAnalysis(){
+  if(aiBusy) return;
+  aiHasRun = true;
+  return askAi(document.getElementById('aiQuestion').value.trim(), document.getElementById('aiResult'));
+}
+function runAiDaily(){
+  if(aiBusy) return;
+  aiDailyHasRun = true;
+  return askAi(AI_DAILY_QUESTION, document.getElementById('aiDailyResult'), "Writing today's brief…");
 }
 document.getElementById('aiAnalysisBtn').addEventListener('click', () => {
   const panel = document.getElementById('aiPanel');
   panel.classList.toggle('open');
   if(panel.classList.contains('open') && !aiHasRun) runAiAnalysis();
 });
+document.getElementById('aiDailyBtn').addEventListener('click', () => {
+  const panel = document.getElementById('aiDailyPanel');
+  panel.classList.toggle('open');
+  if(panel.classList.contains('open') && !aiDailyHasRun) runAiDaily();
+});
+document.getElementById('aiDailyRerun').addEventListener('click', runAiDaily);
 document.getElementById('aiForm').addEventListener('submit', e => { e.preventDefault(); runAiAnalysis(); });
+// Suggested questions: a click fills the box and asks it right away.
+document.querySelectorAll('#aiPanel .ai-chip').forEach(chip => chip.addEventListener('click', () => {
+  if(aiBusy) return;
+  document.getElementById('aiQuestion').value = chip.textContent;
+  runAiAnalysis();
+}));
 
 document.getElementById('digestBtn').addEventListener('click', ()=>{
   const box = document.getElementById('digestBox');
