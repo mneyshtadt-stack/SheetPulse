@@ -157,6 +157,20 @@
   .nw-year-btn:hover{color:var(--ink); border-color:var(--accent);}
   .nw-year-btn.active{border-color:var(--accent); color:var(--accent); font-weight:600;}
   #marketDetailClose:hover{color:var(--ink);}
+  /* Portfolio window's Broker filter (Tracker column R "Platform"), between the title and the close button. */
+  #mdBrokerFilter{display:none; margin:4px 16px 0 auto; align-items:center; gap:8px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #mdBrokerFilter.open{display:flex;}
+  #mdBrokerFilter .bf-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  #mdBrokerFilter .bf-seg{display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  #mdBrokerFilter button{
+    font-family:inherit; font-size:12.5px; color:var(--muted); background:var(--paper); border:none;
+    border-left:1px solid var(--line); padding:6px 12px; cursor:pointer;
+  }
+  #mdBrokerFilter button:first-child{border-left:none;}
+  #mdBrokerFilter button:hover{color:var(--ink);}
+  #mdBrokerFilter button.active{background:var(--accent); color:#fff; font-weight:600;}
+  .md-broker-note{font-size:12px; color:var(--muted); margin:4px 0 0;}
+  @media (max-width:600px){ #mdBrokerFilter .bf-label{display:none;} #mdBrokerFilter{margin-right:8px;} #mdBrokerFilter button{padding:6px 9px;} }
   #marketDetailBody{padding:14px 24px 18px; font-family:'Helvetica Neue',Arial,sans-serif; overflow:auto; flex:1; min-height:0;}
   .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
   .md-headline-change{font-size:15px; font-weight:600;}
@@ -992,6 +1006,7 @@
         <p id="marketDetailSubtitle"></p>
         <div id="nwYearSwitcher"></div>
       </div>
+      <div id="mdBrokerFilter" role="group" aria-label="Broker"></div>
       <button id="marketDetailClose" aria-label="Close">&times;</button>
     </div>
     <div id="marketDetailBody"></div>
@@ -1037,7 +1052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790774924";
+const BUILD_ID = "1790789878";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1772,7 +1787,8 @@ function parseTableToRows(table){
         cChange = col('Day Change (%)'), cRet = col('Total Return (%)'),
         cSector = col('Sector'), cCostILS = col('Total Cost (ILS)'), cRole = col('Role Group'),
         cBuyDate = col('Buy Date'), cShares = col('Shares'), cPrice = col('Current Price'),
-        cLogo = col('Logo'), cValueUSD = col('Current Value ($)');
+        cLogo = col('Logo'), cValueUSD = col('Current Value ($)'),
+        cPlatform = col('Platform');   // column R: the broker that holds it (Portfolio window's Broker filter)
   // Fuzzy-matched on purpose (unlike the required columns above) — this one's optional, and an
   // exact-string match already proved too brittle against small wording/punctuation differences
   // from whatever's actually typed in the sheet ("Prev Day Close", "Prev. Close", etc.).
@@ -1802,7 +1818,8 @@ function parseTableToRows(table){
       price: cPrice>=0 ? num(r[cPrice]) : NaN,
       prevClose: cPrevClose>=0 ? num(r[cPrevClose]) : NaN,
       logoUrl: cLogo>=0 ? (r[cLogo]||'').trim() : '',
-      valueUsd: cValueUSD>=0 ? num(r[cValueUSD]) : NaN
+      valueUsd: cValueUSD>=0 ? num(r[cValueUSD]) : NaN,
+      platform: cPlatform>=0 ? (r[cPlatform]||'').trim() : ''
     });
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
@@ -1928,9 +1945,19 @@ function mergeLots(rows){
   const ms = d => d ? new Date(d).getTime() : NaN;
   rows.forEach(r => {
     const lot = {shares: r.shares, buyDate: r.buyDate, cost: r.cost};
+    // Each broker's own part of the ticker (Tracker rows by column R "Platform"), for the Broker
+    // filter -- kept here because applyTransactionLots later replaces `lots` with the Transactions lines.
+    const own = {value: r.value, cost: r.cost, shares: r.shares, valueUsd: r.valueUsd, lots: [lot]};
     const m = byTicker.get(r.name);
-    if(!m){ byTicker.set(r.name, {...r, lots: [lot]}); return; }
+    if(!m){ byTicker.set(r.name, {...r, lots: [lot], byPlatform: {[r.platform]: own}}); return; }
     m.lots.push(lot);
+    const p = m.byPlatform[r.platform];
+    if(!p) m.byPlatform[r.platform] = own;
+    else {
+      p.value += r.value; p.cost += r.cost; p.lots.push(lot);
+      p.shares = (isNaN(p.shares) || isNaN(r.shares)) ? NaN : p.shares + r.shares;
+      p.valueUsd = (isNaN(p.valueUsd) || isNaN(r.valueUsd)) ? NaN : p.valueUsd + r.valueUsd;
+    }
     m.value += r.value;
     m.cost += r.cost;
     m.shares = (isNaN(m.shares) || isNaN(r.shares)) ? NaN : m.shares + r.shares;
@@ -2281,7 +2308,7 @@ function renderUniverseHolding(row){
   el.querySelectorAll('tr.pf-row').forEach(tr => tr.removeAttribute('title'));
   el.querySelectorAll('td.pf-avg').forEach(c => { c.style.cursor = 'help'; attachHoverTooltip(c, () => avgCostExplainHtml(r)); });
   wirePfGainTips(el);
-  if(!usdIlsHistory) ensureUsdIlsHistory().then(() => {
+  if(PF_SHOW_PURCHASE_DATE_GAIN && !usdIlsHistory) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && universeCardTicker === row.name) renderUniverseHolding(row);
   });
 }
@@ -2565,6 +2592,9 @@ function usdIlsOn(dateStr){
   }
   return null;
 }
+// Off for now: the purchase-date line waits until the broker comparison decides how to match
+// Meitav / Psagot. true brings back the second line and its hover explanation as they were.
+const PF_SHOW_PURCHASE_DATE_GAIN = false;
 const pfGainTips = new Map();
 let pfGainTipSeq = 0;
 // One Total gain/loss cell: today's-rate gain (SheetPulse) on top, the purchase-date-rate gain
@@ -2574,7 +2604,7 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots}, fmt2){
   const pct = n => isNaN(n) ? '' : '(' + (n >= 0 ? '+' : '') + n.toFixed(2) + '%)';
   const sign = n => (n >= 0 ? '+' : '-') + fmt2(Math.abs(n));
   const top = `<div class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)}</div><div class="md-th-pct ${cls(gain)}">${pct(gainPct)}</div>`;
-  if(ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;   // ILS already: one figure
+  if(!PF_SHOW_PURCHASE_DATE_GAIN || ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;   // ILS already: one figure
 
   const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -2644,12 +2674,16 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
     const dayCls = !isNaN(r.change) ? (r.change >= 0 ? 'up' : 'down') : '';
     const gainCls = !isNaN(gain) ? (gain >= 0 ? 'up' : 'down') : '';
     const held = formatHoldingPeriod(o.date);
+    // Partly sold since: the row's figures are for the shares still open, but the purchase itself is
+    // shown as made -- the full quantity and the whole commission (the cost basis per share is the same).
+    const partlySold = !o.fromTracker && o.origShares - o.shares > 1e-9;
+    const fee = partlySold ? o.origFee : o.fee;
     return `
       <tr class="pf-lot-row" data-ticker-detail="${tkr}" style="display:none;">
         <td></td>
         <td><div class="pf-lot-date">${fmtDay(o.date)}</div><div class="md-th-sub">${held ? 'held ' + held : ''}</div></td>
-        <td class="num">${o.price > 0 ? money(o.price) : '—'}${o.fee > 0 ? `<div class="md-th-sub">+ ${money(o.fee)} commission</div>` : ''}</td>
-        <td class="num">${qty(o.shares)}</td>
+        <td class="num">${o.price > 0 ? money(o.price) : '—'}${fee > 0 ? `<div class="md-th-sub">+ ${money(fee)} commission</div>` : ''}</td>
+        <td class="num">${qty(o.shares)}${partlySold ? `<div class="md-th-sub">of ${qty(o.origShares)} bought</div>` : ''}</td>
         <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div></td>
         ${pfGainCellHtml(r, {value: mv, costToday: o.cost, gain, gainPct, lots: [o]}, fmt2)}
         <td class="num">${isNaN(mv) ? '—' : fmt2(mv)}</td>
@@ -2778,7 +2812,7 @@ function renderPortfolioTable(enriched){
   document.getElementById('marketDetailTableArea').innerHTML = html;
   wirePfGainTips(document.getElementById('marketDetailTableArea'));
   // The purchase-date line needs PriceHistory's USD/ILS rates -- draw again once they've arrived.
-  if(!usdIlsHistory) ensureUsdIlsHistory().then(() => {
+  if(PF_SHOW_PURCHASE_DATE_GAIN && !usdIlsHistory) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && marketDetailState.marketKey === 'all' && document.getElementById('marketDetailModal').classList.contains('open')) renderMarketDetailTable();
   });
 
@@ -2947,6 +2981,7 @@ function renderMarketDetailHeader(marketKey){
 
   document.getElementById('marketDetailTitle').textContent = title;
   document.getElementById('marketDetailSubtitle').textContent = 'Holdings summary';
+  hideBrokerFilter();
   hideNwYearSwitcher();
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -3099,6 +3134,7 @@ function openFxDetail(){
 async function renderFxDetailHeader(){
   document.getElementById('marketDetailTitle').textContent = 'USD/ILS';
   document.getElementById('marketDetailSubtitle').textContent = 'US dollar in Israeli shekels';
+  hideBrokerFilter();
   hideNwYearSwitcher();
   const rate = window.lastFxRate;
   // Previous close: PriceHistory's last USD/ILS close before today -- the same data as the longer
@@ -3155,22 +3191,98 @@ function tileTextColorFor(c){
 
 function closeMarketDetail(){
   document.getElementById('marketDetailModal').classList.remove('open');
+  hideBrokerFilter();
   document.getElementById('marketDetailCard').classList.remove('wide');
   stopMarketDetailAutoRefresh();
+}
+
+// ---- Portfolio window: Broker filter ----
+// Tracker column R "Platform" names the broker holding each ticker. Picking one shows only its
+// holdings in the Portfolio window: the headline, tiles, table, range charts and Pre-Market map.
+// Its totals come from the holdings themselves (value, cost, each Day Change %), not from
+// IntradayLog, which records the whole portfolio only -- so 1D / 5D stay under All.
+// The main dashboard always shows everything, and the window always opens on All (both brokers);
+// the choice lasts while it stays open, across background refreshes.
+const BROKER_CHART_RANGES = ['1M','6M','YTD','1Y','5Y','MAX'];   // CHART_RANGES without 1D / 5D
+let portfolioBroker = '';
+function brokerNames(rows){
+  const s = new Set();
+  rows.forEach(r => Object.keys(r.byPlatform || {[r.platform || '']: 1}).forEach(p => { if(p) s.add(p); }));
+  return [...s].sort((a, b) => a.localeCompare(b));
+}
+// The stored choice, or All when that broker no longer appears in the Tracker.
+function activeBroker(rows){
+  return portfolioBroker && brokerNames(rows).includes(portfolioBroker) ? portfolioBroker : '';
+}
+function rowsForBroker(rows, broker){
+  if(!broker) return rows;
+  return rows.flatMap(r => {
+    const parts = r.byPlatform || {[r.platform || '']: null};
+    const key = Object.keys(parts).find(p => p === broker);
+    if(key === undefined) return [];
+    if(Object.keys(parts).length === 1) return [r];
+    // A ticker held at two brokers: this broker's own Tracker rows. The Transactions lines can't be
+    // split by broker, so its purchase rows come from those Tracker rows instead.
+    const p = parts[key];
+    return [{...r, value: p.value, cost: p.cost, shares: p.shares, valueUsd: p.valueUsd,
+      ret: p.cost ? (p.value - p.cost) / p.cost * 100 : NaN, dayGain: NaN, totalGain: NaN,
+      lots: p.lots, lotsFromTransactions: false, byPlatform: {[key]: p}}];
+  });
+}
+function portfolioRows(){
+  const all = window.lastRows || [];
+  return rowsForBroker(all, activeBroker(all));
+}
+// A broker's totals from its holdings: the day change is each holding's Day Change % applied to its value.
+function brokerTotals(rows){
+  const totalValue = rows.reduce((a, r) => a + r.value, 0);
+  const totalCost = rows.reduce((a, r) => a + (r.cost || 0), 0);
+  const dayGain = rows.reduce((a, r) => isNaN(r.change) ? a : a + (r.value - r.value / (1 + r.change / 100)), 0);
+  const totalGain = totalValue - totalCost;
+  return {totalValue, totalCost, totalGain, totalGainPct: totalCost ? totalGain / totalCost * 100 : 0,
+    dayGain, dayGainPct: (totalValue - dayGain) ? dayGain / (totalValue - dayGain) * 100 : 0};
+}
+function hideBrokerFilter(){ document.getElementById('mdBrokerFilter').classList.remove('open'); }
+function renderBrokerFilter(allRows, broker){
+  const el = document.getElementById('mdBrokerFilter');
+  const names = brokerNames(allRows);
+  if(names.length < 2){ el.classList.remove('open'); el.innerHTML = ''; return; }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  el.innerHTML = `<span class="bf-label">Broker</span><div class="bf-seg">`
+    + ['', ...names].map(n => `<button type="button" data-broker="${esc(n)}" class="${n === broker ? 'active' : ''}" aria-pressed="${n === broker}">${esc(n || 'All')}</button>`).join('')
+    + `</div>`;
+  el.classList.add('open');
+  el.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    const next = b.dataset.broker;
+    if(next === broker) return;
+    portfolioBroker = next;
+    // 1D / 5D exist for the whole portfolio only; a broker opens on 1M, All goes back to 1D.
+    chartRange = next ? (BROKER_CHART_RANGES.includes(chartRange) ? chartRange : '1M') : '1D';
+    document.getElementById('customTooltip').style.display = 'none';
+    if(!renderPortfolioHeader()) return;
+    marketDetailState.tickers = portfolioRows();
+    renderMarketDetailTable();
+  }));
 }
 
 // Same split as renderMarketDetailHeader: builds the header from current window.lastRows
 // / window.lastTotals without touching marketDetailState, so a background refresh can
 // call this to update the numbers while preserving the user's search/sort in the table.
 function renderPortfolioHeader(){
-  const rows = window.lastRows || [];
-  const totals = window.lastTotals;
-  if(!rows.length || !totals) return false;
+  const allRows = window.lastRows || [];
+  if(!allRows.length || !window.lastTotals) return false;
+  const broker = activeBroker(allRows);
+  const rows = rowsForBroker(allRows, broker);
+  if(!rows.length) return false;
+  const totals = broker ? brokerTotals(rows) : window.lastTotals;
   const split = splitByMarket(rows);
+  // On a broker while showing 1D / 5D (those cover the whole portfolio only).
+  if(broker && !BROKER_CHART_RANGES.includes(chartRange)) chartRange = '1M';
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
-  document.getElementById('marketDetailSubtitle').textContent = 'All holdings';
+  document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : 'All holdings';
   hideNwYearSwitcher();
+  renderBrokerFilter(allRows, broker);
 
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const body = document.getElementById('marketDetailBody');
@@ -3189,7 +3301,9 @@ function renderPortfolioHeader(){
     ? split.us.usdValue
     : (window.lastFxRate ? split.us.value / window.lastFxRate : null);
   const todayUsdTotal = (window.lastFxRate && usUsdToday !== null) ? (split.il.value / window.lastFxRate) + usUsdToday : null;
-  const yesterdayUsdTotal = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate && typeof window.lastCloseUSD === 'number')
+  // A broker has no recorded close of its own (IntradayLog is the whole portfolio), so its USD
+  // change is the ₪ day change at today's rate -- the fallback below.
+  const yesterdayUsdTotal = (!broker && typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate && typeof window.lastCloseUSD === 'number')
     ? (window.lastCloseIL / window.lastCloseFxRate) + window.lastCloseUSD
     : null;
   const portfolioUsdChange = (todayUsdTotal !== null && yesterdayUsdTotal !== null) ? todayUsdTotal - yesterdayUsdTotal : null;
@@ -3206,7 +3320,9 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Day change</div>
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>
+        ${broker
+          ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · from each holding's day change</div>`
+          : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -3226,6 +3342,7 @@ function renderPortfolioHeader(){
     </div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
+    ${broker ? `<p class="md-broker-note">1D and 5D charts come from the intraday log, which records the whole portfolio only — choose All to see them.</p>` : ''}
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
@@ -3238,6 +3355,13 @@ function renderPortfolioHeader(){
     applyPortfolioTab();
   }));
   applyPortfolioTab();
+  if(broker){
+    // No intraday chart to fill the headline's change in -- it's the broker's day change.
+    updateHeadlineDisplay(totals.totalValue, totals.totalValue - totals.dayGain);
+    chartCtx = {ranges: BROKER_CHART_RANGES, holdings: rows, liveValue: totals.totalValue};
+    renderActiveChart();
+    return true;
+  }
   attachHoverTooltip(document.getElementById('mdDayChangeAsOf'), () => {
     const prevClose = totals.totalValue - totals.dayGain;
     const ilPart = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : null;
@@ -3324,7 +3448,7 @@ async function renderPremarketTab(){
 }
 
 function drawPremarketTreemap(area){
-  const rows = window.lastRows || [];
+  const rows = portfolioRows();   // the Broker filter's holdings (all of them under All)
   const totals = window.lastTotals;
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const byKey = {};
@@ -3404,11 +3528,12 @@ function drawPremarketTreemap(area){
 function openPortfolioDetail(){
   chartRange = '1D';
   portfolioTab = 'holdings';
+  portfolioBroker = '';   // always opens on All (both brokers)
   if(!renderPortfolioHeader()) return;
 
   document.getElementById('marketDetailCard').classList.add('wide');
 
-  marketDetailState = {marketKey:'all', tickers: window.lastRows, sortKey:'change', sortDir:-1, filter:''};
+  marketDetailState = {marketKey:'all', tickers: portfolioRows(), sortKey:'change', sortDir:-1, filter:''};
   renderMarketDetailTable();
 
   document.getElementById('marketDetailModal').classList.add('open');
@@ -3428,7 +3553,7 @@ function refreshOpenMarketDetailIfNeeded(){
     renderMarketDetailTable();
   } else if(key === 'all'){
     if(!renderPortfolioHeader()) return;
-    marketDetailState.tickers = window.lastRows;
+    marketDetailState.tickers = portfolioRows();
     renderMarketDetailTable();
   } else if(key === 'fx'){
     renderFxDetailHeader();
@@ -3971,6 +4096,7 @@ async function loadNetWorthYear(year){
 
   document.getElementById('marketDetailTitle').textContent = 'Net Worth';
   document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
+  hideBrokerFilter();
   document.getElementById('marketDetailCard').classList.add('wide');
   renderNwYearSwitcher(year, years);
   marketDetailState = {marketKey:'networth', tickers:[], sortKey:'', sortDir:1, filter:''};
