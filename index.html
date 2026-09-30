@@ -241,6 +241,9 @@
   .md-pf-table tr.pf-lot-row .pf-lot-date{color:var(--ink);}
   .md-pf-table tr.pf-lot-sale td{color:var(--muted);}
   .md-pf-table tr.pf-lot-sale .up, .md-pf-table tr.pf-lot-sale .down{opacity:0.85;}
+  /* Total gain/loss at the purchase-date exchange rate, under SheetPulse's today's-rate figure. */
+  .md-pf-table .pf-gain-pd{font-size:12px; color:var(--muted); margin-top:5px; white-space:nowrap;}
+  .md-pf-table .pf-gain-pd-val{font-size:12.5px; white-space:nowrap;}
   #universeHolding:empty{display:none;}
   #universeHolding{margin:4px 0 18px;}
   #universeHolding .uh-title{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
@@ -1033,7 +1036,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790752533";
+const BUILD_ID = "1790769577";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2276,6 +2279,10 @@ function renderUniverseHolding(row){
   el.querySelectorAll('.pf-expand-btn').forEach(b => b.remove());   // always open here
   el.querySelectorAll('tr.pf-row').forEach(tr => tr.removeAttribute('title'));
   el.querySelectorAll('td.pf-avg').forEach(c => { c.style.cursor = 'help'; attachHoverTooltip(c, () => avgCostExplainHtml(r)); });
+  wirePfGainTips(el);
+  if(!usdIlsHistory) ensureUsdIlsHistory().then(() => {
+    if(usdIlsHistory && universeCardTicker === row.name) renderUniverseHolding(row);
+  });
 }
 
 // The card's pre-market / after-hours part, from the Ext columns ExtendedHours.gs keeps in the
@@ -2497,12 +2504,10 @@ function renderIlTickerCards(enriched){
 // the buys since the position last went to 0; a partial sale after them shrinks each in proportion
 // (the average-cost method the Tracker uses). Sales follow as muted rows with their realized result.
 // A ticker not in Transactions shows one row from the Tracker's own figures.
-function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const tkr = esc(r.name);
-  const fmtDay = s => { const ms = txDateMs(s); return isNaN(ms) ? esc(s || '—') : new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}); };
-  const qty = n => isFinite(n) ? n.toLocaleString('en-US', {maximumFractionDigits: 4}) : '—';
-  const signed = (n, f) => (n >= 0 ? '+' : '-') + f(Math.abs(n));
+// The purchases a holding still has: buys since the position last went to 0, each shrunk in
+// proportion by any later partial sale (the average-cost method the Tracker uses), plus every sale.
+// A ticker not in Transactions is one purchase from the Tracker's own figures.
+function pfOpenLots(r){
   let open = [], sales = [];
   if(r.lotsFromTransactions && (r.lots || []).length){
     let sh = 0;
@@ -2522,6 +2527,100 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
   } else {
     open = [{date: r.buyDate, price: r.avgCost, fee: 0, shares: r.shares, costNative: r.totalCostNative, cost: r.cost, fromTracker: true}];
   }
+  return {open, sales};
+}
+
+// ---- Total gain/loss two ways ----
+// SheetPulse's own figure prices the cost at TODAY's USD/ILS (like Google Finance), so the ILS
+// return equals the dollar return. Brokers such as Meitav price it at the rate ON THE PURCHASE DATE,
+// so their ILS gain includes the currency gain or loss since then. The holdings tables show the
+// first as before and the second underneath, with a hover explanation of both. Rates by date come
+// from PriceHistory's USDILS column (loaded once, ensureUsdIlsHistory).
+let usdIlsHistory = null;   // {dates: [ms, oldest first], rates: []}
+let usdIlsLoading = null;   // the one load in flight, shared by every caller
+function ensureUsdIlsHistory(){
+  if(usdIlsHistory) return Promise.resolve();
+  if(!usdIlsLoading) usdIlsLoading = (async () => {
+    try{
+      const ph = await fetchPriceHistory();
+      usdIlsHistory = {dates: ph.dates, rates: ph.cols['USDILS'] || []};
+    } catch(e){ /* stays unloaded; the purchase-date line shows "n/a", the next render retries */ }
+  })().finally(() => { usdIlsLoading = null; });
+  return usdIlsLoading;
+}
+// The USD/ILS close on that day, or the last one before it: {rate, ms} or null.
+function usdIlsOn(dateStr){
+  const h = usdIlsHistory, ms = txDateMs(dateStr);
+  if(!h || isNaN(ms)) return null;
+  const until = ms + 86400000 - 1;
+  for(let i = h.dates.length - 1; i >= 0; i--){
+    if(h.dates[i] <= until && isFinite(h.rates[i]) && h.rates[i] > 0) return {rate: h.rates[i], ms: h.dates[i]};
+  }
+  return null;
+}
+const pfGainTips = new Map();
+let pfGainTipSeq = 0;
+// One Total gain/loss cell: today's-rate gain (SheetPulse) on top, the purchase-date-rate gain
+// underneath. `lots` are the purchases the cell covers ({date, costNative}); value and costToday in ILS.
+function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots}, fmt2){
+  const cls = n => isNaN(n) ? '' : (n >= 0 ? 'up' : 'down');
+  const pct = n => isNaN(n) ? '' : '(' + (n >= 0 ? '+' : '') + n.toFixed(2) + '%)';
+  const sign = n => (n >= 0 ? '+' : '-') + fmt2(Math.abs(n));
+  const top = `<div class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)}</div><div class="md-th-pct ${cls(gain)}">${pct(gainPct)}</div>`;
+  if(ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;   // ILS already: one figure
+
+  const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+  const costNative = lots.reduce((s, o) => s + (o.costNative || 0), 0);
+  const todayRate = costNative ? costToday / costNative : NaN;
+  let costPd = 0, missing = null;
+  const parts = lots.map(o => {
+    const fx = usdIlsOn(o.date);
+    if(!fx){ missing = missing || o.date || '(no date)'; return ''; }
+    costPd += o.costNative * fx.rate;
+    return `<div>${day(txDateMs(o.date))}: ${$(o.costNative)} × ${fx.rate.toFixed(4)}${Math.abs(fx.ms - txDateMs(o.date)) > 86400000 ? ` (close of ${day(fx.ms)})` : ''} = ${I(o.costNative * fx.rate)}</div>`;
+  });
+  const gainPd = missing ? NaN : value - costPd;
+  const pctPd = missing || !costPd ? NaN : gainPd / costPd * 100;
+
+  const tip = `<b>Total gain/loss, two ways</b>`
+    + `<div style="margin-top:6px;"><b>Today's rate (SheetPulse)</b></div>`
+    + `<div>Cost ${$(costNative)} × today's USD/ILS ${isNaN(todayRate) ? '—' : todayRate.toFixed(4)} = ${I(costToday)}</div>`
+    + `<div>Value ${I(value)} − ${I(costToday)} = <span class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)} ${pct(gainPct)}</span></div>`
+    + `<div style="color:var(--muted); font-size:12px; max-width:340px;">The same as the return in dollars — the exchange rate since purchase is left out, as Google Finance does.</div>`
+    + `<div style="margin-top:8px;"><b>Rate on the purchase date</b></div>`
+    + (missing
+      ? `<div style="max-width:340px;">No USD/ILS close in PriceHistory for ${String(missing).replace(/[<>&]/g, '')}${usdIlsHistory && usdIlsHistory.dates.length ? ` (it starts ${day(usdIlsHistory.dates[0])} — move the History tab's start date in B1 earlier)` : ' (PriceHistory not loaded yet)'}.</div>`
+      : parts.join('') + (lots.length > 1 ? `<div>Cost at purchase-date rates = ${I(costPd)}</div>` : '')
+        + `<div>Value ${I(value)} − ${I(costPd)} = <span class="${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</span></div>`
+        + `<div style="color:var(--muted); font-size:12px; max-width:340px;">What brokers such as Meitav show — it includes the currency gain or loss since each purchase.</div>`
+        + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gainPd - gain)}">${sign(gainPd - gain)}</span></div>`);
+  const id = ++pfGainTipSeq;
+  pfGainTips.set(id, tip);
+  const second = missing
+    ? `<div class="pf-gain-pd">purchase-date rate: n/a</div>`
+    : `<div class="pf-gain-pd">at purchase-date rate</div><div class="pf-gain-pd-val ${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</div>`;
+  return `<td class="num pf-gain" data-gaintip="${id}">${top}${second}</td>`;
+}
+// Hover explanations for the gain cells just rendered under `root`.
+function wirePfGainTips(root){
+  root.querySelectorAll('td.pf-gain[data-gaintip]').forEach(td => {
+    const id = Number(td.dataset.gaintip), html = pfGainTips.get(id);
+    pfGainTips.delete(id);
+    if(!html) return;
+    td.style.cursor = 'help';
+    attachHoverTooltip(td, () => html);
+  });
+}
+
+function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const tkr = esc(r.name);
+  const fmtDay = s => { const ms = txDateMs(s); return isNaN(ms) ? esc(s || '—') : new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}); };
+  const qty = n => isFinite(n) ? n.toLocaleString('en-US', {maximumFractionDigits: 4}) : '—';
+  const signed = (n, f) => (n >= 0 ? '+' : '-') + f(Math.abs(n));
+  const {open, sales} = pfOpenLots(r);
   const head = `
       <tr class="pf-lot-head" data-ticker-detail="${tkr}" style="display:none;">
         <td></td><td>Purchase date</td><td class="num">Purchase price</td><td class="num">Quantity</td>
@@ -2545,7 +2644,7 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
         <td class="num">${o.price > 0 ? money(o.price) : '—'}${o.fee > 0 ? `<div class="md-th-sub">+ ${money(o.fee)} commission</div>` : ''}</td>
         <td class="num">${qty(o.shares)}</td>
         <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div></td>
-        <td class="num"><div class="${gainCls}">${isNaN(gain) ? 'n/a' : signed(gain, fmt2)}</div><div class="md-th-pct ${gainCls}">${isNaN(gainPct) ? '' : '(' + (gainPct >= 0 ? '+' : '') + gainPct.toFixed(2) + '%)'}</div></td>
+        ${pfGainCellHtml(r, {value: mv, costToday: o.cost, gain, gainPct, lots: [o]}, fmt2)}
         <td class="num">${isNaN(mv) ? '—' : fmt2(mv)}</td>
         <td class="num" title="${o.fromTracker ? 'Average cost from the Tracker' : 'Cost per share including the commission'}">${isNaN(perShare) ? '—' : money(perShare)}</td>
       </tr>`;
@@ -2581,7 +2680,6 @@ function pfEnrichHolding(r){
 function pfHoldingRowsHtml(r){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
-  const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
   const subtitle = TICKER_NAME_MAP[r.name] || '';
   const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
   const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
@@ -2606,10 +2704,7 @@ function pfHoldingRowsHtml(r){
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
           <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
         </td>
-        <td class="num">
-          <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmt2(r.totalGain):'n/a'}</div>
-          <div class="md-th-pct ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
-        </td>
+        ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open}, fmt2)}
         <td class="num">${fmt2(r.value)}</td>
         <td class="num pf-avg">${avgCostStr}</td>
       </tr>
@@ -2656,6 +2751,11 @@ function renderPortfolioTable(enriched){
   html += `</tbody></table>`;
 
   document.getElementById('marketDetailTableArea').innerHTML = html;
+  wirePfGainTips(document.getElementById('marketDetailTableArea'));
+  // The purchase-date line needs PriceHistory's USD/ILS rates -- draw again once they've arrived.
+  if(!usdIlsHistory) ensureUsdIlsHistory().then(() => {
+    if(usdIlsHistory && marketDetailState.marketKey === 'all' && document.getElementById('marketDetailModal').classList.contains('open')) renderMarketDetailTable();
+  });
 
   wireMarketDetailSearch();
   document.querySelectorAll('.md-pf-table thead th[data-key]').forEach(th=>{
