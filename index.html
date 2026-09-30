@@ -241,6 +241,7 @@
   .md-pf-table tr.pf-lot-row .pf-lot-date{color:var(--ink);}
   .md-pf-table tr.pf-lot-sale td{color:var(--muted);}
   .md-pf-table tr.pf-lot-sale .up, .md-pf-table tr.pf-lot-sale .down{opacity:0.85;}
+  .md-pf-table tr.pf-lot-subhead td{background:var(--paper); font-size:12px; font-weight:600; color:var(--muted); padding-top:12px; padding-bottom:4px; border-bottom:1px solid var(--line);}
   /* Total gain/loss at the purchase-date exchange rate, under SheetPulse's today's-rate figure. */
   .md-pf-table .pf-gain-pd{font-size:12px; color:var(--muted); margin-top:5px; white-space:nowrap;}
   .md-pf-table .pf-gain-pd-val{font-size:12.5px; white-space:nowrap;}
@@ -1036,7 +1037,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790769577";
+const BUILD_ID = "1790774924";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2508,26 +2509,32 @@ function renderIlTickerCards(enriched){
 // proportion by any later partial sale (the average-cost method the Tracker uses), plus every sale.
 // A ticker not in Transactions is one purchase from the Tracker's own figures.
 function pfOpenLots(r){
-  let open = [], sales = [];
+  let open = [], sales = [], closed = [];
   if(r.lotsFromTransactions && (r.lots || []).length){
     let sh = 0;
     r.lots.forEach(l => {
       if(l.shares > 0){
-        open.push({date: l.buyDate, price: l.price, fee: l.fee || 0, shares: l.shares, costNative: l.costNative, cost: l.cost});
+        open.push({date: l.buyDate, price: l.price, fee: l.fee || 0, shares: l.shares, costNative: l.costNative, cost: l.cost,
+          origShares: l.shares, origFee: l.fee || 0});
         sh += l.shares;
       } else {
         const sold = Math.min(-l.shares, sh);
-        const keep = sh ? (sh - sold) / sh : 0;
+        sales.push(l);
+        if(sh - sold <= 1e-9){
+          // Sold out: these purchases are closed -- kept for the "Earlier purchases and sales" rows.
+          closed.push(...open);
+          open = []; sh = 0;
+          return;
+        }
+        const keep = (sh - sold) / sh;
         open.forEach(o => { o.shares *= keep; o.costNative *= keep; o.cost *= keep; o.fee *= keep; });
         sh -= sold;
-        sales.push(l);
-        if(sh <= 1e-9){ open = []; sh = 0; }
       }
     });
   } else {
     open = [{date: r.buyDate, price: r.avgCost, fee: 0, shares: r.shares, costNative: r.totalCostNative, cost: r.cost, fromTracker: true}];
   }
-  return {open, sales};
+  return {open, sales, closed};
 }
 
 // ---- Total gain/loss two ways ----
@@ -2649,18 +2656,36 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
         <td class="num" title="${o.fromTracker ? 'Average cost from the Tracker' : 'Cost per share including the commission'}">${isNaN(perShare) ? '—' : money(perShare)}</td>
       </tr>`;
   }).join('');
-  const saleRows = sales.map(l => `
+  // History under the current purchases, oldest first: purchases already sold out ("closed") and
+  // every sale with its realized result -- so a sale never appears without the purchase it ended.
+  const history = [
+    ...pfOpenLots(r).closed.map(o => ({kind: 'closed', ms: txDateMs(o.date), o})),
+    ...sales.map(l => ({kind: 'sale', ms: txDateMs(l.buyDate), l})),
+  ].sort((a, b) => (a.ms - b.ms) || (a.kind === 'closed' ? -1 : 1));
+  const historyRows = !history.length ? '' : `
+      <tr class="pf-lot-subhead" data-ticker-detail="${tkr}" style="display:none;"><td></td><td colspan="7">Earlier purchases and sales</td></tr>`
+    + history.map(h => h.kind === 'closed' ? `
       <tr class="pf-lot-row pf-lot-sale" data-ticker-detail="${tkr}" style="display:none;">
         <td></td>
-        <td><div class="pf-lot-date">${fmtDay(l.buyDate)}</div><div class="md-th-sub">sold</div></td>
-        <td class="num">${l.price > 0 ? money(l.price) : '—'}${l.fee > 0 ? `<div class="md-th-sub">+ ${money(l.fee)} commission</div>` : ''}</td>
-        <td class="num">${qty(l.shares)}</td>
+        <td><div class="pf-lot-date">${fmtDay(h.o.date)}</div><div class="md-th-sub">bought · sold later</div></td>
+        <td class="num">${h.o.price > 0 ? money(h.o.price) : '—'}${h.o.origFee > 0 ? `<div class="md-th-sub">+ ${money(h.o.origFee)} commission</div>` : ''}</td>
+        <td class="num">${qty(h.o.origShares)}</td>
         <td class="num">—</td>
-        <td class="num">${isFinite(l.realized) ? `<div class="${l.realized >= 0 ? 'up' : 'down'}">${signed(l.realized, money)}</div><div class="md-th-sub">realized</div>` : '—'}</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num">${h.o.origShares > 0 && h.o.price > 0 ? money((h.o.origShares * h.o.price + (h.o.origFee || 0)) / h.o.origShares) : '—'}</td>
+      </tr>` : `
+      <tr class="pf-lot-row pf-lot-sale" data-ticker-detail="${tkr}" style="display:none;">
+        <td></td>
+        <td><div class="pf-lot-date">${fmtDay(h.l.buyDate)}</div><div class="md-th-sub">sold</div></td>
+        <td class="num">${h.l.price > 0 ? money(h.l.price) : '—'}${h.l.fee > 0 ? `<div class="md-th-sub">+ ${money(h.l.fee)} commission</div>` : ''}</td>
+        <td class="num">${qty(h.l.shares)}</td>
+        <td class="num">—</td>
+        <td class="num">${isFinite(h.l.realized) ? `<div class="${h.l.realized >= 0 ? 'up' : 'down'}">${signed(h.l.realized, money)}</div><div class="md-th-sub">realized</div>` : '—'}</td>
         <td class="num">—</td>
         <td class="num">—</td>
       </tr>`).join('');
-  return head + lotRows + saleRows;
+  return head + lotRows + historyRows;
 }
 
 // The derived figures the holdings table shows: day and total gain in ILS, and the average cost
