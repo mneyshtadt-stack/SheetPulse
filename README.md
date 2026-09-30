@@ -5,6 +5,7 @@ A single-file, client-side dashboard for tracking a personal investment portfoli
 ## Features
 
 - **Portfolio overview** — Israeli (TASE) and USA holdings, day gain/loss, a size-weighted treemap of positions, and a live USD/ILS rate pulled straight from the sheet.
+- **Broker filter** — the Portfolio window's header has Broker: All / Meitav / Psagot (the names in the Tracker's column R "Platform"). Choosing a broker shows only its holdings: market value, day change, total gain, value in USD, the holdings table, the 1M–MAX charts and the Pre-Market map. The broker's day change is the sum of its holdings' own Day Change %; the 1D and 5D charts come from the intraday log, which records the whole portfolio only, so they appear under All. The window always opens on All (both brokers).
 - **Sector & role-group allocation** — visual breakdowns of what each holding is for (growth, income, hedge, etc.), not just what it is.
 - **Net Worth tracker** — assets, liabilities, and pension tracked monthly, with:
   - A hero net worth figure with month-over-month and year-to-date comparisons.
