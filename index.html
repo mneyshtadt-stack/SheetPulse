@@ -241,6 +241,11 @@
   .md-pf-table tr.pf-lot-row .pf-lot-date{color:var(--ink);}
   .md-pf-table tr.pf-lot-sale td{color:var(--muted);}
   .md-pf-table tr.pf-lot-sale .up, .md-pf-table tr.pf-lot-sale .down{opacity:0.85;}
+  #universeHolding:empty{display:none;}
+  #universeHolding{margin:4px 0 18px;}
+  #universeHolding .uh-title{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
+  #universeHolding .uh-table{margin-top:6px;}
+  #universeHolding .uh-table thead th{cursor:default;}
   /* Each Transactions-tab line for the holding, under the summary (see applyTransactionLots). */
   .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
   .pf-detail-row .pf-lots th{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
@@ -1012,6 +1017,7 @@
     </div>
     <div id="universeTableWrap">
       <div id="universeChart"></div>
+      <div id="universeHolding"></div>
       <table id="universeTable">
         <thead><tr></tr></thead>
         <tbody></tbody>
@@ -1027,7 +1033,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790689475";
+const BUILD_ID = "1790752533";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2244,12 +2250,32 @@ function showUniverseQuoteCard(row){
   `;
   universeCardTicker = row.name;
   renderUniverseQuoteExt();
+  renderUniverseHolding(row);
 }
 function hideUniverseQuoteCard(){
   const card = document.getElementById('universeQuoteCard');
   if(card) card.className = '';
   universeCardTicker = null;
   hideUniverseChart();
+  renderUniverseHolding(null);
+}
+
+// Market Universe with one held ticker searched: its Portfolio-table row and purchase rows, already
+// open, in the same columns and order as the Portfolio window (pfHoldingRowsHtml).
+function renderUniverseHolding(row){
+  const el = document.getElementById('universeHolding');
+  if(!el) return;
+  if(!row){ el.innerHTML = ''; return; }
+  const r = pfEnrichHolding(row);
+  const head = PF_COLS.map(c => `<th class="${c.key === 'name' ? '' : 'num'}">${c.label}</th>`).join('');
+  el.innerHTML = `<div class="uh-title">Your holding</div>
+    <table class="md-holdings-table md-pf-table uh-table">
+      <thead><tr><th class="expand-col"></th>${head}</tr></thead>
+      <tbody>${pfHoldingRowsHtml(r).replace(/ style="display:none;"/g, '')}</tbody>
+    </table>`;
+  el.querySelectorAll('.pf-expand-btn').forEach(b => b.remove());   // always open here
+  el.querySelectorAll('tr.pf-row').forEach(tr => tr.removeAttribute('title'));
+  el.querySelectorAll('td.pf-avg').forEach(c => { c.style.cursor = 'help'; attachHoverTooltip(c, () => avgCostExplainHtml(r)); });
 }
 
 // The card's pre-market / after-hours part, from the Ext columns ExtendedHours.gs keeps in the
@@ -2538,18 +2564,65 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
   return head + lotRows + saleRows;
 }
 
+// The derived figures the holdings table shows: day and total gain in ILS, and the average cost
+// in the ticker's own currency (the ILS cost/value ratio applied to the native price, since
+// Total Cost (ILS) is always ILS whatever the ticker trades in).
+function pfEnrichHolding(r){
+  const dayGain = !isNaN(r.dayGain) ? r.dayGain : (!isNaN(r.change) ? (r.value - r.value/(1+r.change/100)) : NaN);
+  const totalGain = !isNaN(r.totalGain) ? r.totalGain : (!isNaN(r.cost) && r.cost ? (r.value - r.cost) : NaN);
+  const nativeRatio = (!isNaN(r.cost) && !isNaN(r.value) && r.value && !isNaN(r.price)) ? r.cost / r.value : NaN;
+  const avgCost = !isNaN(nativeRatio) ? r.price * nativeRatio : NaN;
+  const totalCostNative = (!isNaN(avgCost) && !isNaN(r.shares)) ? avgCost * r.shares : NaN;
+  return {...r, dayGain, totalGain, avgCost, totalCostNative};
+}
+
+// One holding's row plus its purchase rows (portfolioLotRowsHtml), as the Portfolio table draws them.
+// r needs pfEnrichHolding's fields. Market Universe reuses it for the searched holding.
+function pfHoldingRowsHtml(r){
+  const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
+  const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
+  const subtitle = TICKER_NAME_MAP[r.name] || '';
+  const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
+  const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
+  const priceStr = !isNaN(r.price)
+    ? `<span class="${vsCostCls}" title="${!isNaN(r.avgCost)?'vs. avg cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+    : '—';
+  const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
+  const holdingPeriod = formatHoldingPeriod(r.buyDate);
+  const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  const lotRowsHtml = portfolioLotRowsHtml(r, {priceCcy, fmt2, money});
+
+  return `
+      <tr class="pf-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
+        <td class="expand-col"><button class="pf-expand-btn" aria-label="Expand ${r.name}">›</button></td>
+        <td>
+          <div class="md-th-symbol">${r.name}</div>
+          <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
+        </td>
+        <td class="num">${priceStr}</td>
+        <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
+        <td class="num">
+          <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">
+          <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmt2(r.totalGain):'n/a'}</div>
+          <div class="md-th-pct ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
+        </td>
+        <td class="num">${fmt2(r.value)}</td>
+        <td class="num pf-avg">${avgCostStr}</td>
+      </tr>
+${lotRowsHtml}`;
+}
+
 function renderPortfolioTable(enriched){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   // "Total Cost (ILS)" from the sheet is always in ILS, regardless of the ticker's own
   // trading currency — converting straight to a per-share figure and labeling it with
   // the ticker's currency ($ or ILA) would silently mix units. Use the cost/value ratio
   // (both ILS) against the native-currency price to get a true native-currency cost.
-  const withAvgCost = enriched.map(r=>{
-    const nativeRatio = (!isNaN(r.cost) && !isNaN(r.value) && r.value && !isNaN(r.price)) ? r.cost / r.value : NaN;
-    const avgCost = !isNaN(nativeRatio) ? r.price * nativeRatio : NaN;
-    const totalCostNative = (!isNaN(avgCost) && !isNaN(r.shares)) ? avgCost * r.shares : NaN;
-    return {...r, avgCost, totalCostNative};
-  });
+  const withAvgCost = enriched.map(pfEnrichHolding);
 
   const q = marketDetailState.filter.trim().toLowerCase();
   const filtered = q ? withAvgCost.filter(r =>
@@ -2578,42 +2651,7 @@ function renderPortfolioTable(enriched){
     html += `<tr><td colspan="${PF_COLS.length+1}" style="text-align:center; color:var(--muted); padding:24px;">No tickers match "${escAttr(marketDetailState.filter)}"</td></tr>`;
   }
 
-  sorted.forEach(r=>{
-    const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
-    const totCls = !isNaN(r.totalGain) ? (r.totalGain>=0?'up':'down') : '';
-    const subtitle = TICKER_NAME_MAP[r.name] || '';
-    const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
-    const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
-    const priceStr = !isNaN(r.price)
-      ? `<span class="${vsCostCls}" title="${!isNaN(r.avgCost)?'vs. avg cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
-      : '—';
-    const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
-    const holdingPeriod = formatHoldingPeriod(r.buyDate);
-    const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
-    const lotRowsHtml = portfolioLotRowsHtml(r, {priceCcy, fmt2, money});
-
-    html += `
-      <tr class="pf-row" data-ticker="${r.name}" title="Double-click to open ${r.name} in Market Universe">
-        <td class="expand-col"><button class="pf-expand-btn" aria-label="Expand ${r.name}">›</button></td>
-        <td>
-          <div class="md-th-symbol">${r.name}</div>
-          <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
-        </td>
-        <td class="num">${priceStr}</td>
-        <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
-        <td class="num">
-          <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
-          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
-        </td>
-        <td class="num">
-          <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+fmt2(r.totalGain):'n/a'}</div>
-          <div class="md-th-pct ${totCls}">${!isNaN(r.ret)?'('+(r.ret>=0?'+':'')+r.ret.toFixed(2)+'%)':''}</div>
-        </td>
-        <td class="num">${fmt2(r.value)}</td>
-        <td class="num pf-avg">${avgCostStr}</td>
-      </tr>
-${lotRowsHtml}`;
-  });
+  sorted.forEach(r=>{ html += pfHoldingRowsHtml(r); });
 
   html += `</tbody></table>`;
 
