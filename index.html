@@ -429,9 +429,10 @@
   #universeChart:empty{display:none;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  /* Logo just left of the ticker on its tile, centered together with it. */
   .tile-logo{
-    position:absolute; top:5px; right:5px; border-radius:50%; background:rgba(255,255,255,0.88);
-    box-shadow:0 1px 3px rgba(0,0,0,0.18); object-fit:contain; padding:3px; box-sizing:border-box;
+    flex-shrink:0; border-radius:50%; background:rgba(255,255,255,0.92);
+    box-shadow:0 1px 2px rgba(0,0,0,0.16); object-fit:contain; padding:2px; box-sizing:border-box;
   }
   #customTooltip{
     display:none; position:fixed; z-index:2200; background:var(--panel); border:1px solid var(--line);
@@ -441,7 +442,8 @@
   #customTooltip b{display:block; font-size:13px; margin-bottom:2px; font-weight:600;}
   #customTooltip .up{color:var(--up-5); font-weight:600;}
   #customTooltip .down{color:var(--down-5); font-weight:600;}
-  .tile .t-name{font-weight:600; line-height:1.1;}
+  .tile .t-name{font-weight:600; line-height:1.1; display:flex; align-items:center; justify-content:center; gap:5px; max-width:100%;}
+  .tile .t-name span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .srow{display:flex; align-items:center; margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
   .segbar{display:flex; flex-wrap:nowrap; width:100%; border-radius:5px; overflow-x:auto; overflow-y:hidden; margin-bottom:12px; box-shadow:0 0 0 1px var(--line) inset;}
   .segbar .seg{height:26px; min-width:22px; flex-shrink:0; cursor:pointer; transition:opacity 0.15s ease;}
@@ -1063,7 +1065,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790855280";
+const BUILD_ID = "1790864007";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5594,9 +5596,12 @@ function render(rows, totals){
       ? 'n/a'
       : `<span class="${n.data.ret>=0?'up':'down'}">${n.data.ret>=0?'+':''}${n.data.ret.toFixed(2)}% (${n.data.ret>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.ret/100))})</span>`;
     const tName = TICKER_NAME_MAP[n.data.name];
-    // The tile itself shows a logo badge once it's big enough (see below) — only fall back to
-    // showing it in the tooltip when the tile is too small for that badge to fit.
-    const tileFitsBadge = w>44 && h>30;
+    // The logo sits just left of the ticker, centered with it as one line (like a broker's list), so
+    // it never covers the name. Only when that line fits the tile -- otherwise the tooltip shows it.
+    const nameFont = Math.min(13, Math.max(9, w/6));
+    const logoSize = Math.round(Math.max(14, Math.min(22, nameFont * 1.7)));
+    const nameLineW = logoSize + 5 + n.data.name.length * nameFont * 0.68;   // rough bold-caps width
+    const tileFitsBadge = !!n.data.logoUrl && w > 26 && h > logoSize + 4 && nameLineW <= w - 8;
     const logoImgHtml = (n.data.logoUrl && !tileFitsBadge)
       ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
       : '';
@@ -5624,7 +5629,10 @@ function render(rows, totals){
     const tc = textColorFor(n.data.change);
     let inner = '';
     if(w>26 && h>16){
-      inner += `<div class="t-name" style="color:${tc}; font-size:${Math.min(13,Math.max(9,w/6))}px">${n.data.name}</div>`;
+      const logo = tileFitsBadge
+        ? `<img class="tile-logo" src="${n.data.logoUrl}" alt="" onerror="this.remove()" style="width:${logoSize}px; height:${logoSize}px;">`
+        : '';
+      inner += `<div class="t-name" style="color:${tc}; font-size:${nameFont}px">${logo}<span>${n.data.name}</span></div>`;
       if(w>64 && h>32 && !isNaN(n.data.change)){
         const dayGainAmt = n.data.value - n.data.value/(1+n.data.change/100);
         inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
@@ -5634,16 +5642,6 @@ function render(rows, totals){
       }
     }
     div.innerHTML = inner;
-    if(n.data.logoUrl && tileFitsBadge){
-      const logoSize = Math.max(18, Math.min(28, Math.floor(Math.min(w,h)/3)));
-      const badge = document.createElement('img');
-      badge.className = 'tile-logo';
-      badge.src = n.data.logoUrl;
-      badge.style.width = logoSize+'px';
-      badge.style.height = logoSize+'px';
-      badge.onerror = () => badge.remove();
-      div.appendChild(badge);
-    }
     tmEl.appendChild(div);
   });
 
