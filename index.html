@@ -1086,7 +1086,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790865466";
+const BUILD_ID = "1790875405";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5084,6 +5084,34 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
 // Chart height that fills the detail window's visible area down to its bottom edge, time axis
 // included -- the range bar and everything else below the chart sit under the fold. Between
 // 190px (short screens) and 440px (tall ones).
+// ---- "Move" bars along the bottom of the portfolio charts ----
+// A portfolio has no trading volume of its own, so the strip under its line shows the next best
+// thing: one bar per point, its height how much the value moved since the previous point (5 minutes
+// on 1D, a day on the longer ranges), green up / red down -- when the big moves happened at a glance.
+// The range charts leave new purchases out of a day's move (new money, not gain).
+function moveBandHeight(h){ return h >= 240 ? 44 : 30; }
+// Bars for moves[i] (NaN = no bar) at x positions xs[i], between y top and bottom.
+function moveBarsSvg(moves, xs, top, bottom){
+  const maxAbs = Math.max(0, ...moves.map(m => isNaN(m) ? 0 : Math.abs(m)));
+  if(!(maxAbs > 0)) return '';
+  // Bar width from the typical spacing (the median gap), so one tight pair of points doesn't thin them all.
+  const gaps = xs.slice(1).map((x, i) => x - xs[i]).filter(g => g > 0).sort((a, b) => a - b);
+  const barW = Math.max(1, Math.min(10, (gaps.length ? gaps[Math.floor(gaps.length / 2)] : 10) * 0.7));
+  const span = bottom - top;
+  return moves.map((m, i) => {
+    if(isNaN(m) || !m) return '';
+    // Square-root scale: one big jump (the US open, a sharp drop) would otherwise flatten every
+    // other bar to nothing. Bigger is still taller; the tooltip gives each move's exact amount.
+    const bh = Math.max(1, Math.sqrt(Math.abs(m) / maxAbs) * span);
+    return `<rect x="${(xs[i] - barW / 2).toFixed(1)}" y="${(bottom - bh).toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${m >= 0 ? 'var(--up-4)' : 'var(--down-4)'}" opacity="0.7"/>`;
+  }).join('') + `<line x1="${xs[0].toFixed(1)}" x2="${xs[xs.length - 1].toFixed(1)}" y1="${bottom.toFixed(1)}" y2="${bottom.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+}
+// The tooltip's line for one point's move.
+function moveTooltipLine(m, fmt, what){
+  if(isNaN(m)) return '';
+  return `<div style="color:${m >= 0 ? 'var(--up-5)' : 'var(--down-5)'}; font-size:12px;">Move: ${m >= 0 ? '+' : '-'}${fmt(Math.abs(m))} ${what}</div>`;
+}
+
 function intradayChartHeight(el, hasNoteLine){
   const body = document.getElementById('marketDetailBody');
   const header = document.getElementById('marketDetailHeader');
@@ -5226,7 +5254,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // widths a fixed 900:300 viewBox no longer matches the CSS box's aspect ratio, and the browser's
   // default preserveAspectRatio="meet" then letterboxes the chart (blank bands top and bottom)
   // instead of filling it.
-  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el, !!(sessionLabel || singlePoint)), padL = 66, padR = 20, padT = 30, padB = 26;
+  const w = Math.max(el.clientWidth || 900, 280), h = intradayChartHeight(el, !!(sessionLabel || singlePoint)), padL = 66, padR = 20, padT = 30;
+  // The move strip sits between the line area and the time labels.
+  const axisH = 26, bandH = singlePoint ? 0 : moveBandHeight(h), padB = axisH + bandH;
   const vals = log.map(p=>p.v);
   const minV = Math.min(prevClose, ...vals), maxV = Math.max(prevClose, ...vals);
   const range = (maxV - minV) || 1;
@@ -5318,6 +5348,10 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   }
 
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
+  // Each reading's move since the one before. The first point has none: its change from the previous
+  // close happened overnight (with the FX move), not inside this chart.
+  const moves = log.map((p, i) => i === 0 ? NaN : p.v - log[i-1].v);
+  const movesSvg = bandH ? moveBarsSvg(moves, points.map(p => p.x), h - axisH - bandH + 8, h - axisH - 3) : '';
 
   // Marks whichever point ended up first on screen with the FX move baked into that chart's own
   // opening number — Portfolio's ~10:00 point and USA's ~16:30 point (see renderIntradayChart's
@@ -5346,8 +5380,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       ${fxMarkerSvg}
       <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="${sessionClosed ? 6 : 4}" fill="${lineColor}" stroke="${sessionClosed ? 'var(--paper)' : 'none'}" stroke-width="2"/>
       ${closeCalloutSvg}
+      ${movesSvg}
       ${xLabels}
-      <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
       <circle id="intradayHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
       <rect id="intradayOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
     </svg>
@@ -5412,7 +5447,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const fxNote = p.fxMarker
       ? `<div style="color:var(--accent); font-size:12px; font-weight:700; margin-top:5px; padding-top:5px; border-top:1px solid rgba(138,109,59,0.3); max-width:230px;">FX rate change: ${p.fxMarker.oldRate.toFixed(4)} &rarr; ${p.fxMarker.newRate.toFixed(4)} (${(() => { const pct = (p.fxMarker.newRate - p.fxMarker.oldRate) / p.fxMarker.oldRate * 100; return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; })()})</div>`
       : '';
-    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div><div>${ttDate}</div>${fxNote}`;
+    const prevT = idx > 0 ? new Date(log[idx-1].t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '';
+    tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div>${moveTooltipLine(moves[idx], fmt, 'since ' + prevT)}<div>${ttDate}</div>${fxNote}`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
     const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
@@ -5603,7 +5639,10 @@ async function renderRangeChart(ctx, range){
   if(!pts || pts.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
 
   const fmt = ctx.fmtValue || (n => "₪" + Math.round(n).toLocaleString('en-US'));
-  const w = Math.max(el.clientWidth || 900, 280), h = ctx.height || intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30, padB = 26;
+  const w = Math.max(el.clientWidth || 900, 280), h = ctx.height || intradayChartHeight(el, true), padL = 66, padR = 20, padT = 30;
+  // Portfolio value charts get the move strip between the line and the dates; a single ticker's or
+  // USD/ILS's own price chart (ctx.priceColumn) doesn't.
+  const axisH = 26, bandH = ctx.priceColumn ? 0 : moveBandHeight(h), padB = axisH + bandH;
   // 1D compares against the previous close (like every other "today" figure), longer ranges
   // against the range's own first point.
   const vsPrevClose = range === '1D' && typeof ctx.prevClose === 'number' && ctx.prevClose > 0;
@@ -5634,6 +5673,9 @@ async function renderRangeChart(ctx, range){
   const xFor = i => timeAxis ? xAt(pts[i].t) : padL + (pts.length > 1 ? i/(pts.length-1) : 0) * (w - padL - padR);
   const yFor = v => h - padB - ((v - yMin)/(yMax - yMin)) * (h - padT - padB);
   const points = pts.map((p,i) => ({x: xFor(i), y: yFor(p.v)}));
+  // Each point's move since the one before, without the cost of anything bought in between.
+  const moves = pts.map((p, i) => i === 0 ? NaN : p.v - pts[i-1].v - (newMoneyUntil(p.t) - newMoneyUntil(pts[i-1].t)));
+  const movesSvg = bandH ? moveBarsSvg(moves, points.map(p => p.x), h - axisH - bandH + 8, h - axisH - 3) : '';
   const total = changeVsStart(pts[pts.length-1]);
   const isUp = total.gain >= 0;
   const lineColor = isUp ? 'var(--up-5)' : 'var(--down-5)';
@@ -5685,8 +5727,9 @@ async function renderRangeChart(ctx, range){
       <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
+      ${movesSvg}
       ${xLabels}
-      <line id="rangeGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <line id="rangeGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
       <circle id="rangeHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
       <rect id="rangeOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
     </svg>
@@ -5717,6 +5760,7 @@ async function renderRangeChart(ctx, range){
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
       + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
       + (c.added > 0 ? `<div style="color:var(--muted); font-size:12px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
+      + (bandH ? moveTooltipLine(moves[idx], fmt, intraday5D ? 'since the previous reading' : 'since the previous close') : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
