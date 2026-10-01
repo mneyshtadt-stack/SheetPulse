@@ -426,6 +426,26 @@
   #chartRangeBar button.active, #universeRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
   #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
   #universeChart{padding:10px 0 14px;}
+  /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
+  #universeCompareBar{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-top:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  .uc-chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:14px; padding:3px 6px 3px 10px; background:var(--panel); color:var(--ink); font-weight:600;}
+  .uc-chip:not(:has(.uc-x)){padding-right:10px;}
+  .uc-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:0;}
+  .uc-chip .uc-dot{margin-right:0;}
+  .uc-x{background:none; border:none; color:var(--muted); font-size:15px; line-height:1; padding:0 3px; cursor:pointer;}
+  .uc-x:hover{color:var(--ink);}
+  .uc-add{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .uc-add-btn{
+    font-family:inherit; font-size:12.5px; color:var(--accent); background:none; border:1px dashed var(--accent);
+    border-radius:14px; padding:4px 12px; cursor:pointer; font-weight:600;
+  }
+  .uc-add-btn:hover{background:var(--panel);}
+  .uc-input{font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:4px 12px; width:170px; outline:none;}
+  .uc-msg{font-size:12px; color:var(--down-5);}
+  .uc-full{font-size:12px; color:var(--muted);}
+  .uc-summary{display:flex; flex-wrap:wrap; gap:4px 16px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; margin-bottom:4px;}
+  .uc-summary .up, #customTooltip .up{color:var(--up-5);}
+  .uc-summary .down{color:var(--down-5);}
   #universeChart:empty{display:none;}
   #treemap{position:relative; width:100%; height:480px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
@@ -1048,6 +1068,7 @@
       <div id="universeRangeBar" style="display:none;"></div>
     </div>
     <div id="universeTableWrap">
+      <div id="universeCompareBar" style="display:none;"></div>
       <div id="universeChart"></div>
       <div id="universeHolding"></div>
       <table id="universeTable">
@@ -1065,7 +1086,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790864007";
+const BUILD_ID = "1790865466";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2447,6 +2468,8 @@ function showUniverseChart(row){
     const wrapMax = cardMax - (wrap.getBoundingClientRect().top - card.getBoundingClientRect().top);
     height = Math.max(140, Math.min(240, Math.floor(wrapMax - 190)));
   }
+  renderUniverseCompareBar(row);
+  if(universeCompare.length){ renderUniverseCompareChart(row, universeChartRange, height); return; }
   renderRangeChart({
     priceColumn: row.name, holdings: [], liveValue: row.price,
     fmtValue: isIl ? (n => money(n) + ' ILA') : (n => '$' + money(n)),
@@ -2454,8 +2477,183 @@ function showUniverseChart(row){
     note: `Daily closes of ${row.name} from the PriceHistory tab; the last point is today's live price.`
   }, universeChartRange);
 }
+
+// ---- Compare: other tickers on the same chart, as % change since the range's first day ----
+// Like Google Finance's "+ Compare". Any of your holdings with a PriceHistory column can be added (up to 4);
+// the list is kept while the page is open, so it follows you from ticker to ticker. Each line
+// starts at 0% on the range's first day; a market that was closed that day (TASE vs USA holidays)
+// carries its last close forward. Today's point is the live price for tickers you hold.
+const UNIVERSE_COMPARE_MAX = 4;
+const UNIVERSE_COMPARE_COLORS = ['#1f6fd1', '#e8710a', '#9334e6', '#188038', '#c5221f'];
+let universeCompare = [];
+function renderUniverseCompareBar(row){
+  const bar = document.getElementById('universeCompareBar');
+  if(!bar) return;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  universeCompare = universeCompare.filter(t => t !== row.name);
+  const chip = (t, i, removable) => `<span class="uc-chip"><span class="uc-dot" style="background:${UNIVERSE_COMPARE_COLORS[i]}"></span>${esc(t)}`
+    + (removable ? `<button type="button" class="uc-x" data-remove="${esc(t)}" aria-label="Stop comparing ${esc(t)}" title="Remove">&times;</button>` : '') + `</span>`;
+  bar.innerHTML = (universeCompare.length ? chip(row.name, 0, false) : '')
+    + universeCompare.map((t, i) => chip(t, i + 1, true)).join('')
+    + (universeCompare.length < UNIVERSE_COMPARE_MAX
+      ? `<span class="uc-add"><button type="button" class="uc-add-btn">+ Compare</button>`
+        + `<input type="text" class="uc-input" list="ucTickerList" placeholder="e.g. QQQ, VOO" aria-label="Tickers to compare, separated by commas" autocomplete="off" style="display:none;">`
+        + `<datalist id="ucTickerList"></datalist><span class="uc-msg"></span></span>`
+      : `<span class="uc-full">Up to ${UNIVERSE_COMPARE_MAX} at a time — remove one (×) to add another.</span>`);
+  bar.style.display = 'flex';
+  bar.querySelectorAll('.uc-x').forEach(b => b.addEventListener('click', () => {
+    universeCompare = universeCompare.filter(t => t !== b.dataset.remove);
+    document.getElementById('customTooltip').style.display = 'none';
+    showUniverseChart(row);
+  }));
+  const addBtn = bar.querySelector('.uc-add-btn');
+  if(!addBtn) return;
+  const input = bar.querySelector('.uc-input'), msg = bar.querySelector('.uc-msg');
+  let cols = [];
+  addBtn.addEventListener('click', async () => {
+    addBtn.style.display = 'none';
+    input.style.display = '';
+    input.focus();
+    try{
+      // Your own holdings only (the ones PriceHistory has closes for).
+      const ph = await fetchPriceHistory();
+      const held = new Set((window.lastRows || []).map(r => r.name));
+      cols = Object.keys(ph.cols).filter(t => held.has(t));
+      bar.querySelector('#ucTickerList').innerHTML = cols.filter(t => t !== row.name && !universeCompare.includes(t)).sort()
+        .map(t => `<option value="${esc(t)}">${esc(TICKER_NAME_MAP[t] || '')}</option>`).join('');
+    } catch(e){ msg.textContent = 'Could not load PriceHistory.'; }
+  });
+  // One ticker, or several separated by commas or spaces ("QQQ,VOO"). The valid ones are added (up to
+  // the limit); the rest stay in the box with the reason, so a typo is easy to fix.
+  const add = () => {
+    const wanted = input.value.toUpperCase().split(/[\s,;]+/).filter(Boolean);
+    if(!wanted.length) return;
+    if(!cols.length){ msg.textContent = 'Loading tickers…'; return; }
+    const held = new Set((window.lastRows || []).map(r => r.name.toUpperCase()));
+    const left = [], why = [];
+    wanted.forEach(t => {
+      const match = cols.find(c => c.toUpperCase() === t);
+      if(!match){ left.push(t); why.push(held.has(t) ? `${t}: no price history yet (add it to the History tab)` : `${t} isn't in your portfolio`); return; }
+      if(match === row.name || universeCompare.includes(match)) return;
+      if(universeCompare.length >= UNIVERSE_COMPARE_MAX){ left.push(t); why.push(`${t}: up to ${UNIVERSE_COMPARE_MAX} at a time`); return; }
+      universeCompare.push(match);
+    });
+    if(!left.length){ showUniverseChart(row); return; }
+    if(left.length < wanted.length){
+      // Some were added: redraw, then reopen the box with what's left.
+      showUniverseChart(row);
+      const b = document.getElementById('universeCompareBar');
+      const inp = b.querySelector('.uc-input'), btn = b.querySelector('.uc-add-btn');
+      if(inp && btn){ btn.click(); inp.value = left.join(','); b.querySelector('.uc-msg').textContent = why.join(' · '); }
+      return;
+    }
+    input.value = left.join(',');
+    msg.textContent = why.join(' · ');
+  };
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); add(); }
+    else if(e.key === 'Escape'){ e.stopPropagation(); input.value = ''; input.style.display = 'none'; addBtn.style.display = ''; msg.textContent = ''; }
+  });
+  // Picking from the suggestion list adds it straight away; typed text waits for Enter, so a list
+  // like "QQQ,VOO" can be finished first.
+  input.addEventListener('input', e => {
+    msg.textContent = '';
+    const picked = !e.inputType || e.inputType === 'insertReplacementText';
+    if(picked && cols.some(c => c.toUpperCase() === input.value.trim().toUpperCase())) add();
+  });
+}
+
+async function renderUniverseCompareChart(row, range, height){
+  const el = document.getElementById('universeChart');
+  if(!el) return;
+  const msgHtml = (text, color) => `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:${color||'var(--muted)'}; padding:20px 0;">${text}</div>`;
+  el.innerHTML = msgHtml('Loading chart…');
+  let ph;
+  try{ ph = await fetchPriceHistory(); }
+  catch(e){ el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-5)'); return; }
+  if(universeChartRow !== row || universeChartRange !== range) return;   // changed while loading
+  const tickers = [row.name, ...universeCompare].filter(t => ph.cols[t]);
+  const mainCol = ph.cols[row.name];
+  if(!mainCol){ el.innerHTML = msgHtml(`No price history for ${row.name} yet — add it to the History tab.`); return; }
+
+  // The main ticker's trading days set the x axis, as on its own chart.
+  const todayStr = new Date().toDateString();
+  let idx = ph.dates.map((t, i) => i).filter(i => !isNaN(mainCol[i]) && new Date(ph.dates[i]).toDateString() !== todayStr);
+  idx = range === '5D' ? idx.slice(-5) : idx.filter(i => ph.dates[i] >= chartRangeStartMs(range));
+  const livePrice = t => {
+    if(t === row.name) return row.price > 0 ? row.price : NaN;
+    const h = (window.lastRows || []).find(r => r.name === t);
+    return h && h.price > 0 ? h.price : NaN;
+  };
+  const dates = idx.map(i => ph.dates[i]);
+  const withToday = row.price > 0;
+  if(withToday) dates.push(new Date().setHours(12, 0, 0, 0));
+  const series = tickers.map((t, k) => {
+    const col = ph.cols[t];
+    // Last close on or before each chart date (another market's holiday keeps its last close).
+    const vals = idx.map(i => { for(let j = i; j >= 0; j--) if(!isNaN(col[j])) return col[j]; return NaN; });
+    if(withToday){ const lp = livePrice(t); vals.push(!isNaN(lp) ? lp : vals[vals.length - 1]); }
+    const base = vals.find(v => !isNaN(v) && v > 0);
+    return {t, color: UNIVERSE_COMPARE_COLORS[[row.name, ...universeCompare].indexOf(t)], pct: vals.map(v => base && !isNaN(v) ? (v / base - 1) * 100 : NaN)};
+  });
+  if(dates.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
+
+  const w = Math.max(el.clientWidth || 900, 280), h = height || 240, padL = 52, padR = 16, padT = 12, padB = 26;
+  const all = series.flatMap(s => s.pct.filter(v => !isNaN(v))).concat(0);
+  const minV = Math.min(...all), maxV = Math.max(...all), spread = (maxV - minV) || 1;
+  const yMin = minV - spread * 0.1, yMax = maxV + spread * 0.1;
+  const xFor = i => padL + i / (dates.length - 1) * (w - padL - padR);
+  const yFor = v => h - padB - (v - yMin) / (yMax - yMin) * (h - padT - padB);
+  const pctStr = v => isNaN(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const font = `font-family="'Helvetica Neue',Arial,sans-serif"`;
+  const yGrid = Array.from({length: 5}, (_, i) => {
+    const v = yMin + (yMax - yMin) * i / 4, y = yFor(v);
+    return `<line x1="${padL}" x2="${w - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
+      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" ${font}>${pctStr(v)}</text>`;
+  }).join('');
+  const longRange = ['1Y', '5Y', 'MAX'].includes(range);
+  const label = t => new Date(t).toLocaleDateString('en-US', longRange ? {month: 'short', year: 'numeric'} : {month: 'short', day: 'numeric'});
+  const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
+  const ticks = [...new Set(Array.from({length: n}, (_, k) => Math.round(k * (dates.length - 1) / (n - 1))))];
+  const xLabels = ticks.map((i, k) => `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" font-size="10" fill="#6b6558" text-anchor="${k === 0 ? 'start' : k === ticks.length - 1 ? 'end' : 'middle'}" ${font}>${label(dates[i])}</text>`).join('');
+  const lines = series.slice().reverse().map(s => {   // main ticker drawn last, on top
+    let d = '', pen = false;
+    s.pct.forEach((v, i) => { if(isNaN(v)){ pen = false; return; } d += (pen ? 'L' : 'M') + xFor(i).toFixed(1) + ',' + yFor(v).toFixed(1) + ' '; pen = true; });
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.t === row.name ? 2.4 : 1.8}"/>`;
+  }).join('');
+  const rangeLabel = range === 'MAX' ? 'since ' + new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : CHART_RANGE_LABELS[range];
+  el.innerHTML = `
+    <div class="uc-summary">${series.map(s => `<span><span class="uc-dot" style="background:${s.color}"></span><b>${s.t}</b> <span class="${s.pct[s.pct.length - 1] >= 0 ? 'up' : 'down'}">${pctStr(s.pct[s.pct.length - 1])}</span></span>`).join('')}<span style="color:var(--muted);">${rangeLabel}</span></div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair; touch-action:pan-y;">
+      ${yGrid}
+      <line x1="${padL}" x2="${w - padR}" y1="${yFor(0).toFixed(1)}" y2="${yFor(0).toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
+      ${lines}${xLabels}
+      <line class="uc-guide" x1="0" x2="0" y1="${padT}" y2="${h - padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <rect class="uc-overlay" x="${padL}" y="0" width="${w - padL - padR}" height="${h}" fill="transparent"/>
+    </svg>
+    <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:2px;">% change since ${new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}, from PriceHistory's daily closes${withToday ? '; today is the live price for your holdings' : ''}.</div>`;
+
+  const svg = el.querySelector('svg'), overlay = el.querySelector('.uc-overlay'), guide = el.querySelector('.uc-guide');
+  const tt = document.getElementById('customTooltip');
+  overlay.addEventListener('pointermove', e => {
+    const rect = svg.getBoundingClientRect();
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round(((e.clientX - rect.left) * (w / rect.width) - padL) / (w - padL - padR) * (dates.length - 1))));
+    guide.setAttribute('x1', xFor(i).toFixed(1)); guide.setAttribute('x2', xFor(i).toFixed(1)); guide.style.display = 'block';
+    tt.innerHTML = `<b>${new Date(dates[i]).toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'})}${withToday && i === dates.length - 1 ? ' · live' : ''}</b>`
+      + series.map(s => `<div><span class="uc-dot" style="background:${s.color}"></span>${s.t} <span class="${s.pct[i] >= 0 ? 'up' : 'down'}">${pctStr(s.pct[i])}</span></div>`).join('');
+    tt.style.display = 'block';
+    const ttW = tt.offsetWidth, ttH = tt.offsetHeight;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if(x + ttW > window.innerWidth) x = e.clientX - ttW - 14;
+    if(y + ttH > window.innerHeight) y = e.clientY - ttH - 14;
+    tt.style.left = x + 'px'; tt.style.top = y + 'px';
+  });
+  overlay.addEventListener('pointerleave', () => { guide.style.display = 'none'; tt.style.display = 'none'; });
+}
 function hideUniverseChart(){
   universeChartRow = null;
+  const cmp = document.getElementById('universeCompareBar');
+  if(cmp){ cmp.style.display = 'none'; cmp.innerHTML = ''; }
   const bar = document.getElementById('universeRangeBar');
   if(bar){ bar.style.display = 'none'; bar.innerHTML = ''; }
   const el = document.getElementById('universeChart');
