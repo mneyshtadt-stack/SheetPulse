@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SheetPulse</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a2332">
+<meta name="theme-color" content="#1a2332" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1a17" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,11 +18,56 @@
     --up-1:#eaf3de; --up-2:#c0dd97; --up-3:#97c459; --up-4:#639922; --up-5:#3b6d11;
     --down-1:#fcebeb; --down-2:#f7c1c1; --down-3:#f09595; --down-4:#e24b4a; --down-5:#a32d2d;
     --flat:#d9d4c7; --accent:#8a6d3b;
+    /* The system's own UI font (Segoe UI Variable on Windows, SF Pro on Apple, Roboto on Android):
+       nothing to download, and Windows no longer falls back to Arial for 'Helvetica Neue'. */
+    --sans:system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    --serif:'Iowan Old Style','Georgia',serif;
+    /* Gain/loss TEXT (and lines) has its own tokens: the up/down 1-5 ramps are tile fills, and in
+       dark mode a fill step dark enough to carry white text is too dark to read as text itself. */
+    --up-ink:#3b6d11; --down-ink:#a32d2d;
+    --tile-ink-flat:#4a463c; --tile-ink-up:#27500a; --tile-ink-down:#791f1f;
+    --accent-hover:#7a5e30; --on-accent:#fff; --hover:#f1ede4; --axis:#8a857a; --warn:#d99a1e;
+    --shadow-modal:0 12px 40px rgba(26,35,50,0.28); --shadow-pop:0 3px 10px rgba(26,35,50,0.14);
+    --tag-oracle-bg:#fbe9dc; --tag-oracle-ink:#9a4a12; --tag-putty-bg:#e3ecf6; --tag-putty-ink:#2b5480;
+    /* Market Universe "+ Compare" lines: the dataviz reference categorical order (blue, orange, aqua,
+       yellow, magenta), which passes the colorblind checks for adjacent pairs; dark mode has its own steps. */
+    --cmp-1:#2a78d6; --cmp-2:#eb6834; --cmp-3:#1baf7a; --cmp-4:#eda100; --cmp-5:#e87ba4;
+    /* Stacking order, lowest to highest: sticky table heads, the Portfolio window, Market Universe
+       (opens over it), tooltips, the sign-in screen, Diagnostics (reachable from the sign-in screen). */
+    --z-sticky:1; --z-window:2100; --z-window-top:2150; --z-tooltip:2200; --z-lock:9999; --z-diag:10000;
+    color-scheme:light;
   }
+  /* Dark mode follows the device setting. Its own steps, not an inverted copy: warm charcoal surfaces,
+     a lighter bronze accent (dark text on it), dimmer gain/loss fills and brighter gain/loss text. */
+  @media (prefers-color-scheme: dark){
+    :root{
+      --ink:#ece7dc; --paper:#1b1a17; --panel:#24221e; --line:#3a372f; --muted:#a8a191;
+      --up-1:#1f2a16; --up-2:#2b4219; --up-3:#365a1d; --up-4:#447124; --up-5:#55892b;
+      --down-1:#321b1b; --down-2:#4c2322; --down-3:#6a2a29; --down-4:#8f3433; --down-5:#b14443;
+      --flat:#3d3a33; --accent:#c8a163;
+      --up-ink:#8fcf5a; --down-ink:#f08a88;
+      --tile-ink-flat:#d0cabd; --tile-ink-up:#c3e6a0; --tile-ink-down:#f6bdbb;
+      --accent-hover:#d6b47a; --on-accent:#1b1a17; --hover:#2c2a25; --axis:#7d776a; --warn:#e0a83a;
+      --shadow-modal:0 12px 40px rgba(0,0,0,0.55); --shadow-pop:0 3px 12px rgba(0,0,0,0.45);
+      --tag-oracle-bg:#4a2e1a; --tag-oracle-ink:#f2c39d; --tag-putty-bg:#1f3349; --tag-putty-ink:#a9c8ec;
+      --cmp-1:#3987e5; --cmp-2:#d95926; --cmp-3:#199e70; --cmp-4:#c98500; --cmp-5:#d55181;
+      color-scheme:dark;
+    }
+  }
+  /* Keyboard focus is always visible (mouse clicks don't show it). */
+  button:focus-visible, select:focus-visible, a:focus-visible, [role="button"]:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  input:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);}
+  /* A small press on the dashboard's buttons, like the Refresh button already had. */
+  #universeBtn:active, #netWorthBtn:active, #diagBtn:active, #digestBtn:active, #winloseAnalysisBtn:active,
+  #aiAnalysisBtn:active, #aiDailyBtn:active, .ai-panel .ai-ask button:active, .ai-chip:active,
+  #diagFooter button:active, .uc-add-btn:active, .nw-year-btn:active, #mdBrokerFilter button:active{transform:translateY(1px);}
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
   *{box-sizing:border-box;}
   /* tabular-nums everywhere: every digit the same width, so figures don't jiggle sideways as they
      update on refresh and columns of numbers line up. */
-  body{margin:0; background:var(--paper); color:var(--ink); font-family:'Iowan Old Style','Georgia',serif; -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--serif); -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;}
   /* No single word left alone on a heading's or note's last line. */
   h1, h2, h3, h4{text-wrap:balance;}
   p, .chart-note, footer{text-wrap:pretty;}
@@ -34,48 +80,48 @@
   .brand-logo-lock{width:140px; height:140px; margin:0 auto 6px;}
   .brand-title{display:flex; align-items:center; gap:16px; font-size:40px;}
   @media (max-width:600px){ .brand-logo{width:76px; height:76px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:32px; gap:12px;} }
-  .meta{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  .meta{font-family:var(--sans); font-size:12px; color:var(--muted);}
   #refreshBtn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; color:#fff; background:var(--accent);
+    font-family:var(--sans); font-size:12px; font-weight:600; color:var(--on-accent); background:var(--accent);
     border:1px solid var(--accent); border-radius:6px; padding:9px 16px; cursor:pointer; display:flex; align-items:center; gap:7px;
     box-shadow:0 1px 2px rgba(26,35,50,0.08); transition:background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
   }
-  #refreshBtn:hover{background:#7a5e30; box-shadow:0 3px 10px rgba(26,35,50,0.16);}
+  #refreshBtn:hover{background:var(--accent-hover); box-shadow:0 3px 10px rgba(26,35,50,0.16);}
   #refreshBtn:active{transform:translateY(1px); box-shadow:0 1px 2px rgba(26,35,50,0.1);}
   #refreshBtn:disabled{opacity:0.6; cursor:default; transform:none;}
   #refreshBtn svg{width:12px; height:12px;}
-  #status{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:6px; min-height:14px;}
-  #status.err{color:var(--down-5);}
+  #status{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:6px; min-height:14px;}
+  #status.err{color:var(--down-ink);}
   .btnrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   #autoRefreshSelect{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
+    font-family:var(--sans); font-size:12px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color 0.15s ease, color 0.15s ease;
   }
   #autoRefreshSelect:hover{border-color:var(--accent); color:var(--ink);}
   #universeBtn, #netWorthBtn, #diagBtn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); background:var(--panel);
+    font-family:var(--sans); font-size:12px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:9px 14px; cursor:pointer;
     transition:border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   }
   #universeBtn:hover, #netWorthBtn:hover, #diagBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
   #digestBtn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
-    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+    font-family:var(--sans); font-size:12px; color:var(--accent); background:var(--panel);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap; border-radius:6px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   }
-  #digestBtn:hover{background:var(--accent); color:#fff;}
+  #digestBtn:hover{background:var(--accent); color:var(--on-accent);}
   #winloseAnalysisBtn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:var(--panel);
-    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+    font-family:var(--sans); font-size:12px; color:var(--accent); background:var(--panel);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap; border-radius:6px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   }
-  #winloseAnalysisBtn:hover{background:var(--accent); color:#fff;}
+  #winloseAnalysisBtn:hover{background:var(--accent); color:var(--on-accent);}
   #aiAnalysisBtn, #aiDailyBtn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:#fff; background:var(--accent);
-    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap;
+    font-family:var(--sans); font-size:12px; color:var(--on-accent); background:var(--accent);
+    border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap; border-radius:6px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
   }
-  #aiAnalysisBtn:hover, #aiDailyBtn:hover{background:#7a5e30;}
+  #aiAnalysisBtn:hover, #aiDailyBtn:hover{background:var(--accent-hover);}
   .ai-panel{
     display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.65; color:var(--ink);
+    font-family:var(--sans); font-size:13px; line-height:1.65; color:var(--ink);
   }
   .ai-panel.open{display:block;}
   .ai-panel .ai-head{display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-bottom:10px;}
@@ -87,7 +133,7 @@
   }
   .ai-panel .ai-ask input:focus{outline:none; border-color:var(--accent);}
   .ai-panel .ai-ask button{
-    font-family:inherit; font-size:12.5px; color:#fff; background:var(--accent); border:1px solid var(--accent);
+    font-family:inherit; font-size:12.5px; color:var(--on-accent); background:var(--accent); border:1px solid var(--accent);
     border-radius:6px; padding:8px 16px; cursor:pointer;
   }
   .ai-panel .ai-ask button:disabled{opacity:0.55; cursor:default;}
@@ -108,7 +154,7 @@
   .ai-result .ai-foot{margin-top:12px; padding-top:8px; border-top:1px dashed var(--line); font-size:12px; color:var(--muted);}
   .ai-result .ai-wait{color:var(--muted);}
   .ai-result .ai-wait::before{content:''; display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:8px; animation:diagPulse 0.9s ease-in-out infinite alternate;}
-  .ai-result .ai-err{color:var(--down-5);}
+  .ai-result .ai-err{color:var(--down-ink);}
   .ai-result .ai-brief-label{font-size:12px; color:var(--muted); margin:0 0 10px;}
   .ai-result .ai-brief-label b{color:var(--ink); font-weight:600;}
   .ai-result .ai-live{color:var(--accent);}
@@ -118,27 +164,27 @@
   }
   #digestBox{
     display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
-    padding:16px 20px; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:1.7;
+    padding:16px 20px; margin-top:14px; font-family:var(--sans); font-size:13px; line-height:1.7;
   }
   #digestBox.open{display:block;}
   #digestBox p{margin:0 0 10px;}
   #digestBox p:last-child{margin-bottom:0;}
   #digestBox b{color:var(--ink);}
-  #digestBox .up{color:var(--up-5); font-weight:600;}
-  #digestBox .down{color:var(--down-5); font-weight:600;}
+  #digestBox .up{color:var(--up-ink); font-weight:600;}
+  #digestBox .down{color:var(--down-ink); font-weight:600;}
   #universeModal{
-    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2150;
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:var(--z-window-top);
     align-items:center; justify-content:center; padding:24px;
   }
   #universeModal.open{display:flex;}
   #marketDetailModal{
-    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:2100;
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:var(--z-window);
     align-items:center; justify-content:center; padding:14px;
   }
   #marketDetailModal.open{display:flex;}
   #marketDetailCard{
     background:var(--paper); width:min(820px, 96vw); max-height:97vh; overflow:hidden;
-    display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease;
+    display:flex; flex-direction:column; box-shadow:var(--shadow-modal); transition:width 0.15s ease;
   }
   #marketDetailCard.wide{width:min(1120px, 96vw);}
   #marketDetailHeader{
@@ -146,19 +192,19 @@
     border-bottom:1px solid var(--line); flex-shrink:0;
   }
   #marketDetailHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
-  #marketDetailHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  #marketDetailHeader p{margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);}
   #marketDetailClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
   #nwYearSwitcher{display:none; gap:6px; margin-top:10px;}
   #nwYearSwitcher.open{display:flex; flex-wrap:wrap;}
   .nw-year-btn{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; padding:5px 12px; cursor:pointer;
+    font-family:var(--sans); font-size:12px; padding:5px 12px; cursor:pointer;
     border:1px solid var(--line); background:var(--paper); color:var(--muted); border-radius:2px;
   }
   .nw-year-btn:hover{color:var(--ink); border-color:var(--accent);}
   .nw-year-btn.active{border-color:var(--accent); color:var(--accent); font-weight:600;}
   #marketDetailClose:hover{color:var(--ink);}
   /* Portfolio window's Broker filter (Tracker column R "Platform"), between the title and the close button. */
-  #mdBrokerFilter{display:none; margin:4px 16px 0 auto; align-items:center; gap:8px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #mdBrokerFilter{display:none; margin:4px 16px 0 auto; align-items:center; gap:8px; font-family:var(--sans);}
   #mdBrokerFilter.open{display:flex;}
   #mdBrokerFilter .bf-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
   #mdBrokerFilter .bf-seg{display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden;}
@@ -168,10 +214,10 @@
   }
   #mdBrokerFilter button:first-child{border-left:none;}
   #mdBrokerFilter button:hover{color:var(--ink);}
-  #mdBrokerFilter button.active{background:var(--accent); color:#fff; font-weight:600;}
+  #mdBrokerFilter button.active{background:var(--accent); color:var(--on-accent); font-weight:600;}
   .md-broker-note{font-size:12px; color:var(--muted); margin:4px 0 0;}
   @media (max-width:600px){ #mdBrokerFilter .bf-label{display:none;} #mdBrokerFilter{margin-right:8px;} #mdBrokerFilter button{padding:6px 9px;} }
-  #marketDetailBody{padding:14px 24px 18px; font-family:'Helvetica Neue',Arial,sans-serif; overflow:auto; flex:1; min-height:0;}
+  #marketDetailBody{padding:14px 24px 18px; font-family:var(--sans); overflow:auto; flex:1; min-height:0;}
   .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
   .md-headline-change{font-size:15px; font-weight:600;}
   .md-headline-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
@@ -179,10 +225,10 @@
   .md-stat-row:last-of-type{border-bottom:none;}
   .md-stat-label{color:var(--muted);}
   .md-stat-val{font-weight:600;}
-  .md-chart-section-title{margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); font-family:'Helvetica Neue',Arial,sans-serif; text-transform:uppercase; letter-spacing:0.03em;}
-  .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  .md-chart-section-title{margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); font-family:var(--sans); text-transform:uppercase; letter-spacing:0.03em;}
+  .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:var(--sans); font-size:12.5px;}
   .md-holdings-table thead th{
-    position:sticky; top:0; background:var(--paper); z-index:1;
+    position:sticky; top:0; background:var(--paper); z-index:var(--z-sticky);
     text-align:left; padding:6px 8px 10px; font-size:11.5px; color:var(--muted); text-transform:uppercase;
     letter-spacing:0.02em; border-bottom:2px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
   }
@@ -191,7 +237,7 @@
   .md-holdings-table thead th.num{text-align:right;}
   .md-holdings-table tbody td{padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top;}
   .md-holdings-table tbody tr:last-child td{border-bottom:none;}
-  .md-holdings-table tbody tr:not(.pf-detail-row):hover td{background:var(--up-1);}
+  .md-holdings-table tbody tr:not(.pf-detail-row):hover td{background:var(--hover);}
   .md-holdings-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
   .md-th-symbol{font-weight:700; color:var(--ink);}
   .md-th-sub{
@@ -211,7 +257,7 @@
   .md-stat-tile-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
   .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums;}
   .md-stat-tile-sub{font-size:12px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
-  .md-stat-tile-sub.up{color:var(--up-5);} .md-stat-tile-sub.down{color:var(--down-5);}
+  .md-stat-tile-sub.up{color:var(--up-ink);} .md-stat-tile-sub.down{color:var(--down-ink);}
   @media (max-width:520px){
     .md-stat-tiles{grid-template-columns:1fr;}
     .md-stat-tiles.cols-4{grid-template-columns:repeat(2,1fr);}
@@ -219,7 +265,7 @@
   .md-split-bar{display:flex; width:100%; height:10px; border-radius:5px; overflow:hidden; margin-bottom:8px; box-shadow:0 0 0 1px var(--line) inset;}
   .md-split-bar .seg{height:100%; cursor:help;}
   .md-split-legend{
-    display:flex; gap:18px; flex-wrap:wrap; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
+    display:flex; gap:18px; flex-wrap:wrap; font-family:var(--sans); font-size:12px;
     color:var(--muted); margin-bottom:20px;
   }
   .md-split-legend .dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:5px;}
@@ -232,7 +278,7 @@
   .md-tc-name{
     font-size:12px; color:var(--muted); margin:1px 0 14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .md-tc-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  .md-tc-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; font-family:var(--sans);}
   .md-tc-item-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
   .md-tc-item-val{font-size:13px; font-weight:600; font-variant-numeric:tabular-nums;}
   .md-tc-item-sub{font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
@@ -246,7 +292,7 @@
   .pf-detail-row td{background:var(--paper); padding:16px 16px 20px 36px; border-bottom:1px solid var(--line);}
   .pf-detail-grid{
     display:grid; grid-template-columns:repeat(auto-fit, minmax(120px,1fr)); gap:14px 20px;
-    font-family:'Helvetica Neue',Arial,sans-serif;
+    font-family:var(--sans);
   }
   .pf-detail-grid .md-tc-item-val{font-weight:400;}
   /* Expanded holding: one row per purchase, in the holding row's own columns. */
@@ -261,42 +307,42 @@
   .md-pf-table .pf-gain-pd-val{font-size:12.5px; white-space:nowrap;}
   #universeHolding:empty{display:none;}
   #universeHolding{margin:4px 0 18px;}
-  #universeHolding .uh-title{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
+  #universeHolding .uh-title{font-family:var(--sans); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
   #universeHolding .uh-table{margin-top:6px;}
   #universeHolding .uh-table thead th{cursor:default;}
   /* Each Transactions-tab line for the holding, under the summary (see applyTransactionLots). */
-  .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:var(--sans); font-size:12.5px;}
   .pf-detail-row .pf-lots th{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
   .pf-detail-row .pf-lots td{background:none; padding:6px 14px 6px 0; border-bottom:1px solid var(--line); color:var(--ink);}
   .pf-detail-row .pf-lots tr:last-child td{border-bottom:none;}
   .pf-detail-row .pf-lots .num{text-align:right;}
   .pf-detail-row .pf-lot-sale td{color:var(--muted);}
-  .pf-detail-row .pf-lot-tag{font-size:11px; color:var(--down-5); margin-left:4px;}
-  .pf-detail-row .pf-lot-tag.gain{color:var(--up-5);}
+  .pf-detail-row .pf-lot-tag{font-size:11px; color:var(--down-ink); margin-left:4px;}
+  .pf-detail-row .pf-lot-tag.gain{color:var(--up-ink);}
   #universeCard{
     background:var(--paper); width:min(1400px, 96vw); max-height:85vh; display:flex; flex-direction:column;
-    box-shadow:0 12px 40px rgba(0,0,0,0.25); transition:width 0.15s ease, height 0.15s ease, max-height 0.15s ease;
+    box-shadow:var(--shadow-modal); transition:width 0.15s ease, height 0.15s ease, max-height 0.15s ease;
   }
   #universeCard.maximized{width:100%; height:100%; max-height:100%;}
   #universeModal.maximized-open{padding:0;}
   #universeHeader{display:flex; justify-content:space-between; align-items:flex-start; padding:20px 24px 14px; border-bottom:1px solid var(--line);}
   #universeHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
-  #universeHeader p{margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);}
+  #universeHeader p{margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);}
   #universeHeaderBtns{display:flex; align-items:center; gap:4px; flex-shrink:0;}
   #universeSearchWrap{padding:14px 24px 0; display:flex; align-items:center; flex-wrap:wrap; gap:14px;}
   #universeSearch{
     width:100%; max-width:280px; flex:0 0 auto; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
+    font-family:var(--sans); font-size:13px; color:var(--ink);
   }
   #universeSearch:focus{outline:none; border-color:var(--accent);}
-  #universeStatus{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5);}
+  #universeStatus{font-family:var(--sans); font-size:12px; color:var(--down-ink);}
   /* Shown only when the search was populated by double-clicking a treemap tile (showUniverseQuoteCard) —
      a quick live-price glance without having to also scan the table below for that one ticker's row.
      A normal flex sibling of the search box (not absolutely positioned) so it sits reliably right next
      to it in both the regular and maximized modal layouts, instead of needing hand-tuned pixel offsets. */
   #universeQuoteCard{
     display:none; flex-direction:column; gap:5px;
-    font-family:'Helvetica Neue',Arial,sans-serif;
+    font-family:var(--sans);
     opacity:0; transition:opacity .15s ease;
   }
   #universeQuoteCard.show{display:flex; opacity:1;}
@@ -304,11 +350,11 @@
   #universeQuoteCard .uq-price{font-size:26px; font-weight:600; color:var(--ink);}
   #universeQuoteCard .uq-ccy{font-size:12px; color:var(--muted); margin-left:3px;}
   #universeQuoteCard .uq-pct{font-size:13px; font-weight:600; padding:4px 9px; border-radius:6px;}
-  #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--up-5);}
-  #universeQuoteCard .uq-pct.down{background:var(--down-1); color:var(--down-5);}
+  #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--up-ink);}
+  #universeQuoteCard .uq-pct.down{background:var(--down-1); color:var(--down-ink);}
   #universeQuoteCard .uq-today{font-size:13px; color:var(--muted);}
-  #universeQuoteCard .uq-today.up{color:var(--up-5);}
-  #universeQuoteCard .uq-today.down{color:var(--down-5);}
+  #universeQuoteCard .uq-today.up{color:var(--up-ink);}
+  #universeQuoteCard .uq-today.down{color:var(--down-ink);}
   #universeQuoteCard .uq-loading{font-size:12.5px; color:var(--muted);}
   /* Pre-market / after-hours quote beside the regular one, laid out like Google Finance's own:
      price, a round arrow badge and the change on top; the session and its time underneath. */
@@ -320,8 +366,8 @@
   #universeQuoteCard .uq-ext.up .uq-ext-dot{background:var(--up-4);}
   #universeQuoteCard .uq-ext.down .uq-ext-dot{background:var(--down-4);}
   #universeQuoteCard .uq-ext-chg{font-weight:600;}
-  #universeQuoteCard .uq-ext.up .uq-ext-chg{color:var(--up-5);}
-  #universeQuoteCard .uq-ext.down .uq-ext-chg{color:var(--down-5);}
+  #universeQuoteCard .uq-ext.up .uq-ext-chg{color:var(--up-ink);}
+  #universeQuoteCard .uq-ext.down .uq-ext-chg{color:var(--down-ink);}
   #universeQuoteCard .uq-ext-label{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:help;}
   #universeQuoteCard .uq-ext-label svg{width:13px; height:13px; flex-shrink:0;}
   @media (max-width:600px){ #universeQuoteCard .uq-ext{margin-left:0; padding-left:0; border-left:none;} }
@@ -329,7 +375,7 @@
   /* Portfolio window: Holdings | Pre-Market tabs under the chart */
   .md-tabs{display:flex; gap:2px; margin-top:18px; border-bottom:1px solid var(--line);}
   .md-tab{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--muted); background:none; border:none;
+    font-family:var(--sans); font-size:13px; color:var(--muted); background:none; border:none;
     border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px 8px; cursor:pointer;
   }
   .md-tab:hover{color:var(--ink);}
@@ -341,7 +387,7 @@
   .pm-session{font-weight:600; cursor:help;}
   #marketDetailSearch{
     width:100%; max-width:260px; padding:8px 12px; border:1px solid var(--line); background:var(--paper);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink);
+    font-family:var(--sans); font-size:13px; color:var(--ink);
   }
   #marketDetailSearch:focus{outline:none; border-color:var(--accent);}
   #universeClose, #universeMaximize, #universeRefresh{background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 6px; line-height:1;}
@@ -352,7 +398,7 @@
   @keyframes universeSpin{to{transform:rotate(360deg);}}
   #universeClose:hover, #universeMaximize:hover, #universeRefresh:hover{color:var(--ink);}
   #universeTableWrap{overflow:auto; padding:0 24px 20px; flex:1;}
-  #universeTable{width:100%; border-collapse:collapse; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; table-layout:fixed;}
+  #universeTable{width:100%; border-collapse:collapse; font-family:var(--sans); font-size:13px; table-layout:fixed;}
   #universeTable thead th{
     position:sticky; top:0; background:var(--paper); text-align:left; padding:10px 12px; cursor:pointer;
     font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
@@ -364,7 +410,7 @@
     padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;
     white-space:normal; word-wrap:break-word; overflow-wrap:break-word; line-height:1.5;
   }
-  #universeTable tbody tr:hover{background:var(--up-1);}
+  #universeTable tbody tr:hover{background:var(--hover);}
   #universeTable td.ticker{font-weight:600; white-space:nowrap; cursor:help;}
   #universeTable td.num{text-align:right; font-variant-numeric:tabular-nums;}
   #universeTable th[data-key="ticker"], #universeTable td.ticker{width:75px;}
@@ -378,37 +424,37 @@
     display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line);
     border-bottom:none; cursor:pointer; transition:box-shadow 0.18s ease;
   }
-  .cards:hover{box-shadow:0 6px 22px rgba(26,35,50,0.10); position:relative; z-index:1;}
+  .cards:hover{box-shadow:0 6px 22px rgba(26,35,50,0.10); position:relative; z-index:var(--z-sticky);}
   .card{background:var(--panel); padding:20px 22px; position:relative;}
   .card::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--flat);}
   .card.card-up::before{background:var(--up-4);}
   .card.card-down::before{background:var(--down-4);}
-  .card .label{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
+  .card .label{font-family:var(--sans); font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
   .card .value{font-size:26px; line-height:1.1;}
-  .card .sub{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:4px;}
-  .up{color:var(--up-5);} .down{color:var(--down-5);}
+  .card .sub{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:4px;}
+  .up{color:var(--up-ink);} .down{color:var(--down-ink);}
   #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
-  .gauge-title{font-size:15px; font-weight:400; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em; text-align:center; margin-bottom:2px;}
+  .gauge-title{font-size:15px; font-weight:400; color:var(--muted); font-family:var(--sans); letter-spacing:0.01em; text-align:center; margin-bottom:2px;}
   #gaugePanel{display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; padding:24px 28px 24px;}
   .gauge-wrap{flex-shrink:0; width:236px; box-sizing:border-box;}
   .gauge-svg-wrap{position:relative; width:100%; height:150px;}
-  #gaugeInfo{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; line-height:2.1; flex:1; min-width:220px;}
+  #gaugeInfo{font-family:var(--sans); font-size:13px; line-height:2.1; flex:1; min-width:220px;}
   #gaugeInfo .glabel{color:var(--muted); margin-right:8px;}
   /* "Portfolio" stands out as the way into the Portfolio window. The system's own modern UI font
      (Segoe UI Variable on Windows, SF Pro on iPhone/Mac, Roboto on Android): nothing to download. */
   #gaugeInfo .glabel-strong{
-    font-family:system-ui, -apple-system, 'Segoe UI Variable Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family:var(--sans);
     font-weight:700; color:var(--ink); letter-spacing:0.01em;
   }
   #gaugeInfo .gval{font-weight:700; font-size:14.5px;}
-  #gaugeInfo .gval.up{color:var(--up-5);}
-  #gaugeInfo .gval.down{color:var(--down-5);}
+  #gaugeInfo .gval.up{color:var(--up-ink);}
+  #gaugeInfo .gval.down{color:var(--down-ink);}
   #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
   .market-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;}
-  .market-dot.open{background:#3b6d11;} .market-dot.closed{background:#a32d2d;}
+  .market-dot.open{background:var(--up-ink);} .market-dot.closed{background:var(--down-ink);}
   section{margin-bottom:52px;}
-  h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:'Helvetica Neue',Arial,sans-serif; letter-spacing:0.01em;}
-  .legend{display:flex; gap:18px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
+  h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:var(--sans); letter-spacing:0.01em;}
+  .legend{display:flex; gap:18px; font-family:var(--sans); font-size:12px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
   .legend span{display:inline-flex; align-items:center; gap:5px;}
   .nw-series-toggle{display:inline-flex; align-items:center; gap:5px; margin-right:16px; cursor:pointer; user-select:none; border-radius:3px;}
   .nw-series-toggle:hover{color:var(--ink);}
@@ -419,7 +465,7 @@
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
   .price-warn{display:inline-flex; vertical-align:-3px; margin-left:6px; cursor:help;}
-  #chartRangeBar, #universeRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  #chartRangeBar, #universeRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:var(--sans);}
   #universeRangeBar{margin:0 0 0 auto;}
   #chartRangeBar button, #universeRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
   #chartRangeBar button:hover, #universeRangeBar button:hover{color:var(--ink); border-color:var(--line);}
@@ -427,7 +473,7 @@
   #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
   #universeChart{padding:10px 0 14px;}
   /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
-  #universeCompareBar{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-top:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px;}
+  #universeCompareBar{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-top:10px; font-family:var(--sans); font-size:12.5px;}
   .uc-chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:14px; padding:3px 6px 3px 10px; background:var(--panel); color:var(--ink); font-weight:600;}
   .uc-chip:not(:has(.uc-x)){padding-right:10px;}
   .uc-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:0;}
@@ -441,33 +487,36 @@
   }
   .uc-add-btn:hover{background:var(--panel);}
   .uc-input{font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:4px 12px; width:170px; outline:none;}
-  .uc-msg{font-size:12px; color:var(--down-5);}
+  .uc-msg{font-size:12px; color:var(--down-ink);}
   .uc-full{font-size:12px; color:var(--muted);}
-  .uc-summary{display:flex; flex-wrap:wrap; gap:4px 16px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; margin-bottom:4px;}
-  .uc-summary .up, #customTooltip .up{color:var(--up-5);}
-  .uc-summary .down{color:var(--down-5);}
+  .uc-summary{display:flex; flex-wrap:wrap; gap:4px 16px; font-family:var(--sans); font-size:13px; margin-bottom:4px;}
+  .uc-summary .up, #customTooltip .up{color:var(--up-ink);}
+  .uc-summary .down{color:var(--down-ink);}
   #universeChart:empty{display:none;}
   #treemap{position:relative; width:100%; height:480px;}
-  .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:'Helvetica Neue',Arial,sans-serif;}
+  .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:var(--sans);}
   /* Logo just left of the ticker on its tile, centered together with it. */
   .tile-logo{
     flex-shrink:0; border-radius:50%; background:rgba(255,255,255,0.92);
     box-shadow:0 1px 2px rgba(0,0,0,0.16); object-fit:contain; padding:2px; box-sizing:border-box;
   }
   #customTooltip{
-    display:none; position:fixed; z-index:2200; background:var(--panel); border:1px solid var(--line);
-    border-radius:5px; padding:11px 14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;
-    line-height:1.65; white-space:normal; max-width:320px; box-shadow:0 3px 10px rgba(0,0,0,0.12); pointer-events:none;
+    display:none; position:fixed; z-index:var(--z-tooltip); background:var(--panel); border:1px solid var(--line);
+    border-radius:5px; padding:11px 14px; font-family:var(--sans); font-size:12px;
+    line-height:1.65; white-space:normal; max-width:320px; box-shadow:var(--shadow-pop); pointer-events:none;
   }
   #customTooltip b{display:block; font-size:13px; margin-bottom:2px; font-weight:600;}
-  #customTooltip .up{color:var(--up-5); font-weight:600;}
-  #customTooltip .down{color:var(--down-5); font-weight:600;}
+  #customTooltip .up{color:var(--up-ink); font-weight:600;}
+  #customTooltip .down{color:var(--down-ink); font-weight:600;}
   .tile .t-name{font-weight:600; line-height:1.1; display:flex; align-items:center; justify-content:center; gap:5px; max-width:100%;}
   .tile .t-name span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .srow{display:flex; align-items:center; margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
+  .srow{display:flex; align-items:center; margin-bottom:10px; font-family:var(--sans); font-size:12px;}
   .segbar{display:flex; flex-wrap:nowrap; width:100%; border-radius:5px; overflow-x:auto; overflow-y:hidden; margin-bottom:12px; box-shadow:0 0 0 1px var(--line) inset;}
   .segbar .seg{height:26px; min-width:22px; flex-shrink:0; cursor:pointer; transition:opacity 0.15s ease;}
   .segbar .seg:hover{opacity:0.82;}
+  /* A 2px surface gap between neighbouring segments (inside each segment's width, so the bar still sums to 100%). */
+  .segbar .seg, .md-split-bar .seg{box-sizing:border-box;}
+  .segbar .seg + .seg, .md-split-bar .seg + .seg{border-left:2px solid var(--paper);}
   .legend-scroll-wrap{display:flex; align-items:center; gap:6px;}
   .legend-strip{
     display:flex; gap:6px; overflow-x:auto; scroll-behavior:smooth; flex:1; padding:2px 0;
@@ -481,10 +530,10 @@
   .legend-arrow:hover{color:var(--ink); border-color:var(--accent);}
   .legend-row{
     display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer; flex-shrink:0;
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; white-space:nowrap;
+    font-family:var(--sans); font-size:12px; white-space:nowrap;
     border:1px solid var(--line); border-radius:14px; background:var(--panel);
   }
-  .legend-row:hover{background:var(--up-1); border-color:var(--up-3);}
+  .legend-row:hover{background:var(--hover); border-color:var(--accent);}
   .legend-swatch{width:9px; height:9px; border-radius:2px; flex-shrink:0;}
   .legend-name{font-weight:500; color:var(--ink);}
   .legend-val{color:var(--muted); font-variant-numeric:tabular-nums;}
@@ -492,16 +541,16 @@
   .sbar-track{flex:1; background:var(--line); height:16px; position:relative;}
   .sbar-fill{background:var(--accent); height:100%;}
   .spct{width:56px; text-align:right; color:var(--muted); flex-shrink:0; padding-left:10px;}
-  #winloseHeadline{font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink); margin:2px 0 12px;}
+  #winloseHeadline{font-family:var(--sans); font-size:13px; color:var(--ink); margin:2px 0 12px;}
   #winloseSearch{
     display:block; width:100%; max-width:260px; margin:0 0 10px; padding:7px 11px; border:1px solid var(--line); background:var(--panel);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; color:var(--ink); border-radius:6px;
+    font-family:var(--sans); font-size:13px; color:var(--ink); border-radius:6px;
   }
   #winloseSearch:focus{outline:none; border-color:var(--accent);}
-  #winloseNoMatch{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:8px 0;}
+  #winloseNoMatch{font-family:var(--sans); font-size:12.5px; color:var(--muted); padding:8px 0;}
   #winloseHeadline b{font-weight:600;}
   #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
-  .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px;}
+  .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:var(--sans); font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
   .wlname{width:70px; flex-shrink:0; font-weight:600;}
   .wltrack{flex:1; height:16px; position:relative; background:var(--line);}
@@ -510,12 +559,18 @@
   .wlcheck{margin:0 8px 0 0; flex-shrink:0; accent-color:var(--accent); cursor:pointer;}
   .wlrow.wl-off .wlname, .wlrow.wl-off .wlval{opacity:0.45;}
   .wlbar{transition:width 0.25s ease;}
-  #winloseScaleNote{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin:8px 0 0;}
+  #winloseScaleNote{font-family:var(--sans); font-size:12px; color:var(--muted); margin:8px 0 0;}
   #winloseScaleNote a{color:var(--accent);}
-  .chart-note{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin:-8px 0 14px; line-height:1.5;}
+  /* Status lines and footnotes the chart renderers write (loading, errors, "% change since …"). */
+  .chart-msg{font-family:var(--sans); font-size:12.5px; color:var(--muted); padding:20px 0;}
+  .chart-msg.err{color:var(--down-ink);}
+  .chart-foot{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:2px;}
+  .chart-head-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin-bottom:4px;}
+  .chart-title{margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:var(--sans);}
+  .chart-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin:-8px 0 14px; line-height:1.5;}
   #winloseInsights{
     display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.7; color:var(--ink);
+    font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);
   }
   #winloseInsights.open{display:block;}
   #winloseInsights .wli-title{font-weight:600; margin-bottom:6px; display:block;}
@@ -524,40 +579,40 @@
   #winloseInsights .wli-caveat{color:var(--muted); font-size:12px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
   .info-icon{
     display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
-    background:var(--line); color:var(--muted); font-size:11px; font-weight:700; font-family:'Helvetica Neue',Arial,sans-serif;
+    background:var(--line); color:var(--muted); font-size:11px; font-weight:700; font-family:var(--sans);
     cursor:help; flex-shrink:0;
   }
-  .info-icon:hover{background:var(--accent); color:#fff;}
-  .waterfall-bar-label{font-family:'Helvetica Neue',Arial,sans-serif;}
-  footer{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
+  .info-icon:hover{background:var(--accent); color:var(--on-accent);}
+  .waterfall-bar-label{font-family:var(--sans);}
+  footer{font-family:var(--sans); font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
   @media (max-width:720px){ .cards{grid-template-columns:repeat(2,1fr);} .sname{width:100px;} }
   .wrap{display:none;}
   body.pf-unlocked .wrap{display:block;}
   #lockScreen{
-    position:fixed; inset:0; background:var(--paper); z-index:9999;
+    position:fixed; inset:0; background:var(--paper); z-index:var(--z-lock);
     display:flex; align-items:center; justify-content:center; padding:24px;
   }
   body.pf-unlocked #lockScreen{display:none;}
   #lockCard{width:min(320px, 100%); text-align:center;}
   #lockCard h1{font-size:28px; font-weight:400; margin:0 0 4px; justify-content:center;}
-  #lockCard p{font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); margin:0 0 20px;}
+  #lockCard p{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:0 0 20px;}
   #googleSignInBtn{display:flex; justify-content:center; margin-bottom:4px;}
   #lockError{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--down-5); margin-top:12px; min-height:16px;
+    font-family:var(--sans); font-size:12px; color:var(--down-ink); margin-top:12px; min-height:16px;
   }
-  #lockDiagLink{display:inline-block; margin-top:14px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent);}
+  #lockDiagLink{display:inline-block; margin-top:14px; font-family:var(--sans); font-size:12px; color:var(--accent);}
   /* Above the lock screen too, so a sign-in that fails because the server is down can be diagnosed. */
   #diagModal{
-    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:10000;
+    display:none; position:fixed; inset:0; background:rgba(26,35,50,0.45); z-index:var(--z-diag);
     align-items:center; justify-content:center; padding:16px;
   }
   #diagModal.open{display:flex;}
   #diagCard{
     background:var(--paper); width:min(640px, 100%); max-height:90vh; display:flex; flex-direction:column;
-    box-shadow:0 12px 40px rgba(0,0,0,0.25); font-family:'Helvetica Neue',Arial,sans-serif;
+    box-shadow:var(--shadow-modal); font-family:var(--sans);
   }
   #diagHeader{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 12px; border-bottom:1px solid var(--line);}
-  #diagHeader h3{font-family:'Iowan Old Style','Georgia',serif; font-size:21px; font-weight:400; margin:0 0 3px;}
+  #diagHeader h3{font-family:var(--serif); font-size:21px; font-weight:400; margin:0 0 3px;}
   #diagHeader p{margin:0; font-size:12px; color:var(--muted);}
   #diagClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
   #diagList{overflow-y:auto; padding:6px 20px;}
@@ -565,41 +620,41 @@
   .diagRow:last-child{border-bottom:none;}
   .diagDot{width:10px; height:10px; border-radius:50%; margin-top:3px; background:var(--flat);}
   .diagRow.ok .diagDot{background:var(--up-4);}
-  .diagRow.warn .diagDot{background:#d99a1e;}
+  .diagRow.warn .diagDot{background:var(--warn);}
   .diagRow.fail .diagDot{background:var(--down-4);}
   .diagRow.running .diagDot{background:var(--accent); animation:diagPulse 0.9s ease-in-out infinite alternate;}
   @keyframes diagPulse{to{opacity:0.25;}}
   .diagName{font-weight:600; color:var(--ink);}
   .diagMs{color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
   .diagDetail{grid-column:2 / 4; color:var(--muted); line-height:1.45; overflow-wrap:anywhere;}
-  .diagRow.fail .diagDetail{color:var(--down-5);}
+  .diagRow.fail .diagDetail{color:var(--down-ink);}
   .diagAction{
-    margin-top:6px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:none;
+    margin-top:6px; font-family:var(--sans); font-size:12px; color:var(--accent); background:none;
     border:1px solid var(--line); border-radius:5px; padding:4px 10px; cursor:pointer;
   }
   .diagAction:hover{border-color:var(--accent);}
   #diagFooter{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 20px 16px; border-top:1px solid var(--line);}
   #diagSummary{flex:1; min-width:180px; font-size:12px; color:var(--muted);}
   #diagFooter button{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--ink); background:var(--panel);
+    font-family:var(--sans); font-size:12px; color:var(--ink); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:8px 14px; cursor:pointer;
   }
   #diagFooter button:hover{border-color:var(--accent);}
   #diagFooter button:disabled{opacity:0.5; cursor:default;}
   #diagTabs{display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--line);}
   .diagTab{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); background:none; border:none;
+    font-family:var(--sans); font-size:12.5px; color:var(--muted); background:none; border:none;
     border-bottom:2px solid transparent; margin-bottom:-1px; padding:10px 12px 8px; cursor:pointer;
   }
   .diagTab:hover{color:var(--ink);}
   .diagTab.active{color:var(--ink); font-weight:600; border-bottom-color:var(--accent);}
   #diagTrouble{overflow-y:auto; padding:0 20px 16px; position:relative;}
   .tsBar{
-    position:sticky; top:0; z-index:1; background:var(--paper); display:flex; gap:8px; flex-wrap:wrap;
+    position:sticky; top:0; z-index:var(--z-sticky); background:var(--paper); display:flex; gap:8px; flex-wrap:wrap;
     padding:10px 0 9px; border-bottom:1px solid var(--line);
   }
   .tsBar input, .tsBar select{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--ink); background:var(--panel);
+    font-family:var(--sans); font-size:12.5px; color:var(--ink); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:7px 10px;
   }
   .tsBar input{flex:1 1 200px; min-width:0;}
@@ -610,8 +665,8 @@
   @keyframes tsFlash{0%,40%{color:var(--accent);}100%{color:var(--ink);}}
   .tsGroup h4{margin:16px 0 2px; font-size:13px; color:var(--ink);}
   .tsWhere{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:9px; font-size:12px; font-weight:600; vertical-align:1px;}
-  .tsWhere.oracle{background:#fbe9dc; color:#9a4a12;}
-  .tsWhere.putty{background:#e3ecf6; color:#2b5480;}
+  .tsWhere.oracle{background:var(--tag-oracle-bg); color:var(--tag-oracle-ink);}
+  .tsWhere.putty{background:var(--tag-putty-bg); color:var(--tag-putty-ink);}
   .tsIntro{margin:0 0 4px; font-size:12px; color:var(--muted); line-height:1.45;}
   .tsCmd{margin-top:10px;}
   .tsCmdHead{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; color:var(--ink);}
@@ -622,7 +677,7 @@
     white-space:pre-wrap; overflow-wrap:anywhere;
   }
   .tsCopy{
-    font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--accent); background:none;
+    font-family:var(--sans); font-size:12px; color:var(--accent); background:none;
     border:1px solid var(--line); border-radius:5px; padding:3px 9px; cursor:pointer; white-space:nowrap; flex-shrink:0;
   }
   .tsCopy:hover{border-color:var(--accent);}
@@ -634,7 +689,7 @@
   <div id="lockCard">
     <h1><img src="icon-512.png" alt="SheetPulse" class="brand-logo brand-logo-lock"></h1>
     <p>Sign in with Google to continue</p>
-    <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:#fff; color:var(--ink); font-family:'Helvetica Neue',Arial,sans-serif; font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
+    <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--panel); color:var(--ink); font-family:var(--sans); font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
     <div id="googleSignInBtn"></div>
     <div id="lockError"></div>
     <a href="#" id="lockDiagLink">Connection diagnostics</a>
@@ -919,7 +974,7 @@
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
       <div>
         <h2 style="margin-bottom:2px; font-size:18px; font-weight:400; color:var(--ink);">Your investments visualized</h2>
-        <p style="margin:0; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
+        <p style="margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
       </div>
       <span style="display:flex; gap:8px;">
         <button id="digestBtn">Daily Brief</button>
@@ -1002,7 +1057,7 @@
   </section>
 
   <section>
-    <div style="background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); padding:14px 18px; margin-bottom:24px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; line-height:1.7; color:var(--ink);">
+    <div style="background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); padding:14px 18px; margin-bottom:24px; font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);">
       <b>Historical Contribution</b> looks backward — based on money originally invested, it measures which holdings generated your profits over time.<br>
       <b>Current Weighted Contribution</b> looks at today — based on current market value, it measures which holdings currently have the biggest influence on your portfolio's performance.<br>
       <span style="color:var(--muted);">Analogy: Historical = "who scored the goals during the season?" Current weighted = "who's on the field influencing the game right now?"</span>
@@ -1086,7 +1141,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1790875405";
+const BUILD_ID = "1791050734";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1462,6 +1517,17 @@ const TROUBLESHOOTING = [
       {name: 'Start it (if STOPPED)', cmd: `oci compute instance action --instance-id $ID --action START --query 'data."lifecycle-state"'`},
       {name: 'Hard reset', note: 'Immediate power cycle — only if it\'s RUNNING but still frozen after a reboot. Refused ("being modified") while another action is in progress.', cmd: `oci compute instance action --instance-id $ID --action RESET --query 'data."lifecycle-state"'`},
     ]},
+  {title: 'Locked out of SSH (firewall)', where: 'oracle',
+    intro: 'Use when PuTTY says "Connection refused" or times out even though the VM is RUNNING and rebooting doesn\'t help — usually the saved firewall file (/etc/iptables/rules.v4) lost its port 22 rule. You reach the VM\'s own screen through its serial console. Run "Find the VM" (above) first. Paste only into Cloud Shell; on the VM\'s screen, type by hand: pasting adds hidden characters there, and long lines get cut.',
+    cmds: [
+      {name: '1. Cloud Shell SSH key (once)', cmd: `ls ~/.ssh/id_rsa.pub || ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa`},
+      {name: '2. Open a console connection', note: 'Prints CREATING; wait about 30 seconds before step 3.', cmd: `oci compute instance-console-connection create --instance-id $ID --ssh-public-key-file ~/.ssh/id_rsa.pub --query 'data."lifecycle-state"' --raw-output`},
+      {name: '3. Connect to the VM\'s screen', note: 'Type yes if asked, then press Enter: "n8n-server login:" means you are on the VM. To leave later: type ~ then .', cmd: `COMP=$(oci compute instance get --instance-id $ID --query 'data."compartment-id"' --raw-output); eval "$(oci compute instance-console-connection list --compartment-id $COMP --instance-id $ID --query 'data[?"lifecycle-state"==\`ACTIVE\`]."connection-string" | [0]' --raw-output)"`},
+      {name: '4. Reach the grub> prompt', note: 'With the console open, reboot from the Oracle Console in another browser tab, then tap Esc once a second in the console until "grub>" appears (the menu itself is hidden). Then type these three lines; a root prompt "root@(none):/#" follows.', cmd: `linux /vmlinuz root=LABEL=cloudimg-rootfs rw init=/bin/bash console=ttyS0\ninitrd /initrd.img\nboot`},
+      {name: '5. Add SSH back to the saved rules (type each line)', note: 'The last command should list the INPUT rules with --dport 22 second. Then type sync.', cmd: `F=/etc/iptables/rules.v4\ncp $F /root/r.bak\nR='-A INPUT -p tcp --dport 22 -j ACCEPT'\ngrep -q "dport 22" $F || sed -i "/^-A INPUT -m/a $R" $F\ngrep -n "^-A INPUT" $F\nsync`},
+      {name: '6. Restart normally', note: 'The root-prompt boot ignores a normal reboot, so power-cycle it from Cloud Shell (leave the console first with ~ then .). If it says "being modified", wait for the earlier reboot to time out (~15 min) and retry. PuTTY works a minute after RUNNING.', cmd: `oci compute instance action --instance-id $ID --action RESET --query 'data."lifecycle-state"' --raw-output`},
+      {name: '7. Remove the console connection', cmd: `COMP=$(oci compute instance get --instance-id $ID --query 'data."compartment-id"' --raw-output); for c in $(oci compute instance-console-connection list --compartment-id $COMP --instance-id $ID --query 'data[?"lifecycle-state"==\`ACTIVE\`].id' --raw-output | tr -d '[]",'); do oci compute instance-console-connection delete --instance-console-connection-id $c --force; done`},
+    ]},
   {title: 'Quick health check', where: 'putty',
     intro: 'Start here: two snapshots that cover the usual suspects in one paste each.',
     cmds: [
@@ -1531,8 +1597,9 @@ const TROUBLESHOOTING = [
   {title: 'Ports and firewall', where: 'putty',
     cmds: [
       {name: 'What\'s listening', cmd: `sudo ss -tlnp`},
-      {name: 'Firewall rules', cmd: `sudo iptables -L INPUT -n --line-numbers`},
-      {name: 'Remove every firewall rule for a port', note: 'Here 5678 (old n8n). Deletes one matching rule at a time (numbers shift after each), then saves so it survives reboots.', cmd: `while n=$(sudo iptables -L INPUT -n --line-numbers | awk '/dpt:5678/{print $1; exit}'); [ -n "$n" ]; do sudo iptables -D INPUT $n; echo "removed rule $n"; done; sudo netfilter-persistent save`},
+      {name: 'Firewall rules', note: 'Expect, in this order: RELATED,ESTABLISHED, --dport 22, icmp, -i lo, 443, 80, then REJECT. If there is no --dport 22 line, run "Allow SSH" before anything else.', cmd: `sudo iptables -S INPUT`},
+      {name: 'Allow SSH (if missing)', note: 'Adds the port 22 rule right after RELATED,ESTABLISHED (before the REJECT) and saves it. Does nothing if it is already there.', cmd: `sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null && echo "SSH already allowed" || (sudo iptables -I INPUT 2 -p tcp --dport 22 -j ACCEPT && sudo netfilter-persistent save && echo "SSH rule added")`},
+      {name: 'Remove every firewall rule for a port', note: 'Here 5678 (old n8n). Refuses to run unless SSH (22) is allowed, removes the matching rules by their text (never by number), then saves. Before closing PuTTY, check that a second PuTTY login works.', cmd: `sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || { echo "No SSH rule - run Allow SSH first"; false; } && while r=$(sudo iptables -S INPUT | grep -m1 -- '--dport 5678'); [ -n "$r" ]; do sudo iptables $(echo "$r" | sed 's/^-A/-D/'); echo "removed: $r"; done && sudo netfilter-persistent save`},
       {name: 'SSH lockouts (fail2ban)', cmd: `sudo fail2ban-client status sshd`},
     ]},
   {title: 'Security hardening (one-time fixes)', where: 'putty',
@@ -1677,8 +1744,14 @@ document.getElementById('lockDiagLink').addEventListener('click', e => { e.preve
 document.getElementById('diagClose').addEventListener('click', closeDiagnostics);
 document.getElementById('diagRerun').addEventListener('click', runDiagnostics);
 document.getElementById('diagModal').addEventListener('click', e => { if(e.target.id === 'diagModal') closeDiagnostics(); });
+// Esc closes the topmost open window: Diagnostics, then Market Universe (it opens over the
+// Portfolio / chart window), then the Portfolio / chart window.
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape' && document.getElementById('diagModal').classList.contains('open')) closeDiagnostics();
+  if(e.key !== 'Escape') return;
+  const isOpen = id => document.getElementById(id).classList.contains('open');
+  if(isOpen('diagModal')) closeDiagnostics();
+  else if(isOpen('universeModal')) closeUniverse();
+  else if(isOpen('marketDetailModal')) closeMarketDetail();
 });
 
 // ---- Phone Back button closes the open window ----
@@ -2302,8 +2375,8 @@ function formatNextClose(ms){
 // tell the chart is showing a closed/frozen session — without spending a header line on it.
 function marketStatusBadgeSvg(x, y, id, label, isOpen){
   return `<g id="${id}" style="cursor:help;">
-      <circle cx="${x}" cy="${y-3.5}" r="4" fill="${isOpen?'#3b6d11':'#a32d2d'}"/>
-      <text x="${x+9}" y="${y}" font-size="11" fill="var(--ink)" font-family="'Helvetica Neue',Arial,sans-serif">${label}: <tspan font-weight="700">${isOpen?'OPEN':'CLOSED'}</tspan></text>
+      <circle cx="${x}" cy="${y-3.5}" r="4" fill="${isOpen?'var(--up-ink)':'var(--down-ink)'}"/>
+      <text x="${x+9}" y="${y}" font-size="11" fill="var(--ink)" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${label}: <tspan font-weight="700">${isOpen?'OPEN':'CLOSED'}</tspan></text>
     </g>`;
 }
 function wireMarketStatusBadge(id, isOpen, nextOpenMsFn, nextCloseMsFn){
@@ -2484,17 +2557,28 @@ function showUniverseChart(row){
 // starts at 0% on the range's first day; a market that was closed that day (TASE vs USA holidays)
 // carries its last close forward. Today's point is the live price for tickers you hold.
 const UNIVERSE_COMPARE_MAX = 4;
-const UNIVERSE_COMPARE_COLORS = ['#1f6fd1', '#e8710a', '#9334e6', '#188038', '#c5221f'];
+// Colors come from the --cmp-1..5 tokens. The ticker you are viewing is always --cmp-1; each compared
+// ticker keeps the color it got when added, so removing one never repaints the others.
+const universeCompareSlot = {};
+function universeCompareColor(t, row){
+  if(t === row.name) return 'var(--cmp-1)';
+  if(!universeCompareSlot[t]){
+    const used = new Set(universeCompare.filter(c => c !== t).map(c => universeCompareSlot[c]));
+    universeCompareSlot[t] = [2, 3, 4, 5].find(n => !used.has(n)) || 5;
+  }
+  return `var(--cmp-${universeCompareSlot[t]})`;
+}
 let universeCompare = [];
 function renderUniverseCompareBar(row){
   const bar = document.getElementById('universeCompareBar');
   if(!bar) return;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   universeCompare = universeCompare.filter(t => t !== row.name);
-  const chip = (t, i, removable) => `<span class="uc-chip"><span class="uc-dot" style="background:${UNIVERSE_COMPARE_COLORS[i]}"></span>${esc(t)}`
+  delete universeCompareSlot[row.name];
+  const chip = (t, removable) => `<span class="uc-chip"><span class="uc-dot" style="background:${universeCompareColor(t, row)}"></span>${esc(t)}`
     + (removable ? `<button type="button" class="uc-x" data-remove="${esc(t)}" aria-label="Stop comparing ${esc(t)}" title="Remove">&times;</button>` : '') + `</span>`;
-  bar.innerHTML = (universeCompare.length ? chip(row.name, 0, false) : '')
-    + universeCompare.map((t, i) => chip(t, i + 1, true)).join('')
+  bar.innerHTML = (universeCompare.length ? chip(row.name, false) : '')
+    + universeCompare.map(t => chip(t, true)).join('')
     + (universeCompare.length < UNIVERSE_COMPARE_MAX
       ? `<span class="uc-add"><button type="button" class="uc-add-btn">+ Compare</button>`
         + `<input type="text" class="uc-input" list="ucTickerList" placeholder="e.g. QQQ, VOO" aria-label="Tickers to compare, separated by commas" autocomplete="off" style="display:none;">`
@@ -2503,6 +2587,7 @@ function renderUniverseCompareBar(row){
   bar.style.display = 'flex';
   bar.querySelectorAll('.uc-x').forEach(b => b.addEventListener('click', () => {
     universeCompare = universeCompare.filter(t => t !== b.dataset.remove);
+    delete universeCompareSlot[b.dataset.remove];
     document.getElementById('customTooltip').style.display = 'none';
     showUniverseChart(row);
   }));
@@ -2566,11 +2651,11 @@ function renderUniverseCompareBar(row){
 async function renderUniverseCompareChart(row, range, height){
   const el = document.getElementById('universeChart');
   if(!el) return;
-  const msgHtml = (text, color) => `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:${color||'var(--muted)'}; padding:20px 0;">${text}</div>`;
+  const msgHtml = (text, color) => `<div class="chart-msg" style="color:${color||'var(--muted)'};">${text}</div>`;
   el.innerHTML = msgHtml('Loading chart…');
   let ph;
   try{ ph = await fetchPriceHistory(); }
-  catch(e){ el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-5)'); return; }
+  catch(e){ el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-ink)'); return; }
   if(universeChartRow !== row || universeChartRange !== range) return;   // changed while loading
   const tickers = [row.name, ...universeCompare].filter(t => ph.cols[t]);
   const mainCol = ph.cols[row.name];
@@ -2594,7 +2679,7 @@ async function renderUniverseCompareChart(row, range, height){
     const vals = idx.map(i => { for(let j = i; j >= 0; j--) if(!isNaN(col[j])) return col[j]; return NaN; });
     if(withToday){ const lp = livePrice(t); vals.push(!isNaN(lp) ? lp : vals[vals.length - 1]); }
     const base = vals.find(v => !isNaN(v) && v > 0);
-    return {t, color: UNIVERSE_COMPARE_COLORS[[row.name, ...universeCompare].indexOf(t)], pct: vals.map(v => base && !isNaN(v) ? (v / base - 1) * 100 : NaN)};
+    return {t, color: universeCompareColor(t, row), pct: vals.map(v => base && !isNaN(v) ? (v / base - 1) * 100 : NaN)};
   });
   if(dates.length < 2){ el.innerHTML = msgHtml('Not enough history for this range yet.'); return; }
 
@@ -2605,17 +2690,17 @@ async function renderUniverseCompareChart(row, range, height){
   const xFor = i => padL + i / (dates.length - 1) * (w - padL - padR);
   const yFor = v => h - padB - (v - yMin) / (yMax - yMin) * (h - padT - padB);
   const pctStr = v => isNaN(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  const font = `font-family="'Helvetica Neue',Arial,sans-serif"`;
+  const font = `font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"`;
   const yGrid = Array.from({length: 5}, (_, i) => {
     const v = yMin + (yMax - yMin) * i / 4, y = yFor(v);
     return `<line x1="${padL}" x2="${w - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" ${font}>${pctStr(v)}</text>`;
+      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>${pctStr(v)}</text>`;
   }).join('');
   const longRange = ['1Y', '5Y', 'MAX'].includes(range);
   const label = t => new Date(t).toLocaleDateString('en-US', longRange ? {month: 'short', year: 'numeric'} : {month: 'short', day: 'numeric'});
   const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
   const ticks = [...new Set(Array.from({length: n}, (_, k) => Math.round(k * (dates.length - 1) / (n - 1))))];
-  const xLabels = ticks.map((i, k) => `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" font-size="10" fill="#6b6558" text-anchor="${k === 0 ? 'start' : k === ticks.length - 1 ? 'end' : 'middle'}" ${font}>${label(dates[i])}</text>`).join('');
+  const xLabels = ticks.map((i, k) => `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" font-size="10" fill="var(--muted)" text-anchor="${k === 0 ? 'start' : k === ticks.length - 1 ? 'end' : 'middle'}" ${font}>${label(dates[i])}</text>`).join('');
   const lines = series.slice().reverse().map(s => {   // main ticker drawn last, on top
     let d = '', pen = false;
     s.pct.forEach((v, i) => { if(isNaN(v)){ pen = false; return; } d += (pen ? 'L' : 'M') + xFor(i).toFixed(1) + ',' + yFor(v).toFixed(1) + ' '; pen = true; });
@@ -2626,12 +2711,12 @@ async function renderUniverseCompareChart(row, range, height){
     <div class="uc-summary">${series.map(s => `<span><span class="uc-dot" style="background:${s.color}"></span><b>${s.t}</b> <span class="${s.pct[s.pct.length - 1] >= 0 ? 'up' : 'down'}">${pctStr(s.pct[s.pct.length - 1])}</span></span>`).join('')}<span style="color:var(--muted);">${rangeLabel}</span></div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair; touch-action:pan-y;">
       ${yGrid}
-      <line x1="${padL}" x2="${w - padR}" y1="${yFor(0).toFixed(1)}" y2="${yFor(0).toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
+      <line x1="${padL}" x2="${w - padR}" y1="${yFor(0).toFixed(1)}" y2="${yFor(0).toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
       ${lines}${xLabels}
-      <line class="uc-guide" x1="0" x2="0" y1="${padT}" y2="${h - padB}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <line class="uc-guide" x1="0" x2="0" y1="${padT}" y2="${h - padB}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
       <rect class="uc-overlay" x="${padL}" y="0" width="${w - padL - padR}" height="${h}" fill="transparent"/>
     </svg>
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:2px;">% change since ${new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}, from PriceHistory's daily closes${withToday ? '; today is the live price for your holdings' : ''}.</div>`;
+    <div class="chart-foot">% change since ${new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}, from PriceHistory's daily closes${withToday ? '; today is the live price for your holdings' : ''}.</div>`;
 
   const svg = el.querySelector('svg'), overlay = el.querySelector('.uc-overlay'), guide = el.querySelector('.uc-guide');
   const tt = document.getElementById('customTooltip');
@@ -3399,7 +3484,7 @@ async function renderFxDetailHeader(){
   if(marketDetailState.marketKey !== 'fx') return;
   const change = (rate && prevClose > 0) ? rate - prevClose : null;
   const changePct = change !== null ? change / prevClose * 100 : 0;
-  const color = change !== null && change < 0 ? 'var(--down-5)' : 'var(--up-5)';
+  const color = change !== null && change < 0 ? 'var(--down-ink)' : 'var(--up-ink)';
   document.getElementById('marketDetailBody').innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
       <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
@@ -3429,9 +3514,9 @@ function tileColorFor(c){
   return c >= 0 ? g[idx] : r[idx];
 }
 function tileTextColorFor(c){
-  if(isNaN(c)) return "#4a463c";
+  if(isNaN(c)) return "var(--tile-ink-flat)";
   const a = Math.min(Math.abs(c)/2.5,1);
-  if(a < 0.5) return c >= 0 ? "#27500a" : "#791f1f";
+  if(a < 0.5) return c >= 0 ? "var(--tile-ink-up)" : "var(--tile-ink-down)";
   return "#ffffff";
 }
 
@@ -3831,7 +3916,7 @@ const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
   {key:'loan', label:'Loan', match: h => h === 'Loan'}
 ];
-const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#118a7e', 'Liabilities':'#a32d2d'};
+const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#12a08c', 'Liabilities':'#a32d2d'};
 // Display order and header text for the grouped Item/Value table in the Net Worth detail view.
 const NW_ITEM_GROUP_ORDER = ['Portfolio', 'Study Funds', 'Pension', 'Liabilities'];
 const NW_ITEM_GROUP_LABELS = {'Portfolio':'Portfolio', 'Study Funds':'Study Funds', 'Pension':'Pension', 'Liabilities':'Liabilities'};
@@ -3978,16 +4063,16 @@ function buildNwTrendChart(opts){
     <circle class="nw-trend-hit" data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" style="cursor:help;"/>
     <circle data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}" style="pointer-events:none;"/>
   `).join('');
-  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="10" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
+  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
   return `
-    <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
+    <div class="chart-title">${title}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
       <path d="${areaPath}" fill="${color}" opacity="0.12"/>
       <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
       ${dots}
       ${labels}
     </svg>
-    ${hasIncompleteHistory ? `<div style="font-size:12px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+    ${hasIncompleteHistory ? `<div class="chart-foot">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
   `;
 }
 
@@ -4021,8 +4106,8 @@ function buildNwMultiTrendChart(opts){
   const hitWidth = months.length>1 ? stepX : 40;
   const hits = visible.length ? months.map((m,i)=>
     `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
-  ).join('') : `<text x="${w/2}" y="${(h-pad)/2+4}" font-size="12" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">All lines hidden — click a legend item to show it</text>`;
-  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="10" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
+  ).join('') : `<text x="${w/2}" y="${(h-pad)/2+4}" font-size="12" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">All lines hidden — click a legend item to show it</text>`;
+  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
   const legend = series.map(s=>{
     const off = hidden.has(s.key);
     return `<span class="nw-series-toggle${off?' off':''}" data-series="${s.key}" role="button" tabindex="0" aria-pressed="${!off}" title="Click to ${off?'show':'hide'} ${s.label}"><span class="nw-sw" style="--sw:${s.color};"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`;
@@ -4030,14 +4115,14 @@ function buildNwMultiTrendChart(opts){
 
   return `
     <div id="${svgId}Wrap">
-    <div style="margin:22px 0 6px; font-size:15px; color:var(--muted); font-family:'Helvetica Neue',Arial,sans-serif;">${title}</div>
-    <div style="margin-bottom:10px; font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
+    <div class="chart-title">${title}</div>
+    <div style="margin-bottom:10px; font-family:var(--sans); font-size:12px; color:var(--muted); display:flex; flex-wrap:wrap;">${legend}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
       ${seriesSvg}
       ${hits}
       ${labels}
     </svg>
-    ${hasIncompleteHistory ? `<div style="font-size:12px; color:var(--muted); margin-top:2px; font-family:'Helvetica Neue',Arial,sans-serif;">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
+    ${hasIncompleteHistory ? `<div class="chart-foot">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
     </div>
   `;
 }
@@ -4279,7 +4364,7 @@ function renderNetWorthBody(nw, crossYearPrev, crossYearAgo){
   body.innerHTML = `
     <div class="md-headline" id="nwHeadline" style="cursor:help; display:inline-block;">${fmt(latest.netWorth)}</div>
     <div class="md-headline-label">Net Worth — ${latest.month}</div>
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif; margin-top:0; margin-bottom:${(momLine||ytdLine||yearlyLine)?'14px':'20px'};">
+    <div style="font-family:var(--sans); margin-top:0; margin-bottom:${(momLine||ytdLine||yearlyLine)?'14px':'20px'};">
       ${momLine}
       ${ytdLine}
       ${yearlyLine}
@@ -4351,7 +4436,7 @@ async function loadNetWorthYear(year){
 
   if(!url){
     body.innerHTML = `
-      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--down-5); font-size:13px; line-height:1.8; padding:12px 0 24px;">
+      <div style="font-family:var(--sans); color:var(--down-ink); font-size:13px; line-height:1.8; padding:12px 0 24px;">
         Could not find a year tab in the Net Worth sheet — check the proxy is reachable.
       </div>
     `;
@@ -4360,7 +4445,7 @@ async function loadNetWorthYear(year){
   }
 
   body.innerHTML = `
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--muted); font-size:13px; padding:12px 0;">Loading…</div>
+    <div style="font-family:var(--sans); color:var(--muted); font-size:13px; padding:12px 0;">Loading…</div>
   `;
   document.getElementById('marketDetailModal').classList.add('open');
 
@@ -4392,7 +4477,7 @@ async function loadNetWorthYear(year){
     renderNetWorthBody(nw, crossYearPrev, crossYearAgo);
   } catch(err){
     body.innerHTML = `
-      <div style="font-family:'Helvetica Neue',Arial,sans-serif; color:var(--down-5); font-size:13px; line-height:1.8; padding:12px 0 24px;">
+      <div style="font-family:var(--sans); color:var(--down-ink); font-size:13px; line-height:1.8; padding:12px 0 24px;">
         Could not load the${year?' '+year:''} Net Worth sheet (${err.message}).
       </div>
     `;
@@ -4466,12 +4551,12 @@ function renderGauge(rows, totals){
             </linearGradient>
           </defs>
           <path d="${arcPath}" fill="none" stroke="url(#gaugeArcGrad)" stroke-width="15" stroke-linecap="round"/>
-          <line class="gauge-needle" x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="#1a2332" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="${cx}" cy="${cy}" r="7" fill="#ffffff" stroke="#1a2332" stroke-width="2"/>
-          <circle cx="${cx}" cy="${cy}" r="3" fill="#8a6d3b"/>
-          <text x="${labelStart.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">-3%</text>
-          <text x="${labelEnd.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="#6b6558" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">+3%</text>
-          <text x="${cx}" y="112" font-size="20" font-weight="700" fill="#1a2332" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">${value>=0?'+':''}${value.toFixed(2)}%</text>
+          <line class="gauge-needle" x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="${cx}" cy="${cy}" r="7" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
+          <circle cx="${cx}" cy="${cy}" r="3" fill="var(--accent)"/>
+          <text x="${labelStart.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">-3%</text>
+          <text x="${labelEnd.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">+3%</text>
+          <text x="${cx}" y="112" font-size="20" font-weight="700" fill="var(--ink)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${value>=0?'+':''}${value.toFixed(2)}%</text>
         </svg>
       </div>
     </div>
@@ -5109,7 +5194,7 @@ function moveBarsSvg(moves, xs, top, bottom){
 // The tooltip's line for one point's move.
 function moveTooltipLine(m, fmt, what){
   if(isNaN(m)) return '';
-  return `<div style="color:${m >= 0 ? 'var(--up-5)' : 'var(--down-5)'}; font-size:12px;">Move: ${m >= 0 ? '+' : '-'}${fmt(Math.abs(m))} ${what}</div>`;
+  return `<div style="color:${m >= 0 ? 'var(--up-ink)' : 'var(--down-ink)'}; font-size:12px;">Move: ${m >= 0 ? '+' : '-'}${fmt(Math.abs(m))} ${what}</div>`;
 }
 
 function intradayChartHeight(el, hasNoteLine){
@@ -5126,13 +5211,13 @@ function intradayChartHeight(el, hasNoteLine){
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
   if(!el) return;
-  el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Loading today's chart…</div>`;
+  el.innerHTML = `<div class="chart-msg">Loading today's chart…</div>`;
   let raw;
   try{
     raw = await fetchRawFn();
   } catch(e){
     if(chartRange !== '1D') return;
-    el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--down-5); padding:20px 0;">Could not load today's chart (${e.message}).</div>`;
+    el.innerHTML = `<div class="chart-msg err">Could not load today's chart (${e.message}).</div>`;
     return;
   }
   if(chartRange !== '1D') return;
@@ -5244,7 +5329,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     }, 60000);
   }
   if(log.length < 1){
-    el.innerHTML = `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:var(--muted); padding:20px 0;">Building up today's chart — no points logged yet today.</div>`;
+    el.innerHTML = `<div class="chart-msg">Building up today's chart — no points logged yet today.</div>`;
     return;
   }
   // Just the opening point so far: draw it as a dot on today's axis (a zero-length line).
@@ -5270,7 +5355,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
 
   const latest = log[log.length-1].v;
   const isUp = latest >= prevClose;
-  const lineColor = isUp ? 'var(--up-5)' : 'var(--down-5)';
+  const lineColor = isUp ? 'var(--up-ink)' : 'var(--down-ink)';
 
   const points = log.map(p=>({x: xFor(p.t), y: yFor(p.v)}));
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
@@ -5281,7 +5366,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const v = yMin + (yMax-yMin) * (i/yTicks);
     const y = yFor(v);
     return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
+      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
   }).join('');
 
   // Middle ticks land on round clock marks every 90 minutes (10:00, 11:30, 13:00, ...) rather than
@@ -5320,7 +5405,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
     const label = (isFirst || isLast) ? `${timeLabel} ${dateStr}` : timeLabel;
     const anchor = isFirst ? 'start' : (isLast ? 'end' : 'middle');
-    return `<text class="intradayXLabel" data-x="${x.toFixed(1)}" x="${x.toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" font-family="'Helvetica Neue',Arial,sans-serif">${label}</text>`;
+    return `<text class="intradayXLabel" data-x="${x.toFixed(1)}" x="${x.toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="${anchor}" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${label}</text>`;
   }).join('');
 
   const prevCloseY = yFor(prevClose);
@@ -5344,7 +5429,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       ty = lastPoint.y - 12;
       if(Math.abs(ty - prevLabelY) < 15 || ty < padT) ty = prevLabelY + 16;
     }
-    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
+    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
   }
 
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
@@ -5365,25 +5450,25 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // without requiring the mouse to already be there.
     fxMarkerSvg = `
       <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="6" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/>
-      <text x="${pt.x.toFixed(1)}" y="${(pt.y-11).toFixed(1)}" font-size="10" font-weight="700" fill="var(--accent)" text-anchor="middle" font-family="'Helvetica Neue',Arial,sans-serif">FX</text>`;
+      <text x="${pt.x.toFixed(1)}" y="${(pt.y-11).toFixed(1)}" font-size="10" font-weight="700" fill="var(--accent)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">FX</text>`;
   }
 
   el.innerHTML = `
-    ${sessionLabel ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:4px;">Showing last session — ${sessionLabel}${marketOpen ? ' · today\'s chart starts with its first logged point (about every 5 min)' : ''}</div>` : ''}
-    ${singlePoint ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-bottom:4px;">Opening point so far — the line starts with the next logged point (about every 5 min)</div>` : ''}
+    ${sessionLabel ? `<div class="chart-head-note">Showing last session — ${sessionLabel}${marketOpen ? ' · today\'s chart starts with its first logged point (about every 5 min)' : ''}</div>` : ''}
+    ${singlePoint ? `<div class="chart-head-note">Opening point so far — the line starts with the next logged point (about every 5 min)</div>` : ''}
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGridLines}
       ${statusBadgesSvg}
-      <line x1="${padL}" x2="${w-padR}" y1="${prevCloseY.toFixed(1)}" y2="${prevCloseY.toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="${w-padR}" y="${(prevCloseY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
+      <line x1="${padL}" x2="${w-padR}" y1="${prevCloseY.toFixed(1)}" y2="${prevCloseY.toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
+      <text x="${w-padR}" y="${(prevCloseY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${fxMarkerSvg}
       <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="${sessionClosed ? 6 : 4}" fill="${lineColor}" stroke="${sessionClosed ? 'var(--paper)' : 'none'}" stroke-width="2"/>
       ${closeCalloutSvg}
       ${movesSvg}
       ${xLabels}
-      <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
-      <circle id="intradayHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
+      <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <circle id="intradayHoverDot" r="4.5" fill="${lineColor}" stroke="var(--panel)" stroke-width="1.5" style="display:none;"/>
       <rect id="intradayOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
     </svg>
   `;
@@ -5438,7 +5523,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const ttDate = new Date(p.t).toLocaleString('en-US', {month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
     const ttDiff = p.v - prevClose;
     const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
-    const ttCls = ttDiff >= 0 ? 'var(--up-5)' : 'var(--down-5)';
+    const ttCls = ttDiff >= 0 ? 'var(--up-ink)' : 'var(--down-ink)';
     const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
     // At this chart's own opening point only: show the FX rate that's now baked into its number
     // vs. the rate previous close was recorded at (see fetchCombinedIntradayLogRaw / renderIntradayChart's
@@ -5579,7 +5664,7 @@ async function renderRangeChart(ctx, range){
   const el = document.getElementById(ctx.chartElId || 'intradayChart');
   if(!el) return;
   const currentRange = () => ctx.currentRange ? ctx.currentRange() : chartRange;
-  const msgHtml = (text, color) => `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12.5px; color:${color||'var(--muted)'}; padding:20px 0;">${text}</div>`;
+  const msgHtml = (text, color) => `<div class="chart-msg" style="color:${color||'var(--muted)'};">${text}</div>`;
   el.innerHTML = msgHtml('Loading chart…');
   const intraday5D = range === '5D' && !ctx.priceColumn;
   let pts, note = '';
@@ -5632,7 +5717,7 @@ async function renderRangeChart(ctx, range){
         + (mismatched.length ? ` Left out — price history doesn't match the Tracker's price (check the symbol in the History tab): ${mismatched.join(', ')}.` : '');
     }
   } catch(e){
-    el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-5)');
+    el.innerHTML = msgHtml(`Could not load chart data (${e.message}).`, 'var(--down-ink)');
     return;
   }
   if(currentRange() !== range) return;
@@ -5678,14 +5763,14 @@ async function renderRangeChart(ctx, range){
   const movesSvg = bandH ? moveBarsSvg(moves, points.map(p => p.x), h - axisH - bandH + 8, h - axisH - 3) : '';
   const total = changeVsStart(pts[pts.length-1]);
   const isUp = total.gain >= 0;
-  const lineColor = isUp ? 'var(--up-5)' : 'var(--down-5)';
+  const lineColor = isUp ? 'var(--up-ink)' : 'var(--down-ink)';
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
-  const font = `font-family="'Helvetica Neue',Arial,sans-serif"`;
+  const font = `font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"`;
 
   const yGrid = Array.from({length:5}, (_,i)=>{
     const v = yMin + (yMax-yMin)*(i/4), y = yFor(v);
     return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="#6b6558" text-anchor="end" ${font}>${fmt(v)}</text>`;
+      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>${fmt(v)}</text>`;
   }).join('');
 
   const longRange = ['1Y','5Y','MAX'].includes(range);
@@ -5701,11 +5786,11 @@ async function renderRangeChart(ctx, range){
   }
   const xLabels = timeAxis
     ? roundTicksInZone(tA, tB, 'Asia/Jerusalem', (w - padL - padR) > 900 ? 60 : 120).map(ms =>
-        `<text x="${xAt(ms).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="middle" ${font}>${tickLabel(ms)}</text>`).join('')
+        `<text x="${xAt(ms).toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="middle" ${font}>${tickLabel(ms)}</text>`).join('')
     : tickIdx.map((i,k) => {
     const anchor = intraday5D ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
     const sep = intraday5D && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
-    return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="#6b6558" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
+    return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
   }).join('');
 
   const diff = total.gain, diffPct = total.pct;
@@ -5716,24 +5801,24 @@ async function renderRangeChart(ctx, range){
   const last = points[points.length-1];
 
   el.innerHTML = `
-    <div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:13px; margin-bottom:4px;">
+    <div style="font-family:var(--sans); font-size:13px; margin-bottom:4px;">
       <span style="color:${lineColor}; font-weight:700;">${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)</span>
       <span style="color:var(--muted);"> ${rangeLabel}</span>
       ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases</span>` : ''}
     </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
-      <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="#8a857a" stroke-width="1" stroke-dasharray="2,3"/>
+      <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
       <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
       ${movesSvg}
       ${xLabels}
-      <line id="rangeGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="#8a857a" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
-      <circle id="rangeHoverDot" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5" style="display:none;"/>
+      <line id="rangeGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
+      <circle id="rangeHoverDot" r="4.5" fill="${lineColor}" stroke="var(--panel)" stroke-width="1.5" style="display:none;"/>
       <rect id="rangeOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
     </svg>
-    ${note ? `<div style="font-family:'Helvetica Neue',Arial,sans-serif; font-size:12px; color:var(--muted); margin-top:2px;">${note}</div>` : ''}
+    ${note ? `<div class="chart-foot">${note}</div>` : ''}
   `;
 
   const svgEl = el.querySelector('svg');
@@ -5758,7 +5843,7 @@ async function renderRangeChart(ctx, range){
     const c = changeVsStart(p), d = c.gain, dp = c.pct;
     const isToday = !intraday5D && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
-      + `<div style="color:${d>=0?'var(--up-5)':'var(--down-5)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
+      + `<div style="color:${d>=0?'var(--up-ink)':'var(--down-ink)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
       + (c.added > 0 ? `<div style="color:var(--muted); font-size:12px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
       + (bandH ? moveTooltipLine(moves[idx], fmt, intraday5D ? 'since the previous reading' : 'since the previous close') : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`;
@@ -5782,9 +5867,9 @@ function render(rows, totals){
   const cardsEl = document.getElementById('cards');
   cardsEl.innerHTML = '';
   const cards = [
-    {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="#1a2332" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#1a2332"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
-    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:`<span style="color:${totals.dayGain>=0?'var(--up-5)':'var(--down-5)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>${typeof window.lastCloseFxRate === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">As of USD/ILS ${window.lastCloseFxRate.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
-    {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:`<span style="color:${totals.totalGain>=0?'var(--up-5)':'var(--down-5)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
+    {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
+    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:`<span style="color:${totals.dayGain>=0?'var(--up-ink)':'var(--down-ink)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>${typeof window.lastCloseFxRate === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">As of USD/ILS ${window.lastCloseFxRate.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
+    {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
   cards.forEach(c=>{
@@ -5887,7 +5972,7 @@ function render(rows, totals){
     tmEl.appendChild(div);
   });
 
-  const GROUP_PALETTE = ['#4f8fd9','#d1495b','#118a7e','#7b4fd9','#c48fd9','#d9a441','#e2707a','#3fae82','#5470c6','#e2793a','#4fb0d9','#9fca3c','#a3866b','#8a6d3b','#6b7a8f'];
+  const GROUP_PALETTE = ['#4f8fd9','#d1495b','#12a08c','#7b4fd9','#c48fd9','#d9a441','#e2707a','#3fae82','#5470c6','#e2793a','#4fb0d9','#9fca3c','#a3866b','#8a6d3b','#6b7a8f'];
 
   function showTickerPopover(anchorEl, label, tickerList){
     const tt = document.getElementById('customTooltip');
@@ -5914,7 +5999,10 @@ function render(rows, totals){
       (tickers[k] = tickers[k] || []).push(d.name);
     });
     const data = Object.keys(map).map(k=>({label:k, value:map[k], tickers:tickers[k].sort()})).sort((a,b)=>b.value-a.value);
-    data.forEach((d,i) => d.color = GROUP_PALETTE[i % GROUP_PALETTE.length]);
+    // Color follows the group, not its rank: groups take palette slots in name order, so a sector
+    // that grows past another keeps its color (ranking by value would repaint both).
+    const byName = data.map(d => d.label).sort((a, b) => a.localeCompare(b));
+    data.forEach(d => d.color = GROUP_PALETTE[byName.indexOf(d.label) % GROUP_PALETTE.length]);
 
     const barEl = document.getElementById(containerId+'Bar');
     if(barEl){
@@ -6241,7 +6329,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .attr('width', x.bandwidth())
     .attr('y', b=> y(Math.max(b.start,b.end)))
     .attr('height', b=> Math.max(Math.abs(y(b.start)-y(b.end)),1.5))
-    .attr('fill', b=> b.isTotal ? '#8a6d3b' : (b.value>=0 ? '#3b6d11' : '#a32d2d'))
+    .style('fill', b=> b.isTotal ? 'var(--accent)' : (b.value>=0 ? 'var(--up-ink)' : 'var(--down-ink)'))
     .style('cursor', b => b.tooltip ? 'help' : 'default');
   attachTooltip(rects);
 
@@ -6250,7 +6338,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .attr('y', b=> y(Math.max(b.start,b.end)) - 5)
     .attr('text-anchor','middle')
     .attr('font-size','10px')
-    .attr('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .attr('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .attr('fill','var(--ink)')
     .text(b => (b.value>=0?'+':'')+b.value.toFixed(2)+'%');
 
@@ -6261,7 +6349,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .attr('transform','rotate(-35)')
     .style('text-anchor','end')
     .style('font-size','10px')
-    .style('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .style('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .style('fill','var(--muted)');
 
   g.append('g')
@@ -6269,7 +6357,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .call(sel => sel.select('.domain').remove())
     .selectAll('text')
     .style('font-size','10px')
-    .style('font-family',"'Helvetica Neue',Arial,sans-serif")
+    .style('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .style('fill','var(--muted)');
 }
 
@@ -6676,7 +6764,7 @@ async function renderFxSparkline(){
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
     const trendUp = values[values.length-1] >= values[0];
-    const color = trendUp ? '#3b6d11' : '#a32d2d';
+    const color = trendUp ? 'var(--up-ink)' : 'var(--down-ink)';
     el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`
       + `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`
       + `</svg>`
