@@ -306,6 +306,27 @@
   .md-pf-table .pf-gain-pd{font-size:12px; color:var(--muted); margin-top:5px; white-space:nowrap;}
   .md-pf-table .pf-gain-pd-val{font-size:12.5px; white-space:nowrap;}
   #universeHolding:empty{display:none;}
+  /* Pulse Check: verdict badge in the Market Universe table, and the one-ticker panel above it. */
+  .pulse-badge{display:inline-block; font-family:var(--sans); font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:4px; white-space:nowrap; border:1px solid var(--line); color:var(--muted);}
+  .pulse-badge.deeper{color:var(--accent); border-color:var(--accent);}
+  .pulse-badge.watch{color:var(--warn); border-color:var(--warn);}
+  .pulse-badge.fails{color:var(--down-ink); border-color:var(--down-ink);}
+  .pulse-vs{display:inline-block; margin-left:6px; font-family:var(--sans); font-size:11.5px; color:var(--muted); white-space:nowrap;}
+  .pulse-none{color:var(--muted);}
+  #universeTable th[data-key="pulse"], #universeTable td[data-col="pulse"]{width:170px;}
+  #universePulse:empty{display:none;}
+  #universePulse{margin:4px 0 18px; padding:12px 16px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:6px; font-family:var(--sans); font-size:13px; line-height:1.55;}
+  .pulse-head{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;}
+  .pulse-title{font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted);}
+  .pulse-head .pulse-vs{margin-left:0;}
+  .pulse-val{font-weight:600; color:var(--ink);}
+  .pulse-list{list-style:none; margin:6px 0; padding:0;}
+  .pulse-list li{display:flex; gap:8px; margin:2px 0;}
+  .pulse-list li span{flex:0 0 10px; font-weight:700;}
+  .pulse-list li.pos span{color:var(--up-ink);} .pulse-list li.neg span{color:var(--down-ink);}
+  .pulse-watch{margin-top:4px;}
+  .pulse-foot{margin-top:8px; font-size:12px; color:var(--muted);}
+  .pulse-tip{max-width:380px; font-size:12.5px; line-height:1.55;}
   #universeHolding{margin:4px 0 18px;}
   #universeHolding .uh-title{font-family:var(--sans); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
   #universeHolding .uh-table{margin-top:6px;}
@@ -1126,6 +1147,7 @@
       <div id="universeCompareBar" style="display:none;"></div>
       <div id="universeChart"></div>
       <div id="universeHolding"></div>
+      <div id="universePulse"></div>
       <table id="universeTable">
         <thead><tr></tr></thead>
         <tbody></tbody>
@@ -1141,7 +1163,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791097678";
+const BUILD_ID = "1791103810";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7115,8 +7137,63 @@ UNIVERSE_DATA.forEach(d=>{
   UNIVERSE_BY_TICKER[d[0]] = {sector:d[1], subtheme:d[2], category:d[3]};
 });
 
+// ---- Pulse Check: a short research verdict per stock ----
+// The "Pulse Check" tab (same workbook) holds one row per researched company, condensed from a
+// fundamental screen of its own filings: Ticker | Verdict (Deeper look / Watch / Fails) | As Of |
+// Valuation | Price vs History (Cheap / Fair / Rich) | Strength 1-2 | Risk 1-2 | Watch Next | Report.
+// Market Universe shows it as a badge column, and as a panel when the search narrows to one ticker.
+// No tab yet = no column contents, no error. Research, not advice -- the panel says so.
+const PULSE_CHECK_CSV_URL = proxyUrl(SHEET_ID, 'Pulse Check');
+let pulseCheck = {};   // ticker -> row
+async function fetchPulseCheck(){
+  try{
+    const res = await fetchViaProxy(PULSE_CHECK_CSV_URL);
+    if(!res.ok) return;
+    const table = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+    const h = (table[0] || []).map(x => String(x).trim().toLowerCase());
+    const c = name => h.indexOf(name.toLowerCase());
+    const cols = {ticker: c('Ticker'), verdict: c('Verdict'), asOf: c('As Of'), valuation: c('Valuation'), vsHistory: c('Price vs History'),
+      s1: c('Strength 1'), s2: c('Strength 2'), r1: c('Risk 1'), r2: c('Risk 2'), watch: c('Watch Next')};
+    if(cols.ticker === -1 || cols.verdict === -1) return;
+    const next = {};
+    table.slice(1).forEach(r => {
+      const get = k => cols[k] >= 0 ? String(r[cols[k]] || '').trim() : '';
+      const t = get('ticker').toUpperCase();
+      if(t && get('verdict')) next[t] = {verdict: get('verdict'), asOf: get('asOf'), valuation: get('valuation'), vsHistory: get('vsHistory'),
+        strengths: [get('s1'), get('s2')].filter(Boolean), risks: [get('r1'), get('r2')].filter(Boolean), watch: get('watch')};
+    });
+    pulseCheck = next;
+  } catch(e){ /* keeps the last good copy */ }
+}
+const pulseEsc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+function pulseVerdictClass(v){ const x = v.toLowerCase(); return x.startsWith('deeper') ? 'deeper' : x.startsWith('watch') ? 'watch' : x.startsWith('fail') ? 'fails' : ''; }
+function pulseBadgeHtml(p){
+  return `<span class="pulse-badge ${pulseVerdictClass(p.verdict)}">${pulseEsc(p.verdict)}</span>`
+    + (p.vsHistory ? `<span class="pulse-vs">${pulseEsc(p.vsHistory)}</span>` : '');
+}
+function pulseAsOfLabel(p){
+  const ms = txDateMs(p.asOf);
+  return isNaN(ms) ? pulseEsc(p.asOf) : new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+}
+function pulseCardHtml(t, p){
+  const list = (items, sign, cls) => items.map(x => `<li class="${cls}"><span>${sign}</span>${pulseEsc(x)}</li>`).join('');
+  return `<div class="pulse-head"><span class="pulse-title">Pulse Check · ${pulseEsc(t)}</span>${pulseBadgeHtml(p)}</div>`
+    + (p.valuation ? `<div class="pulse-val">Valuation: ${pulseEsc(p.valuation)}</div>` : '')
+    + `<ul class="pulse-list">${list(p.strengths, '+', 'pos')}${list(p.risks, '−', 'neg')}</ul>`
+    + (p.watch ? `<div class="pulse-watch"><b>Watch next:</b> ${pulseEsc(p.watch)}</div>` : '')
+    + `<div class="pulse-foot">Screen of the company's own filings as of ${pulseAsOfLabel(p)} · research, not advice</div>`;
+}
+// The panel above the table when the search narrows Market Universe to one researched ticker.
+function renderUniversePulse(rows){
+  const el = document.getElementById('universePulse');
+  if(!el) return;
+  const p = rows.length === 1 ? pulseCheck[rows[0].ticker.toUpperCase()] : null;
+  el.innerHTML = p ? pulseCardHtml(rows[0].ticker, p) : '';
+}
+
 const UNIVERSE_COLS = [
   {key:'ticker', label:'Ticker', type:'text'},
+  {key:'pulse', label:'Pulse Check', type:'text'},
   {key:'name', label:'Name', type:'text'},
   {key:'sector', label:'Sector', type:'text'},
   {key:'subtheme', label:'Sub Theme', type:'text'},
@@ -7183,7 +7260,9 @@ async function refreshUniverseRows(){
   if(btn){ btn.disabled = true; btn.classList.add('spinning'); }
   if(statusEl) statusEl.textContent = '';
   try{
+    const pulseLoad = fetchPulseCheck();   // in parallel; never fails the refresh
     universeRows = await fetchUniverseRows();
+    await pulseLoad;
     renderUniverseTable();
     renderUniverseQuoteExt();
   } catch(e){
@@ -7208,6 +7287,10 @@ function renderUniverseTable(){
 
   const q = universeFilter.trim().toLowerCase();
   const filtered = q ? universeRows.filter(r => r.ticker.toLowerCase().includes(q)) : universeRows;
+  // Pulse Check sorts Deeper look, Watch, Fails, then unresearched tickers.
+  const pulseRank = {deeper: '1', watch: '2', fails: '3'};
+  filtered.forEach(r => { const p = pulseCheck[r.ticker.toUpperCase()]; r.pulse = p ? (pulseRank[pulseVerdictClass(p.verdict)] || '4') + p.verdict : '9'; });
+  renderUniversePulse(filtered);
 
   const sorted = filtered.slice().sort((a,b)=>{
     let av = a[universeSort.key], bv = b[universeSort.key];
@@ -7224,6 +7307,10 @@ function renderUniverseTable(){
     tbody.innerHTML = sorted.map(r => {
       return '<tr>' + UNIVERSE_COLS.map(c => {
         const cls = c.type==='num' ? 'num' : (c.key==='ticker' ? 'ticker' : '');
+        if(c.key === 'pulse'){
+          const p = pulseCheck[r.ticker.toUpperCase()];
+          return `<td class="pulse-cell" data-col="pulse">${p ? pulseBadgeHtml(p) : '<span class="pulse-none">—</span>'}</td>`;
+        }
         return `<td class="${cls}" data-col="${c.key}">${fmtUniverseCell(r[c.key], c.type)}</td>`;
       }).join('') + '</tr>';
     }).join('');
@@ -7235,6 +7322,12 @@ function renderUniverseTable(){
       const tickerCell = tr.querySelector('td.ticker');
       if(tickerCell && r.roleInPortfolio){
         attachHoverTooltip(tickerCell, () => `<b>${logoImg}${r.ticker} — ${r.name}</b><div style="margin-top:6px;">${r.roleInPortfolio}</div>`);
+      }
+      const pulseCell = tr.querySelector('td[data-col="pulse"]');
+      const pulse = pulseCheck[r.ticker.toUpperCase()];
+      if(pulseCell && pulse){
+        pulseCell.style.cursor = 'help';
+        attachHoverTooltip(pulseCell, () => `<div class="pulse-tip">${pulseCardHtml(r.ticker, pulse)}</div>`);
       }
       const nameCell = tr.querySelector('td[data-col="name"]');
       if(nameCell && r.overview){
