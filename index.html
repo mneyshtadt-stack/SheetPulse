@@ -1164,7 +1164,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791113944";
+const BUILD_ID = "1791115673";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2008,10 +2008,12 @@ async function applyTransactionLots(rows){
   } catch(e){ return; }
   const h = (table[0] || []).map(x => String(x).trim().toLowerCase());
   // Header names as written in the tab: Ticker | Shares | Buy Date (or Date) | Cost/Share (or Price)
-  // | Commission (optional, per transaction, same currency as the price -- part of that purchase's cost).
+  // | Commission (optional, per transaction, same currency as the price -- part of that purchase's cost)
+  // | Broker Avg Cost (optional: the broker app's own average cost, typed on the ticker's latest buy).
   const find = re => h.findIndex(x => re.test(x));
   const cTicker = find(/^ticker$/), cShares = find(/^shares$/), cDate = find(/^(buy )?date$/),
-        cPrice = find(/^(price|cost\s*\/\s*share)$/), cFee = find(/^commis+ions?$/);
+        cPrice = find(/^(price|cost\s*\/\s*share)$/), cFee = find(/^commis+ions?$/),
+        cBrokerAvg = find(/^broker\s*avg\.?\s*cost$/);
   if([cDate, cTicker, cShares].some(i => i === -1)) return;
   const byTicker = {};
   table.slice(1).forEach(r => {
@@ -2019,7 +2021,8 @@ async function applyTransactionLots(rows){
     if(!t || !isFinite(shares) || !shares) return;
     const fee = cFee >= 0 ? num(r[cFee]) : NaN;
     (byTicker[t] = byTicker[t] || []).push({date: String(r[cDate] || '').trim() || null, shares,
-      price: cPrice >= 0 ? num(r[cPrice]) : NaN, fee: isFinite(fee) ? fee : 0});
+      price: cPrice >= 0 ? num(r[cPrice]) : NaN, fee: isFinite(fee) ? fee : 0,
+      brokerAvg: cBrokerAvg >= 0 ? num(r[cBrokerAvg]) : NaN});
   });
   rows.forEach(row => {
     const txs = byTicker[row.name];
@@ -2044,6 +2047,9 @@ async function applyTransactionLots(rows){
       return {...x, costNative: -basis, realized: isNaN(proceeds) ? NaN : proceeds - basis};
     });
     if(!(cost > 0)) return;
+    // The broker's own average cost: the newest line that has one (normally the latest buy).
+    const withBroker = sorted.filter(x => isFinite(x.brokerAvg) && x.brokerAvg > 0);
+    row.brokerAvgCost = withBroker.length ? withBroker[withBroker.length - 1].brokerAvg : NaN;
     const k = row.cost / cost;   // ILS per unit of native cost -- follows the Tracker's own Total Cost (ILS)
     row.lots = walked.map(x => ({
       shares: x.shares, buyDate: x.date, price: x.price, fee: x.fee, cost: x.costNative * k, costNative: x.costNative, realized: x.realized,
@@ -2991,13 +2997,36 @@ const pfGainTips = new Map();
 let pfGainTipSeq = 0;
 // One Total gain/loss cell: today's-rate gain (SheetPulse) on top, the purchase-date-rate gain
 // underneath. `lots` are the purchases the cell covers ({date, costNative}); value and costToday in ILS.
-function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots}, fmt2){
+// A USD-cost broker's own gain (Psagot): (price - its app's average cost) x shares, in dollars and
+// in ₪ at the holding's own rate today -- what its app shows. Needs Broker Avg Cost in Transactions.
+function pfBrokerGain(r){
+  if(!pfIsUsdCostBroker(r) || !(r.brokerAvgCost > 0) || !(r.shares > 0) || !isFinite(r.valueUsd)) return null;
+  const costUsd = r.shares * r.brokerAvgCost, usd = r.valueUsd - costUsd;
+  return {usd, ils: r.valueUsd ? usd * r.value / r.valueUsd : NaN, pct: usd / costUsd * 100, costUsd, broker: pfPlatforms(r).join(' / ')};
+}
+function pfBrokerGainCellHtml(r, top){
+  const b = pfBrokerGain(r);
+  if(!b) return '';
+  const cls = b.usd >= 0 ? 'up' : 'down', sg = n => n >= 0 ? '+' : '-';
+  const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const id = ++pfGainTipSeq;
+  pfGainTips.set(id, `<b>Total gain/loss, two ways</b>`
+    + `<div style="margin-top:6px;"><b>SheetPulse</b>: from what you paid, commission included (average ${$(r.avgCost || 0)}).</div>`
+    + `<div style="margin-top:6px;"><b>${b.broker}</b>: ${r.shares} × (${$(r.valueUsd / r.shares)} − its average cost ${$(r.brokerAvgCost)}) = ${sg(b.usd)}${$(b.usd)}</div>`
+    + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and appears to subtract dividends received. It comes from the Broker Avg Cost column in Transactions; update it after a buy or a dividend.</div>`);
+  return `<td class="num pf-gain" data-gaintip="${id}">${top}<div class="pf-gain-pd">${b.broker}</div>`
+    + `<div class="pf-gain-pd-val ${cls}">${sg(b.usd)}${$(b.usd)} · ${sg(b.ils)}${I(b.ils)} (${sg(b.pct)}${Math.abs(b.pct).toFixed(2)}%)</div></td>`;
+}
+function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt2){
   const cls = n => isNaN(n) ? '' : (n >= 0 ? 'up' : 'down');
   const pct = n => isNaN(n) ? '' : '(' + (n >= 0 ? '+' : '') + n.toFixed(2) + '%)';
   const sign = n => (n >= 0 ? '+' : '-') + fmt2(Math.abs(n));
   const top = `<div class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)}</div><div class="md-th-pct ${cls(gain)}">${pct(gainPct)}</div>`;
   // One figure for ₪ funds (no conversion) and for holdings not at a purchase-date broker.
-  if(!pfUsesPurchaseDateRate(r) || ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;
+  if(!pfUsesPurchaseDateRate(r) || ISRAELI_TICKERS.includes(r.name)){
+    return (holding && pfBrokerGainCellHtml(r, top)) || `<td class="num">${top}</td>`;
+  }
 
   const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -3162,7 +3191,7 @@ function pfHoldingRowsHtml(r){
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
           <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
         </td>
-        ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open}, fmt2)}
+        ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open, holding: true}, fmt2)}
         <td class="num">${fmt2(r.value)}${pfUsdValueHtml(r, r.valueUsd)}</td>
         <td class="num pf-avg">${avgCostStr}</td>
       </tr>
@@ -3678,6 +3707,26 @@ function applyPurchaseDateGainTile(broker, rows, totals){
     + `<div style="margin-top:6px;">At today's rate (cost ${fmt(totals.totalCost)}): ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)}</div>`
     + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gain - totals.totalGain)}">${gain - totals.totalGain >= 0 ? '+' : '-'}${fmt(gain - totals.totalGain)}</span></div>`);
 }
+// A USD-cost broker's Total gain tile (Psagot): its own way -- each holding's dollar value minus
+// shares x the broker's average cost -- in ₪ at each holding's rate, with SheetPulse's figure under
+// it. Only when every holding has a Broker Avg Cost; otherwise the tile stays SheetPulse's.
+function applyBrokerAvgGainTile(broker, rows, totals){
+  const val = document.getElementById('mdTotalGainVal'), sub = document.getElementById('mdTotalGainSub');
+  if(!val || !sub) return;
+  const parts = rows.map(pfBrokerGain);
+  if(!parts.length || parts.some(p => !p || !isFinite(p.ils))) return;
+  const usd = parts.reduce((a, p) => a + p.usd, 0), ils = parts.reduce((a, p) => a + p.ils, 0), costUsd = parts.reduce((a, p) => a + p.costUsd, 0);
+  const pct = usd / costUsd * 100, cls = n => n >= 0 ? 'up' : 'down';
+  const I = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US'), $ = n => '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  val.className = 'md-stat-tile-val ' + cls(ils);
+  val.textContent = (ils >= 0 ? '+' : '-') + I(ils);
+  sub.className = 'md-stat-tile-sub ' + cls(usd);
+  sub.textContent = `${usd >= 0 ? '+' : '-'}${$(usd)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%) · ${broker}'s way`;
+  const other = document.createElement('div');
+  other.className = 'md-stat-tile-sub';
+  other.textContent = `SheetPulse (with commission): ${totals.totalGain >= 0 ? '+' : '-'}${I(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
+  sub.after(other);
+}
 function hideBrokerFilter(){ document.getElementById('mdBrokerFilter').classList.remove('open'); }
 function renderBrokerFilter(allRows, broker){
   const el = document.getElementById('mdBrokerFilter');
@@ -3795,6 +3844,7 @@ function renderPortfolioHeader(){
   applyPortfolioTab();
   if(broker){
     if(PURCHASE_DATE_RATE_BROKERS.includes(broker)) applyPurchaseDateGainTile(broker, rows, totals);
+    if(USD_COST_BROKERS.includes(broker)) applyBrokerAvgGainTile(broker, rows, totals);
     // No intraday chart to fill the headline's change in -- it's the broker's day change.
     updateHeadlineDisplay(totals.totalValue, totals.totalValue - totals.dayGain);
     chartCtx = {ranges: BROKER_CHART_RANGES, holdings: rows, liveValue: totals.totalValue};
