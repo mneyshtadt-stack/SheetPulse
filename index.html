@@ -1141,7 +1141,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791052040";
+const BUILD_ID = "1791097678";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2064,7 +2064,14 @@ function avgCostExplainHtml(r){
     + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Total cost ${m(cost)} ÷ ${sh(shares)} shares = <b>${m(avg)}</b></div>`
     + (fees > 0.0001 ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:320px;">Without commissions: ${m(gross / shares)} — the ${m(fees)} in commissions adds ${m(fees / shares)} per share.</div>` : '')
     + (closedBefore ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:320px;">Everything up to the sale on ${closedBefore} was closed out, so only the purchases after it count.</div>` : '')
-    + (lines.some((x, i) => r.lots[i].shares < 0) && !closedBefore ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:320px;">A sale removes shares at the average price, so the average of what's left stays the same.</div>` : '');
+    + (lines.some((x, i) => r.lots[i].shares < 0) && !closedBefore ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:320px;">A sale removes shares at the average price, so the average of what's left stays the same.</div>` : '')
+    + pfUsdCostBrokerNoteHtml(r);
+}
+// Why Psagot's own "average cost" is lower than SheetPulse's (see USD_COST_BROKERS).
+function pfUsdCostBrokerNoteHtml(r){
+  if(!pfIsUsdCostBroker(r)) return '';
+  const b = pfPlatforms(r).join(' / ');
+  return `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:320px;">${b}'s app shows a lower average cost: it leaves the commission out, and appears to subtract the dividends paid since purchase (after US tax). SheetPulse keeps what you actually paid.</div>`;
 }
 
 // "2026-08-11" or "11/08/2026" (day first, as the sheet writes dates) -> ms; NaN when unreadable.
@@ -2450,7 +2457,7 @@ function renderUniverseHolding(row){
   el.querySelectorAll('tr.pf-row').forEach(tr => tr.removeAttribute('title'));
   el.querySelectorAll('td.pf-avg').forEach(c => { c.style.cursor = 'help'; attachHoverTooltip(c, () => avgCostExplainHtml(r)); });
   wirePfGainTips(el);
-  if(PF_SHOW_PURCHASE_DATE_GAIN && !usdIlsHistory) ensureUsdIlsHistory().then(() => {
+  if(pfNeedsUsdIls([r])) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && universeCardTicker === row.name) renderUniverseHolding(row);
   });
 }
@@ -2923,9 +2930,37 @@ function usdIlsOn(dateStr){
   }
   return null;
 }
-// Off for now: the purchase-date line waits until the broker comparison decides how to match
-// Meitav / Psagot. true brings back the second line and its hover explanation as they were.
-const PF_SHOW_PURCHASE_DATE_GAIN = false;
+// How each broker counts, from comparing their exports with the Tracker (Oct 2026):
+// - Meitav prices cost in ₪ at the rate ON THE PURCHASE DATE and includes commission. SheetPulse's
+//   purchase-date figure below lands within ~0.3% of Meitav's (Meitav converts at its bank's own
+//   rate, not Google's close). Meitav holdings show it as a second line, and the Meitav broker view
+//   uses it for its Total gain tile.
+// - Psagot shows dollars only (no ₪ cost), leaves the commission out of its average cost and appears
+//   to subtract dividends received (after US tax), so SheetPulse's cost reads a little higher there.
+const PURCHASE_DATE_RATE_BROKERS = ['Meitav'];
+const USD_COST_BROKERS = ['Psagot'];
+function pfPlatforms(r){ return Object.keys(r.byPlatform || {[r.platform || '']: 1}).filter(Boolean); }
+// Every part of the holding is at a broker that counts in ₪ at the purchase-date rate.
+function pfUsesPurchaseDateRate(r){
+  const p = pfPlatforms(r);
+  return p.length > 0 && p.every(b => PURCHASE_DATE_RATE_BROKERS.includes(b));
+}
+function pfIsUsdCostBroker(r){
+  const p = pfPlatforms(r);
+  return p.length > 0 && p.every(b => USD_COST_BROKERS.includes(b));
+}
+// ₪ cost at each purchase's own USD/ILS close: {cost} or {cost: NaN, missing: date}.
+function pfPurchaseDateCost(lots){
+  let cost = 0;
+  for(const o of lots){
+    const fx = usdIlsOn(o.date);
+    if(!fx) return {cost: NaN, missing: o.date || '(no date)'};
+    cost += (o.costNative || 0) * fx.rate;
+  }
+  return {cost};
+}
+// The PriceHistory rates are needed only when some holding is shown the purchase-date way.
+function pfNeedsUsdIls(rows){ return !usdIlsHistory && rows.some(r => pfUsesPurchaseDateRate(r) && !ISRAELI_TICKERS.includes(r.name)); }
 const pfGainTips = new Map();
 let pfGainTipSeq = 0;
 // One Total gain/loss cell: today's-rate gain (SheetPulse) on top, the purchase-date-rate gain
@@ -2935,7 +2970,8 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots}, fmt2){
   const pct = n => isNaN(n) ? '' : '(' + (n >= 0 ? '+' : '') + n.toFixed(2) + '%)';
   const sign = n => (n >= 0 ? '+' : '-') + fmt2(Math.abs(n));
   const top = `<div class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)}</div><div class="md-th-pct ${cls(gain)}">${pct(gainPct)}</div>`;
-  if(!PF_SHOW_PURCHASE_DATE_GAIN || ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;   // ILS already: one figure
+  // One figure for ₪ funds (no conversion) and for holdings not at a purchase-date broker.
+  if(!pfUsesPurchaseDateRate(r) || ISRAELI_TICKERS.includes(r.name)) return `<td class="num">${top}</td>`;
 
   const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -2962,13 +2998,13 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots}, fmt2){
       ? `<div style="max-width:340px;">No USD/ILS close in PriceHistory for ${String(missing).replace(/[<>&]/g, '')}${usdIlsHistory && usdIlsHistory.dates.length ? ` (it starts ${day(usdIlsHistory.dates[0])} — move the History tab's start date in B1 earlier)` : ' (PriceHistory not loaded yet)'}.</div>`
       : parts.join('') + (lots.length > 1 ? `<div>Cost at purchase-date rates = ${I(costPd)}</div>` : '')
         + `<div>Value ${I(value)} − ${I(costPd)} = <span class="${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</span></div>`
-        + `<div style="color:var(--muted); font-size:12px; max-width:340px;">What brokers such as Meitav show — it includes the currency gain or loss since each purchase.</div>`
+        + `<div style="color:var(--muted); font-size:12px; max-width:340px;">How ${pfPlatforms(r).join(' / ')} shows it — it includes the currency gain or loss since each purchase. ${pfPlatforms(r).join(' / ')} converts at its own bank rate, so its ₪ cost can differ by a few tenths of a percent.</div>`
         + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gainPd - gain)}">${sign(gainPd - gain)}</span></div>`);
   const id = ++pfGainTipSeq;
   pfGainTips.set(id, tip);
   const second = missing
     ? `<div class="pf-gain-pd">purchase-date rate: n/a</div>`
-    : `<div class="pf-gain-pd">at purchase-date rate</div><div class="pf-gain-pd-val ${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</div>`;
+    : `<div class="pf-gain-pd">${pfPlatforms(r).join(' / ')} (purchase-date rate)</div><div class="pf-gain-pd-val ${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</div>`;
   return `<td class="num pf-gain" data-gaintip="${id}">${top}${second}</td>`;
 }
 // Hover explanations for the gain cells just rendered under `root`.
@@ -3143,7 +3179,7 @@ function renderPortfolioTable(enriched){
   document.getElementById('marketDetailTableArea').innerHTML = html;
   wirePfGainTips(document.getElementById('marketDetailTableArea'));
   // The purchase-date line needs PriceHistory's USD/ILS rates -- draw again once they've arrived.
-  if(PF_SHOW_PURCHASE_DATE_GAIN && !usdIlsHistory) ensureUsdIlsHistory().then(() => {
+  if(pfNeedsUsdIls(sorted)) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && marketDetailState.marketKey === 'all' && document.getElementById('marketDetailModal').classList.contains('open')) renderMarketDetailTable();
   });
 
@@ -3573,6 +3609,43 @@ function brokerTotals(rows){
   return {totalValue, totalCost, totalGain, totalGainPct: totalCost ? totalGain / totalCost * 100 : 0,
     dayGain, dayGainPct: (totalValue - dayGain) ? dayGain / (totalValue - dayGain) * 100 : 0};
 }
+// A purchase-date broker's Total gain tile (Meitav): the main figure is its own way -- each holding's
+// cost at the USD/ILS close on its purchase dates (₪ funds as they are) -- with SheetPulse's
+// today's-rate figure underneath. Until PriceHistory's rates arrive it shows today's-rate figure.
+function applyPurchaseDateGainTile(broker, rows, totals){
+  const val = document.getElementById('mdTotalGainVal'), sub = document.getElementById('mdTotalGainSub');
+  if(!val || !sub) return;
+  if(pfNeedsUsdIls(rows)){
+    ensureUsdIlsHistory().then(() => {
+      if(usdIlsHistory && activeBroker(window.lastRows || []) === broker && document.getElementById('mdTotalGainVal') === val)
+        applyPurchaseDateGainTile(broker, rows, totals);
+    });
+    return;
+  }
+  let cost = 0, missing = null;
+  rows.forEach(r => {
+    if(ISRAELI_TICKERS.includes(r.name)){ cost += r.cost || 0; return; }
+    const pd = pfPurchaseDateCost(pfOpenLots(r).open);
+    if(isNaN(pd.cost)) missing = missing || r.name; else cost += pd.cost;
+  });
+  if(missing || !cost) return;   // keeps today's-rate figure (the holding's own cell says why)
+  const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const gain = totals.totalValue - cost, pct = gain / cost * 100;
+  const cls = n => n >= 0 ? 'up' : 'down';
+  val.className = 'md-stat-tile-val ' + cls(gain);
+  val.textContent = (gain >= 0 ? '+' : '-') + fmt(gain);
+  sub.className = 'md-stat-tile-sub ' + cls(gain);
+  sub.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% · ${broker}'s way`;
+  const other = document.createElement('div');
+  other.className = 'md-stat-tile-sub';
+  other.textContent = `At today's rate: ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
+  sub.after(other);
+  attachHoverTooltip(val.parentElement, () => `<b>Total gain, ${broker}'s way</b>`
+    + `<div>Value ${fmt(totals.totalValue)} − cost at purchase-date rates ${fmt(cost)}</div>`
+    + `<div>= <span class="${cls(gain)}">${gain >= 0 ? '+' : '-'}${fmt(gain)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span></div>`
+    + `<div style="margin-top:6px;">At today's rate (cost ${fmt(totals.totalCost)}): ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)}</div>`
+    + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gain - totals.totalGain)}">${gain - totals.totalGain >= 0 ? '+' : '-'}${fmt(gain - totals.totalGain)}</span></div>`);
+}
 function hideBrokerFilter(){ document.getElementById('mdBrokerFilter').classList.remove('open'); }
 function renderBrokerFilter(allRows, broker){
   const el = document.getElementById('mdBrokerFilter');
@@ -3674,6 +3747,8 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
     ${broker ? `<p class="md-broker-note">1D and 5D charts come from the intraday log, which records the whole portfolio only — choose All to see them.</p>` : ''}
+    ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
+    ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears to subtract dividends received (after US tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
@@ -3687,6 +3762,7 @@ function renderPortfolioHeader(){
   }));
   applyPortfolioTab();
   if(broker){
+    if(PURCHASE_DATE_RATE_BROKERS.includes(broker)) applyPurchaseDateGainTile(broker, rows, totals);
     // No intraday chart to fill the headline's change in -- it's the broker's day change.
     updateHeadlineDisplay(totals.totalValue, totals.totalValue - totals.dayGain);
     chartCtx = {ranges: BROKER_CHART_RANGES, holdings: rows, liveValue: totals.totalValue};
