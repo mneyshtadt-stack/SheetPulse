@@ -1165,7 +1165,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791210416";
+const BUILD_ID = "1791210540";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3173,7 +3173,8 @@ function pfUsdDayHtml(r, part){
   if(!pfIsUsdCostBroker(r) || ISRAELI_TICKERS.includes(r.name) || !isFinite(r.valueUsd) || isNaN(r.change)) return '';
   const usd = (r.valueUsd - r.valueUsd / (1 + r.change / 100)) * part;
   if(!isFinite(usd)) return '';
-  return `<div class="pf-usd ${usd >= 0 ? 'up' : 'down'}">${usd >= 0 ? '+' : '-'}$${Math.abs(usd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
+  return `<div class="pf-gain-pd">${pfPlatforms(r).join(' / ')}</div>`
+    + `<div class="pf-gain-pd-val ${usd >= 0 ? 'up' : 'down'}">${usd >= 0 ? '+' : '-'}$${Math.abs(usd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
 }
 function pfHoldingRowsHtml(r){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
