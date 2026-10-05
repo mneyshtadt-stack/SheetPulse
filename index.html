@@ -1165,7 +1165,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791210540";
+const BUILD_ID = "1791214092";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2089,6 +2089,29 @@ function avgCostExplainHtml(r){
   });
   if(!(shares > 0)) return head + `<div style="margin-top:6px;">No shares left after the sales.</div>`;
   const avg = cost / shares;
+  // Psagot: both averages, short -- SheetPulse's (what you paid) and Psagot's own (no commission,
+  // minus dividends after 25% Israeli tax; the dividend part is whatever separates the Broker Avg
+  // Cost typed in Transactions from the price without commission).
+  if(pfIsUsdCostBroker(r)){
+    const b = pfPlatforms(r).join(' / ');
+    const row = (label, val, cls) => `<div style="display:flex; justify-content:space-between; gap:16px;"><span>${label}</span><span class="${cls || ''}">${val}</span></div>`;
+    // Rounded to cents first, so the lines shown add up exactly ($48.18 − $0.76 = $47.42).
+    const noComm = Math.round(gross / shares * 100) / 100;
+    const divPart = r.brokerAvgCost > 0 ? Math.round((noComm - r.brokerAvgCost) * 100) / 100 : NaN;
+    return `<b>${esc(r.name)} average cost</b>`
+      + `<div style="margin-top:6px; font-weight:600;">SheetPulse — what you paid</div>`
+      + lines.join('')
+      + row(`${m(cost)} ÷ ${sh(shares)}`, `<b>${m(avg)}</b>`)
+      + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line); font-weight:600;">${b}</div>`
+      + row('Without commission', m(noComm))
+      + (isNaN(divPart)
+        ? `<div style="color:var(--muted); font-size:12px; max-width:300px;">${b} also subtracts each dividend received, after 25% Israeli tax — add its figure in Transactions → Broker Avg Cost to see it here.</div>`
+        : Math.abs(divPart) < 0.005
+          ? row('Dividends since purchase', 'none') + row('=', `<b>${m(r.brokerAvgCost)}</b>`)
+          : row(divPart > 0 ? 'Dividends (after 25% Israeli tax)' : 'Other difference', (divPart > 0 ? '−' : '+') + m(divPart), divPart > 0 ? 'down' : '')
+            + row('=', `<b>${m(r.brokerAvgCost)}</b>`))
+      + (closedBefore ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:300px;">Purchases up to the sale on ${closedBefore} were closed out.</div>` : '');
+  }
   return head
     + `<div style="margin-top:6px;">${lines.join('')}</div>`
     + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Total cost ${m(cost)} ÷ ${sh(shares)} shares = <b>${m(avg)}</b></div>`
@@ -2101,7 +2124,7 @@ function avgCostExplainHtml(r){
 function pfUsdCostBrokerNoteHtml(r){
   if(!pfIsUsdCostBroker(r)) return '';
   const b = pfPlatforms(r).join(' / ');
-  return `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:320px;">${b}'s app shows a lower average cost: it leaves the commission out, and appears to subtract the dividends paid since purchase (after US tax). SheetPulse keeps what you actually paid.</div>`;
+  return `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:320px;">${b}'s app shows a lower average cost: it leaves the commission out, and subtracts each dividend paid since purchase, after 25% Israeli tax. SheetPulse keeps what you actually paid.</div>`;
 }
 
 // "2026-08-11" or "11/08/2026" (day first, as the sheet writes dates) -> ms; NaN when unreadable.
@@ -2965,8 +2988,8 @@ function usdIlsOn(dateStr){
 //   purchase-date figure below lands within ~0.3% of Meitav's (Meitav converts at its bank's own
 //   rate, not Google's close). Meitav holdings show it as a second line, and the Meitav broker view
 //   uses it for its Total gain tile.
-// - Psagot shows dollars only (no ₪ cost), leaves the commission out of its average cost and appears
-//   to subtract dividends received (after US tax), so SheetPulse's cost reads a little higher there.
+// - Psagot shows dollars only (no ₪ cost), leaves the commission out of its average cost and
+//   subtracts each dividend received (after 25% Israeli tax), so SheetPulse's cost reads a little higher there.
 // Off for now (Oct 2026): Meitav also values at the Bank of Israel representative rate, which the
 // sheet doesn't have yet, so the line didn't match its app. ['Meitav'] brings back the second gain
 // line, the Meitav Total gain tile and its note.
@@ -3015,7 +3038,7 @@ function pfBrokerGainCellHtml(r, top){
   pfGainTips.set(id, `<b>Total gain/loss, two ways</b>`
     + `<div style="margin-top:6px;"><b>SheetPulse</b>: from what you paid, commission included (average ${$(r.avgCost || 0)}).</div>`
     + `<div style="margin-top:6px;"><b>${b.broker}</b>: ${r.shares} × (${$(r.valueUsd / r.shares)} − its average cost ${$(r.brokerAvgCost)}) = ${sg(b.usd)}${$(b.usd)}</div>`
-    + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and appears to subtract dividends received. It comes from the Broker Avg Cost column in Transactions; update it after a buy or a dividend.</div>`);
+    + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and subtracts each dividend received, after 25% Israeli tax. It comes from the Broker Avg Cost column in Transactions; update it after a buy or a dividend.</div>`);
   return `<td class="num pf-gain" data-gaintip="${id}">${top}<div class="pf-gain-pd">${b.broker}</div>`
     + `<div class="pf-gain-pd-val ${cls}">${sg(b.usd)}${$(b.usd)}</div>`
     + `<div class="pf-gain-pd-val ${cls}">${sg(b.ils)}${I(b.ils)}</div>`
@@ -3841,7 +3864,7 @@ function renderPortfolioHeader(){
     <div id="chartRangeBar"></div>
     ${broker ? `<p class="md-broker-note">1D and 5D charts come from the intraday log, which records the whole portfolio only — choose All to see them.</p>` : ''}
     ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
-    ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears to subtract dividends received (after US tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
+    ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
