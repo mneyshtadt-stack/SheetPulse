@@ -1165,7 +1165,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791210130";
+const BUILD_ID = "1791210416";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3017,7 +3017,9 @@ function pfBrokerGainCellHtml(r, top){
     + `<div style="margin-top:6px;"><b>${b.broker}</b>: ${r.shares} × (${$(r.valueUsd / r.shares)} − its average cost ${$(r.brokerAvgCost)}) = ${sg(b.usd)}${$(b.usd)}</div>`
     + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and appears to subtract dividends received. It comes from the Broker Avg Cost column in Transactions; update it after a buy or a dividend.</div>`);
   return `<td class="num pf-gain" data-gaintip="${id}">${top}<div class="pf-gain-pd">${b.broker}</div>`
-    + `<div class="pf-gain-pd-val ${cls}">${sg(b.usd)}${$(b.usd)} · ${sg(b.ils)}${I(b.ils)} (${sg(b.pct)}${Math.abs(b.pct).toFixed(2)}%)</div></td>`;
+    + `<div class="pf-gain-pd-val ${cls}">${sg(b.usd)}${$(b.usd)}</div>`
+    + `<div class="pf-gain-pd-val ${cls}">${sg(b.ils)}${I(b.ils)}</div>`
+    + `<div class="pf-gain-pd-val ${cls}">${sg(b.pct)}${Math.abs(b.pct).toFixed(2)}%</div></td>`;
 }
 function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt2){
   const cls = n => isNaN(n) ? '' : (n >= 0 ? 'up' : 'down');
