@@ -1164,7 +1164,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791208846";
+const BUILD_ID = "1791209897";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3106,7 +3106,7 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
         <td><div class="pf-lot-date">${fmtDay(o.date)}</div><div class="md-th-sub">${held ? 'held ' + held : ''}</div></td>
         <td class="num">${o.price > 0 ? money(o.price) : '—'}${fee > 0 ? `<div class="md-th-sub">+ ${money(fee)} commission</div>` : ''}</td>
         <td class="num">${qty(o.shares)}${partlySold ? `<div class="md-th-sub">of ${qty(o.origShares)} bought</div>` : ''}</td>
-        <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div></td>
+        <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div>${pfUsdDayHtml(r, part)}</td>
         ${pfGainCellHtml(r, {value: mv, costToday: o.cost, gain, gainPct, lots: [o]}, fmt2)}
         <td class="num">${isNaN(mv) ? '—' : fmt2(mv)}${pfUsdValueHtml(r, r.valueUsd * part)}</td>
         <td class="num" title="${o.fromTracker ? 'Average cost from the Tracker' : 'Cost per share including the commission'}">${isNaN(perShare) ? '—' : money(perShare)}</td>
@@ -3164,6 +3164,14 @@ function pfUsdValueHtml(r, usd){
   if(ISRAELI_TICKERS.includes(r.name) || !isFinite(usd)) return '';
   return `<div class="pf-usd">$${usd.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
 }
+// A USD-cost broker's holding (Psagot): the day change in dollars too, as its app's Daily P/L shows
+// it -- the dollar value's move at the holding's Day Change %. `part` is a purchase row's share of it.
+function pfUsdDayHtml(r, part){
+  if(!pfIsUsdCostBroker(r) || ISRAELI_TICKERS.includes(r.name) || !isFinite(r.valueUsd) || isNaN(r.change)) return '';
+  const usd = (r.valueUsd - r.valueUsd / (1 + r.change / 100)) * part;
+  if(!isFinite(usd)) return '';
+  return `<div class="pf-usd ${usd >= 0 ? 'up' : 'down'}">${usd >= 0 ? '+' : '-'}$${Math.abs(usd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
+}
 function pfHoldingRowsHtml(r){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
@@ -3185,11 +3193,11 @@ function pfHoldingRowsHtml(r){
           <div class="md-th-symbol">${r.name}</div>
           <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
         </td>
-        <td class="num">${priceStr}</td>
+        <td class="num">${priceStr}${!isNaN(r.price) && !isNaN(r.change) ? `<div class="md-th-pct ${dayCls}" title="Today's move">${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%</div>` : ''}</td>
         <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
         <td class="num">
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
-          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>${pfUsdDayHtml(r, 1)}
         </td>
         ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open, holding: true}, fmt2)}
         <td class="num">${fmt2(r.value)}${pfUsdValueHtml(r, r.valueUsd)}</td>
