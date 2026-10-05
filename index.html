@@ -1164,7 +1164,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791115673";
+const BUILD_ID = "1791208846";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3193,7 +3193,7 @@ function pfHoldingRowsHtml(r){
         </td>
         ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open, holding: true}, fmt2)}
         <td class="num">${fmt2(r.value)}${pfUsdValueHtml(r, r.valueUsd)}</td>
-        <td class="num pf-avg">${avgCostStr}</td>
+        <td class="num pf-avg">${avgCostStr}${pfBrokerGain(r) ? `<div class="pf-usd">${pfPlatforms(r).join(' / ')} $${r.brokerAvgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : ''}</td>
       </tr>
 ${lotRowsHtml}`;
 }
