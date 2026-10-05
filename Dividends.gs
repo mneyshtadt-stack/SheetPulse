@@ -14,9 +14,18 @@
 // "manual" after correcting a Pay Date or Amount by hand from the broker's statement and it's never
 // touched again. TASE funds (IBI.*) are skipped: no USD dividends.
 //
+// Backup source: Alpha Vantage (free key, 25 requests a day). Its DIVIDENDS data has the REAL payment
+// date: each run checks up to DIV_AV_PER_RUN tickers -- first those with a recent estimated row, then
+// the rest in rotation -- replaces estimated Pay Dates (and amounts) with Alpha Vantage's, marking
+// Source "Alpha Vantage", and adds dividends Yahoo hasn't listed yet. "manual" rows are never touched.
+// Without a key the script runs on Yahoo alone.
+//
 // Setup (once, in the Apps Script project bound to the Tracker spreadsheet):
 //   1. Paste this file as Dividends.gs and run updateDividends() -- creates and fills the tab.
 //   2. Run installDividendsTrigger() -- repeats it every morning at 08:00.
+//   3. Optional backup source: get a free key at alphavantage.co, paste it into setAlphaVantageKey()
+//      below, run that function once, then put the placeholder back and save (the key lives only in
+//      Script Properties, never in this file). checkAlphaVantageKey() confirms it's stored.
 
 const DIV_SHEET = 'Dividends';
 const DIV_TX_SHEET = 'Transactions';
@@ -27,6 +36,53 @@ const DIV_ESTIMATED = 'Yahoo, pay date estimated';
 const DIV_LAG_ETF = 6;
 const DIV_LAG_STOCK = 21;
 const DIV_LAG_TICKER = {ASGI: 8, POWR: 3, VCSH: 2};   // closed-end fund; an ETF Yahoo calls a stock; Vanguard bond ETF paying in 2 days
+
+const DIV_AV_PROP = 'ALPHAVANTAGE_KEY';
+const DIV_AV_CURSOR = 'div_av_cursor';
+const DIV_AV_PER_RUN = 15;          // of the free tier's 25 a day; ~13 s apart (its per-minute limit)
+const DIV_AV_RECENT_DAYS = 45;      // estimated rows this recent are checked first
+
+// One-time: paste the key between the quotes, run, then restore the placeholder and save.
+function setAlphaVantageKey() {
+  const key = 'PASTE_YOUR_KEY_HERE';
+  if (!key || /PASTE_YOUR_KEY/.test(key)) throw new Error('Paste your Alpha Vantage key into setAlphaVantageKey() first');
+  PropertiesService.getScriptProperties().setProperty(DIV_AV_PROP, key.trim());
+  Logger.log('Saved. Now put PASTE_YOUR_KEY_HERE back in the code and save the file.');
+}
+// One-time test: Alpha Vantage vs Yahoo against payment dates taken from Psagot's own statements
+// (Oct 2026), plus the two September dividends Yahoo hadn't listed (DBMF, VO). Read the log.
+function compareDividendSources() {
+  const key = PropertiesService.getScriptProperties().getProperty(DIV_AV_PROP);
+  if (!key) throw new Error('Store the key first (setAlphaVantageKey)');
+  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+  const fmt = d => Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+  // Paid per Psagot (ticker: [payment dates]); DBMF and VO: is September there at all?
+  const psagot = {SCHD: ['2025-12-16', '2026-03-31', '2026-06-30', '2026-09-29'], SPGI: ['2026-06-11', '2026-09-14'],
+    GS: ['2026-06-29', '2026-09-30'], ASGI: ['2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30'], OWL: ['2026-08-27'],
+    DBMF: ['2026-06-30', '2026-09-30'], VO: ['2026-06-30', '2026-09-30']};
+  const out = [];
+  Object.keys(psagot).forEach((t, i) => {
+    if (i) Utilities.sleep(13000);
+    let av = [];
+    try {
+      const j = JSON.parse(UrlFetchApp.fetch('https://www.alphavantage.co/query?function=DIVIDENDS&symbol=' + encodeURIComponent(t) + '&apikey=' + encodeURIComponent(key), {muteHttpExceptions: true}).getContentText());
+      if (j.Information || j.Note) { out.push(t + ': LIMIT ' + (j.Information || j.Note)); return; }
+      av = (j.data || []).filter(d => d.ex_dividend_date >= '2025-11-01');
+    } catch (e) { out.push(t + ': error ' + e); return; }
+    const y = divFetchYahoo_(t);
+    const yEx = y ? y.divs.map(d => fmt(d.date)).filter(d => d >= '2025-11-01') : [];
+    const avPay = av.map(d => d.payment_date);
+    const hit = psagot[t].filter(p => avPay.some(a => a && Math.abs(new Date(a) - new Date(p)) <= 2 * 86400000)).length;
+    out.push(t + ': Alpha Vantage ' + av.length + ' dividend(s), payment dates matching Psagot ' + hit + '/' + psagot[t].length
+      + ' | Yahoo ' + yEx.length + ' dividend(s) | AV: ' + av.map(d => d.ex_dividend_date + '→' + d.payment_date + ' $' + d.amount).join(', '));
+  });
+  Logger.log('\n' + out.join('\n'));
+}
+
+function checkAlphaVantageKey() {
+  const k = PropertiesService.getScriptProperties().getProperty(DIV_AV_PROP);
+  Logger.log(k ? 'Alpha Vantage key is stored (ends with ...' + k.slice(-3) + ')' : 'No Alpha Vantage key stored');
+}
 
 function divPayLagDays_(ticker, type) {
   if (DIV_LAG_TICKER[ticker] != null) return DIV_LAG_TICKER[ticker];
@@ -40,6 +96,12 @@ function updateDividends() {
   const firstBuy = divFirstBuyDates_(ss);
   const sh = ss.getSheetByName(DIV_SHEET) || ss.insertSheet(DIV_SHEET);
   if (sh.getLastRow() === 0) sh.appendRow(DIV_HEADER);
+  // Header row lost (it has happened): put it back above the data -- the dashboard finds its
+  // columns by these names.
+  if (String(sh.getRange(1, 1).getValue()).trim() !== DIV_HEADER[0]) {
+    sh.insertRowBefore(1);
+    sh.getRange(1, 1, 1, DIV_HEADER.length).setValues([DIV_HEADER]);
+  }
   sh.getRange('A:C').setNumberFormat('@');   // dates stay text, never reformatted by the sheet
 
   const existing = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, DIV_HEADER.length).getValues() : [];
@@ -63,6 +125,10 @@ function updateDividends() {
     });
   });
 
+  // Alpha Vantage: real payment dates, and dividends Yahoo is missing.
+  const all = existing.concat(added);
+  const av = divApplyAlphaVantage_(all, firstBuy, types, fmt, today);
+
   // Estimated rows already in the tab: Pay Date recalculated with the current rule.
   let fixed = 0;
   existing.forEach(r => {
@@ -72,12 +138,10 @@ function updateDividends() {
     const pay = fmt(new Date(ex.getTime() + divPayLagDays_(ticker, types[ticker]) * 86400000));
     if (String(r[2]).trim() !== pay) { r[2] = pay; fixed++; }
   });
-  if (fixed) sh.getRange(2, 1, existing.length, DIV_HEADER.length).setValues(existing);
-
-  if (added.length) sh.getRange(sh.getLastRow() + 1, 1, added.length, DIV_HEADER.length).setValues(added);
+  if (all.length) sh.getRange(2, 1, all.length, DIV_HEADER.length).setValues(all);
   // Newest first within each ticker, tickers A-Z.
   if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, DIV_HEADER.length).sort([{column: 1, ascending: true}, {column: 2, ascending: false}]);
-  Logger.log('Dividends: ' + added.length + ' new row(s), ' + fixed + ' pay date(s) updated');
+  Logger.log('Dividends: ' + added.length + ' new from Yahoo, ' + fixed + ' estimated pay date(s) updated; Alpha Vantage: ' + av);
 }
 
 function installDividendsTrigger() {
@@ -85,6 +149,64 @@ function installDividendsTrigger() {
     .filter(t => t.getHandlerFunction() === 'updateDividends')
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('updateDividends').timeBased().everyDays(1).atHour(8).create();
+}
+
+// Updates rows in place (and appends to `rows`) from Alpha Vantage. Returns a short summary.
+function divApplyAlphaVantage_(rows, firstBuy, types, fmt, today) {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty(DIV_AV_PROP);
+  if (!key) return 'no key, skipped';
+  const tickers = Object.keys(firstBuy).sort();
+  if (!tickers.length) return 'nothing to check';
+  // Tickers with a recent estimated row first, then the rest in rotation.
+  const recent = Date.now() - DIV_AV_RECENT_DAYS * 86400000;
+  const urgent = tickers.filter(t => rows.some(r => String(r[0]).trim() === t && String(r[4]).indexOf('estimated') !== -1
+    && (divParseDate_(r[1]) || new Date(0)).getTime() > recent));
+  let cursor = Number(props.getProperty(DIV_AV_CURSOR) || 0) % tickers.length;
+  const pick = urgent.slice(0, DIV_AV_PER_RUN);
+  while (pick.length < Math.min(DIV_AV_PER_RUN, tickers.length)) {
+    const t = tickers[cursor]; cursor = (cursor + 1) % tickers.length;
+    if (pick.indexOf(t) === -1) pick.push(t);
+  }
+  props.setProperty(DIV_AV_CURSOR, String(cursor));
+
+  const byKey = {};
+  rows.forEach(r => { byKey[String(r[0]).trim() + '|' + String(r[1]).trim()] = r; });
+  const near = (t, ex) => {   // Yahoo's ex-date can be a day off (time zone)
+    const d = divParseDate_(ex);
+    for (const off of [0, -1, 1]) { const r = byKey[t + '|' + fmt(new Date(d.getTime() + off * 86400000))]; if (r) return r; }
+    return null;
+  };
+  let checked = 0, updated = 0, addedN = 0;
+  for (let i = 0; i < pick.length; i++) {
+    if (i) Utilities.sleep(13000);
+    const t = pick[i];
+    let data;
+    try {
+      const res = UrlFetchApp.fetch('https://www.alphavantage.co/query?function=DIVIDENDS&symbol=' + encodeURIComponent(t) + '&apikey=' + encodeURIComponent(key), {muteHttpExceptions: true});
+      data = JSON.parse(res.getContentText());
+    } catch (e) { continue; }
+    if (data.Information || data.Note) { Logger.log('Alpha Vantage limit: ' + (data.Information || data.Note)); break; }
+    if (!Array.isArray(data.data)) continue;
+    checked++;
+    const from = firstBuy[t].getTime() - 86400000;
+    data.data.forEach(d => {
+      const ex = divParseDate_(d.ex_dividend_date), amount = Number(d.amount);
+      if (!ex || !(amount > 0) || ex.getTime() < from) return;
+      const pay = divParseDate_(d.payment_date);
+      const row = near(t, fmt(ex));
+      if (row) {
+        if (String(row[4]).indexOf('manual') !== -1 || String(row[4]) === 'Alpha Vantage') return;
+        if (!pay) return;   // no real date yet -- keep the estimate
+        row[2] = fmt(pay); row[3] = amount; row[4] = 'Alpha Vantage'; updated++;
+      } else {
+        const p = pay || new Date(ex.getTime() + divPayLagDays_(t, types[t]) * 86400000);
+        const r = [t, fmt(ex), fmt(p), amount, pay ? 'Alpha Vantage' : 'Alpha Vantage, pay date estimated', today];
+        rows.push(r); byKey[t + '|' + r[1]] = r; addedN++;
+      }
+    });
+  }
+  return checked + ' ticker(s) checked, ' + updated + ' pay date(s) confirmed, ' + addedN + ' dividend(s) added';
 }
 
 // Earliest purchase per US ticker in the Transactions tab (Ticker | Shares | Buy Date | ...).
