@@ -1165,7 +1165,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791214092";
+const BUILD_ID = "1791225081";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2000,7 +2000,34 @@ function parseTableToRows(table){
 // (ILS), so it follows whatever the Tracker does (USD at the live rate, agorot for TASE funds).
 // No tab, or a ticker with no lines: the row's own Buy Date is used, as before.
 const TRANSACTIONS_CSV_URL = proxyUrl(SHEET_ID, 'Transactions');
+// ---- Dividends (the "Dividends" tab, written daily by Dividends.gs) ----
+// Ticker | Ex-Date | Pay Date | Amount (per share) | Source. Used for dividend income at both brokers
+// and for Psagot's own average cost (purchase price without commission, minus each dividend once
+// paid, after 25% Israeli tax -- checked against all 38 Psagot holdings, Oct 2026).
+const DIVIDENDS_CSV_URL = proxyUrl(SHEET_ID, 'Dividends');
+const DIVIDEND_TAX = 0.25;
+async function fetchDividendRows(){
+  try{
+    const res = await fetchViaProxy(DIVIDENDS_CSV_URL);
+    if(!res.ok) return {};
+    const table = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+    const h = (table[0] || []).map(x => String(x).trim().toLowerCase());
+    const cT = h.indexOf('ticker'), cEx = h.indexOf('ex-date'), cPay = h.indexOf('pay date'), cAmt = h.indexOf('amount'), cSrc = h.indexOf('source');
+    if([cT, cEx, cAmt].some(i => i === -1)) return {};
+    const out = {};
+    table.slice(1).forEach(r => {
+      const t = String(r[cT] || '').trim().toUpperCase(), exMs = txDateMs(r[cEx]), amount = num(r[cAmt]);
+      if(!t || isNaN(exMs) || !(amount > 0)) return;
+      const payMs = cPay >= 0 ? txDateMs(r[cPay]) : NaN;
+      (out[t] = out[t] || []).push({exMs, payMs: isNaN(payMs) ? exMs : payMs, amount,
+        estimated: cSrc >= 0 && /estimat/i.test(String(r[cSrc] || ''))});
+    });
+    return out;
+  } catch(e){ return {}; }
+}
+
 async function applyTransactionLots(rows){
+  const dividendsLoad = fetchDividendRows();   // in parallel with Transactions
   let table;
   try{
     const res = await fetchViaProxy(TRANSACTIONS_CSV_URL);
@@ -2025,9 +2052,11 @@ async function applyTransactionLots(rows){
       price: cPrice >= 0 ? num(r[cPrice]) : NaN, fee: isFinite(fee) ? fee : 0,
       brokerAvg: cBrokerAvg >= 0 ? num(r[cBrokerAvg]) : NaN});
   });
+  const dividendsByTicker = await dividendsLoad;
   rows.forEach(row => {
     const txs = byTicker[row.name];
     if(!txs || !(row.shares > 0) || !(row.cost > 0)) return;
+    applyDividends(row, txs, dividendsByTicker[row.name.toUpperCase()] || []);
     // Average-cost method, oldest first -- the same walk as the Tracker's formulas: a buy adds its
     // shares and cost (price x shares + commission); a sale removes shares at the running average
     // cost, so the average stays; a sale down to 0 closes the position and the next buy starts fresh.
@@ -2058,6 +2087,47 @@ async function applyTransactionLots(rows){
     row.lotsFromTransactions = true;   // the Portfolio table lists them under the holding
   });
 }
+// A holding's dividends from its own Transactions lines:
+//  row.dividends     -- every dividend paid so far on shares held at its ex-date: {exMs, payMs, amount,
+//                       shares, gross, net, estimated} (net = after DIVIDEND_TAX), oldest first.
+//  row.brokerAvgAuto -- Psagot's way: buys at price without commission, sales at the running average,
+//                       and each dividend, once paid, takes its net amount off the cost.
+function applyDividends(row, txs, divs){
+  const now = Date.now();
+  const tx = txs.map((x, i) => ({...x, i, ms: txDateMs(x.date)})).filter(x => !isNaN(x.ms))
+    .sort((a, b) => (a.ms - b.ms) || a.i - b.i);
+  // Shares held at the START of a day (a buy on the ex-date itself gets no dividend).
+  const sharesBefore = ms => {
+    let sh = 0;
+    tx.forEach(x => { if(x.ms < ms) sh = Math.max(0, sh + x.shares); });
+    return sh;
+  };
+  row.dividends = divs.filter(d => d.payMs <= now).map(d => {
+    const shares = sharesBefore(d.exMs);
+    const gross = shares * d.amount;
+    return {...d, shares, gross, net: gross * (1 - DIVIDEND_TAX)};
+  }).filter(d => d.shares > 0).sort((a, b) => a.payMs - b.payMs);
+  // Replay purchases, sales and paid dividends in date order (a dividend on its payment date).
+  const events = [...tx.map(x => ({ms: x.ms, k: 0, x})), ...row.dividends.map(d => ({ms: d.payMs, k: 1, d}))]
+    .sort((a, b) => (a.ms - b.ms) || a.k - b.k);
+  let sh = 0, cost = 0;
+  events.forEach(e => {
+    if(e.k === 1){ if(sh > 0) cost -= e.d.net; return; }
+    const x = e.x;
+    if(x.shares > 0){ sh += x.shares; cost += x.shares * (x.price > 0 ? x.price : 0); return; }
+    const sold = Math.min(-x.shares, sh);
+    cost -= sh ? cost * sold / sh : 0; sh -= sold;
+    if(sh <= 1e-9){ sh = 0; cost = 0; }
+  });
+  row.brokerAvgAuto = sh > 0 ? cost / sh : NaN;
+}
+// Psagot's average cost: the Broker Avg Cost typed in Transactions wins; otherwise it's calculated.
+function pfBrokerAvg(r){
+  if(r.brokerAvgCost > 0) return {value: r.brokerAvgCost, manual: true};
+  if(r.brokerAvgAuto > 0) return {value: r.brokerAvgAuto, manual: false};
+  return null;
+}
+
 // Hover explanation of a holding's average price: each Transactions line in date order (the same
 // average-cost walk as the Tracker's formula), the total, and the division -- or, for a ticker not
 // yet in Transactions, where the Tracker's own figure comes from.
@@ -2097,7 +2167,14 @@ function avgCostExplainHtml(r){
     const row = (label, val, cls) => `<div style="display:flex; justify-content:space-between; gap:16px;"><span>${label}</span><span class="${cls || ''}">${val}</span></div>`;
     // Rounded to cents first, so the lines shown add up exactly ($48.18 − $0.76 = $47.42).
     const noComm = Math.round(gross / shares * 100) / 100;
-    const divPart = r.brokerAvgCost > 0 ? Math.round((noComm - r.brokerAvgCost) * 100) / 100 : NaN;
+    const ba = pfBrokerAvg(r);
+    const target = ba ? Math.round(ba.value * 100) / 100 : NaN;
+    const divPart = ba ? Math.round((noComm - target) * 100) / 100 : NaN;
+    // Dividends counted since the current position opened (what Psagot subtracts).
+    const openMs = (() => { let s = 0, from = -Infinity; [...(r.lots || [])].forEach(l => { const ms = txDateMs(l.buyDate); s += l.shares; if(s <= 1e-9){ s = 0; from = ms; } }); return from; })();
+    const paidNow = (r.dividends || []).filter(d => d.exMs > openMs);
+    const nDiv = paidNow.length;
+    const auto = r.brokerAvgAuto > 0 ? Math.round(r.brokerAvgAuto * 100) / 100 : NaN;
     return `<b>${esc(r.name)} average cost</b>`
       + `<div style="margin-top:6px; font-weight:600;">SheetPulse — what you paid</div>`
       + lines.join('')
@@ -2105,11 +2182,14 @@ function avgCostExplainHtml(r){
       + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line); font-weight:600;">${b}</div>`
       + row('Without commission', m(noComm))
       + (isNaN(divPart)
-        ? `<div style="color:var(--muted); font-size:12px; max-width:300px;">${b} also subtracts each dividend received, after 25% Israeli tax — add its figure in Transactions → Broker Avg Cost to see it here.</div>`
+        ? `<div style="color:var(--muted); font-size:12px; max-width:300px;">${b} also subtracts each dividend received, after 25% Israeli tax — the Dividends tab isn't loaded yet.</div>`
         : Math.abs(divPart) < 0.005
-          ? row('Dividends since purchase', 'none') + row('=', `<b>${m(r.brokerAvgCost)}</b>`)
-          : row(divPart > 0 ? 'Dividends (after 25% Israeli tax)' : 'Other difference', (divPart > 0 ? '−' : '+') + m(divPart), divPart > 0 ? 'down' : '')
-            + row('=', `<b>${m(r.brokerAvgCost)}</b>`))
+          ? row('Dividends since purchase', 'none') + row('=', `<b>${m(target)}</b>`)
+          : row(divPart > 0 ? `${nDiv ? nDiv + ' dividend' + (nDiv === 1 ? '' : 's') : 'Dividends'} (after 25% Israeli tax)` : 'Other difference', (divPart > 0 ? '−' : '+') + m(divPart), divPart > 0 ? 'up' : '')
+            + row('=', `<b>${m(target)}</b>`))
+      + (ba && ba.manual && !isNaN(auto) && Math.abs(auto - target) >= 0.01
+        ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:300px;">From Broker Avg Cost in Transactions. Calculated from the Dividends tab: ${m(auto)}.</div>`
+        : ba && !ba.manual ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:300px;">Calculated from the Dividends tab${paidNow.some(d => d.estimated) ? ' (payment dates estimated)' : ''}.</div>` : '')
       + (closedBefore ? `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:300px;">Purchases up to the sale on ${closedBefore} were closed out.</div>` : '');
   }
   return head
@@ -3024,8 +3104,9 @@ let pfGainTipSeq = 0;
 // A USD-cost broker's own gain (Psagot): (price - its app's average cost) x shares, in dollars and
 // in ₪ at the holding's own rate today -- what its app shows. Needs Broker Avg Cost in Transactions.
 function pfBrokerGain(r){
-  if(!pfIsUsdCostBroker(r) || !(r.brokerAvgCost > 0) || !(r.shares > 0) || !isFinite(r.valueUsd)) return null;
-  const costUsd = r.shares * r.brokerAvgCost, usd = r.valueUsd - costUsd;
+  const ba = pfIsUsdCostBroker(r) ? pfBrokerAvg(r) : null;
+  if(!ba || !(r.shares > 0) || !isFinite(r.valueUsd)) return null;
+  const costUsd = r.shares * ba.value, usd = r.valueUsd - costUsd;
   return {usd, ils: r.valueUsd ? usd * r.value / r.valueUsd : NaN, pct: usd / costUsd * 100, costUsd, broker: pfPlatforms(r).join(' / ')};
 }
 function pfBrokerGainCellHtml(r, top){
@@ -3037,8 +3118,8 @@ function pfBrokerGainCellHtml(r, top){
   const id = ++pfGainTipSeq;
   pfGainTips.set(id, `<b>Total gain/loss, two ways</b>`
     + `<div style="margin-top:6px;"><b>SheetPulse</b>: from what you paid, commission included (average ${$(r.avgCost || 0)}).</div>`
-    + `<div style="margin-top:6px;"><b>${b.broker}</b>: ${r.shares} × (${$(r.valueUsd / r.shares)} − its average cost ${$(r.brokerAvgCost)}) = ${sg(b.usd)}${$(b.usd)}</div>`
-    + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and subtracts each dividend received, after 25% Israeli tax. It comes from the Broker Avg Cost column in Transactions; update it after a buy or a dividend.</div>`);
+    + `<div style="margin-top:6px;"><b>${b.broker}</b>: ${r.shares} × (${$(r.valueUsd / r.shares)} − its average cost ${$(pfBrokerAvg(r).value)}) = ${sg(b.usd)}${$(b.usd)}</div>`
+    + `<div style="color:var(--muted); font-size:12px; max-width:340px; margin-top:4px;">${b.broker}'s average cost leaves out the commission and subtracts each dividend received, after 25% Israeli tax. It comes from the Broker Avg Cost column in Transactions when filled, otherwise from the Dividends tab.</div>`);
   return `<td class="num pf-gain" data-gaintip="${id}">${top}<div class="pf-gain-pd">${b.broker}</div>`
     + `<div class="pf-gain-pd-val ${cls}">${sg(b.usd)}${$(b.usd)}</div>`
     + `<div class="pf-gain-pd-val ${cls}">${sg(b.ils)}${I(b.ils)}</div>`
@@ -3228,7 +3309,7 @@ function pfHoldingRowsHtml(r){
         </td>
         ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open, holding: true}, fmt2)}
         <td class="num">${fmt2(r.value)}${pfUsdValueHtml(r, r.valueUsd)}</td>
-        <td class="num pf-avg">${avgCostStr}${pfBrokerGain(r) ? `<div class="pf-usd">${pfPlatforms(r).join(' / ')} $${r.brokerAvgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : ''}</td>
+        <td class="num pf-avg">${avgCostStr}${pfBrokerGain(r) ? `<div class="pf-usd">${pfPlatforms(r).join(' / ')} $${pfBrokerAvg(r).value.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</div>` : ''}</td>
       </tr>
 ${lotRowsHtml}`;
 }
