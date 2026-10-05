@@ -8,8 +8,8 @@
 //
 // Source: Yahoo Finance's chart API (ex-date and amount). Yahoo has no payment date, so Pay Date is
 // estimated from the ex-date (divPayLagDays_): ETFs pay within days, stocks weeks later. Checked
-// against Psagot's statement on 38 holdings (Oct 2026): 34 matched to the cent; the rest were
-// dividends Yahoo hadn't listed yet, or a 2-day ETF lag. Rows whose Source says "estimated" get their
+// against Psagot's statements of 4 and 5 Oct 2026 (38 holdings): 35 matched to the cent; the rest were
+// dividends Yahoo hadn't listed yet (DBMF, VO) or adjusted for a spin-off (SPGI). Rows whose Source says "estimated" get their
 // Pay Date recalculated on every run (so a better rule fixes old rows too); change Source to
 // "manual" after correcting a Pay Date or Amount by hand from the broker's statement and it's never
 // touched again. TASE funds (IBI.*) are skipped: no USD dividends.
@@ -22,11 +22,11 @@ const DIV_SHEET = 'Dividends';
 const DIV_TX_SHEET = 'Transactions';
 const DIV_HEADER = ['Ticker', 'Ex-Date', 'Pay Date', 'Amount', 'Source', 'Added'];
 const DIV_ESTIMATED = 'Yahoo, pay date estimated';
-// Days from ex-date to payment. ETFs: 1-6 (SCHD 6, sector SPDRs 2, DBMF 1). Stocks: 14-32 (BAM 29,
+// Days from ex-date to payment. ETFs: 1-6 (JEPI and PFF 6+, SCHD 6, sector SPDRs 2, DBMF 1). Stocks: 14-32 (BAM 29,
 // GS 28, MCO 26, SPGI 19, MS 15). Per-ticker exceptions where the type misleads.
-const DIV_LAG_ETF = 4;
+const DIV_LAG_ETF = 6;
 const DIV_LAG_STOCK = 21;
-const DIV_LAG_TICKER = {ASGI: 8, POWR: 3};   // closed-end fund paying fast; an ETF Yahoo calls a stock
+const DIV_LAG_TICKER = {ASGI: 8, POWR: 3, VCSH: 2};   // closed-end fund; an ETF Yahoo calls a stock; Vanguard bond ETF paying in 2 days
 
 function divPayLagDays_(ticker, type) {
   if (DIV_LAG_TICKER[ticker] != null) return DIV_LAG_TICKER[ticker];
