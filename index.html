@@ -1181,7 +1181,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791228356";
+const BUILD_ID = "1791228842";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7520,7 +7520,25 @@ UNIVERSE_DATA.forEach(d=>{
 // No tab yet = no column contents, no error. Research, not advice -- the panel says so.
 const PULSE_CHECK_CSV_URL = proxyUrl(SHEET_ID, 'Pulse Check');
 let pulseCheck = {};   // ticker -> row
+// Source 1: pulse-check.json next to this page (published with the repo, so a refresh needs no
+// import; public like the page -- research on public companies only, no amounts or holdings).
+// Source 2 (fallback): the sheet's "Pulse Check" tab.
+const PULSE_CHECK_JSON_URL = 'pulse-check.json';
 async function fetchPulseCheck(){
+  try{
+    const res = await fetch(PULSE_CHECK_JSON_URL + '?v=' + Date.now(), {cache: 'no-store'});
+    if(res.ok){
+      const j = await res.json();
+      const next = {};
+      (j.stocks || []).forEach(x => {
+        const t = String(x.ticker || '').trim().toUpperCase();
+        if(t && x.verdict) next[t] = {verdict: String(x.verdict), asOf: String(x.asOf || j.asOf || ''), valuation: String(x.valuation || ''),
+          vsHistory: String(x.vsHistory || ''), strengths: (x.strengths || []).map(String).filter(Boolean),
+          risks: (x.risks || []).map(String).filter(Boolean), watch: String(x.watch || '')};
+      });
+      if(Object.keys(next).length){ pulseCheck = next; return; }
+    }
+  } catch(e){ /* no file yet: fall back to the sheet tab */ }
   try{
     const res = await fetchViaProxy(PULSE_CHECK_CSV_URL);
     if(!res.ok) return;
