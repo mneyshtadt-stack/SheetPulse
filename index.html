@@ -404,6 +404,22 @@
   .md-tab:hover{color:var(--ink);}
   .md-tab.active{color:var(--ink); font-weight:600; border-bottom-color:var(--accent);}
   #mdPremarketArea{padding-top:12px;}
+  /* Dividends tab */
+  .div-legend{display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-family:var(--sans); font-size:12px; color:var(--ink); margin:4px 0 6px;}
+  .div-legend i{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
+  .div-legend-note{color:var(--muted); margin-left:auto;}
+  .div-manual{margin:14px 0 4px; padding:10px 14px; border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; background:var(--panel); font-family:var(--sans); font-size:12.5px; line-height:1.5;}
+  .div-manual-title{font-weight:600; margin-bottom:6px; color:var(--ink);}
+  .div-manual-row{display:flex; gap:10px; align-items:baseline; padding:5px 0; border-top:1px solid var(--line);}
+  .div-manual-row:first-of-type{border-top:none;}
+  .div-manual-tag{flex:0 0 auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:4px; border:1px solid var(--warn); color:var(--warn); white-space:nowrap;}
+  .div-manual-row.ok .div-manual-tag{border-color:var(--up-ink); color:var(--up-ink);}
+  .div-manual-row.done .div-manual-tag{border-color:var(--up-ink); color:var(--on-accent); background:var(--up-ink);}
+  .div-manual.all-done{border-left-color:var(--up-ink);}
+  .div-dismiss{margin-left:auto; flex:0 0 auto; font-family:inherit; font-size:11.5px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:5px; padding:2px 8px; cursor:pointer;}
+  .div-dismiss:hover{color:var(--ink); border-color:var(--accent);}
+  .div-table{margin-top:14px;}
+  .div-table thead th{cursor:default;}
   #premarketTreemap{position:relative; width:100%;}
   .pm-note{font-size:12.5px; color:var(--muted); padding:18px 0; line-height:1.5;}
   .pm-summary{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline; font-size:13px; color:var(--ink);}
@@ -1165,7 +1181,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791225081";
+const BUILD_ID = "1791225552";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3949,9 +3965,11 @@ function renderPortfolioHeader(){
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
+      <button type="button" class="md-tab" role="tab" data-tab="dividends">Dividends</button>
     </div>
     <div id="marketDetailTableArea"></div>
     <div id="mdPremarketArea" style="display:none;"></div>
+    <div id="mdDividendsArea" style="display:none; padding-top:12px;"></div>
   `;
   body.querySelectorAll('.md-tab').forEach(b => b.addEventListener('click', () => {
     portfolioTab = b.dataset.tab;
@@ -4027,7 +4045,157 @@ function applyPortfolioTab(){
   document.querySelectorAll('#marketDetailBody .md-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === portfolioTab));
   table.style.display = portfolioTab === 'holdings' ? '' : 'none';
   pre.style.display = portfolioTab === 'premarket' ? '' : 'none';
+  const divArea = document.getElementById('mdDividendsArea');
+  if(divArea) divArea.style.display = portfolioTab === 'dividends' ? '' : 'none';
   if(portfolioTab === 'premarket') renderPremarketTab();
+  if(portfolioTab === 'dividends') renderDividendsTab();
+}
+
+// ---- Dividends tab (Portfolio window) ----
+// Dividends actually paid on the holdings shown (All or one broker), net of DIVIDEND_TAX: totals,
+// monthly bars stacked by broker, a per-ticker table, and the Psagot averages still typed by hand
+// in Transactions (column F), each with what to do about it. Data: row.dividends (applyDividends).
+const DIV_BROKER_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)'];
+// "Dismiss" on a Done mark: forget the ticker, so the mark doesn't come back.
+function wireDividendDismiss(area, key){
+  area.querySelectorAll('.div-dismiss').forEach(b => b.addEventListener('click', () => {
+    try{ localStorage.setItem(key, JSON.stringify(JSON.parse(localStorage.getItem(key) || '[]').filter(t => t !== b.dataset.t))); } catch(e){}
+    renderDividendsTab();
+  }));
+}
+function renderDividendsTab(){
+  const area = document.getElementById('mdDividendsArea');
+  if(!area) return;
+  const rows = portfolioRows();
+  const all = window.lastRows || [];
+  const brokers = brokerNames(all);
+  const colorOf = b => DIV_BROKER_COLORS[Math.max(0, brokers.indexOf(b)) % DIV_BROKER_COLORS.length];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const $ = (n, d = 2) => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d});
+  const ils = n => window.lastFxRate ? '≈ ₪' + Math.round(n * window.lastFxRate).toLocaleString('en-US') : '';
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+  const monthKey = ms => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
+  const monthLabel = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'short', year: '2-digit'});
+
+  const pays = [];
+  rows.forEach(r => (r.dividends || []).forEach(d => pays.push({...d, ticker: r.name, broker: pfPlatforms(r).join(' / ') || '—'})));
+  const now = Date.now(), yearAgo = now - 365 * 86400000;
+  const sum = list => list.reduce((a, p) => a + p.net, 0);
+  const last12 = sum(pays.filter(p => p.payMs > yearAgo)), total = sum(pays);
+
+  // Psagot averages typed by hand (Transactions column F): what to do with each.
+  const manual = rows.filter(r => pfIsUsdCostBroker(r) && r.brokerAvgCost > 0).map(r => {
+    const buys = (r.lots || []).filter(l => l.shares > 0);
+    const latest = buys.reduce((a, l) => (!a || txDateMs(l.buyDate) >= txDateMs(a.buyDate)) ? l : a, null);
+    return {r, latest, auto: r.brokerAvgAuto};
+  });
+  // Tickers once listed here and since cleared from column F get a "Done" mark until dismissed
+  // (remembered in this browser only).
+  const SEEN_KEY = 'sp_divManualSeen';
+  let seen = [];
+  try{ seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]'); } catch(e){}
+  const manualNames = manual.map(x => x.r.name);
+  const done = seen.filter(t => !manualNames.includes(t) && rows.some(r => r.name === t && r.brokerAvgAuto > 0));
+  try{ localStorage.setItem(SEEN_KEY, JSON.stringify([...new Set([...manualNames, ...done])])); } catch(e){}
+  const doneHtml = done.map(t => {
+    const r = rows.find(x => x.name === t);
+    return `<div class="div-manual-row done"><span class="div-manual-tag">✓ Done</span>
+      <div><b>${esc(t)}</b>: column F is cleared — its ${esc(pfPlatforms(r).join(' / '))} average (${$(r.brokerAvgAuto)}) is now calculated automatically from the Dividends tab.</div>
+      <button type="button" class="div-dismiss" data-t="${esc(t)}" aria-label="Dismiss">Dismiss</button></div>`;
+  }).join('');
+  const manualHtml = !manual.length && !done.length ? '' : `
+    <div class="div-manual${manual.length ? '' : ' all-done'}">
+      <div class="div-manual-title">${manual.length ? `Hand-entered ${esc(USD_COST_BROKERS.join(' / '))} averages · Transactions column F (Broker Avg Cost)` : 'Hand-entered averages · all done'}</div>
+      ${doneHtml}
+      ${manual.map(({r, latest, auto}) => {
+        const matches = isFinite(auto) && Math.abs(auto - r.brokerAvgCost) < 0.01;
+        const where = `Transactions → column F, the <b>${esc(r.name)}</b> row of <b>${latest ? esc(day(txDateMs(latest.buyDate))) : 'its latest buy'}</b>${latest ? ` (${latest.shares} shares)` : ''}`;
+        return `<div class="div-manual-row ${matches ? 'ok' : 'keep'}">
+          <span class="div-manual-tag">${matches ? 'Delete now' : 'Keep for now'}</span>
+          <div><b>${esc(r.name)}</b>: your value ${$(r.brokerAvgCost)}${isFinite(auto) ? `, calculated ${$(auto)}` : ''}.
+          ${matches
+            ? `The calculation now matches — clear ${$(r.brokerAvgCost)} from ${where}.`
+            : `The calculation is still off (usually a dividend Yahoo hasn't listed yet, or one paid in the last few days). Check ${esc(r.name)}'s newest row in the Dividends tab; once the latest dividend is there and paid, clear ${$(r.brokerAvgCost)} from ${where}.`}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  if(!pays.length){
+    area.innerHTML = `<div class="pm-note">No dividends paid yet on these holdings — or the Dividends tab isn't filled (run updateDividends() in Apps Script).</div>${manualHtml}`;
+    wireDividendDismiss(area, SEEN_KEY);
+    return;
+  }
+
+  // Monthly bars, stacked by broker; up to the last 36 months.
+  const first = Math.max(monthKey(Math.min(...pays.map(p => p.payMs))), monthKey(now) - 35);
+  const months = [];
+  for(let k = first; k <= monthKey(now); k++) months.push(k);
+  const byMonth = months.map(k => {
+    const list = pays.filter(p => monthKey(p.payMs) === k);
+    const per = {};
+    list.forEach(p => { per[p.broker] = (per[p.broker] || 0) + p.net; });
+    return {k, list, per, total: sum(list)};
+  });
+  const stackOrder = [...new Set(pays.map(p => p.broker))].sort((a, b) => brokers.indexOf(a) - brokers.indexOf(b));
+  const w = Math.max(320, area.clientWidth || 760), h = 210, padL = 48, padR = 8, padT = 10, padB = 24;
+  const max = Math.max(...byMonth.map(m => m.total), 1);
+  const step = max > 200 ? 100 : max > 100 ? 50 : max > 40 ? 20 : max > 20 ? 10 : 5;
+  const top = Math.ceil(max / step) * step;
+  const yOf = v => padT + (h - padT - padB) * (1 - v / top);
+  const slot = (w - padL - padR) / months.length, bw = Math.max(3, Math.min(28, slot * 0.62));
+  let grid = '';
+  for(let v = 0; v <= top; v += step){
+    grid += `<line x1="${padL}" x2="${w - padR}" y1="${yOf(v).toFixed(1)}" y2="${yOf(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
+      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">$${v}</text>`;
+  }
+  const every = Math.ceil(months.length / 12);
+  let bars = '', labels = '', hits = '';
+  byMonth.forEach((m, i) => {
+    const x = padL + slot * i + (slot - bw) / 2;
+    let base = 0;
+    stackOrder.forEach((b, j) => {
+      const v = m.per[b] || 0;
+      if(v <= 0) return;
+      const y1 = yOf(base + v), y0 = yOf(base);
+      const gap = base > 0 ? 2 : 0;   // 2px surface gap between stacked segments
+      bars += `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y0 - y1 - gap).toFixed(1)}" rx="2" fill="${colorOf(b)}"/>`;
+      base += v;
+    });
+    if(i % every === 0 || i === months.length - 1)
+      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${monthLabel(m.k)}</text>`;
+    hits += `<rect class="div-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
+  });
+
+  // Per ticker: payments, last payment, last 12 months, total.
+  const byTicker = {};
+  pays.forEach(p => { const t = byTicker[p.ticker] = byTicker[p.ticker] || {ticker: p.ticker, broker: p.broker, n: 0, last: 0, y: 0, tot: 0};
+    t.n++; t.last = Math.max(t.last, p.payMs); t.tot += p.net; if(p.payMs > yearAgo) t.y += p.net; });
+  const tickers = Object.values(byTicker).sort((a, b) => b.y - a.y || b.tot - a.tot);
+
+  area.innerHTML = `
+    <div class="md-stat-tiles">
+      <div class="md-stat-tile"><div class="md-stat-tile-label">Last 12 months</div><div class="md-stat-tile-val up">+${$(last12)}</div><div class="md-stat-tile-sub">${ils(last12)} · after 25% tax</div></div>
+      <div class="md-stat-tile"><div class="md-stat-tile-label">Since first dividend</div><div class="md-stat-tile-val up">+${$(total)}</div><div class="md-stat-tile-sub">${ils(total)} · ${pays.length} payments</div></div>
+      <div class="md-stat-tile"><div class="md-stat-tile-label">Paying holdings</div><div class="md-stat-tile-val">${tickers.length}</div><div class="md-stat-tile-sub">of ${rows.length} held · last paid ${day(Math.max(...pays.map(p => p.payMs)))}</div></div>
+    </div>
+    <div class="div-legend">${stackOrder.map(b => `<span><i style="background:${colorOf(b)}"></i>${esc(b)}</span>`).join('')}<span class="div-legend-note">Net dividends per month, by payment date</span></div>
+    <svg id="divChart" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">${grid}${bars}${labels}${hits}</svg>
+    ${manualHtml}
+    <table class="md-holdings-table div-table">
+      <thead><tr><th>Ticker</th><th>Broker</th><th class="num">Payments</th><th class="num">Last paid</th><th class="num">Last 12 months</th><th class="num">Total</th></tr></thead>
+      <tbody>${tickers.map(t => `<tr><td class="md-th-symbol">${esc(t.ticker)}</td><td>${esc(t.broker)}</td><td class="num">${t.n}</td><td class="num">${day(t.last)}</td><td class="num up">${t.y ? '+' + $(t.y) : '—'}</td><td class="num up">+${$(t.tot)}</td></tr>`).join('')}</tbody>
+    </table>
+    <p class="md-broker-note">Paid on the shares held at each ex-date, after 25% tax, from the Dividends tab (Dividends.gs, Yahoo Finance). Payment dates are estimated unless corrected in that tab. ₪ at today's rate.</p>`;
+
+  wireDividendDismiss(area, SEEN_KEY);
+  area.querySelectorAll('#divChart .div-hit').forEach(el => {
+    const m = byMonth[Number(el.dataset.i)];
+    attachHoverTooltip(el, () => `<b>${new Date(Math.floor(m.k / 12), m.k % 12, 1).toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}</b>`
+      + (m.list.length
+        ? stackOrder.filter(b => m.per[b]).map(b => `<div><span style="color:${colorOf(b)}">●</span> ${esc(b)}: <span class="up">+${$(m.per[b])}</span></div>`).join('')
+          + `<div style="margin-top:4px; color:var(--muted); font-size:12px; max-width:280px;">${m.list.map(p => `${esc(p.ticker)} ${$(p.net)}`).join(' · ')}</div>`
+        : `<div style="color:var(--muted);">No dividends</div>`));
+  });
 }
 
 // Treemap of the holdings that have a pre-market (or after-hours) trade right now: box size = the
