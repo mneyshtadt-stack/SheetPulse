@@ -1181,7 +1181,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791227944";
+const BUILD_ID = "1791228356";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1441,6 +1441,34 @@ const DIAG_CHECKS = [
     return {status: stale ? 'warn' : 'ok', ms:r.ms,
       detail:`${rows.length - 1} row${rows.length === 2 ? '' : 's'}; newest ${when} (${age < 0 ? 'in ' + diagDuration(age) : diagDuration(age) + ' ago'})`
         + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
+  }},
+
+  {name: 'Dividends (Yahoo + Alpha Vantage)', run: async () => {
+    // What Dividends.gs wrote: header present, refreshed recently (its daily 08:00 trigger), and how
+    // many payment dates Alpha Vantage has confirmed vs still estimated. The browser never calls
+    // Alpha Vantage itself -- its key lives only in Apps Script.
+    const r = await diagFetch(DIVIDENDS_CSV_URL, diagAuth(), 20000);
+    if(!r.res || !r.res.ok) return {status:'warn', ms:r.ms, detail:'No Dividends tab (or not readable) — in Apps Script run updateDividends() and installDividendsTrigger() (Dividends.gs).'};
+    const t = Papa.parse(await r.res.text(), {skipEmptyLines:true}).data;
+    const headerOk = String((t[0] || [])[0] || '').trim().toLowerCase() === 'ticker';
+    const data = headerOk ? t.slice(1) : t;
+    if(!data.length) return {status:'warn', ms:r.ms, detail:'The Dividends tab is empty — run updateDividends() in Apps Script.'};
+    const src = data.map(x => String(x[4] || ''));
+    const av = src.filter(s => /^alpha vantage$/i.test(s.trim())).length;
+    const est = src.filter(s => /estimat/i.test(s)).length;
+    const manual = src.filter(s => /manual/i.test(s)).length;
+    const tickers = new Set(data.map(x => String(x[0] || '').trim().toUpperCase())).size;
+    const avTickers = new Set(data.filter(x => /^alpha vantage$/i.test(String(x[4] || '').trim())).map(x => String(x[0]).trim().toUpperCase())).size;
+    const newest = Math.max(...data.map(x => txDateMs(x[5])).filter(ms => !isNaN(ms)));
+    const age = isFinite(newest) ? Date.now() - newest : NaN;
+    const hand = (window.lastRows || []).filter(x => pfIsUsdCostBroker(x) && x.brokerAvgCost > 0).map(x => x.name);
+    const issues = [];
+    if(!headerOk) issues.push('the header row is missing (the script puts it back on its next run)');
+    if(!isNaN(age) && age > 3 * 86400000) issues.push(`no new rows for ${diagDuration(age)} — check the updateDividends trigger (Executions page); new dividends may simply not exist yet`);
+    if(!av) issues.push('Alpha Vantage hasn\'t confirmed any payment date — run checkAlphaVantageKey() in Apps Script');
+    const detail = `${data.length} dividends for ${tickers} tickers · Alpha Vantage confirmed ${av} payment date${av === 1 ? '' : 's'} (${avTickers} tickers), ${est} still estimated${manual ? `, ${manual} manual` : ''} (25 Alpha Vantage requests a day: the rest follow over the next days)`
+      + (hand.length ? ` · ${hand.length} Psagot average${hand.length === 1 ? '' : 's'} still typed by hand (${hand.join(', ')}) — Portfolio → Dividends says when to clear ${hand.length === 1 ? 'it' : 'them'}` : '');
+    return {status: issues.length ? 'warn' : 'ok', ms:r.ms, detail: issues.length ? issues.join(' · ') + ' · ' + detail : detail + '.'};
   }},
 
   {name: 'AI analysis (Gemini)', run: async () => {
