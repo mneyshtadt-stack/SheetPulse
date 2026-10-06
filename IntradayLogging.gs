@@ -9,6 +9,18 @@ function isTaseOpenNow() {
   return openDays.indexOf(weekday) !== -1 && hm >= '1000' && hm <= '1730';
 }
 
+// After the US close until midnight Israel time (Mon-Fri): regular rows keep coming every run, so
+// IntradayLog's USD/ILS keeps following Yahoo's rate, which moves until about midnight (6 Oct 2026:
+// 3.0484 at 23:00, 3.0464 at 23:30, when the brokers were at about 3.0469). Prices can't move then;
+// the 1D charts end at the close, so these rows only feed the dashboard's live rate.
+function isUsEveningFxWindow() {
+  const now = new Date();
+  const nyDay = Utilities.formatDate(now, 'America/New_York', 'EEE');
+  const nyHm = Utilities.formatDate(now, 'America/New_York', 'HHmm');
+  const ilHm = Utilities.formatDate(now, 'Asia/Jerusalem', 'HHmm');
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].indexOf(nyDay) !== -1 && nyHm > '1600' && ilHm >= '2100' && ilHm <= '2359';
+}
+
 // Standard US market hours, Monday-Friday.
 function isUsMarketOpenNow() {
   const now = new Date();
@@ -172,7 +184,8 @@ function logIntradayValue() {
   const usOpen = isUsMarketOpenNow();
   const taseGraceWindow = !taseOpen && isTaseCloseGraceWindow();
   const usGraceWindow = !usOpen && isUsCloseGraceWindow();
-  const isOpen = taseOpen || usOpen;
+  // The evening rate window counts as open for regular rows (see isUsEveningFxWindow).
+  const isOpen = taseOpen || usOpen || (!usGraceWindow && isUsEveningFxWindow());
 
   const props = PropertiesService.getScriptProperties();
   const todayIL = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
