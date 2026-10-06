@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791293810";
+const BUILD_ID = "1791318449";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5801,6 +5801,25 @@ function intradayChartHeight(el, hasNoteLine){
   const visible = window.innerHeight * 0.97 - (header ? header.offsetHeight : 0);
   return Math.max(190, Math.min(440, Math.floor(visible - offset - (hasNoteLine ? 20 : 0) - 6)));
 }
+// Chart reference-line labels (Prev. close, Start, Close, Bank of Israel): above their line unless
+// the chart's own line runs through that spot (checked along the label's width), then below it.
+// chartLabelHalo() outlines the text in the background color, so a line passing behind it never
+// makes it unreadable.
+function chartLabelY(lineY, pts, xRight, labelW, top, bottom){
+  const xs = pts.map(p => p.x);
+  const lineYAt = x => {
+    if(!pts.length || x < xs[0] || x > xs[xs.length-1]) return null;
+    let i = 1; while(i < pts.length - 1 && xs[i] < x) i++;
+    const a = pts[i-1], b = pts[i], k = (b.x - a.x) ? (x - a.x) / (b.x - a.x) : 0;
+    return a.y + (b.y - a.y) * k;
+  };
+  const hits = base => { for(let x = xRight - labelW; x <= xRight; x += 4){ const ly = lineYAt(x); if(ly !== null && ly >= base - 13 && ly <= base + 4) return true; } return false; };
+  const above = lineY - 8, below = lineY + 15;
+  if(above - 11 >= top && !hits(above)) return above;
+  if(below <= bottom && !hits(below)) return below;
+  return above - 11 >= top ? above : below;
+}
+function chartLabelHalo(bg){ return `paint-order="stroke" stroke="${bg}" stroke-width="4" stroke-linejoin="round"`; }
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
   if(!el) return;
@@ -6012,17 +6031,18 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // Today's own session gets the same callout once its market has closed (e.g. TASE after 17:30) --
   // the line's end is then that day's final close, not a still-moving "now".
   const sessionClosed = !!sessionLabel || !marketOpen;
+  const prevCloseLabelY = chartLabelY(prevCloseY, points, w - padR, 11 + fmt(prevClose).length * 6.5 + 60, padT, h - padB - 2);
   let closeCalloutSvg = '';
   if(sessionClosed){
     // Below the end dot by default; if that lands on the "Prev. close" label (drawn just above its
     // dashed line at the same right edge), go above the dot instead, or below that label.
-    const prevLabelY = prevCloseY - 8;
+    const prevLabelY = prevCloseLabelY;
     let ty = Math.min(lastPoint.y + 22, h - padB - 4);
     if(Math.abs(ty - prevLabelY) < 15){
       ty = lastPoint.y - 12;
       if(Math.abs(ty - prevLabelY) < 15 || ty < padT) ty = prevLabelY + 16;
     }
-    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
+    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Close <tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
   }
 
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
@@ -6053,7 +6073,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       ${yGridLines}
       ${statusBadgesSvg}
       <line x1="${padL}" x2="${w-padR}" y1="${prevCloseY.toFixed(1)}" y2="${prevCloseY.toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="${w-padR}" y="${(prevCloseY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
+      <text x="${w-padR}" y="${prevCloseLabelY.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">Prev. close <tspan font-weight="700" fill="var(--ink)">${fmt(prevClose)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${fxMarkerSvg}
       <circle id="intradayDefaultDot" cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="${sessionClosed ? 6 : 4}" fill="${lineColor}" stroke="${sessionClosed ? 'var(--paper)' : 'none'}" stroke-width="2"/>
@@ -6411,6 +6431,11 @@ async function renderRangeChart(ctx, range){
     : CHART_RANGE_LABELS[range];
   const startY = yFor(startV);
   const last = points[points.length-1];
+  const startLabelY = chartLabelY(startY, points, w - padR, 11 + fmt(startV).length * 6.5 + 60, padT, h - padB - 2);
+  // The Bank of Israel label: the same rule, then kept clear of the Prev. close label.
+  const boiLabelY = by => { let y = chartLabelY(by, points, w - padR, 150, padT, h - padB - 2);
+    if(Math.abs(y - startLabelY) < 14) y = y > startLabelY ? startLabelY + 14 : startLabelY - 14;
+    return y; };
 
   el.innerHTML = `
     <div style="font-family:var(--sans); font-size:13px; margin-bottom:4px;">
@@ -6422,14 +6447,14 @@ async function renderRangeChart(ctx, range){
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
       <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="${w-padR}" y="${(startY-8).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
+      <text x="${w-padR}" y="${startLabelY.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${boiMarks.map(b => { const bx = b.t !== undefined ? xAt(b.t) : xFor(b.i), by = yFor(b.v);
         return `<rect x="${(bx-4.5).toFixed(1)}" y="${(by-4.5).toFixed(1)}" width="9" height="9" transform="rotate(45 ${bx.toFixed(1)} ${by.toFixed(1)})" fill="var(--accent)" stroke="var(--panel)" stroke-width="1.5"><title>Bank of Israel rate ${b.v.toFixed(4)} (${boiDay(b.date)})</title></rect>`
           // 1D: a dotted line from the point to the right edge, labelled at the right edge like Prev.
           // close; when the two lines are close, the label moves below its line (or above both).
           + (range === '1D' ? `<line x1="${bx.toFixed(1)}" x2="${w-padR}" y1="${by.toFixed(1)}" y2="${by.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2,3"/>`
-            + `<text x="${w-padR}" y="${(Math.abs(by - startY) < 16 ? (by > startY ? by + 14 : Math.min(by - 8, startY - 22)) : by - 8).toFixed(1)}" font-size="11" fill="var(--accent)" text-anchor="end" ${font}>Bank of Israel <tspan font-weight="700">${b.v.toFixed(4)}</tspan></text>` : ''); }).join('')}
+            + `<text x="${w-padR}" y="${boiLabelY(by).toFixed(1)}" font-size="11" fill="var(--accent)" text-anchor="end" ${chartLabelHalo('var(--paper)')} ${font}>Bank of Israel <tspan font-weight="700">${b.v.toFixed(4)}</tspan></text>` : ''); }).join('')}
       <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
       ${movesSvg}
       ${xLabels}
@@ -6558,7 +6583,7 @@ async function renderHomeDay(rows, totals){
     + `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="3.5" fill="${col}"/>`
     + `<text x="0" y="${H-2}" font-size="11" fill="var(--muted)">${hm(range.open)}</text>`
     + `<text x="${W}" y="${H-2}" font-size="11" fill="var(--muted)" text-anchor="end">${hm(range.close)}</text>`
-    + `<text x="${W}" y="${Math.max(12, y(prevClose) - 4)}" font-size="10" fill="var(--muted)" text-anchor="end">prev. close</text></svg>`;
+    + `<text x="${W}" y="${chartLabelY(y(prevClose) + 4, log.map(p => ({x: x(p.t), y: y(p.v)})), W, 60, 12, H - padB).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--panel)')}>prev. close</text></svg>`;
 }
 // Home allocation panel: market (TASE / USA) and broker shares of the portfolio, with today's % each.
 function renderHomeAlloc(rows){
