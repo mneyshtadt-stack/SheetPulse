@@ -196,6 +196,8 @@ function logIntradayValue() {
   const tracker = ss.getSheetByName('Tracker');
   // The IBI funds' prices from Yahoo first, so this reading (and the TASE close row) uses them.
   try { updateIbiPricesFromYahoo_(tracker); } catch (e) { console.warn('IBI prices from Yahoo failed: ' + e); }
+  // USD/ILS (Q1) from Yahoo too: Google's stops updating at about 18:00 Israel time.
+  try { updateUsdIlsFromYahoo_(tracker); } catch (e) { console.warn('USD/ILS from Yahoo failed: ' + e); }
   const data = tracker.getDataRange().getValues();
 
   let headerRowIdx = -1;
@@ -329,4 +331,61 @@ function yahooTaseQuote_(googleSymbol) {
 // Run once by hand to fill the IBI prices now (outside market hours the logger doesn't run).
 function updateIbiPricesNow() {
   updateIbiPricesFromYahoo_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker'));
+}
+
+// ---- USD/ILS (Tracker!Q1) from Yahoo Finance ----
+// GOOGLEFINANCE("CURRENCY:USDILS") stops updating at about 18:00 Israel time (6 Oct 2026: 3.0447
+// from 18:00 to 23:00), while the market and the brokers' rates keep moving (Yahoo's ILS=X had
+// 3.0464 at 23:30; Psagot used about 3.0469). On every logger run this writes Yahoo's rate into Q1,
+// the live rate every ₪ value of a US holding and the dashboard use. The first time, Q1's own
+// formula is saved (Script Properties, USDILS_Q1_FORMULA); it's put back whenever Yahoo is
+// unreachable or its quote is over 30 minutes old (e.g. weekends), so Q1 never freezes on an old
+// Yahoo value. Q2 (the scraped change text) is untouched.
+const USDILS_CELL = 'Q1';
+const USDILS_FORMULA_PROP = 'USDILS_Q1_FORMULA';
+
+function updateUsdIlsFromYahoo_(tracker) {
+  const cell = tracker.getRange(USDILS_CELL), props = PropertiesService.getScriptProperties();
+  const formula = cell.getFormula();
+  if (formula) props.setProperty(USDILS_FORMULA_PROP, formula);   // remember Google's formula
+  const q = yahooUsdIlsQuote_();
+  if (q && Date.now() - q.time < 30 * 60000) {
+    cell.setValue(Math.round(q.price * 10000) / 10000);
+  } else if (!formula) {
+    const saved = props.getProperty(USDILS_FORMULA_PROP);
+    if (saved) cell.setFormula(saved);
+  }
+  SpreadsheetApp.flush();   // every ₪ value of a US holding recalculates from the new rate
+}
+
+// Yahoo's latest USD/ILS (ILS=X) and its quote time (ms). Null on any failure.
+function yahooUsdIlsQuote_() {
+  try {
+    const resp = UrlFetchApp.fetch('https://query1.finance.yahoo.com/v8/finance/chart/ILS%3DX', {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      }
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    const m = JSON.parse(resp.getContentText()).chart.result[0].meta;
+    return m.regularMarketPrice > 2 && m.regularMarketPrice < 10 && m.regularMarketTime
+      ? {price: m.regularMarketPrice, time: m.regularMarketTime * 1000} : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Run by hand to put Google's formula back in Q1 (e.g. to stop using Yahoo's rate).
+function restoreUsdIlsFormula() {
+  const saved = PropertiesService.getScriptProperties().getProperty(USDILS_FORMULA_PROP);
+  if (!saved) { Logger.log('No saved Q1 formula yet.'); return; }
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker').getRange(USDILS_CELL).setFormula(saved);
+  Logger.log('Q1 formula restored: ' + saved);
+}
+
+// Run by hand to write Yahoo's USD/ILS into Q1 now (outside market hours the logger doesn't run).
+function updateUsdIlsNow() {
+  updateUsdIlsFromYahoo_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker'));
 }
