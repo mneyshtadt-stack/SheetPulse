@@ -194,6 +194,8 @@ function logIntradayValue() {
 
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tracker = ss.getSheetByName('Tracker');
+  // The IBI funds' prices from Yahoo first, so this reading (and the TASE close row) uses them.
+  try { updateIbiPricesFromYahoo_(tracker); } catch (e) { console.warn('IBI prices from Yahoo failed: ' + e); }
   const data = tracker.getDataRange().getValues();
 
   let headerRowIdx = -1;
@@ -260,4 +262,71 @@ function intradayLogSheet_(ss) {
     sheet.getRange(1, 1, 1, INTRADAY_HEADER.length).setValues([INTRADAY_HEADER]);
   }
   return sheet;
+}
+
+// ---- IBI.F35 / IBI.FK4 prices from Yahoo Finance ----
+// GOOGLEFINANCE gives these TASE funds' last continuous trade, not TASE's closing-auction price, so
+// after the close the Tracker kept e.g. IBI.F35 at 7465 while the official close (Meitav, Yahoo)
+// was 7452 (broker comparison, 6 Oct 2026). On every logger run this writes Yahoo's price, previous
+// close and day change % as values into those rows' Current Price / Prev Day Close / Day Change (%)
+// cells (agorot, like GOOGLEFINANCE). The last run after the close (17:31-17:41, the TASE close row)
+// leaves the official close in place overnight and until the next session. If Yahoo can't be
+// reached, the cells get their GOOGLEFINANCE formulas back, so the price keeps moving.
+const YAHOO_TASE_TICKERS = ['IBI.F35', 'IBI.FK4'];   // Yahoo: IBI-F35.TA, IBI-FK4.TA
+
+function updateIbiPricesFromYahoo_(tracker) {
+  const data = tracker.getDataRange().getValues();
+  let h = -1;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i].includes('Ticker') && data[i].includes('Shares')) { h = i; break; }
+  }
+  if (h === -1) return;
+  const head = data[h].map(x => String(x).trim());
+  const cTicker = head.indexOf('Ticker'), cPrice = head.indexOf('Current Price'), cChange = head.indexOf('Day Change (%)');
+  const cPrev = head.findIndex(x => /prev/i.test(x) && /close/i.test(x));
+  if (cTicker === -1 || cPrice === -1) return;
+
+  const quotes = {};
+  YAHOO_TASE_TICKERS.forEach(t => { quotes[t] = yahooTaseQuote_(t); });
+  for (let i = h + 1; i < data.length; i++) {
+    const t = String(data[i][cTicker] || '').trim();
+    if (!t) break;
+    if (YAHOO_TASE_TICKERS.indexOf(t) === -1) continue;
+    const row = i + 1, ref = tracker.getRange(row, cTicker + 1).getA1Notation(), q = quotes[t];
+    const put = (col, value, googleAttr) => {
+      if (col === -1) return;
+      const cell = tracker.getRange(row, col + 1);
+      if (q) cell.setValue(value); else cell.setFormula('=GOOGLEFINANCE(' + ref + ', "' + googleAttr + '")');
+    };
+    put(cPrice, q && q.price, 'price');
+    put(cPrev, q && q.prevClose, 'closeyest');
+    put(cChange, q && Math.round((q.price / q.prevClose - 1) * 10000) / 100, 'changepct');
+  }
+  SpreadsheetApp.flush();   // the values below (Current Value (ILS)) recalculate from the new prices
+}
+
+// Yahoo's latest regular-session price (the closing-auction price once the session has ended) and
+// previous close for a Google-style TASE symbol, e.g. IBI.F35 -> IBI-F35.TA. Null on any failure.
+function yahooTaseQuote_(googleSymbol) {
+  try {
+    const symbol = googleSymbol.replace(/\./g, '-') + '.TA';
+    const resp = UrlFetchApp.fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol), {
+      muteHttpExceptions: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+      }
+    });
+    if (resp.getResponseCode() !== 200) return null;
+    const m = JSON.parse(resp.getContentText()).chart.result[0].meta;
+    const price = m.regularMarketPrice, prev = m.chartPreviousClose != null ? m.chartPreviousClose : m.previousClose;
+    return price > 0 && prev > 0 ? {price: price, prevClose: prev} : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Run once by hand to fill the IBI prices now (outside market hours the logger doesn't run).
+function updateIbiPricesNow() {
+  updateIbiPricesFromYahoo_(SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tracker'));
 }
