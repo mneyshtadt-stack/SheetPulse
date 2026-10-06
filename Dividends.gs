@@ -6,24 +6,24 @@
 //                One row per dividend per share, for every US ticker in the Transactions tab (both
 //                brokers), from the first purchase on. Dates are "yyyy-mm-dd" text.
 //
-// Source: Yahoo Finance's chart API (ex-date and amount). Yahoo has no payment date, so Pay Date is
-// estimated from the ex-date (divPayLagDays_): ETFs pay within days, stocks weeks later. Checked
-// against Psagot's statements of 4 and 5 Oct 2026 (38 holdings): 35 matched to the cent; the rest were
-// dividends Yahoo hadn't listed yet (DBMF, VO) or adjusted for a spin-off (SPGI). Rows whose Source says "estimated" get their
-// Pay Date recalculated on every run (so a better rule fixes old rows too); change Source to
-// "manual" after correcting a Pay Date or Amount by hand from the broker's statement and it's never
-// touched again. TASE funds (IBI.*) are skipped: no USD dividends.
-//
-// Backup source: Alpha Vantage (free key, 25 requests a day). Its DIVIDENDS data has the REAL payment
-// date: each run checks up to DIV_AV_PER_RUN tickers -- first those with a recent estimated row, then
-// the rest in rotation -- replaces estimated Pay Dates (and amounts) with Alpha Vantage's, marking
-// Source "Alpha Vantage", and adds dividends Yahoo hasn't listed yet. "manual" rows are never touched.
-// Without a key the script runs on Yahoo alone.
+// Sources, in order:
+//   1. Alpha Vantage (free key, 25 requests a day) -- the REAL payment date and the declared amount.
+//      Each run checks up to DIV_AV_PER_RUN tickers: first those with a recent estimated row, then the
+//      rest in rotation, so every ticker is refreshed every few days. Its rows say "Alpha Vantage" and
+//      win over Yahoo's for the same dividend. Checked against Psagot's statements (Oct 2026): payment
+//      dates exact or within a day.
+//   2. Yahoo Finance's chart API -- backup: every ticker, every run, ex-date and amount but NO payment
+//      date, so Pay Date is estimated (divPayLagDays_: ETFs within days, stocks weeks later) and Source
+//      says "Yahoo, pay date estimated". It fills in dividends Alpha Vantage hasn't listed or checked yet.
+//      Yahoo sometimes adjusts old amounts for spin-offs (SPGI May 2026) -- Alpha Vantage's row fixes that.
+// Rows whose Source says "estimated" get their Pay Date recalculated on every run. Change Source to
+// "manual" after correcting a row by hand from the broker's statement and it's never touched again.
+// Without an Alpha Vantage key the script runs on Yahoo alone. TASE funds (IBI.*) are skipped.
 //
 // Setup (once, in the Apps Script project bound to the Tracker spreadsheet):
 //   1. Paste this file as Dividends.gs and run updateDividends() -- creates and fills the tab.
 //   2. Run installDividendsTrigger() -- repeats it every morning at 08:00.
-//   3. Optional backup source: get a free key at alphavantage.co, paste it into setAlphaVantageKey()
+//   3. Alpha Vantage (first source): get a free key at alphavantage.co, paste it into setAlphaVantageKey()
 //      below, run that function once, then put the placeholder back and save (the key lives only in
 //      Script Properties, never in this file). checkAlphaVantageKey() confirms it's stored.
 
@@ -49,36 +49,6 @@ function setAlphaVantageKey() {
   PropertiesService.getScriptProperties().setProperty(DIV_AV_PROP, key.trim());
   Logger.log('Saved. Now put PASTE_YOUR_KEY_HERE back in the code and save the file.');
 }
-// One-time test: Alpha Vantage vs Yahoo against payment dates taken from Psagot's own statements
-// (Oct 2026), plus the two September dividends Yahoo hadn't listed (DBMF, VO). Read the log.
-function compareDividendSources() {
-  const key = PropertiesService.getScriptProperties().getProperty(DIV_AV_PROP);
-  if (!key) throw new Error('Store the key first (setAlphaVantageKey)');
-  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
-  const fmt = d => Utilities.formatDate(d, tz, 'yyyy-MM-dd');
-  // Paid per Psagot (ticker: [payment dates]); DBMF and VO: is September there at all?
-  const psagot = {SCHD: ['2025-12-16', '2026-03-31', '2026-06-30', '2026-09-29'], SPGI: ['2026-06-11', '2026-09-14'],
-    GS: ['2026-06-29', '2026-09-30'], ASGI: ['2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30'], OWL: ['2026-08-27'],
-    DBMF: ['2026-06-30', '2026-09-30'], VO: ['2026-06-30', '2026-09-30']};
-  const out = [];
-  Object.keys(psagot).forEach((t, i) => {
-    if (i) Utilities.sleep(13000);
-    let av = [];
-    try {
-      const j = JSON.parse(UrlFetchApp.fetch('https://www.alphavantage.co/query?function=DIVIDENDS&symbol=' + encodeURIComponent(t) + '&apikey=' + encodeURIComponent(key), {muteHttpExceptions: true}).getContentText());
-      if (j.Information || j.Note) { out.push(t + ': LIMIT ' + (j.Information || j.Note)); return; }
-      av = (j.data || []).filter(d => d.ex_dividend_date >= '2025-11-01');
-    } catch (e) { out.push(t + ': error ' + e); return; }
-    const y = divFetchYahoo_(t);
-    const yEx = y ? y.divs.map(d => fmt(d.date)).filter(d => d >= '2025-11-01') : [];
-    const avPay = av.map(d => d.payment_date);
-    const hit = psagot[t].filter(p => avPay.some(a => a && Math.abs(new Date(a) - new Date(p)) <= 2 * 86400000)).length;
-    out.push(t + ': Alpha Vantage ' + av.length + ' dividend(s), payment dates matching Psagot ' + hit + '/' + psagot[t].length
-      + ' | Yahoo ' + yEx.length + ' dividend(s) | AV: ' + av.map(d => d.ex_dividend_date + '→' + d.payment_date + ' $' + d.amount).join(', '));
-  });
-  Logger.log('\n' + out.join('\n'));
-}
-
 function checkAlphaVantageKey() {
   const k = PropertiesService.getScriptProperties().getProperty(DIV_AV_PROP);
   Logger.log(k ? 'Alpha Vantage key is stored (ends with ...' + k.slice(-3) + ')' : 'No Alpha Vantage key stored');
@@ -109,29 +79,37 @@ function updateDividends() {
   existing.forEach(r => { have[String(r[0]).trim() + '|' + String(r[1]).trim()] = true; });
 
   const today = fmt(new Date());
-  const added = [], types = {};
+  const all = existing.slice();
+
+  // Yahoo for every ticker: its instrument type (for the payment-date estimate) and its dividends.
+  const types = {}, yahoo = {};
   Object.keys(firstBuy).sort().forEach(ticker => {
     const y = divFetchYahoo_(ticker);
     if (!y) { Logger.log('No Yahoo data for ' + ticker); return; }
-    types[ticker] = y.type;
-    const lag = divPayLagDays_(ticker, y.type);
+    types[ticker] = y.type; yahoo[ticker] = y.divs;
+  });
+
+  // 1. Alpha Vantage first: real payment dates and amounts, and dividends missing from the tab.
+  const av = divApplyAlphaVantage_(all, firstBuy, types, fmt, today);
+
+  // 2. Yahoo fills in what's still missing (a dividend already in the tab within a day is the same one).
+  const byKey = {};
+  all.forEach(r => { byKey[String(r[0]).trim() + '|' + String(r[1]).trim()] = true; });
+  const known = (t, d) => [0, -1, 1].some(off => byKey[t + '|' + fmt(new Date(d.getTime() + off * 86400000))]);
+  let yAdded = 0;
+  Object.keys(yahoo).forEach(ticker => {
+    const lag = divPayLagDays_(ticker, types[ticker]);
     const from = firstBuy[ticker].getTime() - 86400000;
-    y.divs.forEach(d => {
-      if (d.date.getTime() < from) return;
-      const ex = fmt(d.date);
-      if (have[ticker + '|' + ex]) return;
-      added.push([ticker, ex, fmt(new Date(d.date.getTime() + lag * 86400000)), d.amount, DIV_ESTIMATED, today]);
-      have[ticker + '|' + ex] = true;
+    yahoo[ticker].forEach(d => {
+      if (d.date.getTime() < from || known(ticker, d.date)) return;
+      const r = [ticker, fmt(d.date), fmt(new Date(d.date.getTime() + lag * 86400000)), d.amount, DIV_ESTIMATED, today];
+      all.push(r); byKey[ticker + '|' + r[1]] = true; yAdded++;
     });
   });
 
-  // Alpha Vantage: real payment dates, and dividends Yahoo is missing.
-  const all = existing.concat(added);
-  const av = divApplyAlphaVantage_(all, firstBuy, types, fmt, today);
-
-  // Estimated rows already in the tab: Pay Date recalculated with the current rule.
+  // Every estimated row: Pay Date recalculated with the current rule.
   let fixed = 0;
-  existing.forEach(r => {
+  all.forEach(r => {
     if (String(r[4]).indexOf('estimated') === -1) return;
     const ticker = String(r[0]).trim(), ex = divParseDate_(r[1]);
     if (!ex || !(ticker in types)) return;
@@ -141,7 +119,7 @@ function updateDividends() {
   if (all.length) sh.getRange(2, 1, all.length, DIV_HEADER.length).setValues(all);
   // Newest first within each ticker, tickers A-Z.
   if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, DIV_HEADER.length).sort([{column: 1, ascending: true}, {column: 2, ascending: false}]);
-  Logger.log('Dividends: ' + added.length + ' new from Yahoo, ' + fixed + ' estimated pay date(s) updated; Alpha Vantage: ' + av);
+  Logger.log('Alpha Vantage: ' + av + ' | Yahoo (backup): ' + yAdded + ' new | ' + fixed + ' estimated pay date(s) updated');
 }
 
 function installDividendsTrigger() {
