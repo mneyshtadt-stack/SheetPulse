@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791292664";
+const BUILD_ID = "1791293386";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3255,6 +3255,13 @@ async function fetchBoiRates(){
   return window.boiRates;
 }
 function boiDay(k){ const [y, m, d] = k.split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}); }
+// The latest rate's change from the one before it, as the Bank of Israel shows it (e.g. ↓-0.196%).
+function boiChangeHtml(){
+  const a = window.boiRates;
+  if(!a || a.length < 2) return '';
+  const pct = (a[a.length-1].rate / a[a.length-2].rate - 1) * 100;
+  return ` <span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '↑+' : '↓'}${pct.toFixed(3)}%</span>`;
+}
 function boiRateLatest(){ const a = window.boiRates; return a && a.length ? a[a.length-1] : null; }
 function boiRateBeforeToday(){
   const a = window.boiRates, z = todayInZone('Asia/Jerusalem');
@@ -3901,7 +3908,7 @@ async function renderFxDetailHeader(){
       <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
       ${change !== null ? `<span class="md-headline-change" style="color:${color};">${change>=0?'▲':'▼'} ${change>=0?'+':''}${change.toFixed(4)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%)</span>` : ''}
     </div>
-    <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) : ''}</div>
+    <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
   `;
@@ -5269,7 +5276,10 @@ function formatFxLine(rate){
   const cls = change >= 0 ? 'up' : 'down';
   const arrow = change >= 0 ? '▲' : '▼';
   const asOf = window.lastFxAsOf || 'Today';
-  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`;
+  // The latest Bank of Israel representative rate (BOIRate tab) after the live one.
+  const boi = boiRateLatest();
+  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`
+    + (boi ? ` <span class="gval-sub" title="Bank of Israel representative rate">· BoI <b style="color:var(--ink);">${boi.rate.toFixed(4)}</b>${boiChangeHtml()} (${boiDay(boi.date)})</span>` : '');
 }
 
 // Intraday value tracking — logged server-side by a single Google Apps Script time-driven trigger
@@ -6416,7 +6426,10 @@ async function renderRangeChart(ctx, range){
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${boiMarks.map(b => { const bx = b.t !== undefined ? xAt(b.t) : xFor(b.i), by = yFor(b.v);
         return `<rect x="${(bx-4.5).toFixed(1)}" y="${(by-4.5).toFixed(1)}" width="9" height="9" transform="rotate(45 ${bx.toFixed(1)} ${by.toFixed(1)})" fill="var(--accent)" stroke="var(--panel)" stroke-width="1.5"><title>Bank of Israel rate ${b.v.toFixed(4)} (${boiDay(b.date)})</title></rect>`
-          + (range === '1D' ? `<text x="${(bx+9).toFixed(1)}" y="${(by-9).toFixed(1)}" font-size="11" fill="var(--accent)" font-weight="700" ${font}>BoI ${b.v.toFixed(4)}</text>` : ''); }).join('')}
+          // 1D: a dotted line from the point to the right edge, like Prev. close; the label sits just
+          // right of the point, so it never meets the Prev. close label at the right edge.
+          + (range === '1D' ? `<line x1="${bx.toFixed(1)}" x2="${w-padR}" y1="${by.toFixed(1)}" y2="${by.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2,3"/>`
+            + `<text x="${(bx+10).toFixed(1)}" y="${(by-8).toFixed(1)}" font-size="11" fill="var(--accent)" ${font}>Bank of Israel <tspan font-weight="700">${b.v.toFixed(4)}</tspan></text>` : ''); }).join('')}
       <circle id="rangeDefaultDot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="${lineColor}"/>
       ${movesSvg}
       ${xLabels}
