@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791321760";
+const BUILD_ID = "1791323247";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3271,7 +3271,26 @@ function boiRateBeforeToday(){
 }
 // Meitav's valuation rate: the last representative rate published BEFORE today, used all day even
 // after today's comes out around 15:30 (broker comparison, 6 Oct 2026: 3.0590 at 23:27, not 3.0530).
-function meitavBoiRate(){ return boiRateBeforeToday() || boiRateLatest(); }
+// Meitav's business day: the last Mon-Fri whose day Meitav has started, i.e. today once it's past
+// MEITAV_ROLLOVER_MIN (Israel time), otherwise the previous Mon-Fri. Overnight and at weekends
+// Meitav keeps showing the last trading day (on 7 Oct at 00:40 it still showed 6 Oct's +₪1,029 at
+// 3.0590). The rollover time is a first guess (TASE's open); adjust it once Meitav's is known.
+const MEITAV_ROLLOVER_MIN = 10 * 60;
+function meitavBusinessDay(){
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false}).formatToParts(new Date());
+  const get = t => parseInt(parts.find(p => p.type === t).value, 10);
+  const d = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
+  const started = d.getUTCDay() >= 1 && d.getUTCDay() <= 5 && (get('hour') % 24) * 60 + get('minute') >= MEITAV_ROLLOVER_MIN;
+  if(!started){ do { d.setUTCDate(d.getUTCDate() - 1); } while(d.getUTCDay() === 0 || d.getUTCDay() === 6); }
+  return {key: d.toISOString().slice(0, 10), isToday: started};
+}
+// Meitav's valuation rate: the last representative rate published BEFORE its business day, used
+// all day even after that day's own rate comes out around 15:30 (6 Oct 2026: 3.0590 at 23:27).
+function meitavBoiRate(){
+  const a = window.boiRates, k = meitavBusinessDay().key;
+  for(let i = (a || []).length - 1; i >= 0; i--) if(a[i].date < k) return a[i];
+  return boiRateLatest();
+}
 // A holding's (or a part's) ₪ value at that rate: Meitav's own valuation.
 // ₪ funds and holdings without a dollar value stay as they are.
 function boiValueIls(r, value){
@@ -4132,7 +4151,7 @@ function renderPortfolioHeader(){
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
-    ${pdWay ? `<div class="md-headline-label" style="text-transform:none; letter-spacing:0;">${broker}'s way: <b style="color:var(--ink);">${fmt(pdWay.value)}</b> · US holdings at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)})</div>` : ''}
+    ${pdWay ? `<div class="md-headline-label" style="text-transform:none; letter-spacing:0;">${broker}'s way: <b style="color:var(--ink);">${fmt(pdWay.value)}</b> · US holdings at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)})${pdWay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(pdWay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}</div>` : ''}
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day change</div>
@@ -6640,7 +6659,10 @@ function taseSessionStartedToday(){
 function meitavWayDay(rows){
   const b = meitavBoiRate();
   if(!b) return null;
-  const usOn = usSessionStartedToday(), taseOn = taseSessionStartedToday();
+  // Today's business day: each market once its session has started. An earlier one (overnight, at
+  // weekends): that day's full moves, which Google's Day Change % still shows.
+  const bd = meitavBusinessDay();
+  const usOn = bd.isToday ? usSessionStartedToday() : true, taseOn = bd.isToday ? taseSessionStartedToday() : true;
   let day = 0, value = 0;
   rows.forEach(r => {
     value += boiValueIls(r, r.value);
@@ -6648,7 +6670,7 @@ function meitavWayDay(rows){
     if(ISRAELI_TICKERS.includes(r.name)){ if(taseOn) day += r.value - r.value / (1 + r.change / 100); return; }
     if(usOn && r.valueUsd > 0) day += (r.valueUsd - r.valueUsd / (1 + r.change / 100)) * b.rate;
   });
-  return {day, value, boi: b, pct: (value - day) ? day / (value - day) * 100 : 0};
+  return {day, value, boi: b, pct: (value - day) ? day / (value - day) * 100 : 0, businessDay: bd};
 }
 function usdBrokerDayGain(rows){
   const b = boiRateBeforeToday();
