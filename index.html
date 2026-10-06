@@ -580,6 +580,11 @@
   #universeChart:empty{display:none;}
   .hpanel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0;}
   .tm-panel{margin-top:8px;}
+  /* Home sections as panels (v1c phase 5): same surface, border and radius as the tiles above. */
+  section.psec{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:16px 0 0; min-width:0;}
+  section.psec h2{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:0;}
+  section.psec-note{border-left:3px solid var(--accent); padding:14px 18px; font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);}
+  @media (max-width:600px){ section.psec{padding:14px 12px; border-radius:8px;} }
   .hp-label{font-family:var(--sans); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:2px 2px 8px;}
   #treemap{position:relative; width:100%; height:420px;}
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:var(--sans);}
@@ -672,7 +677,7 @@
   }
   .info-icon:hover{background:var(--accent); color:var(--on-accent);}
   .waterfall-bar-label{font-family:var(--sans);}
-  footer{font-family:var(--sans); font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
+  footer{margin-top:28px; font-family:var(--sans); font-size:12px; color:var(--muted); border-top:1px solid var(--line); padding-top:16px; line-height:1.6;}
   @media (max-width:720px){ .cards{grid-template-columns:repeat(2,1fr);} .sname{width:100px;} }
   .wrap{display:none;}
   body.pf-unlocked .wrap{display:block;}
@@ -1066,10 +1071,10 @@
     <div class="hpanel" id="homeAlloc"></div>
   </div>
 
-  <section>
+  <section class="psec">
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
       <div>
-        <h2 style="margin-bottom:2px; font-size:18px; font-weight:400; color:var(--ink);">Your investments visualized</h2>
+        <h2 style="margin-bottom:2px;">Your investments visualized</h2>
         <p style="margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
       </div>
       <span style="display:flex; gap:8px;">
@@ -1091,11 +1096,11 @@
       <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
       <span><span class="swatch" style="background:var(--up-4)"></span>Up today</span>
     </div>
-    <div class="hpanel tm-panel"><div id="treemap"></div></div>
+    <div class="tm-panel"><div id="treemap"></div></div>
     <div id="customTooltip"></div>
   </section>
 
-  <section>
+  <section class="psec">
     <h2 style="display:inline-flex; align-items:center; gap:7px;">Sector allocation
       <span id="sectorInfoIcon" class="info-icon">?</span>
     </h2>
@@ -1107,7 +1112,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="psec">
     <h2 style="display:inline-flex; align-items:center; gap:7px;">Role group breakdown — why each holding is in the portfolio
       <span id="roleInfoIcon" class="info-icon">?</span>
     </h2>
@@ -1119,7 +1124,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="psec">
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
       <h2 style="margin-bottom:0;">Winners &amp; losers — total return since purchase</h2>
       <span style="display:flex; gap:8px;">
@@ -1152,21 +1157,21 @@
     </div>
   </section>
 
-  <section>
-    <div style="background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent); padding:14px 18px; margin-bottom:24px; font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);">
+  <section class="psec psec-note">
+    <div>
       <b>Historical Contribution</b> looks backward — based on money originally invested, it measures which holdings generated your profits over time.<br>
       <b>Current Weighted Contribution</b> looks at today — based on current market value, it measures which holdings currently have the biggest influence on your portfolio's performance.<br>
       <span style="color:var(--muted);">Analogy: Historical = "who scored the goals during the season?" Current weighted = "who's on the field influencing the game right now?"</span>
     </div>
   </section>
 
-  <section>
+  <section class="psec">
     <h2>Historical contribution to total return — cost-weighted</h2>
     <p class="chart-note" id="waterfallCostNote">Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return.</p>
     <div id="waterfallCost"></div>
   </section>
 
-  <section>
+  <section class="psec">
     <h2 style="display:inline-flex; align-items:center; gap:7px;">Current weighted contribution to total return %
       <span id="whyDiffersIcon" class="info-icon" title="">?</span>
     </h2>
@@ -1238,7 +1243,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791277191";
+const BUILD_ID = "1791277568";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
