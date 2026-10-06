@@ -76,15 +76,19 @@
   /* No single word left alone on a heading's or note's last line. */
   h1, h2, h3, h4{text-wrap:balance;}
   p, .chart-note, footer{text-wrap:pretty;}
-  .wrap{max-width:1120px; margin:0 auto; padding:48px 28px 80px;}
-  header{display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:36px; border-bottom:1px solid var(--line); padding-bottom:24px; flex-wrap:wrap;}
+  .wrap{max-width:1180px; margin:0 auto; padding:22px 16px 64px;}
+  header{display:flex; justify-content:space-between; align-items:center; gap:12px 16px; margin-bottom:16px; flex-wrap:wrap;}
   h1{font-size:34px; font-weight:400; margin:0 0 4px; letter-spacing:-0.01em;}
   /* The brand logo is the app icon itself (icon-512.png, bars + "SheetPulse" wordmark) -- the same
      image as the home-screen icon and the GitHub repo, so the name lives inside the logo. */
-  .brand-logo{display:block; width:92px; height:92px; flex-shrink:0;}
+  .brand-logo{display:block; width:46px; height:46px; flex-shrink:0; border-radius:8px;}
   .brand-logo-lock{width:140px; height:140px; margin:0 auto 6px;}
-  .brand-title{display:flex; align-items:center; gap:16px; font-size:40px;}
-  @media (max-width:600px){ .brand-logo{width:76px; height:76px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:32px; gap:12px;} }
+  .brand-title{display:flex; align-items:center; gap:10px; font-size:24px; font-weight:600;}
+  @media (max-width:600px){ .brand-logo{width:38px; height:38px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:21px; gap:9px;}
+    /* One row of buttons that scrolls sideways instead of stacking (keeps the header short). */
+    header .btnrow{flex-wrap:nowrap; overflow-x:auto; width:100%; padding-bottom:2px; scrollbar-width:none;}
+    header .btnrow::-webkit-scrollbar{display:none;}
+    header .btnrow > *{flex-shrink:0;} }
   .meta{font-family:var(--sans); font-size:12px; color:var(--muted);}
   #refreshBtn{
     font-family:var(--sans); font-size:12px; font-weight:600; color:var(--on-accent); background:var(--accent);
@@ -464,25 +468,43 @@
   #universeTable th[data-key="subtheme"], #universeTable td[data-col="subtheme"],
   #universeTable th[data-key="category"], #universeTable td[data-col="category"]{width:210px;}
   #universeTable th[data-key="whenItHelps"], #universeTable td[data-col="whenItHelps"]{width:260px;}
-  .cards{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line);
-    border-bottom:none; cursor:pointer; transition:box-shadow 0.18s ease;
-  }
-  .cards:hover{box-shadow:0 6px 22px rgba(26,35,50,0.10); position:relative; z-index:var(--z-sticky);}
-  .card{background:var(--panel); padding:20px 22px; position:relative;}
-  .card::before{content:''; position:absolute; top:0; left:0; right:0; height:3px; background:var(--flat);}
-  .card.card-up::before{background:var(--up-4);}
-  .card.card-down::before{background:var(--down-4);}
-  .card .label{font-family:var(--sans); font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
+  /* KPI tiles: separate panels (the v1c layout). */
+  .cards{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; cursor:pointer;}
+  .card{background:var(--panel); padding:14px 16px; position:relative; border:1px solid var(--line); border-radius:10px; transition:border-color 0.15s ease;}
+  .cards:hover .card{border-color:color-mix(in srgb, var(--accent) 45%, var(--line));}
+  .card .label{font-family:var(--sans); font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;}
+  .card .bsplit{font-family:var(--mono); font-size:12px; margin-top:6px; display:flex; flex-wrap:wrap; gap:2px 8px;}
   .card .value{font-size:26px; line-height:1.1; font-family:var(--mono); font-weight:600; letter-spacing:-0.01em;}
   .card .sub{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:4px;}
   .up{color:var(--up-ink);} .down{color:var(--down-ink);}
-  #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
-  .gauge-title{font-size:15px; font-weight:400; color:var(--muted); font-family:var(--sans); letter-spacing:0.01em; text-align:center; margin-bottom:2px;}
-  #gaugePanel{display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; padding:24px 28px 24px;}
-  .gauge-wrap{flex-shrink:0; width:236px; box-sizing:border-box;}
-  .gauge-svg-wrap{position:relative; width:100%; height:150px;}
-  #gaugeInfo{font-family:var(--sans); font-size:13px; line-height:2.1; flex:1; min-width:220px;}
+  #heroPanel{margin-bottom:28px;}
+  /* Markets strip (replaced the gauge dial): market status, Israel / USA day change, USD/ILS --
+     the same live-updating lines, each opening its window. */
+  #gaugePanel{margin-top:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 16px;}
+  #gaugeInfo.mstrip{display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px; font-family:var(--sans); font-size:13px; line-height:1.6;}
+  .mstrip .mitem{white-space:nowrap;}
+  .mstrip .mlink{cursor:pointer; border-radius:6px; padding:1px 4px; margin:0 -4px;}
+  .mstrip .mlink:hover{background:var(--hover);}
+  .mstrip .msep{width:1px; align-self:stretch; background:var(--line);}
+  /* "Market Value: ..." repeats the tiles; kept in the DOM (the live sync still writes it) but hidden here. */
+  .mstrip #gaugePortfolioSub, .mstrip #gaugeIlSub, .mstrip #gaugeUsSub{display:none;}
+  /* Phone hero: today's change as one big number, first thing on the screen. */
+  #phoneHero{display:none;}
+  @media (max-width:600px){
+    #phoneHero{display:block; margin:0 0 14px; cursor:pointer;}
+    #phoneHero .ph-label{font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted);}
+    #phoneHero .ph-num{font-family:var(--mono); font-weight:600; font-size:clamp(40px,14vw,60px); line-height:1.05; letter-spacing:-0.02em;}
+    #phoneHero .ph-sub{font-family:var(--mono); font-size:13px; margin-top:4px;}
+    #phoneHero .bsplit{font-family:var(--mono); font-size:12px; margin-top:4px; display:flex; flex-wrap:wrap; gap:2px 8px;}
+    .card.card-today{display:none;}
+    .cards{grid-template-columns:repeat(2,1fr);}
+    .cards .card:last-child{grid-column:1 / -1;}   /* Holdings full width, no empty half-row */
+    #buildInfo{display:none;}                      /* desktop and Diagnostics still show the build */
+    .mstrip .msep{display:none;}
+    .mstrip .mitem{white-space:normal;}
+  }
+
+
   #gaugeInfo .glabel{color:var(--muted); margin-right:8px;}
   /* "Portfolio" stands out as the way into the Portfolio window. The system's own modern UI font
      (Segoe UI Variable on Windows, SF Pro on iPhone/Mac, Roboto on Android): nothing to download. */
@@ -490,7 +512,7 @@
     font-family:var(--sans);
     font-weight:700; color:var(--ink); letter-spacing:0.01em;
   }
-  #gaugeInfo .gval{font-weight:700; font-size:14.5px;}
+  #gaugeInfo .gval{font-weight:700; font-size:13.5px; font-family:var(--mono);}
   #gaugeInfo .gval.up{color:var(--up-ink);}
   #gaugeInfo .gval.down{color:var(--down-ink);}
   #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
@@ -1009,6 +1031,7 @@
     </div>
   </header>
 
+  <div id="phoneHero" title="View all holdings"></div>
   <div id="heroPanel">
     <div class="cards" id="cards"></div>
     <div id="gaugePanel"></div>
@@ -1186,7 +1209,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791275764";
+const BUILD_ID = "1791276213";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4976,37 +4999,12 @@ async function openNetWorthDetail(){
   await loadNetWorthYear(year);
 }
 
-// Clockwise-from-top polar helper shared by the gauge's arc/needle geometry (0deg = 12 o'clock).
-function gaugePolar(cx, cy, r, angleDeg){
-  const rad = angleDeg * Math.PI / 180;
-  return {x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad)};
-}
-function gaugeArcPath(cx, cy, r, startAngle, endAngle){
-  const start = gaugePolar(cx, cy, r, endAngle);
-  const end = gaugePolar(cx, cy, r, startAngle);
-  const largeArcFlag = (endAngle - startAngle) <= 180 ? 0 : 1;
-  return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`;
-}
 function renderGauge(rows, totals){
   const panel = document.getElementById('gaugePanel');
   if(!panel) return;
 
   const value = totals.dayGainPct;
-  const maxAbs = 3;
-  const clamped = Math.max(-maxAbs, Math.min(maxAbs, value));
   const gaugeCls = value >= 0 ? 'up' : 'down';
-
-  // A 200deg sweep (rather than a flat 180deg semicircle) reads as a rounder "horseshoe" dial,
-  // matching the reference style -- tips curl slightly past horizontal instead of ending flat.
-  // The arc sits in the upper part of the viewBox, leaving room below the hub for the value
-  // readout to sit centered inside the dial's own open gap, instead of below the card.
-  const cx = 100, cy = 82, r = 64, startAngle = -100, endAngle = 100;
-  const t = (clamped + maxAbs) / (2 * maxAbs);
-  const needleAngle = startAngle + t * (endAngle - startAngle);
-  const needleTip = gaugePolar(cx, cy, 46, needleAngle);
-  const arcPath = gaugeArcPath(cx, cy, r, startAngle, endAngle);
-  const labelStart = gaugePolar(cx, cy, r + 18, startAngle);
-  const labelEnd = gaugePolar(cx, cy, r + 18, endAngle);
 
   const split = splitByMarket(rows);
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -5014,40 +5012,18 @@ function renderGauge(rows, totals){
   const taseOpen = getTaseStatus();
   const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
 
+  // The old dial is gone (redesign, Oct 2026): the KPI tiles and the phone hero carry today's change.
+  // What stays is its text side as one strip -- same element ids, so syncGaugeToIntraday() keeps
+  // updating Portfolio / Israel / USA live while a market trades.
   panel.innerHTML = `
-    <div class="gauge-wrap">
-      <div class="gauge-title">Day change</div>
-      <div class="gauge-svg-wrap">
-        <svg viewBox="0 0 200 150" style="width:100%; height:100%;">
-          <defs>
-            <linearGradient id="gaugeArcGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="#a32d2d"/>
-              <stop offset="25%" stop-color="#e2793a"/>
-              <stop offset="50%" stop-color="#d9a441"/>
-              <stop offset="75%" stop-color="#7a9c3f"/>
-              <stop offset="100%" stop-color="#3b6d11"/>
-            </linearGradient>
-          </defs>
-          <path d="${arcPath}" fill="none" stroke="url(#gaugeArcGrad)" stroke-width="15" stroke-linecap="round"/>
-          <line class="gauge-needle" x1="${cx}" y1="${cy}" x2="${needleTip.x.toFixed(1)}" y2="${needleTip.y.toFixed(1)}" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="${cx}" cy="${cy}" r="7" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
-          <circle cx="${cx}" cy="${cy}" r="3" fill="var(--accent)"/>
-          <text x="${labelStart.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">-3%</text>
-          <text x="${labelEnd.x.toFixed(1)}" y="112" font-size="10" font-weight="400" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">+3%</text>
-          <text x="${cx}" y="112" font-size="20" font-weight="700" fill="var(--ink)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${value>=0?'+':''}${value.toFixed(2)}%</text>
-        </svg>
-      </div>
-    </div>
-    <div id="gaugeInfo">
-      <div>
-        <span id="taseStatusLine" style="cursor:help;"><span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE: <b>${taseOpen?'OPEN':'CLOSED'}</b></span>
-        &nbsp;&nbsp;
-        <span id="usStatusLine" style="cursor:help;"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA: <b>${usOpen?'OPEN':'CLOSED'}</b></span>
-      </div>
-      <div id="portfolioDetailTrigger" style="cursor:pointer;"><span class="glabel"><span class="glabel-strong">Portfolio</span> day change:</span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></div>
-      <div id="ilDetailTrigger" style="cursor:pointer;"><span class="glabel">Israeli (TASE) day change:</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></div>
-      <div id="usDetailTrigger" style="cursor:pointer;"><span class="glabel">USA day change:</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></div>
-      <div id="fxDetailTrigger" style="cursor:pointer;" title="Open the USD/ILS chart"><span class="glabel">USD/ILS:</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></div>
+    <div id="gaugeInfo" class="mstrip">
+      <span class="mitem" id="taseStatusLine" style="cursor:help;"><span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE <b>${taseOpen?'open':'closed'}</b></span>
+      <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA <b>${usOpen?'open':'closed'}</b></span>
+      <span class="msep"></span>
+      <span class="mitem mlink" id="portfolioDetailTrigger" title="Open the Portfolio window"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
+      <span class="mitem mlink" id="ilDetailTrigger" title="Open the Israel (TASE) window"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
+      <span class="mitem mlink" id="usDetailTrigger" title="Open the USA window"><span class="glabel">USA</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
+      <span class="mitem mlink" id="fxDetailTrigger" title="Open the USD/ILS chart"><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
   `;
   document.getElementById('fxDetailTrigger').addEventListener('click', ()=> openFxDetail());
@@ -6337,6 +6313,35 @@ async function renderRangeChart(ctx, range){
   });
 }
 
+// Today's change per broker (only with two or more brokers), from each holding's Day Change %.
+function brokerSplitHtml(rows){
+  const names = brokerNames(rows);
+  if(names.length < 2) return '';
+  const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  return '<div class="bsplit">' + names.map(b => {
+    const d = brokerTotals(rowsForBroker(rows, b)).dayGain;
+    return `<span class="${d >= 0 ? 'up' : 'down'}">${b} ${d >= 0 ? '+' : '-'}${fmt(d)}</span>`;
+  }).join('<span style="color:var(--muted)">·</span>') + '</div>';
+}
+// Phone only (CSS shows it at <=600px): today's change as one big number. Counts up the first time
+// the page draws it; later refreshes just set it.
+let phoneHeroShown = false;
+function renderPhoneHero(rows, totals){
+  const el = document.getElementById('phoneHero');
+  if(!el) return;
+  const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const cls = totals.dayGain >= 0 ? 'up' : 'down', sign = totals.dayGain >= 0 ? '+' : '-';
+  el.innerHTML = `<div class="ph-label">Today, so far</div><div class="ph-num ${cls}" id="phoneHeroNum">${sign}${fmt(totals.dayGain)}</div>`
+    + `<div class="ph-sub ${cls}">${totals.dayGainPct >= 0 ? '+' : ''}${totals.dayGainPct.toFixed(2)}% since the last close · ${fmt(totals.totalValue)} in total</div>` + brokerSplitHtml(rows);
+  el.onclick = () => openPortfolioDetail();
+  if(phoneHeroShown || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  phoneHeroShown = true;
+  const num = document.getElementById('phoneHeroNum'), t0 = performance.now(), dur = 900, fin = num.textContent;
+  (function step(t){ const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    if(num.isConnected) num.textContent = sign + fmt(totals.dayGain * e); if(k < 1) requestAnimationFrame(step); })(t0);
+  setTimeout(() => { if(num.isConnected) num.textContent = fin; }, dur + 150);   // background tabs pause animation frames
+}
+
 function render(rows, totals){
   window.lastRows = rows;
   window.lastTotals = totals;
@@ -6351,12 +6356,13 @@ function render(rows, totals){
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
   cards.forEach(c=>{
-    const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '');
-    el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}`;
+    const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '');
+    el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
     cardsEl.appendChild(el);
   });
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
+  renderPhoneHero(rows, totals);
   const warnEl = document.getElementById('totalValueWarn');
   if(warnEl && totals.fallback){
     const f = totals.fallback;
