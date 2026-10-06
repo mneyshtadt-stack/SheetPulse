@@ -1238,7 +1238,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791276968";
+const BUILD_ID = "1791277191";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2091,7 +2091,33 @@ function parseTableToRows(table){
   }
   if(!rows.length) throw new Error('No holding rows parsed from the sheet');
   window.lastMissingPrices = missing;
-  return mergeLots(rows);
+  const merged = mergeLots(rows);
+  rememberLastValues(merged);
+  return merged;
+}
+// Each holding's last value with a live price (localStorage sp_lastValues), so a holding Google
+// Finance has no price for right now can still be drawn in the treemap, in grey, at that value.
+function rememberLastValues(rows){
+  let m = {};
+  try{ m = JSON.parse(localStorage.getItem('sp_lastValues') || '{}') || {}; } catch(_){}
+  rows.forEach(r => { if(r.value > 0) m[r.name] = {v: r.value, ret: r.ret, at: Date.now()}; });
+  try{ localStorage.setItem('sp_lastValues', JSON.stringify(m)); } catch(_){}
+  window.lastKnownValues = m;
+}
+// Grey treemap tiles for the holdings left out of the rows for lack of a live price: the last
+// value seen with a price, else the built-in snapshot's, else the cost. Not added to any total.
+function noPriceTiles(rows){
+  const have = new Set(rows.map(r => r.name)), by = {};
+  (window.lastMissingPrices || []).forEach(m => {
+    if(have.has(m.ticker)) return;
+    (by[m.ticker] || (by[m.ticker] = {cost: 0})).cost += isNaN(m.cost) ? 0 : m.cost;
+  });
+  return Object.keys(by).map(t => {
+    const lv = (window.lastKnownValues || {})[t], bi = currentData.find(d => d[0] === t);
+    const value = lv ? lv.v : bi ? bi[1] : by[t].cost;
+    return {name: t, value, change: NaN, ret: lv ? lv.ret : NaN, noPrice: true, lastAt: lv ? lv.at : null,
+      basis: lv ? 'last' : bi ? 'snapshot' : 'cost', logoUrl: ''};
+  }).filter(t => t.value > 0);
 }
 
 // Transactions tab (Transactions.gs): one line per purchase or sale -- Date | Ticker | Shares | Price.
@@ -6504,7 +6530,7 @@ function render(rows, totals){
       + (f.applied
         ? `<div style="margin-top:6px; max-width:300px;">Total value uses ${f.source} instead of the partial sum of the holdings that did come through (${fmt(f.partialValue)}). Today and Total gain follow it.</div>`
         : `<div style="margin-top:6px; max-width:300px;">No recorded total was available to fall back on, so Total value is only the holdings that did come through.</div>`)
-      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:300px;">The treemap and holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
+      + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; max-width:300px;">The treemap shows them in grey at their last known value; the holdings tables show only holdings with a live price. This clears on the next refresh after Google Finance returns the prices.</div>`);
   }
 
   const colorFor = tileColorFor, textColorFor = tileTextColorFor;
@@ -6521,7 +6547,7 @@ function render(rows, totals){
   // area they'd get on a ~1100px-wide desktop, capped so it doesn't get absurdly tall.
   const tmH = Math.min(1800, Math.max(480, Math.round(480 * 1100 / Math.max(tmW, 1))));
   tmEl.style.height = tmH + 'px';
-  const root = d3.hierarchy({children: rows}).sum(d => d.value).sort((a,b) => b.value - a.value);
+  const root = d3.hierarchy({children: rows.concat(noPriceTiles(rows))}).sum(d => d.value).sort((a,b) => b.value - a.value);
   d3.treemap().size([tmW, tmH]).paddingInner(2).paddingOuter(1)(root);
   root.leaves().forEach(n=>{
     const w = n.x1 - n.x0, h = n.y1 - n.y0;
@@ -6547,7 +6573,12 @@ function render(rows, totals){
     const logoImgHtml = (n.data.logoUrl && !tileFitsBadge)
       ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
       : '';
-    const tooltipHtml = `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+    const lastAtTxt = n.data.lastAt ? new Date(n.data.lastAt).toLocaleString('en-GB', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+    const tooltipHtml = n.data.noPrice
+      ? `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}`
+        + `<div style="max-width:280px;">No live price from Google Finance right now. Shown in grey at ${n.data.basis === 'last' ? `its last value with a price, ${fmt(n.data.value)} (${lastAtTxt})` : n.data.basis === 'snapshot' ? `the built-in snapshot's value, ${fmt(n.data.value)}` : `its cost, ${fmt(n.data.value)}`}.</div>`
+        + `<div style="margin-top:6px; color:var(--muted); font-size:12px; max-width:280px;">Back in color on the first refresh with a price.</div>`
+      : `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
     div.addEventListener('mouseenter', ()=>{
       tt.innerHTML = tooltipHtml;
       tt.style.display = 'block';
@@ -6580,6 +6611,9 @@ function render(rows, totals){
       if(w>64 && h>32 && !isNaN(n.data.change)){
         const dayGainAmt = n.data.value - n.data.value/(1+n.data.change/100);
         inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
+      }
+      if(n.data.noPrice && w>64 && h>32){
+        inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">no live price</div>`;
       }
       if(w>72 && h>44){
         inner += `<div style="color:${tc}; opacity:0.85; font-size:${Math.min(10,Math.max(7,w/9))}px; white-space:nowrap;">${fmtShort(n.data.value)}</div>`;
