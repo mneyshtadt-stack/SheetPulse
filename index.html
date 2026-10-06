@@ -1243,7 +1243,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791277568";
+const BUILD_ID = "1791278020";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6398,9 +6398,13 @@ async function renderHomeDay(rows, totals){
   try{
     if(!homeDayCache.raw || Date.now() - homeDayCache.t > 2*60000){
       if(!homeDayCache.raw) el.innerHTML = `<div class="chart-msg">Loading today's chart…</div>`;
-      homeDayCache = {t: Date.now(), raw: await fetchCombinedIntradayLogRaw(split.us.value - split.us.gain)};
-    }
-    raw = homeDayCache.raw.filter(p => p.t <= Date.now());
+      // An empty answer (e.g. a draw before sign-in, when the proxy refuses) is not kept, so the
+      // next render asks again instead of showing "No readings" for 2 minutes.
+      const fresh = await fetchCombinedIntradayLogRaw(split.us.value - split.us.gain);
+      homeDayCache = fresh.length ? {t: Date.now(), raw: fresh} : {t: 0, raw: null};
+      raw = fresh;
+    } else raw = homeDayCache.raw;
+    raw = raw.filter(p => p.t <= Date.now());
   } catch(e){
     el.innerHTML = `<div class="chart-msg">Could not load today's chart.</div>`; nowEl.innerHTML = ''; return;
   }
@@ -6467,19 +6471,45 @@ function renderHomeAlloc(rows){
   const names = brokerNames(rows);
   if(names.length >= 2){
     const cols = ['var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
-    html += block('By broker', names.map((b, i) => { const t = brokerTotals(rowsForBroker(rows, b));
-      return {name: b, value: t.totalValue, pct: t.dayGainPct, color: cols[i % cols.length]}; }));
+    const dg = brokerDayGains(rows);
+    html += block('By broker', names.map((b, i) => { const v = brokerTotals(rowsForBroker(rows, b)).totalValue;
+      return {name: b, value: v, pct: (v - dg[b]) ? dg[b] / (v - dg[b]) * 100 : 0, color: cols[i % cols.length]}; }));
   }
   el.innerHTML = html;
 }
 
-// Today's change per broker (only with two or more brokers), from each holding's Day Change %.
+// Today's ₪ change per broker, adding up to the Today figure. Each holding's Day Change % alone is
+// wrong while its market is closed (Google keeps the last session's move, already in the recorded
+// close, and misses the USD/ILS move), so each market's own day change (splitByMarket, from the
+// recorded close) is shared out: a closed market by each broker's value in it; an open one by each
+// broker's own holdings' moves, the remainder by value. Any gap to totals.dayGain, by value.
+function brokerDayGains(rows){
+  const names = brokerNames(rows), out = {}, isIL = r => ISRAELI_TICKERS.includes(r.name);
+  names.forEach(b => out[b] = 0);
+  const split = splitByMarket(rows);
+  const mv = r => isNaN(r.change) ? 0 : r.value - r.value / (1 + r.change / 100);
+  const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  [[rows.filter(isIL), split.il.gain, getTaseStatus()], [rows.filter(r => !isIL(r)), split.us.gain, usOpen]].forEach(([mRows, gain, open]) => {
+    const val = mRows.reduce((a, r) => a + r.value, 0) || 1;
+    const moved = open ? mRows.reduce((a, r) => a + mv(r), 0) : 0;
+    names.forEach(b => {
+      const bRows = rowsForBroker(mRows, b);
+      out[b] += (open ? bRows.reduce((a, r) => a + mv(r), 0) : 0) + (gain - moved) * bRows.reduce((a, r) => a + r.value, 0) / val;
+    });
+  });
+  const tot = window.lastTotals, all = rows.reduce((a, r) => a + r.value, 0) || 1;
+  const gap = tot && typeof tot.dayGain === 'number' ? tot.dayGain - names.reduce((a, b) => a + out[b], 0) : 0;
+  names.forEach(b => out[b] += gap * rowsForBroker(rows, b).reduce((a, r) => a + r.value, 0) / all);
+  return out;
+}
+// Today's change per broker (only with two or more brokers), shown under the Today figure.
 function brokerSplitHtml(rows){
   const names = brokerNames(rows);
   if(names.length < 2) return '';
   const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const dg = brokerDayGains(rows);
   return '<div class="bsplit">' + names.map(b => {
-    const d = brokerTotals(rowsForBroker(rows, b)).dayGain;
+    const d = dg[b];
     return `<span class="${d >= 0 ? 'up' : 'down'}">${b} ${d >= 0 ? '+' : '-'}${fmt(d)}</span>`;
   }).join('<span style="color:var(--muted)">·</span>') + '</div>';
 }
@@ -6511,8 +6541,8 @@ function render(rows, totals){
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
-    {label:"Today", value:(totals.dayGain>=0?"+":"")+fmt(totals.dayGain), sub:`<span style="color:${totals.dayGain>=0?'var(--up-ink)':'var(--down-ink)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>${typeof window.lastCloseFxRate === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">As of USD/ILS ${window.lastCloseFxRate.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
-    {label:"Total gain", value:(totals.totalGain>=0?"+":"")+fmt(totals.totalGain), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
+    {label:"Today", value:(totals.dayGain>=0?"+":"-")+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${totals.dayGain>=0?'var(--up-ink)':'var(--down-ink)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>${typeof window.lastCloseFxRate === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">As of USD/ILS ${window.lastCloseFxRate.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
+    {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
   cards.forEach(c=>{
