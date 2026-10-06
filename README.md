@@ -125,10 +125,10 @@ Both tiles fall back to the simpler derived estimate (dividing the ILS total thr
 Meitav values its US holdings at the **Bank of Israel representative rate** (שער יציג), and Psagot measures its ₪ day change from the latest representative rate before today. SheetPulse reads those rates from a **BOIRate** tab in the Tracker spreadsheet: add a tab named exactly `BOIRate` and put this one formula in A1:
 
 ```
-=IMPORTDATA("https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/EXR/1.0/RER_USD_ILS?startperiod="&TEXT(TODAY()-30,"yyyy-mm-dd")&"&format=csv")
+=QUERY(IMPORTDATA("https://edge.boi.gov.il/FusionEdgeServer/sdmx/v2/data/dataflow/BOI.STATISTICS/EXR/1.0/RER_USD_ILS?startperiod="&TEXT(TODAY()-30,"yyyy-mm-dd")&"&format=csv"),"select * order by Col13 desc",1)
 ```
 
-It fills in the last 30 days of rates (columns TIME_PERIOD and OBS_VALUE) and Google refreshes it about every hour; the Bank of Israel publishes each day's rate around 15:30 Israel time. No script or trigger is needed. With the tab in place:
+It fills in the last 30 days of rates, newest first (columns TIME_PERIOD and OBS_VALUE; format column M as a date to read it) and Google refreshes it about every hour; the Bank of Israel publishes each day's rate around 15:30 Israel time. No script or trigger is needed. With the tab in place:
 
 - **Meitav view:** the Total gain tile and each holding's second gain line ("Meitav (purchase-date rate)") are Meitav's way: US holdings valued at the latest representative rate, cost at the USD/ILS close on each purchase date. Hovering shows the rate and its date.
 - **Psagot view:** the Day change tile is Psagot's way: today's ₪ value minus yesterday's dollar value at the latest representative rate before today. Before the US session opens, the dollar move is $0 (Google's Day Change % still shows the last session then), so the day change is only the rate move, as in Psagot's app. Each Psagot holding's $ day change is $0 until the US opens, too.
