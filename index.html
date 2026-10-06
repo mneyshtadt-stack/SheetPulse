@@ -559,7 +559,19 @@
   .uc-summary .up, #customTooltip .up{color:var(--up-ink);}
   .uc-summary .down{color:var(--down-ink);}
   #universeChart:empty{display:none;}
-  #treemap{position:relative; width:100%; height:480px;}
+  /* Treemap panel next to the Biggest movers list (the v1c layout); stacked on narrow screens. */
+  .tm-row{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:12px; align-items:start;}
+  .hpanel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0;}
+  .hp-label{font-family:var(--sans); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:2px 2px 8px;}
+  #treemap{position:relative; width:100%; height:420px;}
+  .mv-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0 10px; align-items:baseline; padding:8px 4px; border-top:1px solid var(--line); cursor:pointer; border-radius:6px;}
+  .mv-row:first-child{border-top:none;}
+  .mv-row:hover{background:var(--hover);}
+  .mv-row .mv-t{font-weight:600; font-size:14px;}
+  .mv-row .mv-n{grid-column:1; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mv-row .mv-d{font-family:var(--mono); font-size:13px; font-weight:600; text-align:right;}
+  .mv-row .mv-a{font-family:var(--mono); font-size:12px; text-align:right;}
+  @media (max-width:860px){ .tm-row{grid-template-columns:1fr;} }
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:var(--sans);}
   /* Logo just left of the ticker on its tile, centered together with it. */
   .tile-logo{
@@ -1062,7 +1074,10 @@
       <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
       <span><span class="swatch" style="background:var(--up-4)"></span>Up today</span>
     </div>
-    <div id="treemap"></div>
+    <div class="tm-row">
+      <div class="hpanel tm-panel"><div id="treemap"></div></div>
+      <div class="hpanel movers-panel"><div class="hp-label">Biggest movers today</div><div id="movers"></div></div>
+    </div>
     <div id="customTooltip"></div>
   </section>
 
@@ -1209,7 +1224,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791276213";
+const BUILD_ID = "1791276721";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6313,6 +6328,35 @@ async function renderRangeChart(ctx, range){
   });
 }
 
+// A tap (touch screens have no hover): the tile's card next to the finger, hidden after 3 seconds.
+let tapCardTimer = 0;
+function showTapCard(html, e){
+  if(!(e.pointerType === 'touch' || matchMedia('(hover: none)').matches)) return;   // mouse users have hover
+  const tt = document.getElementById('customTooltip');
+  tt.innerHTML = html; tt.style.display = 'block';
+  const w = tt.offsetWidth, h = tt.offsetHeight;
+  tt.style.left = Math.max(8, Math.min(e.clientX - w / 2, innerWidth - w - 8)) + 'px';
+  tt.style.top = Math.max(8, e.clientY - h - 14 < 8 ? e.clientY + 14 : e.clientY - h - 14) + 'px';
+  clearTimeout(tapCardTimer); tapCardTimer = setTimeout(() => { tt.style.display = 'none'; }, 3000);
+}
+// Biggest movers today: the 7 holdings with the largest day change in shekels; a click opens the
+// holding in Market Universe.
+function renderMovers(rows){
+  const el = document.getElementById('movers');
+  if(!el) return;
+  const fmtA = n => (n >= 0 ? '+' : '-') + fmtIlsSmart(Math.abs(n));
+  const list = rows.filter(r => !isNaN(r.change) && r.value > 0)
+    .map(r => ({r, amt: r.value - r.value / (1 + r.change / 100)}))
+    .sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt)).slice(0, 7);
+  el.innerHTML = list.length ? list.map(({r, amt}, i) => {
+    const cls = r.change >= 0 ? 'up' : 'down';
+    return `<div class="mv-row" data-i="${i}" title="Open ${r.name} in Market Universe"><span class="mv-t">${r.name}</span>`
+      + `<span class="mv-d ${cls}">${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%</span>`
+      + `<span class="mv-n">${TICKER_NAME_MAP[r.name] || ''}</span><span class="mv-a ${cls}">${fmtA(amt)}</span></div>`;
+  }).join('') : '<div class="hp-label" style="text-transform:none; letter-spacing:0;">No day changes yet.</div>';
+  el.querySelectorAll('.mv-row').forEach(d => d.addEventListener('click', () => openUniverseForTicker(list[Number(d.dataset.i)].r)));
+}
+
 // Today's change per broker (only with two or more brokers), from each holding's Day Change %.
 function brokerSplitHtml(rows){
   const names = brokerNames(rows);
@@ -6437,6 +6481,8 @@ function render(rows, totals){
       tt.style.display = 'none';
       openUniverseForTicker(n.data);
     });
+    // Touch screens have no hover: a tap shows the same card next to the finger for 3 seconds.
+    div.addEventListener('click', (e)=> showTapCard(tooltipHtml, e));
     const tc = textColorFor(n.data.change);
     let inner = '';
     if(w>26 && h>16){
@@ -6455,6 +6501,7 @@ function render(rows, totals){
     div.innerHTML = inner;
     tmEl.appendChild(div);
   });
+  renderMovers(rows);
 
   const GROUP_PALETTE = ['#4f8fd9','#d1495b','#12a08c','#7b4fd9','#c48fd9','#d9a441','#e2707a','#3fae82','#5470c6','#e2793a','#4fb0d9','#9fca3c','#a3866b','#8a6d3b','#6b7a8f'];
 
@@ -7311,7 +7358,7 @@ document.querySelectorAll('.legend-arrow').forEach(btn=>{
 });
 
 document.addEventListener('click', (e)=>{
-  if(!e.target.closest('.seg, .legend-row, #customTooltip')){
+  if(!e.target.closest('.seg, .legend-row, #customTooltip, #treemap')){
     const tt = document.getElementById('customTooltip');
     if(tt) tt.style.display = 'none';
   }
