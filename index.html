@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791323500";
+const BUILD_ID = "1791324264";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2086,12 +2086,16 @@ function parseTableToRows(table){
   // Holdings Google Finance returned no live price for (#N/A, or a transient 0) -- left out of the
   // rows as before, but recorded so applyTotalFallback can substitute a recorded total.
   const missing = [];
+  // The Tracker's ₪ values and ₪ costs of US holdings are at Q1's rate; when a fresher IntradayLog
+  // rate is in use (loadLogFx), they're rescaled to it. TASE holdings are in ₪ already.
+  const fxK = (window.logFx && window.lastFxQ1 > 0) ? window.logFx.rate / window.lastFxQ1 : 1;
   for(let i=headerIdx+1; i<table.length; i++){
     const r = table[i];
     const ticker = (r[cTicker]||'').trim();
     if(!ticker) break;
-    const value = num(r[cValueILS]);
-    const cost = num(r[cCostILS]);
+    const k = ISRAELI_TICKERS.includes(ticker) ? 1 : fxK;
+    const value = num(r[cValueILS]) * k;
+    const cost = num(r[cCostILS]) * k;
     if(isNaN(value) || (cPrice>=0 && !(num(r[cPrice]) > 0))){ missing.push({ticker, cost}); continue; }
     rows.push({
       name: ticker, value: value, change: num(r[cChange]), ret: num(r[cRet]),
@@ -2472,7 +2476,13 @@ function num(s){
 function applyFxCell(rateCellRaw, changeCellRaw){
   const rateVal = num(rateCellRaw);
   window.lastFxWasLoading = isNaN(rateVal);
-  if(!isNaN(rateVal)) window.lastFxRate = rateVal;
+  // Q1 (GOOGLEFINANCE) is kept as lastFxQ1; a fresh IntradayLog rate (window.logFx, Yahoo's in the
+  // evening, when Google's stops at about 18:00) wins as the live rate -- see loadLogFx.
+  if(!isNaN(rateVal)) window.lastFxQ1 = rateVal;
+  const c = window.logFxCandidate, q2Ms = q2QuoteMs(changeCellRaw);
+  window.logFx = c && (isNaN(q2Ms) ? Date.now() - c.t < 12 * 3600000 : c.t > q2Ms + 60000) && Math.abs(c.rate - rateVal) > 0.00005 ? c : null;
+  if(window.logFx) window.lastFxRate = window.logFx.rate;
+  else if(!isNaN(rateVal)) window.lastFxRate = rateVal;
 
   // Q2's text leads with the timestamp: "Sep 21, 18:00  USD / ILS 3.014 ▼-0.0074 (-0.0226)".
   // Google's own scrape used to show the middle number as an actual percent ("▲+0.09%"); it now
@@ -2484,10 +2494,22 @@ function applyFxCell(rateCellRaw, changeCellRaw){
     ? /^(.*?)\s*USD\s*\/\s*ILS\s+([\d.]+)\s*[▲▼]?\s*([+-][\d.]+)(%)?\s*\(([+-][\d.]+)\)/.exec(changeCellRaw)
     : null;
   if(fxMatch){
-    window.lastFxAsOf = fxMatch[1] || '';
+    // Q2's timestamp belongs to Q2's own rate. When Q1 holds a newer rate (the intraday logger
+    // writes Yahoo's there in the evening, when Google's stops at about 18:00), that time would be
+    // wrong, so it's dropped.
+    const q2Rate = parseFloat(fxMatch[2]);
+    window.lastFxAsOf = window.logFx ? window.logFx.label
+      : (!isNaN(rateVal) && Math.abs(q2Rate - rateVal) > 0.0005) ? '' : (fxMatch[1] || '');
     const rawPct = parseFloat(fxMatch[3]);
     window.lastFxChangePct = fxMatch[4] ? rawPct : rawPct * 100;
     window.lastFxChange = parseFloat(fxMatch[5]);
+    // With the IntradayLog rate in use, the change is measured from the same previous close (Q2's
+    // rate minus Q2's change), to the rate actually shown.
+    if(window.logFx && !isNaN(q2Rate) && !isNaN(window.lastFxChange)){
+      const prev = q2Rate - window.lastFxChange;
+      window.lastFxChange = window.logFx.rate - prev;
+      window.lastFxChangePct = prev ? window.lastFxChange / prev * 100 : 0;
+    }
   } else if(typeof changeCellRaw === 'string' && changeCellRaw.trim() && !/loading/i.test(changeCellRaw)){
     // Q2 has settled on something else entirely (not "Loading...", not the expected format) —
     // a real format change, so there's no change data attached to show anymore.
@@ -7424,11 +7446,34 @@ function refresh(){
   if(!refreshInFlight) refreshInFlight = doRefresh().finally(() => { refreshInFlight = null; });
   return refreshInFlight;
 }
+// The latest USD/ILS in IntradayLog (column C; the logger writes Yahoo's rate there, which keeps
+// moving in the evening after Google's stops at about 18:00). applyFxCell uses it as the live rate
+// when it's newer than Google's own quote time (Q2's timestamp): in the evening, and overnight and at
+// weekends after the logger stops (about 23:10), as the brokers keep their last rate. Otherwise
+// Q1 (GOOGLEFINANCE) is the live rate, as before.
+async function loadLogFx(){
+  window.logFxCandidate = null;
+  try{
+    const rows = await fetchIntradayLogRows();
+    const last = rows.filter(r => r.fx > 0 && r.t <= Date.now()).pop();
+    if(last) window.logFxCandidate = {rate: last.fx, t: last.t, label: new Date(last.t).toLocaleString('en-US', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false})};
+  } catch(e){ /* Q1 stays the live rate */ }
+}
+// Q2's quote time ("Oct 6, 18:00"), this year (or last, around New Year). NaN if it can't be read.
+function q2QuoteMs(text){
+  const m = /^([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{1,2}):(\d{2})/.exec(String(text || '').trim());
+  if(!m) return NaN;
+  const now = new Date();
+  let d = new Date(`${m[1]} ${m[2]}, ${now.getFullYear()} ${m[3]}:${m[4]}`);
+  if(d.getTime() > now.getTime() + 86400000) d = new Date(`${m[1]} ${m[2]}, ${now.getFullYear() - 1} ${m[3]}:${m[4]}`);
+  return d.getTime();
+}
 async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
   try{
     setStatus('Fetching latest from Google Sheet…', false);
+    await loadLogFx();
     const rows = await fetchAndParseWithRetry(2, 2000);
     await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows), fetchBoiRates()]);
     const totals = await applyTotalFallback(computeTotals(rows));
