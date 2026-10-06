@@ -488,6 +488,25 @@
   .mstrip .msep{width:1px; align-self:stretch; background:var(--line);}
   /* "Market Value: ..." repeats the tiles; kept in the DOM (the live sync still writes it) but hidden here. */
   .mstrip #gaugePortfolioSub, .mstrip #gaugeIlSub, .mstrip #gaugeUsSub{display:none;}
+  /* Home "Portfolio today" chart next to the market / broker allocation bars (v1c phase 4). */
+  .home-row{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:12px; margin-top:12px; align-items:stretch;}
+  .home-day{cursor:pointer;}
+  .hd-head{display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .hd-head .hp-label{margin-bottom:4px;}
+  .hd-now{font-family:var(--mono); font-size:13px; font-weight:600;}
+  .hd-now .hd-time{color:var(--muted); font-weight:400; margin-left:6px;}
+  #homeDay{height:150px; position:relative;}
+  #homeDay svg{display:block; width:100%; height:100%; overflow:visible;}
+  #homeDay .chart-msg{padding:50px 8px; text-align:center; color:var(--muted); font-size:13px;}
+  .al-block + .al-block{margin-top:14px;}
+  .al-bar{display:flex; height:10px; border-radius:5px; overflow:hidden; background:var(--line); margin:2px 0 8px;}
+  .al-bar > span{display:block; height:100%;}
+  .al-bar > span + span{border-left:2px solid var(--panel);}
+  .al-row{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:8px; align-items:baseline; font-size:13px; padding:2px 0;}
+  .al-row .dot{display:inline-block; width:9px; height:9px; border-radius:50%;}
+  .al-row .al-v{font-family:var(--mono); font-size:12px; text-align:right; white-space:nowrap;}
+  .al-row .al-v b{font-weight:600; color:var(--ink);}
+  @media (max-width:860px){ .home-row{grid-template-columns:1fr;} }
   /* Phone hero: today's change as one big number, first thing on the screen. */
   #phoneHero{display:none;}
   @media (max-width:600px){
@@ -559,19 +578,10 @@
   .uc-summary .up, #customTooltip .up{color:var(--up-ink);}
   .uc-summary .down{color:var(--down-ink);}
   #universeChart:empty{display:none;}
-  /* Treemap panel next to the Biggest movers list (the v1c layout); stacked on narrow screens. */
-  .tm-row{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:12px; align-items:start;}
   .hpanel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0;}
+  .tm-panel{margin-top:8px;}
   .hp-label{font-family:var(--sans); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:2px 2px 8px;}
   #treemap{position:relative; width:100%; height:420px;}
-  .mv-row{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0 10px; align-items:baseline; padding:8px 4px; border-top:1px solid var(--line); cursor:pointer; border-radius:6px;}
-  .mv-row:first-child{border-top:none;}
-  .mv-row:hover{background:var(--hover);}
-  .mv-row .mv-t{font-weight:600; font-size:14px;}
-  .mv-row .mv-n{grid-column:1; font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .mv-row .mv-d{font-family:var(--mono); font-size:13px; font-weight:600; text-align:right;}
-  .mv-row .mv-a{font-family:var(--mono); font-size:12px; text-align:right;}
-  @media (max-width:860px){ .tm-row{grid-template-columns:1fr;} }
   .tile{position:absolute; overflow:hidden; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; padding:3px; font-family:var(--sans);}
   /* Logo just left of the ticker on its tile, centered together with it. */
   .tile-logo{
@@ -1048,6 +1058,13 @@
     <div class="cards" id="cards"></div>
     <div id="gaugePanel"></div>
   </div>
+  <div class="home-row">
+    <div class="hpanel home-day" id="homeDayPanel" title="Open the Portfolio window">
+      <div class="hd-head"><span class="hp-label">Portfolio today</span><span id="homeDayNow" class="hd-now"></span></div>
+      <div id="homeDay"></div>
+    </div>
+    <div class="hpanel" id="homeAlloc"></div>
+  </div>
 
   <section>
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
@@ -1074,10 +1091,7 @@
       <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
       <span><span class="swatch" style="background:var(--up-4)"></span>Up today</span>
     </div>
-    <div class="tm-row">
-      <div class="hpanel tm-panel"><div id="treemap"></div></div>
-      <div class="hpanel movers-panel"><div class="hp-label">Biggest movers today</div><div id="movers"></div></div>
-    </div>
+    <div class="hpanel tm-panel"><div id="treemap"></div></div>
     <div id="customTooltip"></div>
   </section>
 
@@ -1224,7 +1238,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791276721";
+const BUILD_ID = "1791276968";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6339,22 +6353,93 @@ function showTapCard(html, e){
   tt.style.top = Math.max(8, e.clientY - h - 14 < 8 ? e.clientY + 14 : e.clientY - h - 14) + 'px';
   clearTimeout(tapCardTimer); tapCardTimer = setTimeout(() => { tt.style.display = 'none'; }, 3000);
 }
-// Biggest movers today: the 7 holdings with the largest day change in shekels; a click opens the
-// holding in Market Universe.
-function renderMovers(rows){
-  const el = document.getElementById('movers');
+// Home "Portfolio today": the combined TASE + USA IntradayLog line against the previous close
+// (dashed), drawn over the whole trading day so it fills in as the day goes on. Before the first
+// reading of the day (or on a weekend) it shows the last completed session, as the Portfolio
+// window's 1D chart does. The log is fetched at most every 2 minutes. A click opens the Portfolio window.
+let homeDayCache = {t: 0, raw: null};
+async function renderHomeDay(rows, totals){
+  const el = document.getElementById('homeDay'), nowEl = document.getElementById('homeDayNow');
   if(!el) return;
-  const fmtA = n => (n >= 0 ? '+' : '-') + fmtIlsSmart(Math.abs(n));
-  const list = rows.filter(r => !isNaN(r.change) && r.value > 0)
-    .map(r => ({r, amt: r.value - r.value / (1 + r.change / 100)}))
-    .sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt)).slice(0, 7);
-  el.innerHTML = list.length ? list.map(({r, amt}, i) => {
-    const cls = r.change >= 0 ? 'up' : 'down';
-    return `<div class="mv-row" data-i="${i}" title="Open ${r.name} in Market Universe"><span class="mv-t">${r.name}</span>`
-      + `<span class="mv-d ${cls}">${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%</span>`
-      + `<span class="mv-n">${TICKER_NAME_MAP[r.name] || ''}</span><span class="mv-a ${cls}">${fmtA(amt)}</span></div>`;
-  }).join('') : '<div class="hp-label" style="text-transform:none; letter-spacing:0;">No day changes yet.</div>';
-  el.querySelectorAll('.mv-row').forEach(d => d.addEventListener('click', () => openUniverseForTicker(list[Number(d.dataset.i)].r)));
+  document.getElementById('homeDayPanel').onclick = () => openPortfolioDetail();
+  const split = splitByMarket(rows);
+  let raw;
+  try{
+    if(!homeDayCache.raw || Date.now() - homeDayCache.t > 2*60000){
+      if(!homeDayCache.raw) el.innerHTML = `<div class="chart-msg">Loading today's chart…</div>`;
+      homeDayCache = {t: Date.now(), raw: await fetchCombinedIntradayLogRaw(split.us.value - split.us.gain)};
+    }
+    raw = homeDayCache.raw.filter(p => p.t <= Date.now());
+  } catch(e){
+    el.innerHTML = `<div class="chart-msg">Could not load today's chart.</div>`; nowEl.innerHTML = ''; return;
+  }
+  let range = getCombinedDayRangeMs(), prevClose = totals.totalValue - totals.dayGain, label = '';
+  const open = getTaseStatus() || getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  let log = raw.filter(p => p.t >= range.open && p.t <= range.close);
+  if(log.length < 2 && !(open && log.length === 1)){
+    const days = [...new Set(raw.map(p => { const d = new Date(p.t); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }))]
+      .map(k => k.split('-').map(Number)).sort((a, b) => (b[0]-a[0]) || (b[1]-a[1]) || (b[2]-a[2]));
+    for(const [y, m, d] of days){
+      const r = getCombinedDayRangeForDate(y, m, d);
+      if(r.open >= range.open) continue;
+      const l = raw.filter(p => p.t >= r.open && p.t <= r.close);
+      if(l.length >= 2){
+        const il = findPriorClose(y, m, d, 'il'), us = findPriorClose(y, m, d, 'us');
+        if(typeof il === 'number' && typeof us === 'number') prevClose = il + us;
+        log = l; range = r;
+        label = new Date(r.open).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+        break;
+      }
+    }
+  }
+  log = removeIntradaySpikes(log);
+  if(!log.length){ el.innerHTML = `<div class="chart-msg">No readings yet today.</div>`; nowEl.innerHTML = ''; return; }
+
+  const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
+  const cls = chg >= 0 ? 'up' : 'down', fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const hm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  nowEl.innerHTML = `<span class="${cls}">${chg >= 0 ? '+' : '-'}${fmt(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span>`
+    + `<span class="hd-time">${label ? label + ' (last session)' : 'at ' + hm(last.t)}</span>`;
+
+  const W = Math.max(el.clientWidth, 200), H = el.clientHeight || 150, padB = 16;
+  const x = d3.scaleLinear().domain([range.open, range.close]).range([0, W]);
+  const vals = log.map(p => p.v).concat(prevClose);
+  const lo = Math.min(...vals), hi = Math.max(...vals), pad = Math.max((hi - lo) * 0.12, prevClose * 0.0005);
+  const y = d3.scaleLinear().domain([lo - pad, hi + pad]).range([H - padB, 4]);
+  const line = d3.line().x(p => x(p.t)).y(p => y(p.v));
+  const area = d3.area().x(p => x(p.t)).y0(y(prevClose)).y1(p => y(p.v));
+  const col = chg >= 0 ? 'var(--up-ink)' : 'var(--down-ink)';
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Portfolio value through the day">`
+    + `<path d="${area(log)}" fill="${col}" opacity="0.12"/>`
+    + `<line x1="0" x2="${W}" y1="${y(prevClose)}" y2="${y(prevClose)}" stroke="var(--axis)" stroke-dasharray="3 4"/>`
+    + `<path d="${line(log)}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round"/>`
+    + `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="3.5" fill="${col}"/>`
+    + `<text x="0" y="${H-2}" font-size="11" fill="var(--muted)">${hm(range.open)}</text>`
+    + `<text x="${W}" y="${H-2}" font-size="11" fill="var(--muted)" text-anchor="end">${hm(range.close)}</text>`
+    + `<text x="${W}" y="${Math.max(12, y(prevClose) - 4)}" font-size="10" fill="var(--muted)" text-anchor="end">prev. close</text></svg>`;
+}
+// Home allocation panel: market (TASE / USA) and broker shares of the portfolio, with today's % each.
+function renderHomeAlloc(rows){
+  const el = document.getElementById('homeAlloc');
+  if(!el) return;
+  const total = rows.reduce((a, r) => a + r.value, 0) || 1;
+  const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const block = (title, parts) => `<div class="al-block"><div class="hp-label">${title}</div>`
+    + `<div class="al-bar">${parts.map(p => `<span style="width:${p.value / total * 100}%; background:${p.color}"></span>`).join('')}</div>`
+    + parts.map(p => `<div class="al-row"><span class="dot" style="background:${p.color}"></span><span>${p.name}</span>`
+      + `<span class="al-v"><b>${(p.value / total * 100).toFixed(1)}%</b> ${fmt(p.value)} <span class="${p.pct >= 0 ? 'up' : 'down'}">${p.pct >= 0 ? '+' : ''}${p.pct.toFixed(2)}%</span></span></div>`).join('')
+    + `</div>`;
+  const split = splitByMarket(rows);
+  let html = block('By market', [
+    {name: 'Israel (TASE)', value: split.il.value, pct: split.il.pct, color: IL_SPLIT_PALETTE[0]},
+    {name: 'USA', value: split.us.value, pct: split.us.pct, color: IL_SPLIT_PALETTE[1]}]);
+  const names = brokerNames(rows);
+  if(names.length >= 2){
+    const cols = ['var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
+    html += block('By broker', names.map((b, i) => { const t = brokerTotals(rowsForBroker(rows, b));
+      return {name: b, value: t.totalValue, pct: t.dayGainPct, color: cols[i % cols.length]}; }));
+  }
+  el.innerHTML = html;
 }
 
 // Today's change per broker (only with two or more brokers), from each holding's Day Change %.
@@ -6407,6 +6492,8 @@ function render(rows, totals){
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
   renderPhoneHero(rows, totals);
+  renderHomeAlloc(rows);
+  renderHomeDay(rows, totals);
   const warnEl = document.getElementById('totalValueWarn');
   if(warnEl && totals.fallback){
     const f = totals.fallback;
@@ -6501,7 +6588,6 @@ function render(rows, totals){
     div.innerHTML = inner;
     tmEl.appendChild(div);
   });
-  renderMovers(rows);
 
   const GROUP_PALETTE = ['#4f8fd9','#d1495b','#12a08c','#7b4fd9','#c48fd9','#d9a441','#e2707a','#3fae82','#5470c6','#e2793a','#4fb0d9','#9fca3c','#a3866b','#8a6d3b','#6b7a8f'];
 
