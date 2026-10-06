@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SheetPulse</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a2332" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1b1a17" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eef2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1a2b" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,20 +14,25 @@
 <meta name="apple-mobile-web-app-title" content="SheetPulse">
 <style>
   :root{
-    --ink:#1a2332; --paper:#f7f5f0; --panel:#ffffff; --line:#e2ddd0; --muted:#6b6558;
-    --up-1:#eaf3de; --up-2:#c0dd97; --up-3:#97c459; --up-4:#639922; --up-5:#3b6d11;
-    --down-1:#fcebeb; --down-2:#f7c1c1; --down-3:#f09595; --down-4:#e24b4a; --down-5:#a32d2d;
-    --flat:#d9d4c7; --accent:#8a6d3b;
+    /* Slate palette (the "v1c" redesign, Oct 2026): cool light surfaces, one blue accent, green/red
+       for gains and losses. Dark mode below is the same palette's night version. */
+    --ink:#0e1a2b; --paper:#eef2f7; --panel:#ffffff; --line:#d9e1ea; --muted:#5b6b80;
+    --up-1:#e3f5ea; --up-2:#b9e6cc; --up-3:#7fd0a3; --up-4:#33a86a; --up-5:#1f8a55;
+    --down-1:#fde8e7; --down-2:#f9c3c1; --down-3:#f39491; --down-4:#e5534f; --down-5:#c0403d;
+    --flat:#d5dce5; --accent:#2a6fdb;
     /* The system's own UI font (Segoe UI Variable on Windows, SF Pro on Apple, Roboto on Android):
        nothing to download, and Windows no longer falls back to Arial for 'Helvetica Neue'. */
     --sans:system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
-    --serif:'Iowan Old Style','Georgia',serif;
+    /* No serif any more: headings use the system sans too (the old --serif name is kept so nothing
+       breaks). Figures use the system monospace, so digits line up and read like a terminal. */
+    --serif:var(--sans);
+    --mono:ui-monospace,'Cascadia Mono','SF Mono',Consolas,Menlo,'Roboto Mono',monospace;
     /* Gain/loss TEXT (and lines) has its own tokens: the up/down 1-5 ramps are tile fills, and in
        dark mode a fill step dark enough to carry white text is too dark to read as text itself. */
-    --up-ink:#3b6d11; --down-ink:#a32d2d;
-    --tile-ink-flat:#4a463c; --tile-ink-up:#27500a; --tile-ink-down:#791f1f;
-    --accent-hover:#7a5e30; --on-accent:#fff; --hover:#f1ede4; --axis:#8a857a; --warn:#d99a1e;
-    --shadow-modal:0 12px 40px rgba(26,35,50,0.28); --shadow-pop:0 3px 10px rgba(26,35,50,0.14);
+    --up-ink:#1f8a55; --down-ink:#c0403d;
+    --tile-ink-flat:#3d4757; --tile-ink-up:#155c39; --tile-ink-down:#8c2d2b;
+    --accent-hover:#1f5ac0; --on-accent:#fff; --hover:#eef3f9; --axis:#8a98ab; --warn:#d99a1e;
+    --shadow-modal:0 12px 40px rgba(14,26,43,0.28); --shadow-pop:0 3px 10px rgba(14,26,43,0.14);
     --tag-oracle-bg:#fbe9dc; --tag-oracle-ink:#9a4a12; --tag-putty-bg:#e3ecf6; --tag-putty-ink:#2b5480;
     /* Market Universe "+ Compare" lines: the dataviz reference categorical order (blue, orange, aqua,
        yellow, magenta), which passes the colorblind checks for adjacent pairs; dark mode has its own steps. */
@@ -37,17 +42,17 @@
     --z-sticky:1; --z-window:2100; --z-window-top:2150; --z-tooltip:2200; --z-lock:9999; --z-diag:10000;
     color-scheme:light;
   }
-  /* Dark mode follows the device setting. Its own steps, not an inverted copy: warm charcoal surfaces,
-     a lighter bronze accent (dark text on it), dimmer gain/loss fills and brighter gain/loss text. */
+  /* Dark mode follows the device setting: the slate palette's night version (the v1c mock-up) --
+     navy panels, a light blue accent (dark text on it), dimmer gain/loss fills, brighter gain/loss text. */
   @media (prefers-color-scheme: dark){
     :root{
-      --ink:#ece7dc; --paper:#1b1a17; --panel:#24221e; --line:#3a372f; --muted:#a8a191;
-      --up-1:#1f2a16; --up-2:#2b4219; --up-3:#365a1d; --up-4:#447124; --up-5:#55892b;
-      --down-1:#321b1b; --down-2:#4c2322; --down-3:#6a2a29; --down-4:#8f3433; --down-5:#b14443;
-      --flat:#3d3a33; --accent:#c8a163;
-      --up-ink:#8fcf5a; --down-ink:#f08a88;
-      --tile-ink-flat:#d0cabd; --tile-ink-up:#c3e6a0; --tile-ink-down:#f6bdbb;
-      --accent-hover:#d6b47a; --on-accent:#1b1a17; --hover:#2c2a25; --axis:#7d776a; --warn:#e0a83a;
+      --ink:#e6edf6; --paper:#0e1a2b; --panel:#15243a; --line:#22344f; --muted:#8ea2bd;
+      --up-1:#16352a; --up-2:#1b4d36; --up-3:#216a46; --up-4:#278a57; --up-5:#2f9f63;
+      --down-1:#3a1d24; --down-2:#57262b; --down-3:#7a3033; --down-4:#a13d3d; --down-5:#c24b48;
+      --flat:#2a3b55; --accent:#7cb4ff;
+      --up-ink:#3fbf7f; --down-ink:#ef6461;
+      --tile-ink-flat:#c6d1df; --tile-ink-up:#b8ecd0; --tile-ink-down:#f6c2c0;
+      --accent-hover:#a3cbff; --on-accent:#08213f; --hover:#1b2d47; --axis:#5d7290; --warn:#e0a83a;
       --shadow-modal:0 12px 40px rgba(0,0,0,0.55); --shadow-pop:0 3px 12px rgba(0,0,0,0.45);
       --tag-oracle-bg:#4a2e1a; --tag-oracle-ink:#f2c39d; --tag-putty-bg:#1f3349; --tag-putty-ink:#a9c8ec;
       --cmp-1:#3987e5; --cmp-2:#d95926; --cmp-3:#199e70; --cmp-4:#c98500; --cmp-5:#d55181;
@@ -218,7 +223,7 @@
   .md-broker-note{font-size:12px; color:var(--muted); margin:4px 0 0;}
   @media (max-width:600px){ #mdBrokerFilter .bf-label{display:none;} #mdBrokerFilter{margin-right:8px;} #mdBrokerFilter button{padding:6px 9px;} }
   #marketDetailBody{padding:14px 24px 18px; font-family:var(--sans); overflow:auto; flex:1; min-height:0;}
-  .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px;}
+  .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px; font-family:var(--mono); letter-spacing:-0.01em;}
   .md-headline-change{font-size:15px; font-weight:600;}
   .md-headline-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
   .md-stat-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:14px;}
@@ -255,7 +260,7 @@
   .md-stat-tiles.cols-4{grid-template-columns:repeat(4,1fr);}
   .md-stat-tile{background:var(--panel); padding:9px 14px;}
   .md-stat-tile-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
-  .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--mono);}
   .md-stat-tile-sub{font-size:12px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
   .md-stat-tile-sub.up{color:var(--up-ink);} .md-stat-tile-sub.down{color:var(--down-ink);}
   @media (max-width:520px){
@@ -469,7 +474,7 @@
   .card.card-up::before{background:var(--up-4);}
   .card.card-down::before{background:var(--down-4);}
   .card .label{font-family:var(--sans); font-size:12px; color:var(--muted); letter-spacing:0.03em; margin-bottom:8px;}
-  .card .value{font-size:26px; line-height:1.1;}
+  .card .value{font-size:26px; line-height:1.1; font-family:var(--mono); font-weight:600; letter-spacing:-0.01em;}
   .card .sub{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:4px;}
   .up{color:var(--up-ink);} .down{color:var(--down-ink);}
   #heroPanel{border:1px solid var(--line); margin-bottom:44px; background:var(--panel);}
@@ -1181,7 +1186,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791228842";
+const BUILD_ID = "1791275764";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2988,7 +2993,7 @@ const PF_COLS = [
   {key:'avgCost', label:'Avg cost basis'}
 ];
 
-const IL_SPLIT_PALETTE = ['#8a6d3b', '#4f8fd9'];
+const IL_SPLIT_PALETTE = ['var(--cmp-2)', 'var(--cmp-1)'];   // orange / blue: a colorblind-checked pair
 
 function renderIlTickerCards(enriched){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
@@ -4711,15 +4716,15 @@ function renderNetWorth(nw, crossYearPrev){
   const groupEntries = Object.entries(groupTotals).sort((a,b)=>b[1]-a[1]);
   const totalForBar = latest.assetsTotal || 1;
   const barHtml = groupEntries.map(([g,v])=>
-    `<div class="seg" data-group="${g}" style="width:${(v/totalForBar*100)}%; background:${NW_GROUP_COLORS[g]||'#8a6d3b'}"></div>`
+    `<div class="seg" data-group="${g}" style="width:${(v/totalForBar*100)}%; background:${NW_GROUP_COLORS[g]||'var(--axis)'}"></div>`
   ).join('');
   const legendHtml = groupEntries.map(([g,v])=>
-    `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'#8a6d3b'}"></span>${g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
+    `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'var(--axis)'}"></span>${g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
   ).join('');
 
   const netWorthTrendHtml = nw.months.length>=1
     ? buildNwTrendChart({
-        title: 'Net Worth Trend', svgId: 'nwTrendSvg', color: '#8a6d3b', months: nw.months,
+        title: 'Net Worth Trend', svgId: 'nwTrendSvg', color: 'var(--accent)', months: nw.months,
         getValue: m => m.netWorth, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_CORE_KEYS)
       })
     : '';
@@ -4766,7 +4771,7 @@ function renderNetWorth(nw, crossYearPrev){
     const rows = itemRows.filter(r=>r.group===group).sort((a,b)=>b.value-a.value);
     if(!rows.length) return '';
     const subtotal = rows.reduce((sum,r)=> sum + (r.isLiability ? -r.value : r.value), 0);
-    const groupColor = NW_GROUP_COLORS[group] || '#8a6d3b';
+    const groupColor = NW_GROUP_COLORS[group] || 'var(--axis)';
     const groupHeader = `
       <tr class="nw-group-row" style="--group-color:${groupColor};">
         <td><span class="dot" style="background:${groupColor};"></span>${NW_ITEM_GROUP_LABELS[group] || group}</td>
