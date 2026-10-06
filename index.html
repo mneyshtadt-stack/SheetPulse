@@ -336,6 +336,8 @@
   .pulse-list li span{flex:0 0 10px; font-weight:700;}
   .pulse-list li.pos span{color:var(--up-ink);} .pulse-list li.neg span{color:var(--down-ink);}
   .pulse-watch{margin-top:4px;}
+  .pulse-meaning{margin-top:8px; padding-top:6px; border-top:1px solid var(--line); font-size:12px; line-height:1.5; color:var(--muted); max-width:420px;}
+  .pulse-meaning .pm-k{color:var(--ink); font-weight:600;}
   .pulse-foot{margin-top:8px; font-size:12px; color:var(--muted);}
   .pulse-tip{max-width:380px; font-size:12.5px; line-height:1.55;}
   #universeHolding{margin:4px 0 18px;}
@@ -1243,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791279790";
+const BUILD_ID = "1791289822";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7868,12 +7870,33 @@ function pulseAsOfLabel(p){
   const ms = txDateMs(p.asOf);
   return isNaN(ms) ? pulseEsc(p.asOf) : new Date(ms).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
 }
+// What this stock's two labels mean, in two lines (the same definitions the Refresh Pulse Check
+// task applies).
+const PULSE_VERDICT_MEANING = {
+  deeper: 'passed the quick screen of its filings: no disqualifying test failed, no red flags in the accounts. Worth a full analysis; not a buy signal.',
+  watch: 'no disqualifier, but an open question to see settled first, usually in the next results (see Watch next).',
+  fails: 'failed a disqualifying test, such as weak cash flow, too much debt or doubtful accounts.'
+};
+const PULSE_VS_MEANING = {
+  cheap: 'below its own range of the last 5 years, or in its bottom fifth.',
+  fair: 'in the middle three fifths of its own range of the last 5 years.',
+  rich: 'above its own range of the last 5 years, or in its top fifth.'
+};
+function pulseMeaningHtml(p){
+  const v = PULSE_VERDICT_MEANING[pulseVerdictClass(p.verdict)], h = PULSE_VS_MEANING[String(p.vsHistory || '').toLowerCase()];
+  if(!v && !h) return '';
+  return `<div class="pulse-meaning">`
+    + (v ? `<div><span class="pm-k">${pulseEsc(p.verdict)}</span>: ${v}</div>` : '')
+    + (h ? `<div><span class="pm-k">${pulseEsc(p.vsHistory)}</span>: today's multiple (Valuation above) is ${h} Compared only with the company's own past.</div>` : '')
+    + `</div>`;
+}
 function pulseCardHtml(t, p){
   const list = (items, sign, cls) => items.map(x => `<li class="${cls}"><span>${sign}</span>${pulseEsc(x)}</li>`).join('');
   return `<div class="pulse-head"><span class="pulse-title">Pulse Check · ${pulseEsc(t)}</span>${pulseBadgeHtml(p)}</div>`
     + (p.valuation ? `<div class="pulse-val">Valuation: ${pulseEsc(p.valuation)}</div>` : '')
     + `<ul class="pulse-list">${list(p.strengths, '+', 'pos')}${list(p.risks, '−', 'neg')}</ul>`
     + (p.watch ? `<div class="pulse-watch"><b>Watch next:</b> ${pulseEsc(p.watch)}</div>` : '')
+    + pulseMeaningHtml(p)
     + `<div class="pulse-foot">Screen of the company's own filings as of ${pulseAsOfLabel(p)} · research, not advice</div>`;
 }
 // The panel above the table when the search narrows Market Universe to one researched ticker.
