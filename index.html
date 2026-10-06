@@ -1243,7 +1243,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791279689";
+const BUILD_ID = "1791279790";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3238,6 +3238,9 @@ async function fetchBoiRates(){
       const s = String(t[i][cD] || '').trim(), rate = Number(t[i][cR]);
       if(!(rate > 2 && rate < 10)) continue;
       let date = /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
+      // The proxy hands IMPORTDATA's dates over as Sheets serial day numbers (days since 1899-12-30).
+      if(!date && /^\d{5}(\.\d+)?$/.test(s)){ const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(s)) * 86400000);
+        date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; }
       if(!date){ const d = parseSheetTimestamp(s); if(!isNaN(d.getTime())) date = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
       if(date) out.push({date, rate});
     }
