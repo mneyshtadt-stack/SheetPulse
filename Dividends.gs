@@ -17,7 +17,10 @@
 //      says "Yahoo, pay date estimated". It fills in dividends Alpha Vantage hasn't listed or checked yet.
 //      Yahoo sometimes adjusts old amounts for spin-offs (SPGI May 2026) -- Alpha Vantage's row fixes that.
 // Rows whose Source says "estimated" get their Pay Date recalculated on every run. Change Source to
-// "manual" after correcting a row by hand from the broker's statement and it's never touched again.
+// "manual" after correcting a row by hand from the broker's statement and it's never touched again
+// (any capitalisation, and the cell may carry a note, e.g. "manual - spin-off, not cash"; divIsManual_).
+// To cancel a wrong row (a spin-off reported as a dividend), set Amount to 0 and Source to manual;
+// deleting it would let the next run add it back. The dashboard ignores 0-amount rows.
 // Without an Alpha Vantage key the script runs on Yahoo alone. TASE funds (IBI.*) are skipped.
 //
 // Setup (once, in the Apps Script project bound to the Tracker spreadsheet):
@@ -31,6 +34,7 @@ const DIV_SHEET = 'Dividends';
 const DIV_TX_SHEET = 'Transactions';
 const DIV_HEADER = ['Ticker', 'Ex-Date', 'Pay Date', 'Amount', 'Source', 'Added'];
 const DIV_ESTIMATED = 'Yahoo, pay date estimated';
+function divIsManual_(source) { return /manual/i.test(String(source)); }
 // Days from ex-date to payment. ETFs: 1-6 (JEPI and PFF 6+, SCHD 6, sector SPDRs 2, DBMF 1). Stocks: 14-32 (BAM 29,
 // GS 28, MCO 26, SPGI 19, MS 15). Per-ticker exceptions where the type misleads.
 const DIV_LAG_ETF = 6;
@@ -110,7 +114,7 @@ function updateDividends() {
   // Every estimated row: Pay Date recalculated with the current rule.
   let fixed = 0;
   all.forEach(r => {
-    if (String(r[4]).indexOf('estimated') === -1) return;
+    if (divIsManual_(r[4]) || String(r[4]).indexOf('estimated') === -1) return;
     const ticker = String(r[0]).trim(), ex = divParseDate_(r[1]);
     if (!ex || !(ticker in types)) return;
     const pay = fmt(new Date(ex.getTime() + divPayLagDays_(ticker, types[ticker]) * 86400000));
@@ -138,7 +142,7 @@ function divApplyAlphaVantage_(rows, firstBuy, types, fmt, today) {
   if (!tickers.length) return 'nothing to check';
   // Tickers with a recent estimated row first, then the rest in rotation.
   const recent = Date.now() - DIV_AV_RECENT_DAYS * 86400000;
-  const urgent = tickers.filter(t => rows.some(r => String(r[0]).trim() === t && String(r[4]).indexOf('estimated') !== -1
+  const urgent = tickers.filter(t => rows.some(r => String(r[0]).trim() === t && !divIsManual_(r[4]) && String(r[4]).indexOf('estimated') !== -1
     && (divParseDate_(r[1]) || new Date(0)).getTime() > recent));
   let cursor = Number(props.getProperty(DIV_AV_CURSOR) || 0) % tickers.length;
   const pick = urgent.slice(0, DIV_AV_PER_RUN);
@@ -174,7 +178,7 @@ function divApplyAlphaVantage_(rows, firstBuy, types, fmt, today) {
       const pay = divParseDate_(d.payment_date);
       const row = near(t, fmt(ex));
       if (row) {
-        if (String(row[4]).indexOf('manual') !== -1 || String(row[4]) === 'Alpha Vantage') return;
+        if (divIsManual_(row[4]) || String(row[4]) === 'Alpha Vantage') return;
         if (!pay) return;   // no real date yet -- keep the estimate
         row[2] = fmt(pay); row[3] = amount; row[4] = 'Alpha Vantage'; updated++;
       } else {
