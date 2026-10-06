@@ -1243,7 +1243,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791278350";
+const BUILD_ID = "1791279689";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1503,6 +1503,17 @@ const DIAG_CHECKS = [
     return {status: stale ? 'warn' : 'ok', ms:r.ms,
       detail:`${rows.length - 1} row${rows.length === 2 ? '' : 's'}; newest ${when} (${age < 0 ? 'in ' + diagDuration(age) : diagDuration(age) + ' ago'})`
         + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
+  }},
+
+  {name: 'Bank of Israel rate (BOIRate tab)', run: async () => {
+    // Meitav's valuation and Psagot's day change use it; without it both broker views fall back to
+    // SheetPulse's own way. The BoI publishes each day's rate around 15:30 Israel time.
+    const t0 = performance.now();
+    const rates = await fetchBoiRates();
+    const ms = Math.round(performance.now() - t0);
+    if(!rates) return {status:'warn', ms, detail:'No BOIRate tab (or no rates in it) — the Meitav and Psagot views use SheetPulse\'s own figures. See README → Bank of Israel rate for the one-cell setup.'};
+    const last = rates[rates.length-1], days = Math.round((Date.now() - new Date(last.date + 'T15:30:00').getTime()) / 86400000);
+    return {status: days > 4 ? 'warn' : 'ok', ms, detail:`${rates.length} rates; latest ${last.rate.toFixed(4)} for ${boiDay(last.date)}` + (days > 4 ? ' — older than 4 days: check the IMPORTDATA formula in BOIRate!A1.' : '.')};
   }},
 
   {name: 'Dividends (Yahoo + Alpha Vantage)', run: async () => {
@@ -3205,10 +3216,54 @@ function usdIlsOn(dateStr){
 //   uses it for its Total gain tile.
 // - Psagot shows dollars only (no ₪ cost), leaves the commission out of its average cost and
 //   subtracts each dividend received (after 25% Israeli tax), so SheetPulse's cost reads a little higher there.
-// Off for now (Oct 2026): Meitav also values at the Bank of Israel representative rate, which the
-// sheet doesn't have yet, so the line didn't match its app. ['Meitav'] brings back the second gain
-// line, the Meitav Total gain tile and its note.
+// - Meitav values US holdings at the Bank of Israel representative rate (latest published), and
+//   Psagot's ₪ day change starts from the latest one before today. Both come from the BOIRate tab
+//   (fetchBoiRates); without it, Meitav's purchase-date line stays off, as before.
+// fetchBoiRates() adds 'Meitav' here once the rates load: the second gain line, the Meitav Total
+// gain tile and its note.
 const PURCHASE_DATE_RATE_BROKERS = [];
+// Bank of Israel representative USD/ILS rates from the BOIRate tab: one IMPORTDATA formula pulling
+// the BoI SDMX CSV (TIME_PERIOD / OBS_VALUE columns), or a plain Date | Rate table. Oldest first.
+const BOI_RATE_CSV_URL = proxyUrl(SHEET_ID, 'BOIRate');
+window.boiRates = null;
+async function fetchBoiRates(){
+  try{
+    const res = await fetchViaProxy(BOI_RATE_CSV_URL);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+    let h = t.findIndex(r => r.some(c => /TIME_PERIOD/i.test(c))), cD = 0, cR = 1;
+    if(h >= 0){ cD = t[h].findIndex(c => /TIME_PERIOD/i.test(c)); cR = t[h].findIndex(c => /OBS_VALUE/i.test(c)); }
+    const pad = n => String(n).padStart(2, '0'), out = [];
+    for(let i = h + 1; i < t.length; i++){
+      const s = String(t[i][cD] || '').trim(), rate = Number(t[i][cR]);
+      if(!(rate > 2 && rate < 10)) continue;
+      let date = /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : '';
+      if(!date){ const d = parseSheetTimestamp(s); if(!isNaN(d.getTime())) date = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+      if(date) out.push({date, rate});
+    }
+    out.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    window.boiRates = out.length ? out : null;
+  } catch(e){ window.boiRates = null; }
+  const mi = PURCHASE_DATE_RATE_BROKERS.indexOf('Meitav');
+  if(window.boiRates && mi < 0) PURCHASE_DATE_RATE_BROKERS.push('Meitav');
+  if(!window.boiRates && mi >= 0) PURCHASE_DATE_RATE_BROKERS.splice(mi, 1);
+  return window.boiRates;
+}
+function boiDay(k){ const [y, m, d] = k.split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}); }
+function boiRateLatest(){ const a = window.boiRates; return a && a.length ? a[a.length-1] : null; }
+function boiRateBeforeToday(){
+  const a = window.boiRates, z = todayInZone('Asia/Jerusalem');
+  const k = `${z.y}-${String(z.m).padStart(2, '0')}-${String(z.d).padStart(2, '0')}`;
+  for(let i = (a || []).length - 1; i >= 0; i--) if(a[i].date < k) return a[i];
+  return null;
+}
+// A holding's (or a part's) ₪ value at the latest representative rate: Meitav's own valuation.
+// ₪ funds and holdings without a dollar value stay as they are.
+function boiValueIls(r, value){
+  const b = boiRateLatest();
+  if(!b || ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0) || !(r.value > 0)) return value;
+  return value * (r.valueUsd / r.value) * b.rate;
+}
 const USD_COST_BROKERS = ['Psagot'];
 function pfPlatforms(r){ return Object.keys(r.byPlatform || {[r.platform || '']: 1}).filter(Boolean); }
 // Every part of the holding is at a broker that counts in ₪ at the purchase-date rate.
@@ -3282,7 +3337,8 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt
     costPd += o.costNative * fx.rate;
     return `<div>${day(txDateMs(o.date))}: ${$(o.costNative)} × ${fx.rate.toFixed(4)}${Math.abs(fx.ms - txDateMs(o.date)) > 86400000 ? ` (close of ${day(fx.ms)})` : ''} = ${I(o.costNative * fx.rate)}</div>`;
   });
-  const gainPd = missing ? NaN : value - costPd;
+  const valueB = boiValueIls(r, value), boi = boiRateLatest();
+  const gainPd = missing ? NaN : valueB - costPd;
   const pctPd = missing || !costPd ? NaN : gainPd / costPd * 100;
 
   const tip = `<b>Total gain/loss, two ways</b>`
@@ -3294,9 +3350,10 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt
     + (missing
       ? `<div style="max-width:340px;">No USD/ILS close in PriceHistory for ${String(missing).replace(/[<>&]/g, '')}${usdIlsHistory && usdIlsHistory.dates.length ? ` (it starts ${day(usdIlsHistory.dates[0])} — move the History tab's start date in B1 earlier)` : ' (PriceHistory not loaded yet)'}.</div>`
       : parts.join('') + (lots.length > 1 ? `<div>Cost at purchase-date rates = ${I(costPd)}</div>` : '')
-        + `<div>Value ${I(value)} − ${I(costPd)} = <span class="${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</span></div>`
-        + `<div style="color:var(--muted); font-size:12px; max-width:340px;">How ${pfPlatforms(r).join(' / ')} shows it — it includes the currency gain or loss since each purchase. ${pfPlatforms(r).join(' / ')} converts at its own bank rate, so its ₪ cost can differ by a few tenths of a percent.</div>`
-        + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gainPd - gain)}">${sign(gainPd - gain)}</span></div>`);
+        + (boi ? `<div>Value ${$(value * r.valueUsd / r.value)} × Bank of Israel rate ${boi.rate.toFixed(4)} (${boiDay(boi.date)}) = ${I(valueB)}</div>` : '')
+        + `<div>Value ${I(valueB)} − ${I(costPd)} = <span class="${cls(gainPd)}">${sign(gainPd)} ${pct(pctPd)}</span></div>`
+        + `<div style="color:var(--muted); font-size:12px; max-width:340px;">How ${pfPlatforms(r).join(' / ')} shows it — it includes the currency gain or loss since each purchase, and values at the Bank of Israel representative rate. ${pfPlatforms(r).join(' / ')} converts purchases at its own bank rate, so its ₪ cost can differ by a few tenths of a percent.</div>`
+        + `<div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--line);">Currency effect: <span class="${cls(gainPd - gain)}">${sign(gainPd - gain)}</span></div>`);
   const id = ++pfGainTipSeq;
   pfGainTips.set(id, tip);
   const second = missing
@@ -3410,7 +3467,8 @@ function pfUsdValueHtml(r, usd){
 // it -- the dollar value's move at the holding's Day Change %. `part` is a purchase row's share of it.
 function pfUsdDayHtml(r, part){
   if(!pfIsUsdCostBroker(r) || ISRAELI_TICKERS.includes(r.name) || !isFinite(r.valueUsd) || isNaN(r.change)) return '';
-  const usd = (r.valueUsd - r.valueUsd / (1 + r.change / 100)) * part;
+  // Before today's US open Google's Day Change % is the last session's; Psagot shows $0 then.
+  const usd = usSessionStartedToday() ? (r.valueUsd - r.valueUsd / (1 + r.change / 100)) * part : 0;
   if(!isFinite(usd)) return '';
   return `<div class="pf-gain-pd">${pfPlatforms(r).join(' / ')}</div>`
     + `<div class="pf-gain-pd-val ${usd >= 0 ? 'up' : 'down'}">${usd >= 0 ? '+' : '-'}$${Math.abs(usd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
@@ -3942,7 +4000,8 @@ function applyPurchaseDateGainTile(broker, rows, totals){
   });
   if(missing || !cost) return;   // keeps today's-rate figure (the holding's own cell says why)
   const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
-  const gain = totals.totalValue - cost, pct = gain / cost * 100;
+  const boi = boiRateLatest(), valueB = rows.reduce((a, r) => a + boiValueIls(r, r.value), 0);
+  const gain = valueB - cost, pct = gain / cost * 100;
   const cls = n => n >= 0 ? 'up' : 'down';
   val.className = 'md-stat-tile-val ' + cls(gain);
   val.textContent = (gain >= 0 ? '+' : '-') + fmt(gain);
@@ -3953,10 +4012,10 @@ function applyPurchaseDateGainTile(broker, rows, totals){
   other.textContent = `At today's rate: ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
   sub.after(other);
   attachHoverTooltip(val.parentElement, () => `<b>Total gain, ${broker}'s way</b>`
-    + `<div>Value ${fmt(totals.totalValue)} − cost at purchase-date rates ${fmt(cost)}</div>`
+    + `<div>Value ${fmt(valueB)}${boi ? ` (US holdings at the Bank of Israel rate ${boi.rate.toFixed(4)}, ${boiDay(boi.date)})` : ''} − cost at purchase-date rates ${fmt(cost)}</div>`
     + `<div>= <span class="${cls(gain)}">${gain >= 0 ? '+' : '-'}${fmt(gain)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span></div>`
     + `<div style="margin-top:6px;">At today's rate (cost ${fmt(totals.totalCost)}): ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)}</div>`
-    + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Currency effect since purchase: <span class="${cls(gain - totals.totalGain)}">${gain - totals.totalGain >= 0 ? '+' : '-'}${fmt(gain - totals.totalGain)}</span></div>`);
+    + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Currency effect: <span class="${cls(gain - totals.totalGain)}">${gain - totals.totalGain >= 0 ? '+' : '-'}${fmt(gain - totals.totalGain)}</span></div>`);
 }
 // A USD-cost broker's Total gain tile (Psagot): its own way -- each holding's dollar value minus
 // shares x the broker's average cost -- in ₪ at each holding's rate, with SheetPulse's figure under
@@ -4010,7 +4069,12 @@ function renderPortfolioHeader(){
   const broker = activeBroker(allRows);
   const rows = rowsForBroker(allRows, broker);
   if(!rows.length) return false;
-  const totals = broker ? brokerTotals(rows) : window.lastTotals;
+  // A broker's day change comes from brokerDayGains (each market's recorded-close move shared out),
+  // not the sum of its holdings' Day Change %, which is stale while a market is closed.
+  // Psagot (a USD-cost broker) its own way when the BoI rate is in: see usdBrokerDayGain.
+  const usdDay = broker && USD_COST_BROKERS.includes(broker) ? usdBrokerDayGain(rows) : null;
+  const totals = broker ? (() => { const t = brokerTotals(rows), d = usdDay ? usdDay.dayGain : brokerDayGains(allRows)[broker];
+    return typeof d === 'number' && !isNaN(d) ? {...t, dayGain: d, dayGainPct: (t.totalValue - d) ? d / (t.totalValue - d) * 100 : 0} : t; })() : window.lastTotals;
   const split = splitByMarket(rows);
   // On a broker while showing 1D / 5D (those cover the whole portfolio only).
   if(broker && !BROKER_CHART_RANGES.includes(chartRange)) chartRange = '1M';
@@ -4057,7 +4121,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
         ${broker
-          ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · from each holding's day change</div>`
+          ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does` : "its share of each market's move today"}</div>`
           : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>`}
       </div>
       <div class="md-stat-tile">
@@ -4079,7 +4143,7 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
     ${broker ? `<p class="md-broker-note">1D and 5D charts come from the intraday log, which records the whole portfolio only — choose All to see them.</p>` : ''}
-    ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
+    ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: US holdings valued at the Bank of Israel representative rate${boiRateLatest() ? ` (${boiRateLatest().rate.toFixed(4)}, ${boiDay(boiRateLatest().date)})` : ''}, cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
     ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
@@ -6478,6 +6542,26 @@ function renderHomeAlloc(rows){
   el.innerHTML = html;
 }
 
+// A USD-cost broker's (Psagot's) ₪ day change, its app's way: today's ₪ value minus yesterday's
+// dollar value at the latest Bank of Israel representative rate before today. The dollar move
+// counts only once the US session has opened today (before that Google's Day Change % is the last
+// session's, and Psagot shows $0). ₪ funds use their own day change. Null without the BoI rate.
+function usSessionStartedToday(){
+  const nyDay = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', weekday: 'short'}).format(new Date());
+  return !['Sat', 'Sun'].includes(nyDay) && Date.now() >= getUsDayRangeMs().open;
+}
+function usdBrokerDayGain(rows){
+  const b = boiRateBeforeToday();
+  if(!b) return null;
+  const usToday = usSessionStartedToday();
+  let d = 0;
+  rows.forEach(r => {
+    if(ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0)){ if(!isNaN(r.change)) d += r.value - r.value / (1 + r.change / 100); return; }
+    const move = usToday && !isNaN(r.change) ? r.valueUsd - r.valueUsd / (1 + r.change / 100) : 0;
+    d += r.value - (r.valueUsd - move) * b.rate;
+  });
+  return {dayGain: d, boi: b};
+}
 // Today's ₪ change per broker, adding up to the Today figure. Each holding's Day Change % alone is
 // wrong while its market is closed (Google keeps the last session's move, already in the recorded
 // close, and misses the USD/ILS move), so each market's own day change (splitByMarket, from the
@@ -7218,7 +7302,7 @@ async function doRefresh(){
   try{
     setStatus('Fetching latest from Google Sheet…', false);
     const rows = await fetchAndParseWithRetry(2, 2000);
-    await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows)]);
+    await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows), fetchBoiRates()]);
     const totals = await applyTotalFallback(computeTotals(rows));
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
