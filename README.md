@@ -136,6 +136,10 @@ It fills in the last 30 days of rates, newest first (columns TIME_PERIOD and OBS
 - **USD/ILS:** the markets strip and the USD/ILS window's headline show the latest rate and its daily change, as the Bank of Israel shows them ("Bank of Israel 3.0530 ↓-0.196% (Oct 6)"), next to the live one. On the chart the rates show as blue ◆ points: on 1D, today's rate at 15:30 with a dotted line from it to the right edge, labelled at the right edge like Prev. close (before it is published, a note gives the latest one); on longer ranges, one per day next to Google's close, also in the hover.
 - Without the tab, both views show SheetPulse's own figures, and Diagnostics → "Bank of Israel rate" says so.
 
+## Evening USD/ILS
+
+Google Finance's USD/ILS (Tracker!Q1) stops updating at about 18:00 Israel time, while the market and the brokers keep moving. The intraday logger writes Yahoo's rate (ILS=X) into IntradayLog's USD/ILS column on every run; the Tracker is not changed. The dashboard uses the latest IntradayLog rate as the live rate whenever it's newer than Google's own quote time: in the evening, and overnight and at weekends after the logger stops (about 23:10). It then recalculates every US holding's ₪ value and ₪ cost with that rate. During the day Google's rate is used, as before. The IBI funds' prices come from Yahoo too (official closing-auction price after the close), written into their Tracker rows by the same logger.
+
 ## Setup
 
 This dashboard is wired to one specific Google account's sheets and one allowed sign-in email via hardcoded constants in the HTML (`SHEET_ID`, `NET_WORTH_SHEET_ID`, `PROXY_BASE_URL`, `GOOGLE_WEB_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`) — it isn't meant to be reconfigured per-viewer. To point it at your own sheets and account:
