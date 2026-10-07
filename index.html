@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791324264";
+const BUILD_ID = "1791345896";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3223,6 +3223,26 @@ function ensureUsdIlsHistory(){
   })().finally(() => { usdIlsLoading = null; });
   return usdIlsLoading;
 }
+// The rate Meitav converted a purchase at: the Bank of Israel representative rate of the next weekday
+// after the purchase date (the latest one published on or before it, e.g. around holidays) -- shekels
+// settle the next Israeli business day. Matched Meitav's ₪ cost on 22 of 25 holdings to within ₪2.3
+// (7 Oct 2026; not GDX, bought 2023, nor CRNT). Needs the BOIRate tab to reach back to the purchase;
+// otherwise the USD/ILS close on the purchase date (usdIlsOn). {rate, ms, label} or null.
+function meitavPurchaseFx(dateStr){
+  const ms = txDateMs(dateStr), a = window.boiRates;
+  if(!isNaN(ms) && a && a.length){
+    const d = new Date(ms); d.setDate(d.getDate() + 1);
+    while(d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    const pad = n => String(n).padStart(2, '0'), key = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const start = new Date(ms); start.setDate(start.getDate() - 7);
+    const startKey = `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`;
+    if(a[0].date <= startKey){   // the history reaches back to this purchase
+      for(let i = a.length - 1; i >= 0; i--) if(a[i].date <= key)
+        return {rate: a[i].rate, ms: new Date(a[i].date + 'T12:00:00').getTime(), label: 'Bank of Israel, ' + boiDay(a[i].date)};
+    }
+  }
+  return usdIlsOn(dateStr);
+}
 // The USD/ILS close on that day, or the last one before it: {rate, ms} or null.
 function usdIlsOn(dateStr){
   const h = usdIlsHistory, ms = txDateMs(dateStr);
@@ -3335,7 +3355,7 @@ function pfIsUsdCostBroker(r){
 function pfPurchaseDateCost(lots){
   let cost = 0;
   for(const o of lots){
-    const fx = usdIlsOn(o.date);
+    const fx = meitavPurchaseFx(o.date);
     if(!fx) return {cost: NaN, missing: o.date || '(no date)'};
     cost += (o.costNative || 0) * fx.rate;
   }
@@ -3388,10 +3408,10 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt
   const todayRate = costNative ? costToday / costNative : NaN;
   let costPd = 0, missing = null;
   const parts = lots.map(o => {
-    const fx = usdIlsOn(o.date);
+    const fx = meitavPurchaseFx(o.date);
     if(!fx){ missing = missing || o.date || '(no date)'; return ''; }
     costPd += o.costNative * fx.rate;
-    return `<div>${day(txDateMs(o.date))}: ${$(o.costNative)} × ${fx.rate.toFixed(4)}${Math.abs(fx.ms - txDateMs(o.date)) > 86400000 ? ` (close of ${day(fx.ms)})` : ''} = ${I(o.costNative * fx.rate)}</div>`;
+    return `<div>${day(txDateMs(o.date))}: ${$(o.costNative)} × ${fx.rate.toFixed(4)}${fx.label ? ` (${fx.label})` : (Math.abs(fx.ms - txDateMs(o.date)) > 86400000 ? ` (close of ${day(fx.ms)})` : '')} = ${I(o.costNative * fx.rate)}</div>`;
   });
   const valueB = boiValueIls(r, value), boi = meitavBoiRate();
   const gainPd = missing ? NaN : valueB - costPd;
