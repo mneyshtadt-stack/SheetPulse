@@ -9,16 +9,15 @@ function isTaseOpenNow() {
   return openDays.indexOf(weekday) !== -1 && hm >= '1000' && hm <= '1730';
 }
 
-// After the US close until midnight Israel time (Mon-Fri): regular rows keep coming every run, so
-// IntradayLog's USD/ILS keeps following Yahoo's rate, which moves until about midnight (6 Oct 2026:
-// 3.0484 at 23:00, 3.0464 at 23:30, when the brokers were at about 3.0469). Prices can't move then;
-// the 1D charts end at the close, so these rows only feed the dashboard's live rate.
-function isUsEveningFxWindow() {
-  const now = new Date();
-  const nyDay = Utilities.formatDate(now, 'America/New_York', 'EEE');
-  const nyHm = Utilities.formatDate(now, 'America/New_York', 'HHmm');
-  const ilHm = Utilities.formatDate(now, 'Asia/Jerusalem', 'HHmm');
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].indexOf(nyDay) !== -1 && nyHm > '1600' && ilHm >= '2100' && ilHm <= '2359';
+// Outside the trading sessions on weekdays (Israel time, Mon-Fri, all day): regular rows keep coming
+// every run, so IntradayLog's USD/ILS keeps following Yahoo's rate, which moves in the evening and
+// through the night and morning while Google's stops at about 18:00 (6 Oct 2026: 3.0484 at 23:00,
+// 3.0464 at 23:30 with the brokers at about 3.0469; 7 Oct: 3.0523 at 07:45 with Psagot at about
+// 3.0522). Prices can't move then; the 1D charts cover the sessions only, so these rows only feed the
+// dashboard's live rate.
+function isFxOnlyWindow() {
+  const ilDay = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'EEE');
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].indexOf(ilDay) !== -1;
 }
 
 // Standard US market hours, Monday-Friday.
@@ -184,8 +183,11 @@ function logIntradayValue() {
   const usOpen = isUsMarketOpenNow();
   const taseGraceWindow = !taseOpen && isTaseCloseGraceWindow();
   const usGraceWindow = !usOpen && isUsCloseGraceWindow();
-  // The evening rate window counts as open for regular rows (see isUsEveningFxWindow).
-  const isOpen = taseOpen || usOpen || (!usGraceWindow && isUsEveningFxWindow());
+  // Outside the sessions on weekdays, regular rows for the rate (isFxOnlyWindow) -- but never inside
+  // the open/close windows, whose special readings (stamped 10:00, at each close, USA's pre-open)
+  // must still fire as before.
+  const fxOnly = isFxOnlyWindow() && !taseGraceWindow && !usGraceWindow && !isTaseOpenGraceWindow() && !isUsOpenGraceWindow();
+  const isOpen = taseOpen || usOpen || fxOnly;
 
   const props = PropertiesService.getScriptProperties();
   const todayIL = Utilities.formatDate(new Date(), 'Asia/Jerusalem', 'yyyy-MM-dd');
