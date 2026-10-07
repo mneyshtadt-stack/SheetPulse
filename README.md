@@ -139,7 +139,7 @@ It fills in every rate since 1 Jan 2023 (the oldest purchase), newest first (col
 
 ## Evening USD/ILS
 
-Google Finance's USD/ILS (Tracker!Q1) stops updating at about 18:00 Israel time, while the market and the brokers keep moving. The intraday logger writes Yahoo's rate (ILS=X) into IntradayLog's USD/ILS column on every run; the Tracker is not changed. The dashboard uses the latest IntradayLog rate as the live rate whenever it's newer than Google's own quote time: in the evening, and overnight and at weekends after the logger stops (about 23:10). It then recalculates every US holding's ₪ value and ₪ cost with that rate. During the day Google's rate is used, as before. The IBI funds' prices come from Yahoo too (official closing-auction price after the close), written into their Tracker rows by the same logger.
+Google Finance's USD/ILS (Tracker!Q1) stops updating at about 18:00 Israel time, while the market and the brokers keep moving. The intraday logger writes Yahoo's rate (ILS=X) into IntradayLog's USD/ILS column on every run; the Tracker is not changed. The dashboard uses the latest IntradayLog rate as the live rate whenever it's newer than Google's own quote time: in the evening, overnight and in the morning (on weekdays the logger writes a rate row every run outside the trading sessions too), and at weekends the last one from Friday night. It then recalculates every US holding's ₪ value and ₪ cost with that rate. During the day Google's rate is used, as before. The IBI funds' prices come from Yahoo too (official closing-auction price after the close), written into their Tracker rows by the same logger.
 
 ## Setup
 
