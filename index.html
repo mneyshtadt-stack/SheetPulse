@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791347289";
+const BUILD_ID = "1791347722";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3324,13 +3324,17 @@ function boiRateBeforeToday(){
 // Meitav's business day: the last Mon-Fri whose day Meitav has started, i.e. today once it's past
 // MEITAV_ROLLOVER_MIN (Israel time), otherwise the previous Mon-Fri. Overnight and at weekends
 // Meitav keeps showing the last trading day (on 7 Oct at 00:40 it still showed 6 Oct's +₪1,029 at
-// 3.0590). The rollover time is a first guess (TASE's open); adjust it once Meitav's is known.
-const MEITAV_ROLLOVER_MIN = 10 * 60;
-function meitavBusinessDay(){
+// 3.0590). Each broker starts its new day at its own time (Israel): Meitav at about 07:00 (7 Oct
+// 2026: still 6 Oct at 06:58 in night mode, 7 Oct by 07:33); Psagot the same, by the user's choice
+// (its own time not observed).
+const MEITAV_ROLLOVER_MIN = 7 * 60;
+const PSAGOT_ROLLOVER_MIN = 7 * 60;
+function meitavBusinessDay(){ return brokerBusinessDay(MEITAV_ROLLOVER_MIN); }
+function brokerBusinessDay(rolloverMin){
   const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false}).formatToParts(new Date());
   const get = t => parseInt(parts.find(p => p.type === t).value, 10);
   const d = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
-  const started = d.getUTCDay() >= 1 && d.getUTCDay() <= 5 && (get('hour') % 24) * 60 + get('minute') >= MEITAV_ROLLOVER_MIN;
+  const started = d.getUTCDay() >= 1 && d.getUTCDay() <= 5 && (get('hour') % 24) * 60 + get('minute') >= rolloverMin;
   if(!started){ do { d.setUTCDate(d.getUTCDate() - 1); } while(d.getUTCDay() === 0 || d.getUTCDay() === 6); }
   return {key: d.toISOString().slice(0, 10), isToday: started};
 }
@@ -6734,7 +6738,7 @@ function usdBrokerDayGain(rows){
   // Psagot keeps showing the last trading day overnight too (7 Oct, 00:50: still 6 Oct's +₪134.93),
   // so the same business day as Meitav's: the rate before that day, and that day's full dollar
   // moves while it's an earlier day.
-  const bd = meitavBusinessDay();
+  const bd = brokerBusinessDay(PSAGOT_ROLLOVER_MIN);
   const a = window.boiRates || [];
   let b = null;
   for(let i = a.length - 1; i >= 0; i--) if(a[i].date < bd.key){ b = a[i]; break; }
