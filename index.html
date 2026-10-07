@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791345896";
+const BUILD_ID = "1791347289";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2274,6 +2274,14 @@ function applyDividends(row, txs, divs){
   row.brokerAvgAuto = sh > 0 ? cost / sh : NaN;
 }
 // Psagot's average cost: the Broker Avg Cost typed in Transactions wins; otherwise it's calculated.
+// On a purchase-date-rate broker's (Meitav's) holding, Transactions' Broker Avg Cost is Meitav's own
+// average cost in ₪ per share (its export's "Average Cost"), for positions whose ₪ cost no rate rule
+// reproduces -- e.g. GDX, transferred in from another broker with its ₪ cost carried over (₪107.40 a
+// share). It replaces the next-weekday-rate cost in "Meitav's way". ₪ total, or null.
+function meitavManualIlsCost(r){
+  if(!pfUsesPurchaseDateRate(r) || ISRAELI_TICKERS.includes(r.name) || !(r.brokerAvgCost > 0) || !(r.shares > 0)) return null;
+  return r.brokerAvgCost * r.shares;
+}
 function pfBrokerAvg(r){
   if(r.brokerAvgCost > 0) return {value: r.brokerAvgCost, manual: true};
   if(r.brokerAvgAuto > 0) return {value: r.brokerAvgAuto, manual: false};
@@ -3413,6 +3421,12 @@ function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt
     costPd += o.costNative * fx.rate;
     return `<div>${day(txDateMs(o.date))}: ${$(o.costNative)} × ${fx.rate.toFixed(4)}${fx.label ? ` (${fx.label})` : (Math.abs(fx.ms - txDateMs(o.date)) > 86400000 ? ` (close of ${day(fx.ms)})` : '')} = ${I(o.costNative * fx.rate)}</div>`;
   });
+  const mc = holding ? meitavManualIlsCost(r) : null;
+  if(mc){
+    costPd = mc; missing = null;
+    parts.length = 0;
+    parts.push(`<div>${r.shares} × ₪${r.brokerAvgCost.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${pfPlatforms(r).join(' / ')}'s own average cost, from Broker Avg Cost in Transactions) = ${I(mc)}</div>`);
+  }
   const valueB = boiValueIls(r, value), boi = meitavBoiRate();
   const gainPd = missing ? NaN : valueB - costPd;
   const pctPd = missing || !costPd ? NaN : gainPd / costPd * 100;
@@ -4071,6 +4085,8 @@ function applyPurchaseDateGainTile(broker, rows, totals){
   let cost = 0, missing = null;
   rows.forEach(r => {
     if(ISRAELI_TICKERS.includes(r.name)){ cost += r.cost || 0; return; }
+    const mc = meitavManualIlsCost(r);
+    if(mc){ cost += mc; return; }
     const pd = pfPurchaseDateCost(pfOpenLots(r).open);
     if(isNaN(pd.cost)) missing = missing || r.name; else cost += pd.cost;
   });
