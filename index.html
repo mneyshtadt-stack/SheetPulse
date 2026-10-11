@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791700494";
+const BUILD_ID = "1791700968";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3343,9 +3343,12 @@ function brokerBusinessDay(rolloverMin){
   const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false}).formatToParts(new Date());
   const get = t => parseInt(parts.find(p => p.type === t).value, 10);
   const d = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
-  const started = d.getUTCDay() >= 1 && d.getUTCDay() <= 5 && (get('hour') % 24) * 60 + get('minute') >= rolloverMin;
-  if(!started){ do { d.setUTCDate(d.getUTCDate() - 1); } while(d.getUTCDay() === 0 || d.getUTCDay() === 6); }
-  return {key: d.toISOString().slice(0, 10), isToday: started};
+  // The brokers' week is the Israeli banking week, Sunday to Friday: on Sunday 11 Oct 2026 both had
+  // started a new day by 09:37 (Meitav's daily P/L 0, values at Friday's BoI rate). Saturday keeps
+  // Friday. A day is a trading day for a market only Mon-Fri (TASE and the US don't trade on Sunday).
+  const started = d.getUTCDay() !== 6 && (get('hour') % 24) * 60 + get('minute') >= rolloverMin;
+  if(!started){ do { d.setUTCDate(d.getUTCDate() - 1); } while(d.getUTCDay() === 6); }
+  return {key: d.toISOString().slice(0, 10), isToday: started, trading: d.getUTCDay() >= 1 && d.getUTCDay() <= 5};
 }
 // Meitav's valuation rate: the last representative rate published BEFORE its business day, used
 // all day even after that day's own rate comes out around 15:30 (6 Oct 2026: 3.0590 at 23:27).
@@ -6733,7 +6736,7 @@ function meitavWayDay(rows){
   // Today's business day: each market once its session has started. An earlier one (overnight, at
   // weekends): that day's full moves, which Google's Day Change % still shows.
   const bd = meitavBusinessDay();
-  const usOn = bd.isToday ? usSessionStartedToday() : true, taseOn = bd.isToday ? taseSessionStartedToday() : true;
+  const usOn = bd.trading && (bd.isToday ? usSessionStartedToday() : true), taseOn = bd.trading && (bd.isToday ? taseSessionStartedToday() : true);
   let day = 0, value = 0;
   rows.forEach(r => {
     value += boiValueIls(r, r.value);
@@ -6752,7 +6755,7 @@ function usdBrokerDayGain(rows){
   let b = null;
   for(let i = a.length - 1; i >= 0; i--) if(a[i].date < bd.key){ b = a[i]; break; }
   if(!b) return null;
-  const usToday = bd.isToday ? usSessionStartedToday() : true;
+  const usToday = bd.trading && (bd.isToday ? usSessionStartedToday() : true);
   let d = 0;
   rows.forEach(r => {
     if(ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0)){ if(!isNaN(r.change)) d += r.value - r.value / (1 + r.change / 100); return; }
