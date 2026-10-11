@@ -479,6 +479,15 @@
   .pay-cell.awaiting{color:var(--warn); box-shadow:inset 0 0 0 2px var(--warn); font-weight:600;}
   .pay-cell.expected{color:var(--muted); box-shadow:inset 0 0 0 1px var(--line);}
   .pay-cell.off{color:var(--line); cursor:default;}
+  .pay-cell.missing, .pay-cell.confirmed{cursor:pointer;}
+  .pay-cell.confirmed{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1.5px var(--up-4);}
+  .pay-confirm{margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--hover); font-size:13px; color:var(--ink); line-height:1.5; display:flex; flex-direction:column; gap:8px;}
+  .pay-confirm[hidden]{display:none;}
+  .pay-confirm-btns{display:flex; flex-wrap:wrap; gap:6px;}
+  .pay-confirm-row{font-size:12.5px; color:var(--muted);}
+  .pay-confirm-row code{display:block; margin:6px 0; padding:6px 8px; border-radius:6px; background:var(--panel); color:var(--ink); font-family:var(--mono); font-size:11.5px; overflow-x:auto; white-space:nowrap;}
+  .pay-copied{color:var(--up-ink); font-size:12px;}
+  .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
   .pay-key i{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-2px;}
   /* Categories, last 12 months */
@@ -1331,7 +1340,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791725601";
+const BUILD_ID = "1791735369";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5352,16 +5361,19 @@ async function fetchPayments(){
   const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
   const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
   const c = name => h.indexOf(name);
-  const cD = c('date'), cP = c('payee'), cC = c('category'), cA = c('amount'), cPer = c('period'), cDue = c('due date'), cCard = c('card');
+  const cD = c('date'), cP = c('payee'), cC = c('category'), cA = c('amount'), cPer = c('period'), cDue = c('due date'), cCard = c('card'), cAdd = c('added'), cMsg = c('message id');
   if(cP < 0 || cA < 0) throw new Error('The Payments tab has no Payee / Amount header');
   const out = [];
   for(let i = 1; i < t.length; i++){
     const r = t[i], payee = String(r[cP] || '').trim(), amount = num(r[cA]);
-    if(!payee || !(amount > 0)) continue;
+    // A row typed in by hand ("manual" in Added or Message id) confirms a bill that has no email;
+    // its amount is optional.
+    const manual = /^manual/i.test(String(cAdd >= 0 ? r[cAdd] || '' : '').trim()) || /^manual/i.test(String(cMsg >= 0 ? r[cMsg] || '' : '').trim());
+    if(!payee || !(amount > 0 || manual)) continue;
     const date = payDateMs(r[cD]), due = cDue >= 0 ? payDateMs(r[cDue]) : NaN;
     const charge = !isNaN(due) ? due : date;
     if(isNaN(charge)) continue;
-    out.push({payee, category: String(r[cC] || 'Other').trim() || 'Other', amount, date, due, charge,
+    out.push({payee, category: String(r[cC] || 'Other').trim() || 'Other', amount: amount > 0 ? amount : 0, date, due, charge, manual,
       period: cPer >= 0 ? String(r[cPer] || '').trim() : '', card: cCard >= 0 ? String(r[cCard] || '').trim() : ''});
   }
   return out.sort((a, b) => b.charge - a.charge);
@@ -5394,7 +5406,7 @@ async function openPaymentsDetail(){
 // A one-month billing period as a month key (year*12 + month-1): "8.2026" / "08.2026", or a
 // "dd.mm.yy-dd.mm.yy" range that starts and ends in the same month. NaN otherwise.
 function payPeriodMonth(s){
-  const t = String(s || '').trim();
+  const t = String(s || '').trim().replace(/^bill\s+/i, '');   // "bill 02.2026": a manual row (text, so Sheets keeps it)
   let m = t.match(/^(\d{1,2})\.(\d{4})$/);
   if(m) return +m[2] * 12 + (+m[1] - 1);
   m = t.match(/^\d{1,2}\.(\d{1,2})\.(\d{2,4})\s*-\s*\d{1,2}\.(\d{1,2})\.(\d{2,4})$/);
@@ -5418,8 +5430,8 @@ function payBillStatus(list, now, monthKey){
       const ks = Object.keys(months).map(Number).sort((a, b) => a - b);
       const lags = bills.map((p, i) => monthKey(p.charge) - pm[i]).filter(x => !isNaN(x));
       const lag = Math.min(3, Math.max(0, ...lags));
-      ks.forEach(k => { const m = months[k]; m.st = m.bills.some(p => p.charge > now) ? 'due' : 'paid'; m.amount = m.bills.reduce((a, p) => a + p.amount, 0);
-        if(m.st === 'due') m.bills.filter(p => p.charge > now).forEach(p => issues.due.push(p)); });
+      ks.forEach(k => { const m = months[k]; m.st = m.bills.every(p => p.manual) ? 'confirmed' : m.bills.some(p => p.charge > now) ? 'due' : 'paid'; m.amount = m.bills.reduce((a, p) => a + p.amount, 0);
+        if(m.st === 'due') m.bills.filter(p => p.charge > now && !p.manual).forEach(p => issues.due.push(p)); });
       let shownNext = false;
       for(let k = ks[0] + 1; k <= Math.max(thisM, ks[ks.length - 1] + 1); k++){
         if(months[k]) continue;
@@ -5439,8 +5451,8 @@ function payBillStatus(list, now, monthKey){
     const ks = Object.keys(months).map(Number).sort((a, b) => a - b);
     const gaps = ks.slice(1).map((k, i) => k - ks[i]).sort((a, b) => a - b);
     const cadence = gaps.length ? Math.max(1, Math.min(12, gaps[Math.floor((gaps.length - 1) / 2)])) : 1;
-    ks.forEach(k => { const m = months[k]; m.st = m.bills.some(p => p.charge > now) ? 'due' : 'paid'; m.amount = m.bills.reduce((a, p) => a + p.amount, 0);
-      if(m.st === 'due') m.bills.filter(p => p.charge > now).forEach(p => issues.due.push(p)); });
+    ks.forEach(k => { const m = months[k]; m.st = m.bills.every(p => p.manual) ? 'confirmed' : m.bills.some(p => p.charge > now) ? 'due' : 'paid'; m.amount = m.bills.reduce((a, p) => a + p.amount, 0);
+      if(m.st === 'due') m.bills.filter(p => p.charge > now && !p.manual).forEach(p => issues.due.push(p)); });
     const end = Math.max(thisM + (cadence > 1 ? 0 : 1), ks[ks.length - 1]);
     lastK = Math.max(lastK, ks[ks.length - 1]);
     let next = ks[0] + cadence, pending = [];
@@ -5473,6 +5485,9 @@ function payBillStatus(list, now, monthKey){
   issues.due.sort((a, b) => a.charge - b.charge);
   return {payees, issues, lastK: Math.min(lastK, thisM + 3)};
 }
+// Bills marked paid in Bill check on this device: {"Payee|monthKey": "yyyy-mm-dd marked"}.
+function payConfirmedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payConfirmed') || '{}') || {}; } catch(_){ return {}; } }
+function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.stringify(m)); } catch(_){} }
 function renderPayments(){
   const area = document.getElementById('payArea');
   if(!area || !paymentsList) return;
@@ -5484,7 +5499,17 @@ function renderPayments(){
   const monthKey = ms => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
   const monthLabel = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'short', year: '2-digit'});
   const monthName = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'long'}) + (Math.floor(k / 12) !== new Date().getFullYear() ? ' ' + Math.floor(k / 12) : '');
-  const list = paymentsList;
+  // Bills you marked paid in Bill check (no email for them): kept on this device until a "manual" row
+  // for the same bill and month is in the Payments tab, which every device reads.
+  const confirmed = payConfirmedGet();
+  const sheetManual = new Set(paymentsList.filter(p => p.manual).flatMap(p => [p.payee + '|' + monthKey(p.charge), p.payee + '|' + payPeriodMonth(p.period)]));
+  const catOf = payee => (paymentsList.find(p => p.payee === payee) || {}).category || 'Other';
+  const list = paymentsList.concat(Object.keys(confirmed).filter(key => !sheetManual.has(key)).map(key => {
+    const i = key.lastIndexOf('|'), payee = key.slice(0, i), k = Number(key.slice(i + 1));
+    const ms = new Date(Math.floor(k / 12), k % 12, 15, 12).getTime();
+    return {payee, category: catOf(payee), amount: 0, date: ms, due: NaN, charge: ms, manual: true, local: true, card: '',
+      period: 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12)};
+  })).sort((a, b) => b.charge - a.charge);
   if(!list.length){ area.innerHTML = `<div class="pm-note">No payments yet — run updatePayments() in the Payments spreadsheet's Apps Script.</div>`; return; }
   // Range: 6 months by default on phones, 12 elsewhere; the chips switch it (6 / 12 / 24).
   if(!paymentsRange) paymentsRange = window.matchMedia('(max-width:600px)').matches ? 6 : 12;
@@ -5493,7 +5518,7 @@ function renderPayments(){
   const dot = cat => `<span class="pay-dot" style="background:${colorOf(cat)}"></span>`;
   const sum = arr => arr.reduce((a, p) => a + p.amount, 0);
   const now = Date.now(), thisM = monthKey(now);
-  const past = list.filter(p => p.charge <= now);
+  const past = list.filter(p => p.charge <= now && p.amount > 0);   // money figures: real charges only
   const yearAgo = now - 365 * 86400000, twoYearsAgo = now - 730 * 86400000;
 
   // Bill status: per payee, which months are paid, scheduled (bill in, card not charged yet),
@@ -5512,7 +5537,7 @@ function renderPayments(){
       ${st.missing.length
         ? `<div class="pay-card miss"><div class="pay-card-label">Missing · ${st.missing.length}</div>
             <div class="pay-card-val">${st.missing.map(x => `${esc(x.payee)}, ${monthName(x.k)}${x.byPeriod ? ' bill' : ''}`).join('<br>')}</div>
-            <div class="pay-card-sub">No bill in Gmail for ${st.missing.length > 1 ? 'those months' : 'that month'}. Check whether it was paid another way.</div></div>`
+            <div class="pay-card-sub">No bill in Gmail for ${st.missing.length > 1 ? 'those months' : 'that month'}. Paid another way? Click the month in Bill check to mark it paid.</div></div>`
         : `<div class="pay-card"><div class="pay-card-label ok">Nothing missing</div><div class="pay-card-val">All bills found</div>
             <div class="pay-card-sub">Every bill expected in the last 12 months is in Gmail${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
       ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
@@ -5532,7 +5557,7 @@ function renderPayments(){
   // Bill check grid over the chosen range, plus the months ahead with a bill or an expected one.
   const gridMonths = []; for(let k = thisM - paymentsRange + 1; k <= status.lastK; k++) gridMonths.push(k);
   const cadenceWord = c => c === 1 ? 'monthly' : `every ${c} months`;
-  const cellText = {paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
+  const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ paid', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
   const check = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Bill check</h3><span class="pay-panel-note pay-hint">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period</span></div>
@@ -5540,9 +5565,10 @@ function renderPayments(){
         <thead><tr><th></th>${gridMonths.map(k => `<th class="${k === thisM ? 'pay-now' : ''}">${monthLabel(k)}</th>`).join('')}</tr></thead>
         <tbody>${status.payees.map((s, pi) => `<tr><th scope="row" class="pay-name"><div class="pay-name-in">${dot(s.category)}<span><b>${esc(s.payee)}</b><small>${esc(s.category)}<i> · ${s.byPeriod ? 'by bill month' : cadenceWord(s.cadence) + ', by month charged'}</i></small></span></div></th>${gridMonths.map(k => {
           const c = s.months[k] || {st: 'off'};
-          return `<td class="pay-cell ${c.st}" data-p="${pi}" data-k="${k}">${cellText[c.st](c)}</td>`; }).join('')}</tr>`).join('')}</tbody>
+          return `<td class="pay-cell ${c.st}" data-p="${pi}" data-k="${k}" data-payee="${esc(s.payee)}">${cellText[c.st](c)}</td>`; }).join('')}</tr>`).join('')}</tbody>
       </table></div>
-      <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>bill in, not charged yet</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
+      <div id="payConfirm" class="pay-confirm" hidden></div>
+      <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>bill in, not charged yet</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing (click to mark paid)</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--up-4)"></i>marked paid by you</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
     </section>`;
 
   // Categories, last 12 months vs the 12 before.
@@ -5560,7 +5586,8 @@ function renderPayments(){
 
   // All bills: table on wider screens, cards on phones; category chips filter both.
   const shown = paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list;
-  const pill = p => p.charge > now ? '<span class="pay-pill due">to be charged</span>' : '<span class="pay-pill paid">paid</span>';
+  const pill = p => p.manual ? `<span class="pay-pill mark">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.charge > now ? '<span class="pay-pill due">to be charged</span>' : '<span class="pay-pill paid">paid</span>';
+  const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
   const rows = shown.slice(0, 60);
   const bills = `
     <section class="pay-panel">
@@ -5568,11 +5595,11 @@ function renderPayments(){
         <div class="pay-chips"><button type="button" class="pay-chip${paymentsFilter ? '' : ' on'}" data-cat="">All</button>${cats.map(cat => `<button type="button" class="pay-chip${paymentsFilter === cat ? ' on' : ''}" data-cat="${esc(cat)}"><i style="background:${colorOf(cat)}"></i>${esc(cat)}</button>`).join('')}</div></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Charged</th><th>Bill</th><th>Period</th><th>Card</th><th>Status</th><th class="num">Amount</th></tr></thead>
-        <tbody>${rows.map(p => `<tr><td>${day(p.charge)}</td><td class="md-th-symbol">${dot(p.category)}${esc(p.payee)}</td><td>${esc(p.period) || '—'}</td><td>${p.card ? '•• ' + esc(p.card) : '—'}</td><td>${pill(p)}</td><td class="num">${fmt2(p.amount)}</td></tr>`).join('')}</tbody>
+        <tbody>${rows.map(p => `<tr><td>${day(p.charge)}</td><td class="md-th-symbol">${dot(p.category)}${esc(p.payee)}</td><td>${esc(p.period) || '—'}</td><td>${p.card ? '•• ' + esc(p.card) : '—'}</td><td>${pill(p)}</td><td class="num">${amt(p)}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${rows.map(p => `<div class="pay-bill">${dot(p.category)}
         <div class="pay-cat-main"><b>${esc(p.payee)}</b><small>${dayShort(p.charge)}${p.period ? ' · ' + esc(p.period) : ''}${p.card ? ' · •• ' + esc(p.card) : ''}</small></div>
-        <div class="pay-cat-num"><b>${fmt2(p.amount)}</b>${pill(p)}</div></div>`).join('')}</div>
+        <div class="pay-cat-num"><b>${amt(p)}</b>${pill(p)}</div></div>`).join('')}</div>
       ${shown.length > 60 ? `<div class="pm-note">Showing the latest 60 of ${shown.length}.</div>` : ''}
     </section>`;
 
@@ -5625,13 +5652,51 @@ function renderPayments(){
   area.querySelectorAll('.pay-chip[data-cat]').forEach(b => b.addEventListener('click', () => { paymentsFilter = b.dataset.cat; renderPayments(); }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
   const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
-  const stWord = {paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
+  const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
     const s = status.payees[Number(td.dataset.p)], k = Number(td.dataset.k), c = s.months[k];
     attachHoverTooltip(td, () => `<b>${esc(s.payee)} · ${monthLabel(k)}</b><div>${stWord[c.st]}</div>` + (c.bills || []).map(p =>
+      p.manual ? `<div style="color:var(--muted)">${p.local ? 'saved on this device · click to undo or copy the sheet row' : 'a manual row in the Payments tab'}${p.amount > 0 ? ' · ' + fmt2(p.amount) : ''}</div>` :
       `<div>${fmt2(p.amount)} ${p.charge > now ? 'to be charged' : 'charged'} ${day(p.charge)}${p.card ? ' · card ' + esc(p.card) : ''}${p.period ? `<br><span style="color:var(--muted)">period ${esc(p.period)}</span>` : ''}</div>`).join('')
-      + (c.st === 'late' ? `<div style="color:var(--muted)">billed in ${monthLabel(c.coveredBy)}</div>` : ''));
+      + (c.st === 'late' ? `<div style="color:var(--muted)">billed in ${monthLabel(c.coveredBy)}</div>` : '')
+      + (c.st === 'missing' ? '<div style="color:var(--muted)">click to mark it paid</div>' : ''));
   });
+  // Marking a missing bill paid: one click saves it on this device; the panel then offers the row to
+  // paste into the Payments tab so every device sees it. Clicking a month you marked offers Undo.
+  const panel = document.getElementById('payConfirm');
+  const openConfirm = (s, k) => {
+    const key = s.payee + '|' + k, c = s.months[k], mine = !!confirmed[key];
+    const what = `<b>${esc(s.payee)}</b> · ${s.byPeriod ? monthName(k) + ' bill' : monthName(k)}`;
+    const ym = Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
+    const row = [ym + '-15', s.payee, s.category, '', 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12), '', '', '', '', 'manual', 'manual ' + new Date().toISOString().slice(0, 10)].join('\t');
+    const sheetRow = `<div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Payments tab (the amount column is left empty; type the amount if you know it):
+        <code>${esc(row.replace(/\t/g, ' │ '))}</code>
+        <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>`;
+    if(c && c.st === 'missing'){
+      panel.innerHTML = `<div>${what}: no bill found in Gmail. Paid it another way?</div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-act="mark">Mark as paid</button><button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
+    } else if(c && c.st === 'confirmed' && mine){
+      panel.innerHTML = `<div>${what}: marked paid on this device.</div>${sheetRow}
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+    } else if(c && c.st === 'confirmed'){
+      panel.innerHTML = `<div>${what}: marked paid by a manual row in the Payments tab. Delete that row to undo.</div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+    } else return;
+    panel.hidden = false;
+    panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      if(act === 'close'){ panel.hidden = true; return; }
+      if(act === 'copy'){ navigator.clipboard.writeText(row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
+      const m = payConfirmedGet();
+      if(act === 'mark') m[key] = new Date().toISOString().slice(0, 10); else delete m[key];
+      payConfirmedSet(m);
+      renderPayments();
+      if(act === 'mark'){ const again = document.querySelector(`.pay-cell[data-k="${k}"][data-payee="${CSS.escape(s.payee)}"]`); if(again) again.click(); }
+    }));
+  };
+  area.querySelectorAll('.pay-cell.missing, .pay-cell.confirmed').forEach(td => td.addEventListener('click', () => {
+    const s = status.payees[Number(td.dataset.p)]; openConfirm(s, Number(td.dataset.k));
+  }));
   area.querySelectorAll('.pay-hit').forEach(r => {
     const m = byMonth[Number(r.dataset.i)];
     attachHoverTooltip(r, () => `<b>${monthLabel(m.k)} · ${fmt(m.total)}</b>` + (m.ps.length
