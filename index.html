@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791705972";
+const BUILD_ID = "1791706113";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4645,15 +4645,14 @@ const NW_ASSET_ITEMS = [
   {key:'kfir', label:'Kfir (SPY)', group:'Portfolio', match: h => h.startsWith('Kfir')},
   {key:'agam', label:'Agam (IVV)', group:'Portfolio', match: h => h.startsWith('Agam')},
   {key:'studyClal', label:'Study Fund — Clal', group:'Study Funds', match: h => h.startsWith('Study fund Clal')},
-  // Analyst was closed and replaced by Harel (Oct 2026); its item stays for earlier years' tabs.
-  {key:'studyHarel', label:'Study Fund — Harel', group:'Study Funds', match: h => h.startsWith('Study fund Harel')},
-  {key:'studyAnalyst', label:'Study Fund — Analyst', group:'Study Funds', match: h => h.startsWith('Study fund Analyst')},
+  // Harel replaced Analyst (Oct 2026): one line, Harel's column plus Analyst's from earlier months
+  // and years (every matching column is added up, so a blank/0 Analyst column beside Harel is harmless).
+  {key:'studyHarel', label:'Study Fund — Harel', group:'Study Funds', match: h => h.startsWith('Study fund Harel') || h.startsWith('Study fund Analyst')},
   {key:'studyMeitav', label:'Study Fund — Meitav', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
   {key:'insurance', label:'Clal Manager Insurance', group:'Pension', match: h => h.startsWith('Manager Insurance') || h.startsWith("Managers'")},
   {key:'pensionClal', label:'Pension Fund — Clal (S&P 500)', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
-  // Menora was closed (Oct 2026); kept for earlier years' tabs.
-  {key:'pensionMenora', label:'Pension Fund — Menora', group:'Pension', match: h => h.startsWith('Pension Fund Menora')},
-  {key:'providentHarel', label:'Provident Fund — Harel', group:'Pension', match: h => h.startsWith('Provident Fund Harel')}
+  // Harel's provident fund replaced Menora's pension fund (Oct 2026): one line, both columns added up.
+  {key:'providentHarel', label:'Provident Fund — Harel', group:'Pension', match: h => h.startsWith('Provident Fund Harel') || h.startsWith('Pension Fund Menora')}
 ];
 const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
@@ -4668,10 +4667,10 @@ const NW_ITEM_GROUP_LABELS = {'Portfolio':'Portfolio', 'Study Funds':'Study Fund
 // Securities + the Study Funds. Kfir/Agam (small side accounts) and Pension (its own
 // tile) are deliberately excluded from this figure everywhere it's used (the Assets tile,
 // the Net Worth total, and the trend chart), so the numbers always agree.
-const NW_CORE_KEYS = ['securities','studyClal','studyHarel','studyAnalyst','studyMeitav'];
+const NW_CORE_KEYS = ['securities','studyClal','studyHarel','studyMeitav'];
 const NW_PORTFOLIO_KEYS = ['securities'];
-const NW_STUDY_KEYS = ['studyClal','studyHarel','studyAnalyst','studyMeitav'];
-const NW_PENSION_KEYS = ['insurance','pensionClal','pensionMenora','providentHarel'];
+const NW_STUDY_KEYS = ['studyClal','studyHarel','studyMeitav'];
+const NW_PENSION_KEYS = ['insurance','pensionClal','providentHarel'];
 function nwSum(assets, keys){
   return keys.reduce((a,k)=> a + (isNaN(assets[k]) ? 0 : assets[k]), 0);
 }
@@ -4699,7 +4698,11 @@ function parseNetWorthTable(table){
   const headers = table[headerIdx].map(normHeader);
   const findCol = pred => headers.findIndex(pred);
 
-  const assetItems = NW_ASSET_ITEMS.map(it => ({...it, col: findCol(it.match)}));
+  // An item can take several columns (a fund and the one it replaced): their values are added up.
+  const assetItems = NW_ASSET_ITEMS.map(it => {
+    const cols = headers.map((h, i) => it.match(h) ? i : -1).filter(i => i >= 0);
+    return {...it, cols, col: cols.length ? cols[0] : -1};
+  });
   const liabilityItems = NW_LIABILITY_ITEMS.map(it => ({...it, col: findCol(it.match)}));
 
   const months = [];
@@ -4707,10 +4710,13 @@ function parseNetWorthTable(table){
     const r = table[i];
     const month = (r[0] || '').trim();
     if(!month) continue;
-    const hasData = assetItems.some(it => it.col>=0 && r[it.col] !== undefined && String(r[it.col]).trim() !== '');
+    const hasData = assetItems.some(it => it.cols.some(c => r[c] !== undefined && String(r[c]).trim() !== ''));
     if(!hasData) continue;
     const assets = {}, liabilities = {};
-    assetItems.forEach(it => { assets[it.key] = it.col>=0 ? num(r[it.col]) : NaN; });
+    assetItems.forEach(it => {
+      const vals = it.cols.map(c => num(r[c])).filter(v => !isNaN(v));
+      assets[it.key] = vals.length ? vals.reduce((a, v) => a + v, 0) : NaN;
+    });
     liabilityItems.forEach(it => { liabilities[it.key] = it.col>=0 ? num(r[it.col]) : NaN; });
     // "assetsTotal" = the same Assets definition used everywhere else (Securities + Study
     // Funds only) — see NW_CORE_KEYS. Kfir, Agam and Pension are excluded from Net Worth.
@@ -5014,8 +5020,7 @@ function renderNetWorth(nw, crossYearPrev){
   const studyFundSeries = [
     {key:'total', label:'Total', color:'#d1495b', bold:true, getValue: m => nwSum(m.assets, NW_STUDY_KEYS)},
     {key:'studyClal', label:'Clal', sub:'Stocks 1350', color:'#d9a441', getValue: m => nwSum(m.assets, ['studyClal'])},
-    {key:'studyHarel', label:'Harel', sub:'80% stocks, 20% S&P 500', color:'#5470c6', getValue: m => nwSum(m.assets, ['studyHarel'])},
-    {key:'studyAnalyst', label:'Analyst', sub:'Stocks 963', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['studyAnalyst'])},
+    {key:'studyHarel', label:'Harel', sub:'80% stocks, 20% S&P 500 (Analyst before)', color:'#5470c6', getValue: m => nwSum(m.assets, ['studyHarel'])},
     {key:'studyMeitav', label:'Meitav', sub:'Stocks 883', color:'#3fae82', getValue: m => nwSum(m.assets, ['studyMeitav'])}
   ];
   const studyTrendOpts = {
@@ -5027,8 +5032,7 @@ function renderNetWorth(nw, crossYearPrev){
     {key:'total', label:'Total', color: NW_GROUP_COLORS['Pension'], bold:true, getValue: m => nwSum(m.assets, NW_PENSION_KEYS)},
     {key:'insurance', label:'Clal Manager Insurance', color:'#d9a441', getValue: m => nwSum(m.assets, ['insurance'])},
     {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
-    {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])},
-    {key:'providentHarel', label:'Harel provident', sub:'80% stocks, 20% S&P 500', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['providentHarel'])}
+    {key:'providentHarel', label:'Harel provident', sub:'80% stocks, 20% S&P 500 (Menora before)', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['providentHarel'])}
   ];
   const pensionTrendOpts = {
     title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
