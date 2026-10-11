@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791700968";
+const BUILD_ID = "1791705972";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4645,11 +4645,15 @@ const NW_ASSET_ITEMS = [
   {key:'kfir', label:'Kfir (SPY)', group:'Portfolio', match: h => h.startsWith('Kfir')},
   {key:'agam', label:'Agam (IVV)', group:'Portfolio', match: h => h.startsWith('Agam')},
   {key:'studyClal', label:'Study Fund — Clal', group:'Study Funds', match: h => h.startsWith('Study fund Clal')},
+  // Analyst was closed and replaced by Harel (Oct 2026); its item stays for earlier years' tabs.
+  {key:'studyHarel', label:'Study Fund — Harel', group:'Study Funds', match: h => h.startsWith('Study fund Harel')},
   {key:'studyAnalyst', label:'Study Fund — Analyst', group:'Study Funds', match: h => h.startsWith('Study fund Analyst')},
   {key:'studyMeitav', label:'Study Fund — Meitav', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
   {key:'insurance', label:'Clal Manager Insurance', group:'Pension', match: h => h.startsWith('Manager Insurance') || h.startsWith("Managers'")},
   {key:'pensionClal', label:'Pension Fund — Clal (S&P 500)', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
-  {key:'pensionMenora', label:'Pension Fund — Menora', group:'Pension', match: h => h.startsWith('Pension Fund Menora')}
+  // Menora was closed (Oct 2026); kept for earlier years' tabs.
+  {key:'pensionMenora', label:'Pension Fund — Menora', group:'Pension', match: h => h.startsWith('Pension Fund Menora')},
+  {key:'providentHarel', label:'Provident Fund — Harel', group:'Pension', match: h => h.startsWith('Provident Fund Harel')}
 ];
 const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
@@ -4661,20 +4665,27 @@ const NW_ITEM_GROUP_ORDER = ['Portfolio', 'Study Funds', 'Pension', 'Liabilities
 const NW_ITEM_GROUP_LABELS = {'Portfolio':'Portfolio', 'Study Funds':'Study Funds', 'Pension':'Pension', 'Liabilities':'Liabilities'};
 
 // "Assets" — and therefore Net Worth — means the same thing everywhere in this view:
-// Securities + the 3 Study Funds. Kfir/Agam (small side accounts) and Pension (its own
+// Securities + the Study Funds. Kfir/Agam (small side accounts) and Pension (its own
 // tile) are deliberately excluded from this figure everywhere it's used (the Assets tile,
 // the Net Worth total, and the trend chart), so the numbers always agree.
-const NW_CORE_KEYS = ['securities','studyClal','studyAnalyst','studyMeitav'];
+const NW_CORE_KEYS = ['securities','studyClal','studyHarel','studyAnalyst','studyMeitav'];
 const NW_PORTFOLIO_KEYS = ['securities'];
-const NW_STUDY_KEYS = ['studyClal','studyAnalyst','studyMeitav'];
-const NW_PENSION_KEYS = ['insurance','pensionClal','pensionMenora'];
+const NW_STUDY_KEYS = ['studyClal','studyHarel','studyAnalyst','studyMeitav'];
+const NW_PENSION_KEYS = ['insurance','pensionClal','pensionMenora','providentHarel'];
 function nwSum(assets, keys){
   return keys.reduce((a,k)=> a + (isNaN(assets[k]) ? 0 : assets[k]), 0);
 }
+// True when some month tracks fewer accounts than a later one (early points then understate the
+// total). A closed account (blank or 0 from some month on) or one replaced by another (Analyst ->
+// Harel, Oct 2026) keeps the count, so it doesn't count.
 function nwHasIncompleteHistory(months, keys){
-  const countPopulated = m => keys.filter(k => !isNaN(m.assets[k])).length;
-  const maxPopulated = Math.max(...months.map(countPopulated));
-  return months.some(m => countPopulated(m) < maxPopulated);
+  const count = m => keys.filter(k => !isNaN(m.assets[k]) && m.assets[k] !== 0).length;
+  const counts = months.map(count);
+  return counts.some((c, i) => counts.slice(i + 1).some(later => later > c));
+}
+// A trend series is shown only if its account has a value in some month shown (closed funds drop out).
+function nwSeriesWithData(series, months){
+  return series.filter(sr => sr.key === 'total' || months.some(m => sr.getValue(m) > 0));
 }
 
 function parseNetWorthTable(table){
@@ -5003,30 +5014,32 @@ function renderNetWorth(nw, crossYearPrev){
   const studyFundSeries = [
     {key:'total', label:'Total', color:'#d1495b', bold:true, getValue: m => nwSum(m.assets, NW_STUDY_KEYS)},
     {key:'studyClal', label:'Clal', sub:'Stocks 1350', color:'#d9a441', getValue: m => nwSum(m.assets, ['studyClal'])},
+    {key:'studyHarel', label:'Harel', sub:'80% stocks, 20% S&P 500', color:'#5470c6', getValue: m => nwSum(m.assets, ['studyHarel'])},
     {key:'studyAnalyst', label:'Analyst', sub:'Stocks 963', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['studyAnalyst'])},
     {key:'studyMeitav', label:'Meitav', sub:'Stocks 883', color:'#3fae82', getValue: m => nwSum(m.assets, ['studyMeitav'])}
   ];
   const studyTrendOpts = {
     title: 'Study Funds Trend', svgId: 'nwStudyTrendSvg', months: nw.months,
-    series: studyFundSeries, hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
+    series: nwSeriesWithData(studyFundSeries, nw.months), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_STUDY_KEYS)
   };
   const studyTrendHtml = nw.months.length>=1 ? buildNwMultiTrendChart(studyTrendOpts) : '';
   const pensionSeries = [
     {key:'total', label:'Total', color: NW_GROUP_COLORS['Pension'], bold:true, getValue: m => nwSum(m.assets, NW_PENSION_KEYS)},
     {key:'insurance', label:'Clal Manager Insurance', color:'#d9a441', getValue: m => nwSum(m.assets, ['insurance'])},
     {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
-    {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])}
+    {key:'pensionMenora', label:'Menora', color:'#e2793a', getValue: m => nwSum(m.assets, ['pensionMenora'])},
+    {key:'providentHarel', label:'Harel provident', sub:'80% stocks, 20% S&P 500', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['providentHarel'])}
   ];
   const pensionTrendOpts = {
     title: 'Pension Trend', svgId: 'nwPensionTrendSvg', months: pensionMonths,
-    series: pensionSeries, hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
+    series: nwSeriesWithData(pensionSeries, pensionMonths), hasIncompleteHistory: nwHasIncompleteHistory(pensionMonths, NW_PENSION_KEYS)
   };
   const pensionTrendHtml = pensionMonths.length>=1 ? buildNwMultiTrendChart(pensionTrendOpts) : '';
 
   const itemRows = [
     ...nw.assetItems.map(it=>({label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
     ...nw.liabilityItems.map(it=>({label:it.label, group:'Liabilities', isLiability:true, value:latest.liabilities[it.key]}))
-  ].filter(r=>!isNaN(r.value));
+  ].filter(r=>!isNaN(r.value) && r.value !== 0);   // blank or 0: a closed account isn't listed
 
   const rowsHtml = NW_ITEM_GROUP_ORDER.map(group=>{
     const rows = itemRows.filter(r=>r.group===group).sort((a,b)=>b.value-a.value);
