@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791347722";
+const BUILD_ID = "1791700494";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1410,7 +1410,7 @@ const DIAG_CHECKS = [
     const r = await diagFetch(proxyListUrl(SHEET_ID), diagAuth());
     if(!r.res) return {status:'fail', ms:r.ms, stop:true, detail: r.timedOut
       ? 'Caddy is up but the proxy didn\'t answer in time — check: sudo systemctl status sheet-proxy'
-      : `Blocked (${r.err.message}) — the proxy may have crashed; check: journalctl -u sheet-proxy -n 30`};
+      : `Blocked (${r.err.message}) — the proxy may have crashed (check: journalctl -u sheet-proxy -n 30), or the network you're on blocks it (a company web filter; see Troubleshooting → Blocked on a work network)`};
     if(r.res.status === 401) return {status:'fail', ms:r.ms, stop:true, detail:'The proxy rejected this session (401) — sign out and sign in again.'};
     if(!r.res.ok) return {status:'fail', ms:r.ms, stop:true, detail:`The proxy answered HTTP ${r.res.status} — its Google Sheets access failed; check: journalctl -u sheet-proxy -n 30`};
     let tabs = [];
@@ -1671,10 +1671,19 @@ const TROUBLESHOOTING = [
       {name: '6. Restart normally', note: 'The root-prompt boot ignores a normal reboot, so power-cycle it from Cloud Shell (leave the console first with ~ then .). If it says "being modified", wait for the earlier reboot to time out (~15 min) and retry. PuTTY works a minute after RUNNING.', cmd: `oci compute instance action --instance-id $ID --action RESET --query 'data."lifecycle-state"' --raw-output`},
       {name: '7. Remove the console connection', cmd: `COMP=$(oci compute instance get --instance-id $ID --query 'data."compartment-id"' --raw-output); for c in $(oci compute instance-console-connection list --compartment-id $COMP --instance-id $ID --query 'data[?"lifecycle-state"==\`ACTIVE\`].id' --raw-output | tr -d '[]",'); do oci compute instance-console-connection delete --instance-console-connection-id $c --force; done`},
     ]},
+  {title: 'Blocked or "host key changed" on a work network', where: 'oracle',
+    intro: 'Use when Checks says "Failed to fetch" in a few ms, or PuTTY/MobaXterm warns that the server’s host key has changed, while nothing changed on the VM. A company network (or a security agent such as Zscaler on a work laptop) can block an unrated site and inspect HTTPS and SSH, answering with its own certificate and key (7 Oct 2026: a FortiGate "Web Page Blocked" page, a certificate from the company’s own CA, and a different SSH key). Cloud Shell sees the server directly; if its answers are fine, the problem is the network you’re on. Don’t accept a new host key from that network; use a phone or home network instead.',
+    cmds: [
+      {name: 'Proxy answers from outside', note: 'Expect HTTP 401 (alive, wants sign-in). Anything else (502/503/timeout) is a real server problem: see Quick health check.', cmd: `curl -sS -o /dev/null -w "HTTP %{http_code} in %{time_total}s\\n" "https://api.sheetpulse.org/?sheetId=x&action=list"`},
+      {name: 'Certificate the world sees', note: 'Expect a public issuer (Let’s Encrypt / ZeroSSL). On the affected PC, the same site shows the company’s own CA when HTTPS is being inspected.', cmd: `echo | openssl s_client -connect api.sheetpulse.org:443 -servername api.sheetpulse.org 2>/dev/null | openssl x509 -noout -issuer -subject -enddate`},
+      {name: 'Server’s SSH key fingerprints', note: 'Compare the ED25519 line with the SHA256 fingerprint in PuTTY/MobaXterm’s "More info". Different = something on your network is answering instead of the server.', cmd: `ssh-keyscan -t ed25519,ecdsa,rsa api.sheetpulse.org 2>/dev/null | ssh-keygen -lf -`},
+    ]},
   {title: 'Quick health check', where: 'putty',
     intro: 'Start here: two snapshots that cover the usual suspects in one paste each.',
     cmds: [
       {name: 'Health snapshot', note: 'Uptime, memory, disk, failed services, the four key services, clock sync (sign-in tokens fail if the clock drifts), whether earlier boots are logged, and whether a reboot is pending.', cmd: `echo "== uptime"; uptime; echo "== memory"; free -h | head -3; echo "== disk"; df -h / | tail -1; echo "== failed services"; systemctl --failed --no-legend; echo "== services"; for s in sheet-proxy caddy docker fail2ban; do printf '%-12s %s\\n' $s $(systemctl is-active $s); done; echo "== clock"; timedatectl | grep -E 'synchronized|NTP'; echo "== boots in log: $(sudo journalctl --list-boots | wc -l)"; echo "== reboot needed: $([ -f /var/run/reboot-required ] && echo yes || echo no)"`},
+      {name: 'Proxy answers via HTTPS', note: 'From the VM itself, through Caddy. Expect HTTP 401 (alive, wants sign-in).', cmd: `curl -s -o /dev/null -w "proxy via https: HTTP %{http_code}\\n" "https://api.sheetpulse.org/?sheetId=x&action=list"`},
+      {name: 'This server’s SSH key fingerprint', note: 'The real one, to compare with a "host key changed" warning.', cmd: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`},
       {name: 'Security snapshot', note: 'Expect 600 on both files, permitrootlogin no, rpcbind inactive, and 0 upgradable — or only updates apt lists as "deferred due to phasing" (Ubuntu rolls those out gradually; they install by themselves within days).', cmd: `stat -c '%a %n' ~/sheet-proxy/webauthn-credentials.json ~/sheet-proxy/.env; sudo sshd -T | grep -i permitrootlogin; echo "rpcbind: $(systemctl is-active rpcbind)"; echo "upgradable: $(apt list --upgradable 2>/dev/null | grep -c upgradable)"`},
     ]},
   {title: 'Memory and load', where: 'putty',
