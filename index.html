@@ -1245,7 +1245,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791706113";
+const BUILD_ID = "1791709082";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4644,15 +4644,15 @@ const NW_ASSET_ITEMS = [
   {key:'securities', label:'Securities', group:'Portfolio', match: h => h === 'Securities'},
   {key:'kfir', label:'Kfir (SPY)', group:'Portfolio', match: h => h.startsWith('Kfir')},
   {key:'agam', label:'Agam (IVV)', group:'Portfolio', match: h => h.startsWith('Agam')},
-  {key:'studyClal', label:'Study Fund — Clal', group:'Study Funds', match: h => h.startsWith('Study fund Clal')},
+  {key:'studyClal', label:'Study Fund — Clal [Stocks]', group:'Study Funds', match: h => h.startsWith('Study fund Clal')},
   // Harel replaced Analyst (Oct 2026): one line, Harel's column plus Analyst's from earlier months
   // and years (every matching column is added up, so a blank/0 Analyst column beside Harel is harmless).
-  {key:'studyHarel', label:'Study Fund — Harel', group:'Study Funds', match: h => h.startsWith('Study fund Harel') || h.startsWith('Study fund Analyst')},
-  {key:'studyMeitav', label:'Study Fund — Meitav', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
+  {key:'studyHarel', label:'Study Fund — Harel [80% Stocks 20% S&P 500]', group:'Study Funds', match: h => h.startsWith('Study fund Harel') || h.startsWith('Study fund Analyst')},
+  {key:'studyMeitav', label:'Study Fund — Meitav [Stocks]', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
   {key:'insurance', label:'Clal Manager Insurance', group:'Pension', match: h => h.startsWith('Manager Insurance') || h.startsWith("Managers'")},
   {key:'pensionClal', label:'Pension Fund — Clal (S&P 500)', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
   // Harel's provident fund replaced Menora's pension fund (Oct 2026): one line, both columns added up.
-  {key:'providentHarel', label:'Provident Fund — Harel', group:'Pension', match: h => h.startsWith('Provident Fund Harel') || h.startsWith('Pension Fund Menora')}
+  {key:'providentHarel', label:'Provident Fund — Harel [80% Stocks 20% S&P 500]', group:'Pension', match: h => h.startsWith('Provident Fund Harel') || h.startsWith('Pension Fund Menora')}
 ];
 const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
