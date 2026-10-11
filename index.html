@@ -458,6 +458,12 @@
   .pay-panel h3{margin:0; font-size:16px; font-weight:600; color:var(--ink);}
   .pay-panel-note{font-size:12px; color:var(--muted);}
   .pay-row{display:flex; flex-wrap:wrap; gap:0 16px;}
+  .pay-legs{display:flex; flex-wrap:wrap; gap:4px 6px;}
+  .pay-leg{font-family:var(--sans); font-size:12px; min-height:30px; padding:0 10px 0 8px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:6px;}
+  .pay-leg i{width:12px; height:12px; border-radius:3px; box-shadow:inset 0 0 0 1.5px var(--c); display:inline-flex; align-items:center; justify-content:center;}
+  .pay-leg.on{color:var(--ink);}
+  .pay-leg.on i{background:var(--c);}
+  .pay-leg.on i::after{content:''; width:6px; height:3px; border:solid #fff; border-width:0 0 1.5px 1.5px; transform:translateY(-1px) rotate(-45deg);}
   .pay-row > .pay-chart-panel{flex:999 1 520px;}
   .pay-row > .pay-cat-panel{flex:1 1 300px;}
   /* Bill check grid: one row per bill, one column per month. */
@@ -1340,7 +1346,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791735369";
+const BUILD_ID = "1791735833";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5486,6 +5492,10 @@ function payBillStatus(list, now, monthKey){
   return {payees, issues, lastK: Math.min(lastK, thisM + 3)};
 }
 // Bills marked paid in Bill check on this device: {"Payee|monthKey": "yyyy-mm-dd marked"}.
+// Categories hidden in the "By month charged" chart, on this device.
+// Also the bills hidden in Bill check (key sp_payCheckHidden).
+function payChartHiddenGet(key){ try{ const a = JSON.parse(localStorage.getItem(key || 'sp_payChartHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
+function payChartHiddenSet(a, key){ try{ localStorage.setItem(key || 'sp_payChartHidden', JSON.stringify(a)); } catch(_){} }
 function payConfirmedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payConfirmed') || '{}') || {}; } catch(_){ return {}; } }
 function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.stringify(m)); } catch(_){} }
 function renderPayments(){
@@ -5517,6 +5527,8 @@ function renderPayments(){
   const colorOf = cat => PAY_CAT_COLORS[cats.indexOf(cat) % PAY_CAT_COLORS.length];
   const dot = cat => `<span class="pay-dot" style="background:${colorOf(cat)}"></span>`;
   const sum = arr => arr.reduce((a, p) => a + p.amount, 0);
+  const chartHidden = new Set(payChartHiddenGet().filter(c => cats.includes(c)));
+  const checkHidden = new Set(payChartHiddenGet('sp_payCheckHidden').filter(b => paymentsList.some(p => p.payee === b)));
   const now = Date.now(), thisM = monthKey(now);
   const past = list.filter(p => p.charge <= now && p.amount > 0);   // money figures: real charges only
   const yearAgo = now - 365 * 86400000, twoYearsAgo = now - 730 * 86400000;
@@ -5560,13 +5572,16 @@ function renderPayments(){
   const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ paid', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
   const check = `
     <section class="pay-panel">
-      <div class="pay-panel-head"><h3>Bill check</h3><span class="pay-panel-note pay-hint">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period</span></div>
+      <div class="pay-panel-head"><h3>Bill check</h3>
+        <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></div>
+      <div class="pay-panel-note pay-hint" style="margin:-4px 0 8px;">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period · click a bill above to hide or show its row</div>
       <div class="pay-grid-wrap"><table class="pay-grid">
         <thead><tr><th></th>${gridMonths.map(k => `<th class="${k === thisM ? 'pay-now' : ''}">${monthLabel(k)}</th>`).join('')}</tr></thead>
-        <tbody>${status.payees.map((s, pi) => `<tr><th scope="row" class="pay-name"><div class="pay-name-in">${dot(s.category)}<span><b>${esc(s.payee)}</b><small>${esc(s.category)}<i> · ${s.byPeriod ? 'by bill month' : cadenceWord(s.cadence) + ', by month charged'}</i></small></span></div></th>${gridMonths.map(k => {
+        <tbody>${status.payees.map((s, pi) => checkHidden.has(s.payee) ? '' : `<tr><th scope="row" class="pay-name"><div class="pay-name-in">${dot(s.category)}<span><b>${esc(s.payee)}</b><small>${esc(s.category)}<i> · ${s.byPeriod ? 'by bill month' : cadenceWord(s.cadence) + ', by month charged'}</i></small></span></div></th>${gridMonths.map(k => {
           const c = s.months[k] || {st: 'off'};
           return `<td class="pay-cell ${c.st}" data-p="${pi}" data-k="${k}" data-payee="${esc(s.payee)}">${cellText[c.st](c)}</td>`; }).join('')}</tr>`).join('')}</tbody>
       </table></div>
+      ${checkHidden.size >= status.payees.length ? '<div class="pm-note">All bills hidden: click one above to show it.</div>' : ''}
       <div id="payConfirm" class="pay-confirm" hidden></div>
       <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>bill in, not charged yet</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing (click to mark paid)</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--up-4)"></i>marked paid by you</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
     </section>`;
@@ -5610,19 +5625,20 @@ function renderPayments(){
     <div class="pay-row">
       <section class="pay-panel pay-chart-panel">
         <div class="pay-panel-head"><h3>By month charged</h3>
-          <div class="div-legend" style="margin:0;">${cats.map(cat => `<span><i style="background:${colorOf(cat)}"></i>${esc(cat)}</span>`).join('')}</div></div>
+          <div class="pay-legs" role="group" aria-label="Categories shown">${cats.map(cat => `<button type="button" class="pay-leg${chartHidden.has(cat) ? '' : ' on'}" aria-pressed="${!chartHidden.has(cat)}" data-leg="${esc(cat)}"><i style="--c:${colorOf(cat)}"></i>${esc(cat)}</button>`).join('')}</div></div>
         <div id="payChartBox"></div>
-        <div class="pay-panel-note">Faded = not charged yet</div>
+        <div class="pay-panel-note">Faded = not charged yet · click a category to hide or show it</div>
       </section>
       <section class="pay-panel pay-cat-panel"><div class="pay-panel-head"><h3>Last 12 months</h3></div>${catHtml}</section>
     </div>
     ${bills}`;
 
   // Monthly bars by category over the same range (plus months ahead with bills), sized to the panel.
+  // Hidden categories (legend checkboxes) leave the bars, and the scale fits what's still shown.
   const box = document.getElementById('payChartBox');
   const lastK = Math.max(thisM, ...list.map(p => monthKey(p.charge)));
   const months = []; for(let k = thisM - paymentsRange + 1; k <= lastK; k++) months.push(k);
-  const byMonth = months.map(k => { const ps = list.filter(p => monthKey(p.charge) === k); const per = {};
+  const byMonth = months.map(k => { const ps = list.filter(p => monthKey(p.charge) === k && p.amount > 0 && !chartHidden.has(p.category)); const per = {};
     ps.forEach(p => { per[p.category] = (per[p.category] || 0) + p.amount; }); return {k, ps, per, total: sum(ps)}; });
   const w = Math.max(280, box.clientWidth || 600), h = 220, padL = 50, padR = 4, padT = 10, padB = 24;
   const max = Math.max(...byMonth.map(m => m.total), 1);
@@ -5647,9 +5663,19 @@ function renderPayments(){
       labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
     hits += `<rect class="pay-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
-  box.innerHTML = `<svg id="payChart" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
+  box.innerHTML = chartHidden.size >= cats.length
+    ? `<div class="pm-note" style="height:${h - 36}px; display:flex; align-items:center; justify-content:center;">All categories hidden: click one above to show it.</div>`
+    : `<svg id="payChart" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
 
   area.querySelectorAll('.pay-chip[data-cat]').forEach(b => b.addEventListener('click', () => { paymentsFilter = b.dataset.cat; renderPayments(); }));
+  area.querySelectorAll('.pay-leg').forEach(b => b.addEventListener('click', () => {
+    const bill = b.dataset.bill, val = bill || b.dataset.leg, h = new Set(bill ? checkHidden : chartHidden);
+    if(h.has(val)) h.delete(val); else h.add(val);
+    payChartHiddenSet([...h], bill ? 'sp_payCheckHidden' : 'sp_payChartHidden');
+    const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+    renderPayments();
+    if(body) body.scrollTop = top;
+  }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
   const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
