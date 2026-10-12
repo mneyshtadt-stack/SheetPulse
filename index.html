@@ -105,6 +105,15 @@
   /* Header (design canvas "SheetPulse header buttons", option 2 with option 5's icons, Oct 2026): two groups
      of views, [Market Universe | Net Worth] and [Payments | Shopping]; Refresh joined to its auto-refresh
      interval; Diagnostics as an icon. */
+  /* "Meitav app ₪605,358 −₪1,448 today · US holdings at the Bank of Israel rate…" under the big number. */
+  .bw-pill{display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:8px 0 4px; padding:6px 12px;
+    border:1px solid var(--line); border-radius:999px; background:var(--panel); font-family:var(--sans); font-size:12.5px; color:var(--muted); max-width:100%;}
+  .bw-label{font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--accent);}
+  .bw-pill b{font-family:var(--mono); font-size:14px; font-weight:600; color:var(--ink);}
+  .bw-day{font-family:var(--mono); font-size:12.5px;}
+  .bw-day.up{color:var(--up-ink);} .bw-day.down{color:var(--down-ink);}
+  .bw-src{font-size:11.5px;}
+  @media (max-width:600px){ .bw-pill{border-radius:12px;} }
   .hdr-seg{display:flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:3px; gap:2px;}
   .hdr-seg button{font-family:var(--sans); font-size:12.5px; color:var(--ink); background:transparent; border:0; border-radius:6px;
     padding:7px 12px; display:flex; align-items:center; gap:7px; cursor:pointer; white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;}
@@ -1404,7 +1413,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791790185";
+const BUILD_ID = "1791794899";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4205,7 +4214,6 @@ function closeMarketDetail(){
 // IntradayLog, which records the whole portfolio only -- so 1D / 5D stay under All.
 // The main dashboard always shows everything, and the window always opens on All (both brokers);
 // the choice lasts while it stays open, across background refreshes.
-const BROKER_CHART_RANGES = ['1M','6M','YTD','1Y','5Y','MAX'];   // CHART_RANGES without 1D / 5D
 let portfolioBroker = '';
 function brokerNames(rows){
   const s = new Set();
@@ -4304,6 +4312,24 @@ function applyBrokerAvgGainTile(broker, rows, totals){
   other.textContent = `SheetPulse (with commission): ${totals.totalGain >= 0 ? '+' : '-'}${I(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
   sub.after(other);
 }
+// The figure to compare with the broker's own app, as a pill under the big number (design, 12 Oct
+// 2026): Meitav's value with US holdings at the Bank of Israel rate before its business day, and
+// its day change counted its way; Psagot's value (its live rate, as SheetPulse) and its day change
+// from that morning's Bank of Israel rate. Always shown on a broker view: "waiting for the Bank of
+// Israel rate" until the BOIRate tab is in. It sits outside the headline, so hovering the chart
+// (which rewrites the big number) leaves it alone.
+const BROKER_APP_WAY = {Meitav: 'boiValue', Psagot: 'usdDay'};
+function brokerAppPill(broker, totals, pdWay, usdDay, fmt){
+  const way = BROKER_APP_WAY[broker];
+  if(!way) return '';
+  const dayStr = d => `<span class="bw-day ${d >= 0 ? 'up' : 'down'}">${d >= 0 ? '+' : '−'}${fmt(d)} today</span>`;
+  const still = bd => bd && !bd.isToday ? ` · ${broker}'s day is still ${new Date(bd.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}` : '';
+  let body;
+  if(way === 'boiValue' && pdWay) body = `<b>${fmt(pdWay.value)}</b>${dayStr(pdWay.day)}<span class="bw-src">US holdings at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)})${still(pdWay.businessDay)}</span>`;
+  else if(way === 'usdDay' && usdDay) body = `<b>${fmt(totals.totalValue)}</b>${dayStr(usdDay.dayGain)}<span class="bw-src">day from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)})${still(usdDay.businessDay)}</span>`;
+  else body = `<span class="bw-src">waiting for the Bank of Israel rate (BOIRate tab)</span>`;
+  return `<div class="bw-pill" title="What ${broker}'s app shows, counted its way"><span class="bw-label">${broker} app</span>${body}</div>`;
+}
 function hideBrokerFilter(){ document.getElementById('mdBrokerFilter').classList.remove('open'); }
 function renderBrokerFilter(allRows, broker){
   const el = document.getElementById('mdBrokerFilter');
@@ -4318,8 +4344,7 @@ function renderBrokerFilter(allRows, broker){
     const next = b.dataset.broker;
     if(next === broker) return;
     portfolioBroker = next;
-    // 1D / 5D exist for the whole portfolio only; a broker opens on 1M, All goes back to 1D.
-    chartRange = next ? (BROKER_CHART_RANGES.includes(chartRange) ? chartRange : '1M') : '1D';
+    // Every broker has the same ranges as All, 1D first; switching keeps the range you're on.
     document.getElementById('customTooltip').style.display = 'none';
     if(!renderPortfolioHeader()) return;
     marketDetailState.tickers = portfolioRows();
@@ -4345,8 +4370,6 @@ function renderPortfolioHeader(){
   const totals = broker ? (() => { const t = brokerTotals(rows), d = usdDay ? usdDay.dayGain : brokerDayGains(allRows)[broker];
     return typeof d === 'number' && !isNaN(d) ? {...t, dayGain: d, dayGainPct: (t.totalValue - d) ? d / (t.totalValue - d) * 100 : 0} : t; })() : window.lastTotals;
   const split = splitByMarket(rows);
-  // On a broker while showing 1D / 5D (those cover the whole portfolio only).
-  if(broker && !BROKER_CHART_RANGES.includes(chartRange)) chartRange = '1M';
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
   document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : 'All holdings';
@@ -4384,7 +4407,7 @@ function renderPortfolioHeader(){
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
-    ${pdWay ? `<div class="md-headline-label" style="text-transform:none; letter-spacing:0;">${broker}'s way: <b style="color:var(--ink);">${fmt(pdWay.value)}</b> · US holdings at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)})${pdWay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(pdWay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}</div>` : ''}
+    ${brokerAppPill(broker, totals, pdWay, usdDay, fmt)}
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day change</div>
@@ -4415,7 +4438,7 @@ function renderPortfolioHeader(){
     </div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
-    ${broker ? `<p class="md-broker-note">1D and 5D charts come from the intraday log, which records the whole portfolio only — choose All to see them.</p>` : ''}
+    ${broker ? `<p class="md-broker-note">1D and 5D: the intraday log records the whole portfolio, so ${broker}'s line is its share of each market (TASE, USA) applied to it, counted SheetPulse's way (live USD/ILS).</p>` : ''}
     ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: US holdings valued at the Bank of Israel representative rate published before today${meitavBoiRate() ? ` (${meitavBoiRate().rate.toFixed(4)}, ${boiDay(meitavBoiRate().date)})` : ''}, cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
     ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
     <div class="md-tabs" role="tablist">
@@ -4437,7 +4460,29 @@ function renderPortfolioHeader(){
     if(USD_COST_BROKERS.includes(broker)) applyBrokerAvgGainTile(broker, rows, totals);
     // No intraday chart to fill the headline's change in -- it's the broker's day change.
     updateHeadlineDisplay(totals.totalValue, totals.totalValue - totals.dayGain);
-    chartCtx = {ranges: BROKER_CHART_RANGES, holdings: rows, liveValue: totals.totalValue};
+    // 1D / 5D for a broker: the intraday log records the whole portfolio as TASE and USA values, so the
+    // broker's line is its share of each market (its value there ÷ the whole market's value now) applied
+    // to them -- the same sharing its day change uses. The tiles keep the broker's own figures
+    // (noSync), so the chart doesn't overwrite Meitav's / Psagot's way of counting the day.
+    const allSplit = splitByMarket(allRows);
+    const shIl = allSplit.il.value ? split.il.value / allSplit.il.value : 0;
+    const shUs = allSplit.us.value ? split.us.value / allSplit.us.value : 0;
+    const brokerRaw = async () => {
+      const rawRows = await fetchIntradayLogRows().catch(() => []);
+      const flatUs = allSplit.us.value - allSplit.us.gain;
+      return rawRows.map(r => ({t: r.t, v: shIl * r.il + shUs * (typeof r.us === 'number' ? r.us : flatUs)}));
+    };
+    chartCtx = {
+      holdings: rows, liveValue: totals.totalValue, noSync: true,
+      fetchIntradayRaw: brokerRaw, dayRangeForDate: getCombinedDayRangeForDate,
+      renderDay: () => renderIntradayChart(totals.totalValue - totals.dayGain, brokerRaw, getCombinedDayRangeMs(), totals.totalCost, getCombinedDayRangeForDate, [
+        {id:'chTaseStatus', label:'TASE', isOpen: getTaseStatus(), nextOpenMsFn: getNextTaseOpenMs, nextCloseMsFn: getTaseCloseMs},
+        {id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}
+      ], true, 'tase-open', (y,m,d) => {
+        const il = findPriorClose(y,m,d,'il'), us = findPriorClose(y,m,d,'us');
+        return (typeof il === 'number' && typeof us === 'number') ? shIl * il + shUs * us : null;
+      })
+    };
     renderActiveChart();
     return true;
   }
@@ -6900,7 +6945,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     }
   }
 
-  if(log.length >= 1 && !sessionLabel) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
+  if(log.length >= 1 && !sessionLabel && !(chartCtx && chartCtx.noSync)) syncHeaderToIntraday(log[log.length-1].v, prevClose, cost, markerKind === 'us-open');
 
   // While the market is open but today's chart isn't drawable yet (still replaying the last
   // session, or only the opening point so far), look again every minute instead of waiting for
