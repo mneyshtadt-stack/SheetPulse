@@ -1538,7 +1538,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791844260";
+const BUILD_ID = "1791844793";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4682,7 +4682,7 @@ function renderPortfolioHeader(){
       <div>&minus; Prev. close: ${fmt(prevClose)}</div>
       <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
       ${breakdown}
-      <div style="margin-top:6px; color:var(--muted); font-size:12px;">Prev. close is the value recorded at each market's actual close (IntradayLog's green close rows), frozen at that moment — never recalculated with today's live rate.</div>`;
+      <div style="margin-top:6px; color:var(--muted); font-size:12px;">Prev. close is each market's closing value from IntradayLog: USA's close row, frozen at that moment (never recalculated with today's live rate), and TASE's final value that day (its prices keep settling for a while after the 17:30 close row).</div>`;
   });
   if(yesterdayUsdTotal !== null) attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
     const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
@@ -7030,48 +7030,77 @@ function renderShopping(){
     return `<div class="pay-confirm-btns">${MARK_MAIN.map(c => markChip(o, c)).join('')}<button type="button" class="pay-chip" data-act="more" aria-expanded="${moreOpen}">More ▾</button>${tail || ''}</div>
       <div class="pay-confirm-btns mark-more"${moreOpen ? '' : ' hidden'}>${MARK_MORE.map(c => markChip(o, c)).join('')}</div>`;
   };
-  const openMark = o => {
-    const today = localYmd();
+  // Changing an order's status: pick one, it's saved straight to the Shopping tab (a "manual" row stamped
+  // with the exact time, so the latest change wins), the panel says so in one line and closes. Only if the
+  // save fails does it show the row to copy. Undo saves the status it had before, the same way.
+  const markRow = o => {
+    const mk = shopMarksGet()[o.key] || {}, today = localYmd();
+    return [mk.at || today, o.store, o.no || '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + (mk.ts || mk.at || today)].join('\t');
+  };
+  const setMark = (o, status) => {
+    const m = shopMarksGet();
+    if(status === null) delete m[o.key]; else m[o.key] = {status, at: localYmd(), ts: new Date().toISOString()};
+    shopMarksSet(m);
+    const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+    renderShopping();
+    if(body) body.scrollTop = top;
+  };
+  const openMark = (o, prev) => {
     const what = `<b>${esc(o.store)}</b> · ${esc(label(o))}`;
-    if(o.markLocal){
-      const mk = shopMarksGet()[o.key] || {};
-      const r = [mk.at || today, o.store, o.no || '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + (mk.ts || mk.at || today)].join('\t');
-      setTimeout(() => autoSaveSheet(panel, 'Shopping', r), 0);
+    const statusTxt = st => esc(SHOP_STATUS[st] || st);
+    clearTimeout(panel._closeT);
+    if(prev !== undefined && o.markLocal){
+      // Just changed: one line, saved, then the panel closes by itself.
+      const r = markRow(o), key = 'Shopping|' + r;
       panel.dataset.row = r;
-      panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
-        <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there (the daily run keeps the tab sorted by date):<code>${esc(r.replace(/\t/g, ' │ '))}</code>
-        <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
-        <div class="pay-confirm-row">Change it again:</div>
-        ${markBtns(o)}
-        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo (back to the emails)</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+      panel.innerHTML = `<div>${what}: <b>${statusTxt(o.status)}</b>. <span class="sheet-status pay-sub">Saving…</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-btn text" data-act="undo">Undo</button><button type="button" class="pay-btn text" data-act="close">Close</button></div>`;
+      const st = panel.querySelector('.sheet-status');
+      const ok = () => {
+        st.className = 'sheet-ok'; st.textContent = '✓ Saved to the Shopping tab';
+        panel._closeT = setTimeout(() => { if(panel.isConnected) panel.hidden = true; }, 3500);
+      };
+      if(sheetSavedHas(key)) ok();
+      else sheetAppend('Shopping', tsvToRows(r)).then(() => { sheetSavedAdd(key); if(panel.isConnected) ok(); }).catch(err => {
+        if(!panel.isConnected) return;
+        st.className = ''; st.style.color = 'var(--down-ink)';
+        st.textContent = `Couldn't save to the sheet (${err.message}); it's kept on this device.`;
+        panel.insertAdjacentHTML('beforeend', `<div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Shopping tab:<code>${esc(r.replace(/\t/g, ' │ '))}</code>
+          <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>`);
+        bind(o, prev);
+      });
     } else {
-      panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. Set the status:</div>
+      // Choosing: the four usual outcomes, the rest behind More.
+      panel.innerHTML = `<div>${what}: <b>${statusTxt(o.status)}</b> ${o.markLocal || o.markedInSheet ? 'set by you' : 'by its emails, the last one ' + dayShort(o.last)}. Set the status:</div>
         ${markBtns(o, (o.addedLocal ? '<button type="button" class="pay-btn text" data-act="delete">Delete this order</button>' : '') + '<button type="button" class="pay-btn text" data-act="close">Cancel</button>')}`;
     }
     panel.hidden = false;
     panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-    panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
-      const act = b.dataset.act;
-      if(act === 'close'){ panel.hidden = true; return; }
-      if(act === 'copy'){ navigator.clipboard.writeText(panel.dataset.row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
-      if(act === 'more'){ const row = panel.querySelector('.mark-more'); row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden)); return; }
-      if(act === 'delete'){
-        shopAddedSet(shopAddedGet().filter(a => !(a.store === o.store && a.no === o.no)));
-        shoppingOrders = buildShopOrders(shoppingEvents.concat(shopAddedEvents(shoppingEvents)));
-        renderShopping();
-        return;
-      }
-      const m = shopMarksGet();
-      if(act === 'undo') delete m[o.key]; else m[o.key] = {status: act, at: today, ts: new Date().toISOString()};
-      shopMarksSet(m);
-      const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
-      renderShopping();
-      if(body) body.scrollTop = top;
-      // Right after marking, show the row to paste (and Undo) for that order.
-      if(act !== 'undo'){ const again = shoppingOrders.find(x => x.key === o.key); const p2 = document.getElementById('shopMark'); if(again && p2) p2.dispatchEvent(new CustomEvent('reopen', {detail: again})); }
-    }));
+    bind(o, prev);
   };
-  panel.addEventListener('reopen', ev => openMark(ev.detail));
+  const bind = (o, prev) => panel.querySelectorAll('[data-act]').forEach(b => { b.onclick = () => {
+    const act = b.dataset.act, before = o.status;   // read now: renderShopping updates the order object in place
+    if(act === 'close'){ clearTimeout(panel._closeT); panel.hidden = true; return; }
+    if(act === 'copy'){ navigator.clipboard.writeText(panel.dataset.row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
+    if(act === 'more'){ const row = panel.querySelector('.mark-more'); row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden)); return; }
+    if(act === 'delete'){
+      shopAddedSet(shopAddedGet().filter(a => !(a.store === o.store && a.no === o.no)));
+      shoppingOrders = buildShopOrders(shoppingEvents.concat(shopAddedEvents(shoppingEvents)));
+      renderShopping();
+      return;
+    }
+    if(act === 'undo'){
+      // Not saved yet: just forget it on this device. Saved: save the status it had before (the latest row wins).
+      if(!sheetSavedHas('Shopping|' + panel.dataset.row) || !prev){ setMark(o, null); return; }
+      setMark(o, prev);
+    } else {
+      if(act === o.status && o.markLocal){ panel.hidden = true; return; }
+      setMark(o, act);
+    }
+    const again = shoppingOrders.find(x => x.key === o.key), p2 = document.getElementById('shopMark');
+    if(again && p2) p2.dispatchEvent(new CustomEvent('reopen', {detail: {o: again, prev: before}}));
+  }; });
+  panel.addEventListener('reopen', ev => openMark(ev.detail.o, ev.detail.prev));
   // A note on an order ("Kettle Ninja"): saved on this device at once; the panel gives the row to paste
   // into the Shopping tab (Event "note", the text in Items, Message id "manual") so every device shows it.
   const openNote = o => {
@@ -7444,8 +7473,13 @@ async function fetchLastClose(){
     const entry = {};
     const taseClose = taseCloseMsFor(y, m, d), usClose = usCloseMsFor(y, m, d);
     if(now >= taseClose){
+      // TASE's value keeps settling for a while after the close row is written (closing-auction results,
+      // fund prices): on 12 Oct 2026 the 17:30 row had IL 115,204 and the evening rows 115,225. So the day's
+      // TASE close is the IL value of the day's LAST row (the final settled prices); the close row's time
+      // stays as its label.
       const r = closeRow(list, taseClose);
-      if(r){ entry.il = r.il; entry.ilTs = new Date(r.t); }
+      const last = list.filter(x => x.t >= taseClose && typeof x.il === 'number').pop() || r;
+      if(last){ entry.il = last.il; entry.ilTs = new Date((r || last).t); }
     }
     if(now >= usClose){
       const r = closeRow(list, usClose);
