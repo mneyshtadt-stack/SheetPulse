@@ -1536,7 +1536,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791840055";
+const BUILD_ID = "1791840904";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5598,6 +5598,56 @@ function payDateMs(v){
   if(/^\d{5}(\.\d+)?$/.test(s)){ const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(+s) * 86400000); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12).getTime(); }
   return NaN;
 }
+// Routine bills: charges you enter once with how often they repeat (insurance premiums, a card or bank
+// standing order) instead of from a Gmail email. Tab "Routine bills" of the Payments spreadsheet
+// (setupRoutineBillsTab() in Payments.gs): Payee | Category | Amount | Every (months: 1, 2, 3, 12, or "month",
+// "2 months", "year") | Day | Start (yyyy-mm) | End (yyyy-mm, empty = still running) | Card | Notes | Added.
+// Added in the window: kept on this device until the tab has a row with the same payee.
+const ROUTINE_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Routine bills');
+let routineList = [];
+function routineAddedGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_routineAdded') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
+function routineAddedSet(a){ try{ localStorage.setItem('sp_routineAdded', JSON.stringify(a)); } catch(_){} }
+function routineEvery(s){ const t = String(s || '').trim().toLowerCase(); if(/year|annual|12/.test(t)) return 12; const n = parseInt(t, 10); return n > 0 && n <= 12 ? n : 1; }
+function routineMonth(s){ // "2024-12", "12/2024", "2024-12-01" or a date → month key (year*12 + month-1)
+  const t = String(s || '').trim(); let m = t.match(/^(\d{4})-(\d{1,2})/); if(m) return +m[1] * 12 + (+m[2] - 1);
+  m = t.match(/^(\d{1,2})[\/.](\d{4})$/); if(m) return +m[2] * 12 + (+m[1] - 1);
+  const ms = payDateMs(t); if(!isNaN(ms)){ const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); }
+  return NaN;
+}
+async function fetchRoutine(){
+  const res = await fetchViaProxy(ROUTINE_CSV_URL);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+  const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
+  if(h.indexOf('payee') < 0) return [];
+  const v = (r, name) => h.indexOf(name) >= 0 ? String(r[h.indexOf(name)] || '').trim() : '';
+  return t.slice(1).filter(r => v(r, 'payee')).map(r => ({payee: v(r, 'payee'), category: v(r, 'category') || 'Other', amount: num(v(r, 'amount')),
+    every: routineEvery(v(r, 'every')), day: Math.min(31, Math.max(1, parseInt(v(r, 'day'), 10) || 1)), start: routineMonth(v(r, 'start')),
+    end: routineMonth(v(r, 'end')), card: v(r, 'card'), notes: v(r, 'notes')})).filter(r => !isNaN(r.start));
+}
+function routineAll(){
+  const inSheet = new Set(routineList.map(r => r.payee.toLowerCase()));
+  return routineList.concat(routineAddedGet().filter(a => !inSheet.has(String(a.payee).toLowerCase()))
+    .map(a => ({...a, amount: Number(a.amount) || NaN, every: routineEvery(a.every), day: +a.day || 1, start: routineMonth(a.start), end: routineMonth(a.end), local: true})));
+}
+// One charge per due month from the start month to this month (not after the end month). A month where Gmail
+// already has a bill from the same payee keeps that bill instead.
+function routineBillRows(base, monthKey){
+  const now = new Date(), thisM = now.getFullYear() * 12 + now.getMonth(), out = [];
+  routineAll().forEach(r => {
+    if(isNaN(r.start)) return;
+    const have = new Set(base.filter(p => !p.manual && p.payee.toLowerCase() === r.payee.toLowerCase()).map(p => monthKey(p.charge)));
+    for(let k = r.start; k <= thisM && (isNaN(r.end) || k <= r.end); k += r.every){
+      if(have.has(k)) continue;
+      const y = Math.floor(k / 12), m = k % 12, last = new Date(y, m + 1, 0).getDate();
+      const ms = new Date(y, m, Math.min(r.day, last), 12).getTime();
+      out.push({payee: r.payee, category: r.category, amount: r.amount > 0 ? r.amount : 0, date: ms, due: NaN, charge: ms, manual: false,
+        routine: true, local: !!r.local, period: '', card: r.card || '', sheetNote: r.notes || ''});
+    }
+  });
+  return out;
+}
+
 async function fetchPayments(){
   const res = await fetchViaProxy(PAYMENTS_CSV_URL);
   if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -6121,7 +6171,8 @@ async function openPaymentsDetail(){
   body.innerHTML = `<div class="pm-note">Loading…</div>`;
   document.getElementById('marketDetailModal').classList.add('open');
   try{
-    paymentsList = await fetchPayments();
+    const [pl, rl] = await Promise.all([fetchPayments(), fetchRoutine().catch(() => [])]);
+    paymentsList = pl; routineList = rl;
     if(marketDetailState.marketKey !== 'payments') return;
     body.innerHTML = `<div id="payArea"></div>`;
     renderPayments();
@@ -6245,7 +6296,8 @@ function renderPayments(){
   const confirmed = payConfirmedGet();
   const sheetManual = new Set(paymentsList.filter(p => p.manual).flatMap(p => [p.payee + '|' + monthKey(p.charge), p.payee + '|' + payPeriodMonth(p.period)]));
   const catOf = payee => (paymentsList.find(p => p.payee === payee) || {}).category || 'Other';
-  const list = paymentsList.concat(Object.keys(confirmed).filter(key => !sheetManual.has(key)).map(key => {
+  const routineRows = routineBillRows(paymentsList, monthKey);
+  const list = paymentsList.concat(routineRows, Object.keys(confirmed).filter(key => !sheetManual.has(key)).map(key => {
     const i = key.lastIndexOf('|'), payee = key.slice(0, i), k = Number(key.slice(i + 1));
     const ms = new Date(Math.floor(k / 12), k % 12, 15, 12).getTime();
     return {payee, category: catOf(payee), amount: 0, date: ms, due: NaN, charge: ms, manual: true, local: true, card: '',
@@ -6333,7 +6385,7 @@ function renderPayments(){
 
   // All bills: table on wider screens, cards on phones; category chips filter both.
   const shown = paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list;
-  const pill = p => p.manual ? `<span class="pay-pill mark">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.charge > now ? '<span class="pay-pill due">to be charged</span>' : '<span class="pay-pill paid">paid</span>';
+  const pill = p => p.manual ? `<span class="pay-pill mark">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.routine ? `<span class="pay-pill ${p.charge > now ? 'due' : 'paid'}" title="Routine bill: entered by you, repeats on its schedule">routine${p.charge > now ? ' · to be charged' : ''}${p.local ? ' · this device' : ''}</span>` : p.charge > now ? '<span class="pay-pill due">to be charged</span>' : '<span class="pay-pill paid">paid</span>';
   const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const noteKey = p => p.payee + '|' + ymdOf(p.charge) + '|' + (p.amount || 0).toFixed(2);
@@ -6356,8 +6408,20 @@ function renderPayments(){
       ${shown.length > 60 ? `<div class="pm-note">Showing the latest 60 of ${shown.length}.</div>` : ''}
     </section>`;
 
+  const everyTxt = n => n === 1 ? 'every month' : n === 12 ? 'every year' : `every ${n} months`;
+  const monthTxt = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
+  const routines = routineAll();
+  const routinePanel = routines.length ? `
+    <section class="pay-panel">
+      <div class="pay-panel-head"><h3>Routine bills</h3><span class="pay-panel-note">Entered by you, not from Gmail · a month with a Gmail bill from the same payee keeps that bill</span></div>
+      <div class="ct-list">${routines.map((r, i) => `<div class="ct-item">
+        <div class="ct-main"><b>${esc(r.payee)}</b><small>${esc(r.category)} · ${everyTxt(r.every)} on day ${r.day}${r.card ? ' · •• ' + esc(r.card) : ''}${r.local ? ' · on this device' : ''}</small>${r.notes ? `<div class="pay-sub">${esc(r.notes)}</div>` : ''}</div>
+        <div class="ct-when">${monthTxt(r.start)} → ${isNaN(r.end) ? 'still running' : monthTxt(r.end)}</div>
+        <div class="ct-cost"><b>${r.amount > 0 ? fmt2(r.amount) : '—'}</b>${r.local ? `<button type="button" class="pay-btn text pay-routine-del" data-i="${i}" style="min-height:32px;">Remove</button>` : '<span class="pay-sub">in the Routine bills tab</span>'}</div>
+      </div>`).join('')}</div>
+    </section>` : '';
   area.innerHTML = `
-    <div class="pay-top">${payViewSwitch()}<div class="pay-chips" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div></div>
+    <div class="pay-top">${payViewSwitch()}<div class="pay-chips" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
     ${cards}
     ${check}
     <div class="pay-row">
@@ -6369,7 +6433,9 @@ function renderPayments(){
       </section>
       <section class="pay-panel pay-cat-panel"><div class="pay-panel-head"><h3>Last 12 months</h3></div>${catHtml}</section>
     </div>
-    ${bills}`;
+    <div id="payRoutine" class="pay-confirm" hidden></div>
+    ${bills}
+    ${routinePanel}`;
 
   // Monthly bars by category over the same range (plus months ahead with bills), sized to the panel.
   // Hidden categories (legend checkboxes) leave the bars, and the scale fits what's still shown.
@@ -6415,6 +6481,52 @@ function renderPayments(){
     if(body) body.scrollTop = top;
   }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
+  area.querySelectorAll('.pay-routine-del').forEach(b => b.addEventListener('click', () => {
+    const r = routines[+b.dataset.i]; if(!r) return;
+    routineAddedSet(routineAddedGet().filter(a => String(a.payee).toLowerCase() !== r.payee.toLowerCase()));
+    renderPayments();
+  }));
+  // Add a routine bill: saved on this device at once; the panel gives the row to paste into the
+  // "Routine bills" tab so every device has it.
+  const rBox = area.querySelector('#payRoutine');
+  area.querySelector('.pay-add-routine').addEventListener('click', () => {
+    const d = new Date(), thisMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    rBox.innerHTML = `<div><b>Add a routine bill</b> · a charge that repeats without an email, such as an insurance premium or a standing order</div>
+      <div class="shop-form">
+        <label>Payee<input name="payee" placeholder="e.g. Home insurance" required></label>
+        <label>Category<input name="category" list="payCatList" placeholder="e.g. Insurance"></label>
+        <datalist id="payCatList">${[...new Set(cats.concat(['Insurance', 'Loan', 'Subscription', 'Education']))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+        <label>Amount (₪)<input name="amount" type="number" step="0.01" min="0" placeholder="0.00" required></label>
+        <label>How often<select name="every"><option value="1">Every month</option><option value="2">Every 2 months</option><option value="3">Every 3 months</option><option value="12">Every year</option></select></label>
+        <label>Charge day<input name="day" type="number" min="1" max="31" value="${d.getDate()}"></label>
+        <label>Starts<input name="start" type="month" value="${thisMonth}"></label>
+        <label>Ends (optional)<input name="end" type="month"></label>
+        <label>Card (last 4)<input name="card" maxlength="4" inputmode="numeric" placeholder="optional"></label>
+        <label style="grid-column:1 / -1;">Note<input name="notes" placeholder="policy, what it covers, anything to remember"></label>
+      </div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-r="save">Add</button><button type="button" class="pay-btn text" data-r="cancel">Cancel</button><span class="shop-form-err" hidden>A payee and an amount are needed.</span></div>`;
+    rBox.hidden = false;
+    const f = n => (rBox.querySelector(`[name="${n}"]`).value || '').trim();
+    rBox.querySelector('[name="payee"]').focus();
+    rBox.querySelector('[data-r="cancel"]').addEventListener('click', () => { rBox.hidden = true; });
+    rBox.querySelector('[data-r="save"]').addEventListener('click', () => {
+      if(!f('payee') || !(Number(f('amount')) > 0)){ rBox.querySelector('.shop-form-err').hidden = false; return; }
+      const a = {payee: f('payee'), category: f('category') || 'Other', amount: Number(f('amount')), every: Number(f('every')) || 1,
+        day: Math.min(31, Math.max(1, Number(f('day')) || 1)), start: f('start'), end: f('end'), card: f('card').replace(/\D/g, ''), notes: f('notes')};
+      routineAddedSet(routineAddedGet().filter(x => String(x.payee).toLowerCase() !== a.payee.toLowerCase()).concat([a]));
+      renderPayments();
+      const row = [a.payee, a.category, a.amount, a.every === 12 ? 'year' : a.every === 1 ? 'month' : a.every + ' months', a.day, a.start, a.end, a.card, a.notes, ymdOf(Date.now())].join('\t');
+      const b2 = document.getElementById('payRoutine');
+      b2.dataset.row = row;
+      b2.innerHTML = `<div><b>${esc(a.payee)}</b>: added on this device. Its charges now show in Bills, marked routine.</div>
+        <div class="pay-confirm-row">To keep it on every device, paste this row under the header of the <b>Routine bills</b> tab of the Payments spreadsheet (run setupRoutineBillsTab() once if it isn't there):<code>${esc(row).replace(/\t/g, ' │ ')}</code></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-btn" data-r="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span><button type="button" class="pay-btn text" data-r="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-r="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+      b2.querySelector('[data-r="close"]').addEventListener('click', () => { b2.hidden = true; });
+      b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    });
+  });
   const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
