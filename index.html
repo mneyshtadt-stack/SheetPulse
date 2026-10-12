@@ -551,6 +551,7 @@
   .rc-kind.service{background:color-mix(in srgb, var(--cmp-5) 18%, var(--panel)); color:var(--ink);}
   .rc-kind.skip{background:var(--paper); color:var(--muted);}
   .rc-ask{color:var(--muted) !important; font-weight:600;}
+  .sheet-ok{color:var(--up-ink); font-weight:600;}
   .rc-flag{font-size:12px; color:var(--warn); font-weight:550;}
   .rc-kind.ask{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--ink);}
   /* Receipts → Shelf (option B): kept forever, a "say what these were for" tray, then cards. */
@@ -1536,7 +1537,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791840904";
+const BUILD_ID = "1791843437";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1604,6 +1605,55 @@ function fetchViaProxy(url){
     }
     return res;
   });
+}
+
+// ---- Saving to the Payments spreadsheet ----
+// The proxy route POST /sheetpulse/append (proxy/sheetpulse-append.js) adds rows at the bottom of one tab of
+// the Payments spreadsheet: Payments, Shopping, Contracts, Receipts or Routine bills. It only adds rows; the
+// dashboard reads rows with the same key or message id as one record. Every change you make in the Bills &
+// Contracts and Purchases windows is saved this way at once; if the save fails (route not installed, offline),
+// the change stays on this device and the panel offers the row to copy instead.
+// Today as yyyy-mm-dd in local time (toISOString() is UTC: just after midnight in Israel it gives yesterday).
+function localYmd(d){ d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+async function sheetAppend(tab, rows){
+  const idToken = localStorage.getItem('pf_idToken') || '';
+  const res = await fetch(PROXY_BASE_URL + '/sheetpulse/append', {method: 'POST', cache: 'no-store',
+    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${idToken}`},
+    body: JSON.stringify({sheetId: PAYMENTS_SHEET_ID, tab, rows})});
+  if(res.status === 401) throw new Error('session expired, sign in again');
+  if(!res.ok){
+    let e = ''; try{ e = (await res.json()).error || ''; } catch(_){}
+    throw new Error(res.status === 404 || /sheetId|sheetName/i.test(e) ? 'the save route is not installed on the proxy yet' : 'save failed (' + res.status + ')' + (e ? ': ' + e : ''));
+  }
+  return res.json();
+}
+// A tab-separated row (as the panels build them) → cells: plain numbers become numbers (not "0123").
+function tsvToRows(tsv){ return String(tsv).split('\n').filter(l => l.length).map(l => l.split('\t').map(c => /^-?(0|[1-9]\d{0,9})(\.\d+)?$/.test(c) ? Number(c) : c)); }
+// Rows already saved from this device (tab + row text), so reopening a panel never adds a row twice.
+function sheetSavedGet(){ try{ return JSON.parse(localStorage.getItem('sp_sheetSaved') || '{}') || {}; } catch(_){ return {}; } }
+function sheetSavedHas(key){ return !!sheetSavedGet()[key]; }
+function sheetSavedAdd(key){ try{ const m = sheetSavedGet(); m[key] = Date.now(); const ks = Object.keys(m); if(ks.length > 400) ks.sort((a, b) => m[a] - m[b]).slice(0, ks.length - 400).forEach(k => delete m[k]); localStorage.setItem('sp_sheetSaved', JSON.stringify(m)); } catch(_){} }
+// Saves a panel's row(s) and turns its "copy this row" part into "Saved to the … tab".
+function autoSaveSheet(box, tab, tsv){
+  if(!box || !tsv) return;
+  const key = tab + '|' + tsv;
+  const row = [...box.querySelectorAll('.pay-confirm-row')].find(r => r.querySelector('code'));
+  const done = () => {
+    if(row){ row.innerHTML = `<span class="sheet-ok">✓ Saved to the <b>${tab}</b> tab</span>: every device shows it from its next refresh.`; }
+    box.querySelectorAll('[data-c="copy"],[data-e="copy"],[data-r="copy"],[data-n="copy"],[data-add="copy"],[data-act="copy"],.pay-copied').forEach(b => b.remove());
+  };
+  if(sheetSavedHas(key)){ done(); return; }
+  if(row) row.insertAdjacentHTML('afterbegin', '<div class="pay-sub sheet-saving">Saving to the sheet…</div>');
+  sheetAppend(tab, tsvToRows(tsv)).then(() => { sheetSavedAdd(key); if(box.isConnected) done(); }).catch(err => {
+    const sv = box.querySelector('.sheet-saving');
+    if(sv){ sv.textContent = `Couldn't save to the sheet (${err.message}). It's kept on this device; to keep it everywhere, copy the row instead:`; sv.style.color = 'var(--down-ink)'; }
+  });
+}
+// The same, with no panel (the Receipts tray, Move to Receipts): quiet on success, kept on the device on failure.
+function quietSaveSheet(tab, tsv){
+  const key = tab + '|' + tsv;
+  if(sheetSavedHas(key)) return;
+  sheetAppend(tab, tsvToRows(tsv)).then(() => sheetSavedAdd(key)).catch(() => {});
 }
 
 // ---- Connection diagnostics ----
@@ -2007,6 +2057,13 @@ const TROUBLESHOOTING = [
       {name: 'Restart', note: 'Takes about 25 s to start answering.', cmd: `sudo systemctl restart sheet-proxy`},
       {name: 'Memory use and cap', cmd: `systemctl show sheet-proxy -p MemoryCurrent -p MemoryMax`},
       {name: 'Node version', cmd: `node -v`},
+    ]},
+  {title: 'Saving to the sheet (Bills & Contracts, Purchases)', where: 'putty',
+    intro: 'Changes made in the Bills & Contracts and Purchases windows (a routine bill, a contract, a receipt, an order\'s status or note, a bill marked paid) are saved straight to the Payments spreadsheet through the proxy route POST /sheetpulse/append (~/sheet-proxy/sheetpulse-append.js). It only adds rows, only to that spreadsheet\'s Payments, Shopping, Contracts, Receipts and Routine bills tabs, behind the same sign-in check as the reads. Without it, changes stay on the device and the window offers rows to copy.',
+    cmds: [
+      {name: 'Install or update the save route', note: 'Downloads the installer from the SheetPulse GitHub repo (the ?v= part skips GitHub\'s 5-minute cache). It backs up index.js (index.js.before-append), adds the module and the route, checks both parse and restarts the proxy. Safe to run again.', cmd: `curl -fsSL "https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/install-append.sh?v=$(date +%s)" -o ~/install-append.sh && bash ~/install-append.sh`},
+      {name: 'Is the save route installed?', note: '1 = installed, 0 = not yet.', cmd: `grep -c "/sheetpulse/append" ~/sheet-proxy/index.js`},
+      {name: 'Recent save errors', note: 'Nothing = no failed saves. "Tab not allowed" or "No ... tab" name the problem; "insufficient" or "PERMISSION_DENIED" means the proxy\'s Google token lacks write access to the Payments spreadsheet.', cmd: `journalctl -u sheet-proxy --since "-1 day" --no-pager | grep -i "sheetpulse append error" | tail -10`},
     ]},
   {title: 'AI analysis (Gemini)', where: 'putty',
     intro: 'The "AI analysis" button in Winners & losers. The proxy module ~/sheet-proxy/sheetpulse-ai.js sends percentages only to Google Gemini (free tier); the key is GEMINI_API_KEY in ~/sheet-proxy/.env.',
@@ -5915,7 +5972,7 @@ function renderContracts(area){
         cost: Number(f('cost')) > 0 ? Number(f('cost')) : '', per: f('per'), covers: f('covers'), notes: f('notes'), link: ''};
       contractsAddedSet(contractsAddedGet().concat([a]));
       renderContracts(area);
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localYmd();
       const r = [a.name, a.provider, a.type, a.ref, a.start, a.end, a.cost, a.per, a.covers, a.notes, '', today].join('\t');
       const b2 = document.getElementById('ctAdd');
       b2.dataset.row = r;
@@ -5926,6 +5983,7 @@ function renderContracts(area){
       b2.hidden = false;
       b2.querySelector('[data-c="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
       b2.querySelector('[data-c="close"]').addEventListener('click', () => { b2.hidden = true; });
+      autoSaveSheet(b2, 'Contracts', r);
     });
     box.querySelector('[name="name"]').focus();
   });
@@ -6049,7 +6107,7 @@ function renderReceipts(area){
         <label><span class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden;">What was ${esc(x.from)} on ${day(x.ms)} for</span><input type="text" class="rc-tray-in" data-rid="${esc(x.id)}" placeholder="what you bought or the service" autocomplete="off"></label>
         <span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span></div>`).join('')}</section>` : ''}
     ${localRows.length ? `<div class="pay-confirm rc-edit" style="margin:0 0 14px;"><div class="pay-confirm-row"><b>${localRows.length} change${localRows.length === 1 ? '' : 's'} on this device only.</b> To keep them on every device, copy the rows and paste them at the bottom of the Receipts tab (a row with the same message id updates that receipt).</div>
-      <div class="pay-confirm-btns"><button type="button" class="pay-btn rc-copy-all">Copy ${localRows.length} row${localRows.length === 1 ? '' : 's'}</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary rc-copy-all">Save ${localRows.length} to the sheet</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
     <div class="rc-bar">
       <div class="pay-chips">${kindChip('', 'All', all.length)}${kindChip('product', 'Products', all.filter(x => x.kind === 'product').length)}${kindChip('service', 'Services', all.filter(x => x.kind === 'service').length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}${all.some(x => x.kind === 'skip') ? kindChip('skip', 'Not counted', all.filter(x => x.kind === 'skip').length) : ''}${hiddenRc.length ? kindChip('__hidden', 'Hidden', hiddenRc.length) : ''}</div>
       <input type="search" class="shop-search rc-search" placeholder="Search product, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts">
@@ -6081,12 +6139,27 @@ function renderReceipts(area){
     const m = receiptEditsGet();
     m[x.id] = {product: inp.value.trim(), kind: x.kind || '', notes: x.notes || '', amount: x.amount > 0 ? x.amount : ''};
     receiptEditsSet(m);
+    const nx = receiptsMerged().find(r => r.id === x.id); if(nx) quietSaveSheet('Receipts', tabRow(nx));
     rerender();
     refreshPayTabs();
     const next = area.querySelector('.rc-tray-in'); if(next) next.focus();
   }));
   const copyAll = area.querySelector('.rc-copy-all');
-  if(copyAll) copyAll.addEventListener('click', () => navigator.clipboard.writeText(localRows.map(tabRow).join('\n')).then(() => { copyAll.nextElementSibling.hidden = false; }).catch(() => {}));
+  if(copyAll) copyAll.addEventListener('click', () => {
+    const todo = localRows.map(tabRow).filter(r => !sheetSavedHas('Receipts|' + r));
+    const bar = copyAll.closest('.pay-confirm');
+    if(!todo.length){ bar.querySelector('.pay-confirm-row').innerHTML = '<span class="sheet-ok">✓ All saved to the Receipts tab</span>: they stop showing "on this device" after the next refresh.'; copyAll.remove(); return; }
+    copyAll.disabled = true; copyAll.textContent = 'Saving…';
+    sheetAppend('Receipts', tsvToRows(todo.join('\n'))).then(() => {
+      todo.forEach(r => sheetSavedAdd('Receipts|' + r));
+      bar.querySelector('.pay-confirm-row').innerHTML = `<span class="sheet-ok">✓ Saved ${todo.length} to the Receipts tab</span>: every device shows them from its next refresh.`;
+      copyAll.remove();
+    }).catch(err => {
+      copyAll.disabled = false; copyAll.textContent = 'Copy rows instead';
+      bar.querySelector('.pay-confirm-row').insertAdjacentHTML('beforeend', `<div class="pay-sub" style="color:var(--down-ink)">Couldn't save to the sheet (${esc(err.message)}).</div>`);
+      copyAll.onclick = () => navigator.clipboard.writeText(todo.join('\n')).catch(() => {});
+    });
+  });
   area.querySelectorAll('[data-rkind]').forEach(b => b.addEventListener('click', () => { receiptsKind = b.dataset.rkind; rerender(); }));
   const search = area.querySelector('.rc-search');
   search.addEventListener('input', () => {
@@ -6104,6 +6177,7 @@ function renderReceipts(area){
     box.hidden = false;
     box.querySelector('[data-e="copy"]').addEventListener('click', () => navigator.clipboard.writeText(box.dataset.row).then(() => { box.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
     box.querySelector('[data-e="close"]').addEventListener('click', () => { box.hidden = true; box.innerHTML = ''; });
+    autoSaveSheet(box, 'Receipts', r);
   };
   const form = (x, isNew) => `
     <div class="shop-form">
@@ -6524,6 +6598,7 @@ function renderPayments(){
       b2.hidden = false;
       b2.querySelector('[data-r="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
       b2.querySelector('[data-r="close"]').addEventListener('click', () => { b2.hidden = true; });
+      autoSaveSheet(b2, 'Routine bills', row);
       b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     });
   });
@@ -6543,7 +6618,7 @@ function renderPayments(){
   // (Message id "note", the text in Period, Date = the bill's charge date) so every device shows it.
   const openPayNote = p => {
     const box = document.getElementById('payNote'); if(!box) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYmd();
     const what = `<b>${esc(p.payee)}</b> · ${day(p.charge)}${p.amount > 0 ? ' · ' + fmt2(p.amount) : ''}`;
     box.innerHTML = `<div>Note for ${what}</div>
       <div class="shop-form"><label style="grid-column:1 / -1;">Note<input name="note" maxlength="200" value="${esc(p.note || '')}" placeholder="e.g. paid by bank transfer"></label></div>
@@ -6560,6 +6635,7 @@ function renderPayments(){
       if(body) body.scrollTop = top;
       if(!text) return;
       const b2 = document.getElementById('payNote'); if(!b2) return;
+      setTimeout(() => autoSaveSheet(b2, 'Payments', b2.dataset.rows), 0);
       const r = [ymdOf(p.charge), p.payee, p.category, '', text, '', '', '', '', 'note', 'note ' + today].join('\t');
       b2.dataset.rows = r;
       b2.innerHTML = `<div>Note saved on this device for ${what}: <b>${esc(text)}</b></div>
@@ -6586,7 +6662,7 @@ function renderPayments(){
     const key = s.payee + '|' + k, c = s.months[k], mine = !!confirmed[key];
     const what = `<b>${esc(s.payee)}</b> · ${s.byPeriod ? monthName(k) + ' bill' : monthName(k)}`;
     const ym = Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
-    const row = [ym + '-15', s.payee, s.category, '', 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12), '', '', '', '', 'manual', 'manual ' + new Date().toISOString().slice(0, 10)].join('\t');
+    const row = [ym + '-15', s.payee, s.category, '', 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12), '', '', '', '', 'manual', 'manual ' + (confirmed[key] || localYmd())].join('\t');
     const sheetRow = `<div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Payments tab and paste it there (the amount is left empty; type it if you know it; the daily run keeps the tab sorted by date):
         <code>${esc(row.replace(/\t/g, ' │ '))}</code>
         <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>`;
@@ -6596,6 +6672,7 @@ function renderPayments(){
     } else if(c && c.st === 'confirmed' && mine){
       panel.innerHTML = `<div>${what}: marked paid on this device.</div>${sheetRow}
         <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+      setTimeout(() => autoSaveSheet(panel, 'Payments', row), 0);
     } else if(c && c.st === 'confirmed'){
       panel.innerHTML = `<div>${what}: marked paid by a manual row in the Payments tab. Delete that row to undo.</div>
         <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
@@ -6606,7 +6683,7 @@ function renderPayments(){
       if(act === 'close'){ panel.hidden = true; return; }
       if(act === 'copy'){ navigator.clipboard.writeText(row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
       const m = payConfirmedGet();
-      if(act === 'mark') m[key] = new Date().toISOString().slice(0, 10); else delete m[key];
+      if(act === 'mark') m[key] = localYmd(); else delete m[key];
       payConfirmedSet(m);
       renderPayments();
       if(act === 'mark'){ const again = document.querySelector(`.pay-cell[data-k="${k}"][data-payee="${CSS.escape(s.payee)}"]`); if(again) again.click(); }
@@ -6649,7 +6726,7 @@ async function fetchShopping(){
   const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
   const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
   const c = name => h.indexOf(name);
-  const cD = c('date'), cS = c('store'), cN = c('order no'), cE = c('event'), cI = c('items'), cA = c('amount'), cC = c('currency'), cT = c('tracking'), cM = c('message id');
+  const cD = c('date'), cS = c('store'), cN = c('order no'), cE = c('event'), cI = c('items'), cA = c('amount'), cC = c('currency'), cT = c('tracking'), cM = c('message id'), cAd = c('added');
   if(cS < 0 || cE < 0) throw new Error('The Shopping tab has no Store / Event header');
   const ev = [];
   for(let i = 1; i < t.length; i++){
@@ -6658,7 +6735,7 @@ async function fetchShopping(){
     if(!store || !event || isNaN(ms)) continue;
     ev.push({ms, store, no: String(r[cN] || '').trim(), event, items: String(r[cI] || '').trim(),
       amount: num(r[cA]), cur: String(r[cC] || '').trim().toUpperCase(), trk: String(r[cT] || '').trim(),
-      manual: cM >= 0 && /^manual/i.test(String(r[cM] || '').trim())});
+      manual: cM >= 0 && /^manual/i.test(String(r[cM] || '').trim()), at: cAd >= 0 ? String(r[cAd] || '').replace(/^manual\s*/i, '').trim() : ''});
   }
   return ev;
 }
@@ -6711,7 +6788,10 @@ function buildShopOrders(input){
     // Status: the latest email, the furthest stage on the same day. A partial refund (Amazon refunds single
     // items) leaves the delivery status alone; a refund of the whole amount, or a cancellation, ends it.
     const steps = o.events.filter(e => e.event !== 'refund' && e.event !== 'note');
-    let st = steps.length ? steps.reduce((a, e) => e.ms > a.ms || (e.ms === a.ms && (SHOP_STAGE[e.event] || 0) >= (SHOP_STAGE[a.event] || 0)) ? e : a).event : 'ordered';
+    // On the same day a status you set by hand beats the emails, and of two you set, the later one (by its
+    // time stamp) wins, so a correction sticks.
+    const later = (e, a) => e.ms !== a.ms ? e.ms > a.ms : e.manual && a.manual ? (e.at || '') >= (a.at || '') : e.manual !== a.manual ? !!e.manual : (SHOP_STAGE[e.event] || 0) >= (SHOP_STAGE[a.event] || 0);
+    let st = steps.length ? steps.reduce((a, e) => later(e, a) ? e : a).event : 'ordered';
     if(priced && refund >= priced.amount - 0.01) st = 'refunded';
     else if(!steps.length && refunds.length) st = 'delivered';
     const amount = priced ? Math.max(0, priced.amount - refund) : 0;
@@ -6944,10 +7024,12 @@ function renderShopping(){
     return `<button type="button" class="pay-chip${cur ? ' on' : ''}" data-act="${v}"${cur ? ' aria-pressed="true"' : ''}>${t}</button>`;
   }).join('');
   const openMark = o => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYmd();
     const what = `<b>${esc(o.store)}</b> · ${esc(label(o))}`;
     if(o.markLocal){
-      const r = [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
+      const mk = shopMarksGet()[o.key] || {};
+      const r = [mk.at || today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + (mk.ts || mk.at || today)].join('\t');
+      setTimeout(() => autoSaveSheet(panel, 'Shopping', r), 0);
       panel.dataset.row = r;
       panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
         <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there (the daily run keeps the tab sorted by date):<code>${esc(r.replace(/\t/g, ' │ '))}</code>
@@ -6973,7 +7055,7 @@ function renderShopping(){
         return;
       }
       const m = shopMarksGet();
-      if(act === 'undo') delete m[o.key]; else m[o.key] = {status: act, at: today};
+      if(act === 'undo') delete m[o.key]; else m[o.key] = {status: act, at: today, ts: new Date().toISOString()};
       shopMarksSet(m);
       const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
       renderShopping();
@@ -6987,7 +7069,7 @@ function renderShopping(){
   // into the Shopping tab (Event "note", the text in Items, Message id "manual") so every device shows it.
   const openNote = o => {
     const box = document.getElementById('shopAdd'); if(!box) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYmd();
     const noteRow = text => [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', 'note', text, '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
     const what = `<b>${esc(o.store)}</b>${o.no && !/^PayPal /.test(o.no) ? ' · ' + esc(o.no) : o.trk.length ? ' · ' + esc(o.trk[0]) : ''}${o.items ? ' · ' + esc(o.items) : ''}`;
     box.innerHTML = `<div>Note for ${what}</div>
@@ -7005,6 +7087,7 @@ function renderShopping(){
       if(body) body.scrollTop = top;
       if(!text) return;
       const b2 = document.getElementById('shopAdd'); if(!b2) return;
+      setTimeout(() => autoSaveSheet(b2, 'Shopping', b2.dataset.rows), 0);
       const r = noteRow(text);
       b2.dataset.rows = r;
       b2.innerHTML = `<div>Note saved on this device for ${what}: <b>${esc(text)}</b></div>
@@ -7063,8 +7146,10 @@ function renderShopping(){
   area.querySelectorAll('.shop-keep').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation();
     const o = all.find(x => x.key === b.dataset.key); if(!o) return;
-    receiptsAddedSet(receiptsAddedGet().concat([{id: 'order-' + o.key, date: ymd(o.first), from: o.store, product: o.items || o.note || '', kind: 'product',
-      amount: o.amount || o.gross, cur: o.cur || 'ILS', notes: o.no && !/^PayPal /.test(o.no) ? 'Order ' + o.no : ''}]));
+    const ra = {id: 'order-' + o.key, date: ymd(o.first), from: o.store, product: o.items || o.note || '', kind: 'product',
+      amount: o.amount || o.gross, cur: o.cur || 'ILS', notes: o.no && !/^PayPal /.test(o.no) ? 'Order ' + o.no : ''};
+    receiptsAddedSet(receiptsAddedGet().concat([ra]));
+    quietSaveSheet('Receipts', [ra.date, ra.from, '', ra.amount, ra.cur, '', '', ra.id, ra.notes, ra.product, 'Product'].join('\t'));
     shoppingView = 'receipts';
     try{ localStorage.setItem('sp_shopView', shoppingView); } catch(_){}
     renderShopping();
@@ -7087,10 +7172,11 @@ function renderShopping(){
     box.hidden = false;
     box.querySelector('[data-add="copy"]').addEventListener('click', () => navigator.clipboard.writeText(box.dataset.rows).then(() => { box.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
     box.querySelector('[data-add="close"]').addEventListener('click', () => { box.hidden = true; });
+    autoSaveSheet(box, 'Shopping', rows);
     box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
   };
   area.querySelectorAll('.shop-add').forEach(b => b.addEventListener('click', () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localYmd();
     addPanel.innerHTML = `<div><b>Add an order</b> · for one with no email (bought in a shop, an email that was deleted)</div>
       <div class="shop-form">
         <label>Date<input type="date" name="date" value="${today}" required></label>
