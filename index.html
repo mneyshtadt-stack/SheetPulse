@@ -1480,7 +1480,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791815808";
+const BUILD_ID = "1791822679";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6486,9 +6486,11 @@ function renderShopping(){
   const notes = shopNotesGet();
   all.forEach(o => { const n = notes[o.key]; o.noteLocal = n !== undefined && n !== o.sheetNote; o.note = o.noteLocal ? n : o.sheetNote; });
 
-  // Deliveries still under way: orders not delivered, canceled, lost or refunded (set the status by hand
-  // when the emails stop).
-  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status))
+  // Deliveries still under way: orders not delivered, canceled, lost or refunded whose last email is
+  // recent (3 weeks at a pickup point, 45 days otherwise; stores rarely email the collection). Older ones
+  // keep the status their emails gave (no "probably" label) but leave Deliveries and the two cards.
+  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) &&
+    now - o.last < (o.status === 'pickup' ? 21 : 45) * DAY)
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
@@ -6501,8 +6503,8 @@ function renderShopping(){
   const cards = `
     <div class="pay-cards">
       <button type="button" class="pay-card shop-card-link${pickup.length ? ' wait' : ''}${shoppingDeliv === 'pickup' ? ' sel' : ''}" data-deliv="pickup" title="Show these orders"><div class="pay-card-label">Waiting for pickup${pickup.length ? ' · ' + pickup.length : ''}</div>
-        <div class="pay-card-val">${pickup.length ? pickup.map(o => esc(o.store)).join(', ') : 'Nothing to collect'}</div>
-        <div class="pay-card-sub">${pickup.length ? pickup.map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') : 'No package is waiting at a pickup point.'}</div></button>
+        <div class="pay-card-val">${pickup.length ? [...new Set(pickup.map(o => o.brand || o.store))].slice(0, 3).map(esc).join(', ') + (new Set(pickup.map(o => o.brand || o.store)).size > 3 ? ' …' : '') : 'Nothing to collect'}</div>
+        <div class="pay-card-sub">${pickup.length ? pickup.slice(0, 4).map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') + (pickup.length > 4 ? `<br>and ${pickup.length - 4} more` : '') : 'No package is waiting at a pickup point.'}</div></button>
       <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
         <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'Nothing on the way'}</div>
         <div class="pay-card-sub">${moving.length ? moving.slice(0, 4).map(o => `${esc(o.store)}: ${esc(SHOP_STATUS[o.status])}`).join(' · ') + (moving.length > 4 ? ' · …' : '') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
