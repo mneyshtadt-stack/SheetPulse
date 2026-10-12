@@ -190,6 +190,8 @@ function payTidy_(sh, seenSh) {
 // New bills from every source into the Payments tab (up to PAY_MAX_PER_RUN PDFs a run). At the end the
 // tab is tidied and sorted (payTidy_).
 function updatePayments() {
+  try { updateContracts(); } catch (e) { Logger.log('Contracts: ' + e); }
+  try { updateReceipts(); } catch (e) { Logger.log('Receipts: ' + e); }
   const sh = paySheet_(), seenSh = paySeenSheet_();
   payTidy_(sh, seenSh);
   const last = sh.getLastRow();
@@ -233,6 +235,180 @@ function updatePayments() {
   });
   payTidy_(sh, seenSh);
   Logger.log('Payments: ' + added + ' added, ' + skipped + ' skipped (not a matching bill, or already in the tab).');
+}
+
+// ---- Contracts tab (warranties, service plans, insurance, subscriptions), read by SheetPulse's Payments
+// window → Contracts. updateContracts() adds one row per email thread in the Gmail label
+// payments-contracts (your own notes like "Bituah Haim - Starting 11/2024 100 NIS", forwarded documents
+// and the providers' own emails), guessing what it can from the subject; then correct or complete the row
+// by hand: the script never changes a row again. A thread is imported once (remembered in the script's
+// properties), so deleting a row keeps it out. To hide a contract and keep its row, set its Type to Hidden.
+// Columns: Name | Provider | Type | Reference | Start | End | Cost | Per (once / month / year) | Covers |
+// Notes | Link (the Gmail thread) | Added.
+const CONTRACTS_SHEET = 'Contracts';
+const CONTRACTS_LABEL = 'payments-contracts';
+const CONTRACTS_HEADER = ['Name', 'Provider', 'Type', 'Reference', 'Start', 'End', 'Cost', 'Per', 'Covers', 'Notes', 'Link', 'Added'];
+const CONTRACT_TYPES = [
+  [/bituah|ביטוח|insurance|polic|פוליס/i, 'Insurance'],
+  [/guarantee|warrant|אחריות|הארכת/i, 'Warranty'],
+  [/energy|electric|חשמל|power|partner/i, 'Utility plan'],
+  [/psagot|פסגות|pension|פנסי|גמל|השתלמות/i, 'Investment'],
+  [/\btv\b|internet|fiber|סיבים|טלוויזי|hot|cellular|סלולר/i, 'Subscription']
+];
+const CONTRACT_NAMES = [[/^bituah dira$/i, 'Home insurance'], [/^bituah haim$/i, 'Life insurance']];
+const CONTRACT_PROVIDERS = [[/hot energy/i, 'HOT Energy'], [/\bhot\b/i, 'HOT'], [/partner/i, 'Partner'], [/psagot|פסגות/i, 'Psagot'],
+  [/טופ פיקס|top ?fix/i, 'Top Fix Home']];
+
+function contractsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(CONTRACTS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(CONTRACTS_SHEET);
+    sh.getRange(1, 1, 1, CONTRACTS_HEADER.length).setValues([CONTRACTS_HEADER]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange('D:D').setNumberFormat('@');
+    sh.getRange('E:F').setNumberFormat('yyyy-mm-dd');
+  }
+  return sh;
+}
+function setupContractsTab() { contractsSheet_(); updateContracts(); }
+
+// "01/12/2024" → 1 Dec 2024; "11/2024" → 1 Nov 2024 (day/month, Israeli order).
+function contractDate_(s) {
+  let m = String(s).match(/(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})/);
+  if (m) return new Date(+m[3] < 100 ? 2000 + +m[3] : +m[3], +m[2] - 1, +m[1]);
+  m = String(s).match(/(\d{1,2})[\/.](\d{4})/);
+  return m ? new Date(+m[2], +m[1] - 1, 1) : '';
+}
+
+function contractFromEmail_(t, me) {
+  const msgs = t.getMessages(), m = msgs[0];
+  const subject = m.getSubject().replace(/^\s*(fwd?|fw|הועבר)\s*:\s*/i, '').trim();
+  const body = m.getPlainBody() || '';
+  const fromAddr = m.getFrom().replace(/.*<([^>]+)>.*/, '$1').toLowerCase();
+  const mine = fromAddr === me;
+  // A forwarded email: the original sender's name ("From: טופ פיקס לבית <...>").
+  const fwd = (body.match(/(?:From|מאת)\s*:\s*\*?\s*([^<\n*]*?)\s*<([^>]+)>/i) || []);
+  const fromName = mine ? (fwd[1] || (fwd[2] || '').replace(/^.*@|\..*$/g, '')) : m.getFrom().replace(/\s*<.*$/, '').replace(/"/g, '');
+  const hay = subject + ' ' + fromName + ' ' + fromAddr + ' ' + (fwd[2] || '');
+  // Your own subjects: "Name - details" or "Name---details".
+  const parts = mine ? subject.split(/\s*(?:-{2,}|\s-\s)\s*/) : [subject];
+  let name = mine ? parts[0] : '';
+  const rest = mine ? parts.slice(1).join(' - ') : subject;
+  CONTRACT_NAMES.forEach(([re, n]) => { if (re.test(name)) name = n; });
+  const prov = (CONTRACT_PROVIDERS.find(([re]) => re.test(hay)) || [])[1] || fromName || '';
+  if (!name) name = prov || subject.slice(0, 60);
+  const type = (CONTRACT_TYPES.find(([re]) => re.test(hay)) || [])[1] || 'Other';
+  const st = rest.match(/start(?:ing|s)?\s+([\d\/.]+)/i), till = rest.match(/(?:till|until|ends?|עד)\s+([\d\/.]+)/i);
+  let start = st ? contractDate_(st[1]) : mine ? '' : m.getDate();
+  let end = till ? contractDate_(till[1]) : '';
+  const yrs = rest.match(/(\d+)\s*years?/i);
+  if (!end && start && yrs) { end = new Date(start); end.setFullYear(end.getFullYear() + +yrs[1]); }
+  const costs = [...rest.matchAll(/(\d+(?:\.\d+)?)\s*(?:NIS|ILS|₪|ש"?ח)/gi)].map(x => +x[1]);
+  const cost = costs.length ? costs[costs.length - 1] : '';
+  const covers = mine ? rest.replace(/start(?:ing|s)?\s+[\d\/.]+|(?:till|until)\s+[\d\/.]+|\d+(?:\.\d+)?\s*(?:NIS|ILS|₪)/gi, '').replace(/\s{2,}/g, ' ').trim() : '';
+  return {name, prov, type, start, end, cost, per: cost !== '' ? 'month' : '', covers,
+    notes: (mine ? 'Your note: ' : 'Email: ') + subject + (msgs.length > 1 ? ` (${msgs.length} emails)` : ''),
+    link: 'https://mail.google.com/mail/u/0/#all/' + t.getId(), date: m.getDate()};
+}
+
+function updateContracts() {
+  const sh = contractsSheet_();
+  const props = PropertiesService.getScriptProperties();
+  const seen = new Set(JSON.parse(props.getProperty('contractsSeen') || '[]'));
+  const me = Session.getEffectiveUser().getEmail().toLowerCase();
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const threads = GmailApp.search('label:' + CONTRACTS_LABEL, 0, 200).filter(t => !seen.has(t.getId()));
+  const found = threads.map(t => contractFromEmail_(t, me)).sort((a, b) => a.date - b.date);
+  const data = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, CONTRACTS_HEADER.length).getValues() : [];
+  let added = 0, merged = 0;
+  found.forEach(c => {
+    // "Bituah Dira - Till 30/11/2026": an end date for a contract already in the tab goes into that row.
+    const same = data.findIndex(r => String(r[0]).toLowerCase() === c.name.toLowerCase());
+    if (same >= 0 && c.end && !c.cost && !data[same][5]) {
+      sh.getRange(same + 2, 6).setValue(c.end);
+      sh.getRange(same + 2, 10).setValue([data[same][9], c.notes].filter(String).join(' · '));
+      data[same][5] = c.end;
+      merged++;
+    } else {
+      const row = [c.name, c.prov, c.type, '', c.start, c.end, c.cost, c.per, c.covers, c.notes, c.link, today];
+      sh.appendRow(row);
+      data.push(row);
+      added++;
+    }
+    Logger.log(`${Utilities.formatDate(c.date, Session.getScriptTimeZone(), 'yyyy-MM-dd')} | ${c.name} | ${c.prov} | ${c.type} | start ${c.start && Utilities.formatDate(c.start, Session.getScriptTimeZone(), 'yyyy-MM-dd')} | end ${c.end && Utilities.formatDate(c.end, Session.getScriptTimeZone(), 'yyyy-MM-dd')} | ${c.cost} ${c.per} | ${c.covers}`);
+  });
+  threads.forEach(t => seen.add(t.getId()));
+  props.setProperty('contractsSeen', JSON.stringify([...seen]));
+  if (sh.getLastRow() > 1) sh.getRange(2, 5, sh.getLastRow() - 1, 2).setNumberFormat('yyyy-mm-dd');
+  Logger.log(`Contracts: ${added} added, ${merged} end dates filled in, ${threads.length} new threads in ${CONTRACTS_LABEL}.`);
+}
+
+// Nothing written: each thread in the label with its sender, attachments and the first part of the
+// email's text, to see what a contract email holds (send this log to Claude to refine the rows).
+function listContracts() {
+  GmailApp.search('label:' + CONTRACTS_LABEL, 0, 50).forEach(t => {
+    const m = t.getMessages()[0];
+    Logger.log('=== ' + Utilities.formatDate(m.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + ' | ' + m.getFrom() + ' | ' + m.getSubject()
+      + ' | ' + t.getMessageCount() + ' emails | attachments: ' + m.getAttachments().map(a => a.getName()).join(', '));
+    Logger.log((m.getPlainBody() || '').replace(/\s+/g, ' ').slice(0, 700));
+  });
+}
+
+// ---- Receipts tab: every email in the Gmail label payments-receipts (purchase receipts, invoices,
+// guarantees of things you bought), read by SheetPulse's Payments window → Receipts. One row per email:
+// Date | From | Subject | Amount | Currency | Attachments | Link (the Gmail thread) | Message id | Notes.
+// The amount is a guess from the subject, then the email's text (a total, ₪ / NIS / $); correct it by hand,
+// the script never changes a row again. Runs with updatePayments (daily), or run updateReceipts() any time.
+const RECEIPTS_SHEET = 'Receipts';
+const RECEIPTS_LABEL = 'payments-receipts';
+const RECEIPTS_HEADER = ['Date', 'From', 'Subject', 'Amount', 'Currency', 'Attachments', 'Link', 'Message id', 'Notes'];
+
+function receiptAmount_(text) {
+  const t = String(text);
+  const pats = [
+    [/(?:סה"?כ(?: לתשלום)?|total|amount paid|סכום)\D{0,20}?(₪|NIS|ILS|\$|USD|€|EUR)?\s*([\d,]+(?:\.\d{1,2})?)\s*(₪|NIS|ILS|ש"?ח|\$|USD|€|EUR)?/i],
+    [/(₪|\$|€)\s*([\d,]+(?:\.\d{1,2})?)/],
+    [/()([\d,]+(?:\.\d{1,2})?)\s*(₪|NIS|ILS|ש"?ח|USD|EUR)/i]
+  ];
+  for (const [re] of pats) {
+    const m = t.match(re);
+    if (!m) continue;
+    const v = +String(m[2]).replace(/,/g, '');
+    if (!(v > 0)) continue;
+    const c = (m[1] || m[3] || '₪').toUpperCase();
+    return {amount: v, cur: /\$|USD/.test(c) ? 'USD' : /€|EUR/.test(c) ? 'EUR' : 'ILS'};
+  }
+  return {amount: '', cur: ''};
+}
+
+function updateReceipts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(RECEIPTS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(RECEIPTS_SHEET);
+    sh.getRange(1, 1, 1, RECEIPTS_HEADER.length).setValues([RECEIPTS_HEADER]).setFontWeight('bold');
+    sh.setFrozenRows(1);
+    sh.getRange('A:A').setNumberFormat('yyyy-mm-dd');
+    sh.getRange('H:H').setNumberFormat('@');
+  }
+  const ids = new Set(sh.getLastRow() > 1 ? sh.getRange(2, 8, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0])) : []);
+  const rows = [];
+  let start = 0, batch;
+  do {
+    batch = GmailApp.search('label:' + RECEIPTS_LABEL, start, 100);
+    batch.forEach(t => t.getMessages().forEach(m => {
+      if (ids.has(m.getId())) return;
+      const subject = m.getSubject().replace(/^\s*(fwd?|fw|הועבר)\s*:\s*/i, '').trim();
+      const a = receiptAmount_(subject).amount ? receiptAmount_(subject) : receiptAmount_((m.getPlainBody() || '').slice(0, 6000));
+      rows.push([m.getDate(), m.getFrom().replace(/\s*<.*$/, '').replace(/"/g, '') || m.getFrom(), subject, a.amount, a.cur,
+        m.getAttachments().map(x => x.getName()).join(', '), 'https://mail.google.com/mail/u/0/#all/' + t.getId(), m.getId(), '']);
+    }));
+    start += batch.length;
+  } while (batch.length === 100 && start < 1000);
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, RECEIPTS_HEADER.length).setValues(rows);
+  if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, RECEIPTS_HEADER.length).sort({column: 1, ascending: false});
+  Logger.log(`Receipts: ${rows.length} added from ${RECEIPTS_LABEL}.`);
 }
 
 // Daily at 07:00 (Israel time of the script). Safe to run again: replaces only this script's trigger.
