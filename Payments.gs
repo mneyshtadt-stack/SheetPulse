@@ -463,6 +463,22 @@ function updateReceipts() {
   Logger.log(`Receipts: ${rows.length} added from ${RECEIPTS_LABEL}.`);
 }
 
+// Once: rows whose amount is a VAT rate (17 or 18, written by the first, label-based rule) get their PDF
+// read again with the current rule. Logs each change.
+function recheckReceiptAmounts() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECEIPTS_SHEET);
+  sh.getRange(2, 1, sh.getLastRow() - 1, RECEIPTS_HEADER.length).getValues().forEach((r, i) => {
+    if (![17, 18].includes(Number(r[3])) || !/pdf/i.test(String(r[5]))) return;
+    try {
+      const m = GmailApp.getMessageById(String(r[7]));
+      const pdf = m.getAttachments().filter(x => /pdf$/i.test(x.getContentType()) || /\.pdf$/i.test(x.getName()))[0];
+      const a = pdf ? receiptPdfAmount_(payPdfText_(pdf.copyBlob())) : {amount: ''};
+      sh.getRange(i + 2, 4, 1, 2).setValues([[a.amount, a.amount ? a.cur : r[4]]]);
+      Logger.log(`${r[2]}: ${r[3]} → ${a.amount || 'empty'}`);
+    } catch (e) { Logger.log(r[2] + ': ' + e); }
+  });
+}
+
 // Nothing written: for each receipt with a PDF and no amount (up to 4), the PDF's text as read by OCR
 // and the amount found in it, to tune receiptPdfAmount_(). Also clears the "tried" list, so the next
 // updateReceipts() reads those PDFs again.
@@ -481,6 +497,25 @@ function testReceiptPdfs() {
     } catch (e) { Logger.log('=== ' + r[2] + ': ' + e); }
   });
   PropertiesService.getScriptProperties().deleteProperty('receiptsPdfTried');
+}
+
+// ---- Routine bills tab: charges entered by hand that repeat on a schedule (insurance premiums, standing
+// orders) rather than arriving by email. SheetPulse's Bills tab makes one charge per due month from each row
+// (a month that already has a Gmail bill from the same payee keeps that bill). Rows are typed or pasted from
+// SheetPulse ("+ Add a routine bill"); this script never changes them. Run setupRoutineBillsTab() once.
+// Columns: Payee | Category | Amount | Every (month, 2 months, 3 months, year) | Day (of the month) |
+// Start (yyyy-mm) | End (yyyy-mm, empty = still running) | Card (last 4) | Notes | Added.
+const ROUTINE_SHEET = 'Routine bills';
+const ROUTINE_HEADER = ['Payee', 'Category', 'Amount', 'Every', 'Day', 'Start', 'End', 'Card', 'Notes', 'Added'];
+function setupRoutineBillsTab() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss.getSheetByName(ROUTINE_SHEET)) { Logger.log('The Routine bills tab already exists; nothing changed.'); return; }
+  const sh = ss.insertSheet(ROUTINE_SHEET);
+  sh.getRange(1, 1, 1, ROUTINE_HEADER.length).setValues([ROUTINE_HEADER]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  sh.getRange('D:D').setNumberFormat('@');
+  sh.getRange('F:H').setNumberFormat('@');   // Start, End as text (yyyy-mm), Card keeps leading zeros
+  Logger.log('Routine bills tab created. Add one row per routine charge, or paste rows from SheetPulse.');
 }
 
 // Daily at 07:00 (Israel time of the script). Safe to run again: replaces only this script's trigger.
