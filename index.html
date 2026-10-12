@@ -1538,7 +1538,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791845878";
+const BUILD_ID = "1791846020";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6872,10 +6872,10 @@ function renderShopping(){
   all.forEach(o => { const n = notes[o.key]; o.noteLocal = n !== undefined && n !== o.sheetNote; o.note = o.noteLocal ? n : o.sheetNote; });
 
   // Deliveries still under way: orders not delivered, canceled, lost or refunded whose last email is
-  // recent (3 weeks at a pickup point, 45 days otherwise; stores rarely email the collection). Older ones
+  // recent (news in the last 3 months, chosen by the user on 13 Oct 2026). Older ones
   // keep the status their emails gave (no "probably" label) but leave Deliveries and the two cards.
   const open = all.filter(o => (!o.viaPayPal || o.markLocal || o.markedInSheet) && !['delivered', 'canceled', 'lost', 'refunded', 'paid'].includes(o.status) &&
-    now - o.last < (o.status === 'pickup' ? 21 : 45) * DAY)
+    now - o.last < 92 * DAY)   // news in the last 3 months (was 3 weeks at a pickup point, 45 days otherwise)
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
@@ -6920,7 +6920,7 @@ function renderShopping(){
   const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
   const deliveries = `
     <section class="pay-panel" id="shopDeliveries">
-      <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders from the last weeks that haven't arrived yet · hover a row for its emails</span>`}</div>
+      <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders with news in the last 3 months that haven't arrived yet · hover a row for its emails</span>`}</div>
       ${delivShown.length ? `<div class="pay-cards-list" style="display:block;">${delivShown.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
           <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small></div>
           <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pillBtn(o)}</div></div>`).join('')}</div>`
