@@ -552,6 +552,7 @@
   .rc-kind.skip{background:var(--paper); color:var(--muted);}
   .rc-ask{color:var(--muted) !important; font-weight:600;}
   .sheet-ok{color:var(--up-ink); font-weight:600;}
+  .pay-confirm-btns[hidden]{display:none;}
   .rc-flag{font-size:12px; color:var(--warn); font-weight:550;}
   .rc-kind.ask{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--ink);}
   /* Receipts → Shelf (option B): kept forever, a "say what these were for" tray, then cards. */
@@ -1537,7 +1538,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791843437";
+const BUILD_ID = "1791844260";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6863,7 +6864,7 @@ function renderShopping(){
   // Deliveries still under way: orders not delivered, canceled, lost or refunded whose last email is
   // recent (3 weeks at a pickup point, 45 days otherwise; stores rarely email the collection). Older ones
   // keep the status their emails gave (no "probably" label) but leave Deliveries and the two cards.
-  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) &&
+  const open = all.filter(o => (!o.viaPayPal || o.markLocal || o.markedInSheet) && !['delivered', 'canceled', 'lost', 'refunded', 'paid'].includes(o.status) &&
     now - o.last < (o.status === 'pickup' ? 21 : 45) * DAY)
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
@@ -6898,11 +6899,12 @@ function renderShopping(){
   // A PayPal receipt is a payment, not a delivery: it has no shipping emails to follow.
   const pill = o => o.viaPayPal && o.status === 'paid' ? '<span class="pay-pill paid">Paid</span>' :
     `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}${o.markLocal || o.markedInSheet || o.addedLocal ? ' · by you' : ''}</span>`;
-  // Any order's status can be set by hand (a PayPal payment has no delivery to set).
-  const markable = o => !o.viaPayPal;
+  // Any order's status can be set by hand, including one known only from its PayPal receipt (Temu,
+  // AliExpress): its emails never say where the package is, so you tell it.
+  const markable = () => true;
   const pillBtn = o => markable(o) ? `<button type="button" class="shop-mark shop-pill-btn" data-key="${esc(o.key)}" aria-label="Change the status" title="Click to change the status">${pill(o)}</button>` : pill(o);
   const receiptIds = new Set((receiptsList || []).map(x => x.id).concat(receiptsAddedGet().map(a => a.id)));
-  const keepBtn = o => o.status === 'delivered' && o.gross > 0 && !o.viaPayPal
+  const keepBtn = o => o.status === 'delivered' && o.gross > 0
     ? (receiptIds.has('order-' + o.key) ? '<span class="pay-sub">In Receipts ✓</span>' : `<button type="button" class="shop-note-btn shop-keep" data-key="${esc(o.key)}">Move to Receipts →</button>`) : '';
   const price = o => o.gross > 0 ? money(o.amount || o.gross, o.cur) + (o.refund > 0 && o.status !== 'refunded' ? `<div class="pay-sub">${money(o.refund, o.cur)} refunded</div>` : '') : '—';
   const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
@@ -7017,30 +7019,34 @@ function renderShopping(){
   // Setting a status by hand: saved on this device at once; the panel offers the row to paste into the
   // Shopping tab so every device sees it (Message id "manual").
   const panel = document.getElementById('shopMark') || document.createElement('div');
-  const MARK_CHOICES = [['ordered', 'Ordered'], ['shipped', 'On the way'], ['out for delivery', 'Out for delivery'], ['pickup', 'Ready for pickup'],
-    ['delivered', 'Delivered / picked up'], ['issue', 'Delivery issue'], ['canceled', 'Canceled'], ['lost', 'Lost, never arrived'], ['refunded', 'Refunded']];
-  const markBtns = o => MARK_CHOICES.map(([v, t]) => {
-    const cur = (SHOP_STATUS[o.status] || o.status) === (SHOP_STATUS[v] || v);
-    return `<button type="button" class="pay-chip${cur ? ' on' : ''}" data-act="${v}"${cur ? ' aria-pressed="true"' : ''}>${t}</button>`;
-  }).join('');
+  // The four outcomes you set by hand, and the rarer ones behind "More" (the in-between steps come with the
+  // emails). Canceled / refunded is one choice: either way the order is over and the money came back.
+  const MARK_MAIN = [['delivered', 'Delivered / picked up'], ['pickup', 'Ready for pickup'], ['shipped', 'On the way'], ['canceled', 'Canceled / refunded']];
+  const MARK_MORE = [['ordered', 'Ordered'], ['out for delivery', 'Out for delivery'], ['issue', 'Delivery issue'], ['lost', 'Lost, never arrived']];
+  const isCur = (o, v) => v === 'canceled' ? ['canceled', 'refunded'].includes(o.status) : (SHOP_STATUS[o.status] || o.status) === (SHOP_STATUS[v] || v);
+  const markChip = (o, [v, t]) => `<button type="button" class="pay-chip${isCur(o, v) ? ' on' : ''}" data-act="${v}"${isCur(o, v) ? ' aria-pressed="true"' : ''}>${t}</button>`;
+  const markBtns = (o, tail) => {
+    const moreOpen = MARK_MORE.some(c => isCur(o, c[0]));
+    return `<div class="pay-confirm-btns">${MARK_MAIN.map(c => markChip(o, c)).join('')}<button type="button" class="pay-chip" data-act="more" aria-expanded="${moreOpen}">More ▾</button>${tail || ''}</div>
+      <div class="pay-confirm-btns mark-more"${moreOpen ? '' : ' hidden'}>${MARK_MORE.map(c => markChip(o, c)).join('')}</div>`;
+  };
   const openMark = o => {
     const today = localYmd();
     const what = `<b>${esc(o.store)}</b> · ${esc(label(o))}`;
     if(o.markLocal){
       const mk = shopMarksGet()[o.key] || {};
-      const r = [mk.at || today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + (mk.ts || mk.at || today)].join('\t');
+      const r = [mk.at || today, o.store, o.no || '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + (mk.ts || mk.at || today)].join('\t');
       setTimeout(() => autoSaveSheet(panel, 'Shopping', r), 0);
       panel.dataset.row = r;
       panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
         <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there (the daily run keeps the tab sorted by date):<code>${esc(r.replace(/\t/g, ' │ '))}</code>
         <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
         <div class="pay-confirm-row">Change it again:</div>
-        <div class="pay-confirm-btns">${markBtns(o)}</div>
+        ${markBtns(o)}
         <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo (back to the emails)</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
     } else {
       panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. Set the status:</div>
-        <div class="pay-confirm-btns">${markBtns(o)}</div>
-        <div class="pay-confirm-btns">${o.addedLocal ? '<button type="button" class="pay-chip" data-act="delete">Delete this order</button>' : ''}<button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
+        ${markBtns(o, (o.addedLocal ? '<button type="button" class="pay-btn text" data-act="delete">Delete this order</button>' : '') + '<button type="button" class="pay-btn text" data-act="close">Cancel</button>')}`;
     }
     panel.hidden = false;
     panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
@@ -7048,6 +7054,7 @@ function renderShopping(){
       const act = b.dataset.act;
       if(act === 'close'){ panel.hidden = true; return; }
       if(act === 'copy'){ navigator.clipboard.writeText(panel.dataset.row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
+      if(act === 'more'){ const row = panel.querySelector('.mark-more'); row.hidden = !row.hidden; b.setAttribute('aria-expanded', String(!row.hidden)); return; }
       if(act === 'delete'){
         shopAddedSet(shopAddedGet().filter(a => !(a.store === o.store && a.no === o.no)));
         shoppingOrders = buildShopOrders(shoppingEvents.concat(shopAddedEvents(shoppingEvents)));
@@ -7070,7 +7077,7 @@ function renderShopping(){
   const openNote = o => {
     const box = document.getElementById('shopAdd'); if(!box) return;
     const today = localYmd();
-    const noteRow = text => [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', 'note', text, '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
+    const noteRow = text => [today, o.store, o.no || '', 'note', text, '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
     const what = `<b>${esc(o.store)}</b>${o.no && !/^PayPal /.test(o.no) ? ' · ' + esc(o.no) : o.trk.length ? ' · ' + esc(o.trk[0]) : ''}${o.items ? ' · ' + esc(o.items) : ''}`;
     box.innerHTML = `<div>Note for ${what}</div>
       <div class="shop-form"><label style="grid-column:1 / -1;">Note<input name="note" maxlength="200" value="${esc(o.note || '')}" placeholder="e.g. Kettle Ninja"></label></div>
