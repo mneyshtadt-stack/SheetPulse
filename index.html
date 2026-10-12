@@ -1426,7 +1426,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791808952";
+const BUILD_ID = "1791810790";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5473,7 +5473,12 @@ function payDateMs(v){
   const s = String(v == null ? '' : v).trim();
   let m;
   if((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return new Date(+m[1], m[2] - 1, +m[3], 12).getTime();
-  if((m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/))) return new Date(m[3].length === 2 ? 2000 + +m[3] : +m[3], m[2] - 1, +m[1], 12).getTime();
+  // Day first, as on Israeli bills; a "month" over 12 means the cell came out in US order (M/D/YYYY:
+  // a spreadsheet with US settings showing a real date cell), so that one is read month first.
+  if((m = s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/))){
+    const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    return +m[2] > 12 && +m[1] <= 12 ? new Date(y, m[1] - 1, +m[2], 12).getTime() : new Date(y, m[2] - 1, +m[1], 12).getTime();
+  }
   if(/^\d{5}(\.\d+)?$/.test(s)){ const d = new Date(Date.UTC(1899, 11, 30) + Math.floor(+s) * 86400000); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12).getTime(); }
   return NaN;
 }
@@ -5485,9 +5490,14 @@ async function fetchPayments(){
   const c = name => h.indexOf(name);
   const cD = c('date'), cP = c('payee'), cC = c('category'), cA = c('amount'), cPer = c('period'), cDue = c('due date'), cCard = c('card'), cAdd = c('added'), cMsg = c('message id');
   if(cP < 0 || cA < 0) throw new Error('The Payments tab has no Payee / Amount header');
-  const out = [];
+  const out = [], notes = [];
   for(let i = 1; i < t.length; i++){
     const r = t[i], payee = String(r[cP] || '').trim(), amount = num(r[cA]);
+    if(cMsg >= 0 && /^note/i.test(String(r[cMsg] || '').trim())){
+      const ms = payDateMs(r[cD]), text = cPer >= 0 ? String(r[cPer] || '').trim() : '';
+      if(payee && text && !isNaN(ms)) notes.push({payee, ms, text});
+      continue;
+    }
     // A row typed in by hand ("manual" in Added or Message id) confirms a bill that has no email;
     // its amount is optional.
     const manual = /^manual/i.test(String(cAdd >= 0 ? r[cAdd] || '' : '').trim()) || /^manual/i.test(String(cMsg >= 0 ? r[cMsg] || '' : '').trim());
@@ -5498,6 +5508,11 @@ async function fetchPayments(){
     out.push({payee, category: String(r[cC] || 'Other').trim() || 'Other', amount: amount > 0 ? amount : 0, date, due, charge, manual,
       period: cPer >= 0 ? String(r[cPer] || '').trim() : '', card: cCard >= 0 ? String(r[cCard] || '').trim() : ''});
   }
+  // Each note on the bill of the same payee charged that day (else the nearest one within 15 days).
+  notes.forEach(n => {
+    const same = out.filter(p => p.payee === n.payee).sort((a, b) => Math.abs(a.charge - n.ms) - Math.abs(b.charge - n.ms));
+    if(same.length && Math.abs(same[0].charge - n.ms) <= 15 * 86400000) same[0].sheetNote = n.text;
+  });
   return out.sort((a, b) => b.charge - a.charge);
 }
 async function openPaymentsDetail(){
@@ -5612,6 +5627,9 @@ function payBillStatus(list, now, monthKey){
 // Also the bills hidden in Bill check (key sp_payCheckHidden).
 function payChartHiddenGet(key){ try{ const a = JSON.parse(localStorage.getItem(key || 'sp_payChartHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
 function payChartHiddenSet(a, key){ try{ localStorage.setItem(key || 'sp_payChartHidden', JSON.stringify(a)); } catch(_){} }
+// Notes on bills set on this device: {"payee|yyyy-mm-dd|amount": "text"}.
+function payNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_payNotes') || '{}') || {}; } catch(_){ return {}; } }
+function payNotesSet(m){ try{ localStorage.setItem('sp_payNotes', JSON.stringify(m)); } catch(_){} }
 function payConfirmedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payConfirmed') || '{}') || {}; } catch(_){ return {}; } }
 function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.stringify(m)); } catch(_){} }
 function renderPayments(){
@@ -5719,17 +5737,23 @@ function renderPayments(){
   const shown = paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list;
   const pill = p => p.manual ? `<span class="pay-pill mark">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.charge > now ? '<span class="pay-pill due">to be charged</span>' : '<span class="pay-pill paid">paid</span>';
   const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
+  const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const noteKey = p => p.payee + '|' + ymdOf(p.charge) + '|' + (p.amount || 0).toFixed(2);
+  const payNotes = payNotesGet();
+  list.forEach(p => { const n = payNotes[noteKey(p)]; p.noteLocal = n !== undefined && n !== (p.sheetNote || ''); p.note = p.noteLocal ? n : (p.sheetNote || ''); });
+  const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button>`;
   const rows = shown.slice(0, 60);
   const bills = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>All bills</h3>
         <div class="pay-chips"><button type="button" class="pay-chip${paymentsFilter ? '' : ' on'}" data-cat="">All</button>${cats.map(cat => `<button type="button" class="pay-chip${paymentsFilter === cat ? ' on' : ''}" data-cat="${esc(cat)}"><i style="background:${colorOf(cat)}"></i>${esc(cat)}</button>`).join('')}</div></div>
+      <div id="payNote" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Charged</th><th>Bill</th><th>Period</th><th>Card</th><th>Status</th><th class="num">Amount</th></tr></thead>
-        <tbody>${rows.map(p => `<tr><td>${day(p.charge)}</td><td class="md-th-symbol">${dot(p.category)}${esc(p.payee)}</td><td>${esc(p.period) || '—'}</td><td>${p.card ? '•• ' + esc(p.card) : '—'}</td><td>${pill(p)}</td><td class="num">${amt(p)}</td></tr>`).join('')}</tbody>
+        <tbody>${rows.map(p => `<tr><td>${day(p.charge)}</td><td class="md-th-symbol">${dot(p.category)}${esc(p.payee)}${noteHtml(p)}</td><td>${esc(p.period) || '—'}</td><td>${p.card ? '•• ' + esc(p.card) : '—'}</td><td>${pill(p)}</td><td class="num">${amt(p)}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${rows.map(p => `<div class="pay-bill">${dot(p.category)}
-        <div class="pay-cat-main"><b>${esc(p.payee)}</b><small>${dayShort(p.charge)}${p.period ? ' · ' + esc(p.period) : ''}${p.card ? ' · •• ' + esc(p.card) : ''}</small></div>
+        <div class="pay-cat-main"><b>${esc(p.payee)}</b><small>${dayShort(p.charge)}${p.period ? ' · ' + esc(p.period) : ''}${p.card ? ' · •• ' + esc(p.card) : ''}</small>${noteHtml(p)}</div>
         <div class="pay-cat-num"><b>${amt(p)}</b>${pill(p)}</div></div>`).join('')}</div>
       ${shown.length > 60 ? `<div class="pm-note">Showing the latest 60 of ${shown.length}.</div>` : ''}
     </section>`;
@@ -5805,6 +5829,48 @@ function renderPayments(){
   });
   // Marking a missing bill paid: one click saves it on this device; the panel then offers the row to
   // paste into the Payments tab so every device sees it. Clicking a month you marked offers Undo.
+  // A note on a bill: saved on this device at once; the panel gives the row to paste into the Payments tab
+  // (Message id "note", the text in Period, Date = the bill's charge date) so every device shows it.
+  const openPayNote = p => {
+    const box = document.getElementById('payNote'); if(!box) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const what = `<b>${esc(p.payee)}</b> · ${day(p.charge)}${p.amount > 0 ? ' · ' + fmt2(p.amount) : ''}`;
+    box.innerHTML = `<div>Note for ${what}</div>
+      <div class="shop-form"><label style="grid-column:1 / -1;">Note<input name="note" maxlength="200" value="${esc(p.note || '')}" placeholder="e.g. paid by bank transfer"></label></div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-n="save">Save note</button>${p.note ? '<button type="button" class="pay-chip" data-n="remove">Remove note</button>' : ''}<button type="button" class="pay-chip" data-n="cancel">Cancel</button></div>`;
+    box.hidden = false;
+    const input = box.querySelector('[name="note"]');
+    input.focus(); input.select();
+    const done = text => {
+      const n = payNotesGet(), key = noteKey(p);
+      if(text) n[key] = text; else delete n[key];
+      payNotesSet(n);
+      const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+      renderPayments();
+      if(body) body.scrollTop = top;
+      if(!text) return;
+      const b2 = document.getElementById('payNote'); if(!b2) return;
+      const r = [ymdOf(p.charge), p.payee, p.category, '', text, '', '', '', '', 'note', 'note ' + today].join('\t');
+      b2.dataset.rows = r;
+      b2.innerHTML = `<div>Note saved on this device for ${what}: <b>${esc(text)}</b></div>
+        <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Payments tab and paste it there:<code>${esc(r).replace(/\t/g, ' │ ')}</code>
+        <button type="button" class="pay-chip" data-n="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-n="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-n="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.rows).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+      b2.querySelector('[data-n="close"]').addEventListener('click', () => { b2.hidden = true; });
+      b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    };
+    box.querySelector('[data-n="save"]').addEventListener('click', () => done(input.value.trim()));
+    input.addEventListener('keydown', ev => { if(ev.key === 'Enter') done(input.value.trim()); });
+    const rm = box.querySelector('[data-n="remove"]'); if(rm) rm.addEventListener('click', () => done(''));
+    box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  area.querySelectorAll('.pay-note-btn').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const p = list[Number(b.dataset.i)]; if(p) openPayNote(p);
+  }));
   const panel = document.getElementById('payConfirm');
   const openConfirm = (s, k) => {
     const key = s.payee + '|' + k, c = s.months[k], mine = !!confirmed[key];
