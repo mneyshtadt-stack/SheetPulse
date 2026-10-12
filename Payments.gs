@@ -168,14 +168,22 @@ function paySeenSheet_() {
 function payTidy_(sh, seenSh) {
   const last = sh.getLastRow();
   if (last < 2) return;
+  const tz = Session.getScriptTimeZone();
   const all = sh.getRange(2, 1, last - 1, PAY_HEADER.length).getValues();
-  const keep = all.filter(r => String(r[1]).trim());
-  const skipped = all.filter(r => !String(r[1]).trim() && String(r[PAY_COL_MSG - 1]).trim());
-  if (skipped.length) {
-    seenSh.getRange(seenSh.getLastRow() + 1, 1, skipped.length, 2).setValues(skipped.map(r => [String(r[PAY_COL_MSG - 1]), r[PAY_HEADER.length - 1]]));
-    sh.getRange(2, 1, last - 1, PAY_HEADER.length).clearContent();
-    if (keep.length) sh.getRange(2, 1, keep.length, PAY_HEADER.length).setValues(keep);
-  }
+  // Column A is a real date; Period, Invoice date, Due date, Card, Invoice no, Message id and Added are
+  // text as the bills print them. A rewrite once turned "08/10/2026" into a date read the US way
+  // (Aug 10): such a cell becomes text again, day and month swapped back ("08/10/2026").
+  const asText = (v, isDate) => v instanceof Date
+    ? (isDate ? Utilities.formatDate(v, tz, 'MM/dd/yyyy') : Utilities.formatDate(v, tz, 'yyyy-MM-dd'))
+    : String(v);
+  const fixed = all.map(r => r.map((v, c) => c === 0 ? v : c === 3 ? v : c === 5 || c === 6 ? asText(v, true) : c === 1 || c === 2 ? v : asText(v, false)));
+  const keep = fixed.filter(r => String(r[1]).trim());
+  const skipped = fixed.filter(r => !String(r[1]).trim() && String(r[PAY_COL_MSG - 1]).trim());
+  if (skipped.length) seenSh.getRange(seenSh.getLastRow() + 1, 1, skipped.length, 2).setValues(skipped.map(r => [String(r[PAY_COL_MSG - 1]), r[PAY_HEADER.length - 1]]));
+  sh.getRange(2, 1, last - 1, PAY_HEADER.length).clearContent();
+  sh.getRange('A:A').setNumberFormat('yyyy-mm-dd');
+  sh.getRange('E:K').setNumberFormat('@');
+  if (keep.length) sh.getRange(2, 1, keep.length, PAY_HEADER.length).setValues(keep);
   if (keep.length > 1) sh.getRange(2, 1, keep.length, PAY_HEADER.length).sort({column: 1, ascending: false});
 }
 
