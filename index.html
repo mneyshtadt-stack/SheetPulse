@@ -484,7 +484,26 @@
   .pm-note{font-size:12.5px; color:var(--muted); padding:18px 0; line-height:1.5;}
   /* Payments window (design canvas "SheetPulse Payments tab", Oct 2026): status cards, bill check grid,
      chart + categories side by side, bill list (cards on phones). */
-  .pay-top{display:flex; justify-content:flex-end; margin-bottom:12px;}
+  .pay-top{display:flex; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  /* Bills | Contracts */
+  .pay-view{display:flex; gap:2px; padding:3px; background:var(--panel); border:1px solid var(--line); border-radius:8px; margin-right:auto;}
+  .pay-view-btn{font-family:var(--sans); font-size:13px; font-weight:500; color:var(--muted); background:transparent; border:0; border-radius:6px; padding:6px 16px; min-height:32px; cursor:pointer;}
+  .pay-view-btn.on{background:var(--accent); color:var(--on-accent);}
+  .pay-view-btn:not(.on):hover{background:var(--hover); color:var(--ink);}
+  .ct-list{display:flex; flex-direction:column;}
+  .ct-item{display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 1.2fr) auto; gap:6px 18px; align-items:start; padding:14px 0; border-top:1px solid var(--line);}
+  .ct-item:first-child{border-top:0;}
+  .ct-item.ended{opacity:.6;}
+  .ct-main{display:flex; flex-direction:column; gap:3px; min-width:0;}
+  .ct-main b{font-size:14px; color:var(--ink); font-weight:600;}
+  .ct-main small{font-size:12px; color:var(--muted);}
+  .ct-covers{font-size:12.5px; color:var(--ink);}
+  .ct-when{font-size:12.5px; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .ct-cost{display:flex; flex-direction:column; align-items:flex-end; gap:4px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .ct-cost b{font-size:13.5px; color:var(--ink);}
+  .ct-bar{height:4px; border-radius:2px; background:var(--line); margin-top:6px; max-width:180px; overflow:hidden;}
+  .ct-bar i{display:block; height:100%; background:var(--accent);}
+  @media (max-width:600px){ .ct-item{grid-template-columns:minmax(0, 1fr) auto;} .ct-when{grid-column:1 / -1; grid-row:2;} }
   .pay-sub{font-size:11px; color:var(--muted);}
   .pay-dot{display:inline-block; flex:none; width:10px; height:10px; border-radius:3px; margin-right:8px; vertical-align:-1px;}
   .pay-chips{display:flex; flex-wrap:wrap; gap:6px;}
@@ -1430,7 +1449,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791811735";
+const BUILD_ID = "1791814567";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5469,7 +5488,7 @@ async function loadNetWorthYear(year){
 const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
-let paymentsList = null, paymentsFilter = '', paymentsRange = 0;
+let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '';
 
 // A date cell as local-noon ms: yyyy-mm-dd, dd/mm/yy(yy) (day first, as on Israeli bills) or a
 // Sheets serial day number. NaN if empty or unreadable.
@@ -5519,6 +5538,219 @@ async function fetchPayments(){
   });
   return out.sort((a, b) => b.charge - a.charge);
 }
+function payViewSwitch(){
+  return `<div class="pay-view" role="tablist" aria-label="Payments view">${[['bills', 'Bills'], ['contracts', 'Contracts'], ['receipts', 'Receipts']].map(([v, t]) =>
+    `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}">${t}</button>`).join('')}</div>`;
+}
+document.addEventListener('click', ev => {
+  const b = ev.target.closest && ev.target.closest('.pay-view-btn');
+  if(!b || b.dataset.view === paymentsView) return;
+  paymentsView = b.dataset.view;
+  renderPayments();
+});
+
+// ---- Contracts (Payments window → Contracts): warranties, service plans, insurance, from the Contracts tab
+// of the same spreadsheet (setupContractsTab() in Payments.gs creates it): Name | Provider | Type | Reference
+// | Start | End | Cost | Per (once / month / year) | Covers | Notes | Link | Added. Contracts added in the
+// window are kept on this device until the same Name + Reference is in the tab.
+const CONTRACTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Contracts');
+function contractsAddedGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_contractsAdded') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
+function contractsAddedSet(a){ try{ localStorage.setItem('sp_contractsAdded', JSON.stringify(a)); } catch(_){} }
+async function fetchContracts(){
+  const res = await fetchViaProxy(CONTRACTS_CSV_URL);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+  const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
+  if(h.indexOf('name') < 0) throw new Error('no Contracts tab yet');
+  const c = name => h.indexOf(name), v = (r, name) => c(name) >= 0 ? String(r[c(name)] || '').trim() : '';
+  const out = [];
+  for(let i = 1; i < t.length; i++){
+    const r = t[i];
+    if(!v(r, 'name') || /^hidden$/i.test(v(r, 'type'))) continue;
+    out.push({name: v(r, 'name'), provider: v(r, 'provider'), type: v(r, 'type') || 'Other', ref: v(r, 'reference'),
+      start: payDateMs(v(r, 'start')), end: payDateMs(v(r, 'end')), cost: num(v(r, 'cost')), per: (v(r, 'per') || 'once').toLowerCase(),
+      covers: v(r, 'covers'), notes: v(r, 'notes'), link: v(r, 'link')});
+  }
+  return out;
+}
+function renderContracts(area){
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const fmt2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
+  const DAY = 86400000, now = Date.now();
+  if(!contractsList){
+    area.innerHTML = `<div class="pay-top">${payViewSwitch()}</div><div class="pm-note">Loading contracts…</div>`;
+    fetchContracts().then(l => { contractsList = l; renderContracts(area); }).catch(e => {
+      contractsList = [];
+      contractsList.error = String(e.message).replace(/[<>&]/g, '');
+      renderContracts(area);
+    });
+    return;
+  }
+  const inSheet = new Set(contractsList.map(k => k.name + '|' + k.ref));
+  const added = contractsAddedGet().filter(a => !inSheet.has(a.name + '|' + (a.ref || ''))).map(a => ({...a, start: payDateMs(a.start), end: payDateMs(a.end), cost: Number(a.cost) || NaN, local: true}));
+  const all = contractsList.concat(added);
+  // Status: ended, ends within 90 days, active (or open-ended), not started yet.
+  all.forEach(k => {
+    k.state = !isNaN(k.start) && k.start > now ? 'upcoming' : !isNaN(k.end) && k.end < now ? 'ended' : !isNaN(k.end) && k.end - now <= 90 * DAY ? 'soon' : 'active';
+    k.monthly = !(k.cost > 0) ? 0 : k.per === 'month' ? k.cost : k.per === 'year' ? k.cost / 12 : 0;
+  });
+  const live = all.filter(k => k.state !== 'ended');
+  const soon = all.filter(k => k.state === 'soon').sort((a, b) => a.end - b.end);
+  const monthly = live.reduce((a, k) => a + k.monthly, 0);
+  const nextEnd = live.filter(k => !isNaN(k.end)).sort((a, b) => a.end - b.end)[0];
+  const left = ms => { const d = Math.round((ms - now) / DAY); return d < 0 ? 'ended ' + day(ms) : d < 60 ? d + ' days left' : d < 730 ? Math.round(d / 30.4) + ' months left' : (d / 365.25).toFixed(1).replace(/\.0$/, '') + ' years left'; };
+  const types = [...new Set(all.map(k => k.type))].sort();
+  const shown = (contractsType ? all.filter(k => k.type === contractsType) : all).sort((a, b) =>
+    (a.state === 'ended') - (b.state === 'ended') || (isNaN(a.end) ? Infinity : a.end) - (isNaN(b.end) ? Infinity : b.end));
+  const pill = k => `<span class="pay-pill ${k.state === 'ended' ? 'muted' : k.state === 'soon' ? 'wait' : k.state === 'upcoming' ? 'due' : 'paid'}">${k.state === 'ended' ? 'Ended' : k.state === 'soon' ? 'Ends soon' : k.state === 'upcoming' ? 'Starts ' + day(k.start) : 'Active'}${k.local ? ' · this device' : ''}</span>`;
+  const costTxt = k => k.cost > 0 ? fmt2(k.cost) + (k.per === 'month' ? ' a month' : k.per === 'year' ? ' a year' : ' once') : '—';
+  // How far through the contract: a thin bar from start to end.
+  const bar = k => {
+    if(isNaN(k.start) || isNaN(k.end) || k.end <= k.start) return '';
+    const f = Math.max(0, Math.min(1, (now - k.start) / (k.end - k.start)));
+    return `<div class="ct-bar" title="${Math.round(f * 100)}% of the way through"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
+  };
+  const period = k => `${isNaN(k.start) ? '—' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}${!isNaN(k.end) ? `<div class="pay-sub">${left(k.end)}</div>` : ''}${bar(k)}`;
+  area.innerHTML = `
+    <div class="pay-top">${payViewSwitch()}</div>
+    ${contractsList.error ? `<div class="pm-note">The Contracts tab isn't there yet (${contractsList.error}): run <b>setupContractsTab()</b> in the Payments spreadsheet's Apps Script. It creates the tab and fills it from the Gmail label payments-contracts.</div>` : ''}
+    <div class="pay-cards">
+      <div class="pay-card"><div class="pay-card-label">Active</div><div class="pay-card-val">${live.length} contract${live.length === 1 ? '' : 's'}</div>
+        <div class="pay-card-sub">${types.filter(t => live.some(k => k.type === t)).map(t => `${esc(t)} ${live.filter(k => k.type === t).length}`).join(' · ') || 'None yet'}</div></div>
+      <div class="pay-card"><div class="pay-card-label">Paying for them</div><div class="pay-card-val">${fmt(monthly)} a month</div>
+        <div class="pay-card-sub">${fmt(monthly * 12)} a year · contracts billed monthly or yearly</div></div>
+      <div class="pay-card${soon.length ? ' wait' : ''}"><div class="pay-card-label">Ending within 3 months${soon.length ? ' · ' + soon.length : ''}</div>
+        <div class="pay-card-val">${soon.length ? soon.map(k => esc(k.name)).join(', ') : 'Nothing ends soon'}</div>
+        <div class="pay-card-sub">${soon.length ? soon.map(k => `${day(k.end)} · ${left(k.end)}`).join('<br>') : nextEnd ? `Next: ${esc(nextEnd.name)}, ${day(nextEnd.end)} (${left(nextEnd.end)})` : 'No end dates entered.'}</div></div>
+    </div>
+    <section class="pay-panel">
+      <div class="pay-panel-head"><h3>Contracts</h3>
+        <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="">All</button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}">${esc(t)}</button>`).join('')}<button type="button" class="pay-chip ct-add">+ Add a contract</button></div></div>
+      <div id="ctAdd" class="pay-confirm" hidden></div>
+      ${shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
+        <div class="ct-main"><b>${esc(k.name)}</b><small>${esc(k.provider)}${k.provider && k.type ? ' · ' : ''}${esc(k.type)}${k.ref ? ' · ' + esc(k.ref) : ''}</small>
+          ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="pay-sub">${esc(k.notes)}</div>` : ''}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div>
+        <div class="ct-when">${period(k)}</div>
+        <div class="ct-cost"><b>${costTxt(k)}</b>${pill(k)}</div></div>`).join('')}</div>`
+        : `<div class="pm-note">No contracts yet.</div>`}
+    </section>`;
+
+  area.querySelectorAll('[data-ctype]').forEach(b => b.addEventListener('click', () => { contractsType = b.dataset.ctype; renderContracts(area); }));
+  // Add a contract: saved on this device; the panel gives the row to paste into the Contracts tab.
+  const addBtn = area.querySelector('.ct-add'), box = document.getElementById('ctAdd');
+  addBtn.addEventListener('click', () => {
+    box.innerHTML = `<div><b>Add a contract</b> · a warranty, service plan, insurance policy or subscription</div>
+      <div class="shop-form">
+        <label>Name<input name="name" placeholder="e.g. Fridge warranty" required></label>
+        <label>Provider<input name="provider" placeholder="who it's with"></label>
+        <label>Type<input name="type" list="ctTypes" placeholder="Warranty, Insurance…"></label>
+        <datalist id="ctTypes">${[...new Set(types.concat(['Warranty', 'Insurance', 'Service plan', 'Utility plan', 'Subscription', 'Loan']))].map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+        <label>Reference<input name="ref" placeholder="policy / contract no."></label>
+        <label>Start<input type="date" name="start"></label>
+        <label>End<input type="date" name="end"></label>
+        <label>Cost<input name="cost" type="number" step="0.01" min="0" placeholder="0.00"></label>
+        <label>Per<select name="per"><option value="once">once</option><option value="month">month</option><option value="year">year</option></select></label>
+        <label style="grid-column:1 / -1;">Covers<input name="covers" placeholder="what it covers"></label>
+        <label style="grid-column:1 / -1;">Notes<input name="notes" placeholder="phone, conditions, renewal…"></label>
+      </div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-c="save">Add</button><button type="button" class="pay-chip" data-c="cancel">Cancel</button><span class="shop-form-err" hidden>A name is needed.</span></div>`;
+    box.hidden = false;
+    box.querySelector('[data-c="cancel"]').addEventListener('click', () => { box.hidden = true; });
+    box.querySelector('[data-c="save"]').addEventListener('click', () => {
+      const f = n => (box.querySelector(`[name="${n}"]`).value || '').trim();
+      if(!f('name')){ box.querySelector('.shop-form-err').hidden = false; return; }
+      const a = {name: f('name'), provider: f('provider'), type: f('type') || 'Other', ref: f('ref'), start: f('start'), end: f('end'),
+        cost: Number(f('cost')) > 0 ? Number(f('cost')) : '', per: f('per'), covers: f('covers'), notes: f('notes'), link: ''};
+      contractsAddedSet(contractsAddedGet().concat([a]));
+      renderContracts(area);
+      const today = new Date().toISOString().slice(0, 10);
+      const r = [a.name, a.provider, a.type, a.ref, a.start, a.end, a.cost, a.per, a.covers, a.notes, '', today].join('\t');
+      const b2 = document.getElementById('ctAdd');
+      b2.dataset.row = r;
+      b2.innerHTML = `<div><b>${esc(a.name)}</b>: added on this device.</div>
+        <div class="pay-confirm-row">To keep it on every device, paste this row under the header of the Contracts tab:<code>${esc(r).replace(/\t/g, ' │ ')}</code>
+        <button type="button" class="pay-chip" data-c="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-c="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-c="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+      b2.querySelector('[data-c="close"]').addEventListener('click', () => { b2.hidden = true; });
+    });
+    box.querySelector('[name="name"]').focus();
+  });
+}
+
+// ---- Receipts (Payments window → Receipts): the Receipts tab, one row per email in the Gmail label
+// payments-receipts (updateReceipts() in Payments.gs): Date | From | Subject | Amount | Currency |
+// Attachments | Link | Message id | Notes. Search over everything; year chips; totals in ₪ (USD at that
+// day's rate, EUR approximately).
+const RECEIPTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Receipts');
+async function fetchReceipts(){
+  const res = await fetchViaProxy(RECEIPTS_CSV_URL);
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
+  const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
+  if(h.indexOf('subject') < 0) throw new Error('no Receipts tab yet');
+  const v = (r, name) => h.indexOf(name) >= 0 ? String(r[h.indexOf(name)] || '').trim() : '';
+  return t.slice(1).map(r => ({ms: payDateMs(v(r, 'date')), from: v(r, 'from'), subject: v(r, 'subject'), amount: num(v(r, 'amount')),
+    cur: (v(r, 'currency') || 'ILS').toUpperCase(), files: v(r, 'attachments'), link: v(r, 'link'), notes: v(r, 'notes')}))
+    .filter(x => !isNaN(x.ms) && (x.subject || x.from)).sort((a, b) => b.ms - a.ms);
+}
+function renderReceipts(area){
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
+  const money = (n, cur) => (cur === 'USD' ? '$' : cur === 'EUR' ? '€' : '₪') + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  if(!receiptsList){
+    area.innerHTML = `<div class="pay-top">${payViewSwitch()}</div><div class="pm-note">Loading receipts…</div>`;
+    fetchReceipts().then(l => { receiptsList = l; renderReceipts(area); }).catch(e => {
+      receiptsList = [];
+      receiptsList.error = String(e.message).replace(/[<>&]/g, '');
+      renderReceipts(area);
+    });
+    return;
+  }
+  const rateOn = ms => { const d = new Date(ms); return (usdIlsOn(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')) || {}).rate || window.lastFxQ1 || 3.7; };
+  const ils = x => !(x.amount > 0) ? 0 : x.cur === 'USD' ? x.amount * rateOn(x.ms) : x.cur === 'EUR' ? x.amount * SHOP_FX_USD.EUR * rateOn(x.ms) : x.amount;
+  const yearOf = x => String(new Date(x.ms).getFullYear());
+  const years = [...new Set(receiptsList.map(yearOf))].sort().reverse();
+  const q = receiptsQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = x => [x.from, x.subject, x.files, x.notes, day(x.ms), x.amount > 0 ? x.amount.toFixed(2) : ''].join(' ').toLowerCase();
+  const shown = receiptsList.filter(x => (q.length ? q.every(w => hay(x).includes(w)) : (!receiptsYear || yearOf(x) === receiptsYear)));
+  const thisY = String(new Date().getFullYear()), inY = receiptsList.filter(x => yearOf(x) === thisY);
+  const total = l => l.reduce((a, x) => a + ils(x), 0);
+  area.innerHTML = `
+    <div class="pay-top">${payViewSwitch()}</div>
+    ${receiptsList.error ? `<div class="pm-note">The Receipts tab isn't there yet (${receiptsList.error}): put receipts in the Gmail label <b>payments-receipts</b> and run <b>updateReceipts()</b> in the Payments spreadsheet's Apps Script (it then runs daily with updatePayments).</div>` : ''}
+    <div class="pay-cards">
+      <div class="pay-card"><div class="pay-card-label">Receipts</div><div class="pay-card-val">${receiptsList.length}</div>
+        <div class="pay-card-sub">${receiptsList.length ? 'Since ' + day(receiptsList[receiptsList.length - 1].ms) : 'None yet'}</div></div>
+      <div class="pay-card"><div class="pay-card-label">${thisY}</div><div class="pay-card-val">${fmt(total(inY))}</div>
+        <div class="pay-card-sub">${inY.length} receipt${inY.length === 1 ? '' : 's'}${inY.some(x => !(x.amount > 0)) ? ` · ${inY.filter(x => !(x.amount > 0)).length} without an amount` : ''}</div></div>
+      <div class="pay-card"><div class="pay-card-label">${q.length ? 'Found' : receiptsYear || 'All years'}</div><div class="pay-card-val">${fmt(total(shown))}</div>
+        <div class="pay-card-sub">${shown.length} shown</div></div>
+    </div>
+    <section class="pay-panel">
+      <div class="pay-panel-head"><h3>Receipts</h3>
+        <div class="pay-chips"><input type="search" class="shop-search rc-search" placeholder="Search store, item, amount, date" value="${esc(receiptsQuery)}" aria-label="Search receipts">
+          <button type="button" class="pay-chip${receiptsYear ? '' : ' on'}" data-ryear="">All</button>${years.map(y => `<button type="button" class="pay-chip${receiptsYear === y ? ' on' : ''}" data-ryear="${y}">${y}</button>`).join('')}</div></div>
+      ${shown.length ? `<div class="ct-list">${shown.map(x => `<div class="ct-item">
+        <div class="ct-main"><b>${esc(x.from)}</b><small>${esc(x.subject)}</small>${x.notes ? `<div class="pay-sub">${esc(x.notes)}</div>` : ''}${x.files ? `<div class="pay-sub">📎 ${esc(x.files)}</div>` : ''}</div>
+        <div class="ct-when">${day(x.ms)}</div>
+        <div class="ct-cost"><b>${x.amount > 0 ? money(x.amount, x.cur) : '—'}</b>${x.link ? `<a class="pay-sub" href="${esc(x.link)}" target="_blank" rel="noopener">Open the email</a>` : ''}</div></div>`).join('')}</div>`
+        : `<div class="pm-note">${receiptsList.length ? 'Nothing matches.' : 'No receipts yet.'}</div>`}
+    </section>`;
+  area.querySelectorAll('[data-ryear]').forEach(b => b.addEventListener('click', () => { receiptsYear = b.dataset.ryear; renderReceipts(area); }));
+  const search = area.querySelector('.rc-search');
+  search.addEventListener('input', () => {
+    receiptsQuery = search.value;
+    const pos = search.selectionStart;
+    renderReceipts(area);
+    const s2 = area.querySelector('.rc-search'); s2.focus(); s2.setSelectionRange(pos, pos);
+  });
+}
+
 async function openPaymentsDetail(){
   document.getElementById('marketDetailTitle').textContent = 'Payments';
   document.getElementById('marketDetailSubtitle').textContent = 'Monthly bills, from Gmail';
@@ -5639,6 +5871,8 @@ function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.s
 function renderPayments(){
   const area = document.getElementById('payArea');
   if(!area || !paymentsList) return;
+  if(paymentsView === 'contracts'){ renderContracts(area); return; }
+  if(paymentsView === 'receipts'){ renderReceipts(area); return; }
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const fmt2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -5763,7 +5997,7 @@ function renderPayments(){
     </section>`;
 
   area.innerHTML = `
-    <div class="pay-top"><div class="pay-chips" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div></div>
+    <div class="pay-top">${payViewSwitch()}<div class="pay-chips" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div></div>
     ${cards}
     ${check}
     <div class="pay-row">
@@ -6072,12 +6306,9 @@ function renderShopping(){
   const notes = shopNotesGet();
   all.forEach(o => { const n = notes[o.key]; o.noteLocal = n !== undefined && n !== o.sheetNote; o.note = o.noteLocal ? n : o.sheetNote; });
 
-  // Deliveries still under way: recent orders not delivered, canceled or refunded. One whose last email is
-  // older (3 weeks at a pickup point, 45 days otherwise; stores rarely email the collection) is "stale":
-  // shown everywhere as probably picked up / delivered, until set by hand.
-  all.forEach(o => { o.stale = !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) &&
-    now - o.last >= (o.status === 'pickup' ? 21 : 45) * DAY; });
-  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) && !o.stale)
+  // Deliveries still under way: orders not delivered, canceled, lost or refunded (set the status by hand
+  // when the emails stop).
+  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status))
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
@@ -6105,9 +6336,7 @@ function renderShopping(){
 
   const pillCls = st => st === 'delivered' ? 'paid' : st === 'pickup' ? 'wait' : ['issue', 'canceled', 'lost'].includes(st) ? 'bad' : st === 'refunded' ? 'muted' : 'due';
   // A PayPal receipt is a payment, not a delivery: it has no shipping emails to follow.
-  const staleLabel = o => o.status === 'pickup' ? 'Probably picked up' : 'Probably delivered';
   const pill = o => o.viaPayPal && o.status === 'paid' ? '<span class="pay-pill paid">Paid</span>' :
-    o.stale ? `<span class="pay-pill muted" title="The last email (${dayShort(o.last)} ${new Date(o.last).getFullYear()}) said ${esc(SHOP_STATUS[o.status] || o.status)}; nothing since. Change sets it for sure.">${staleLabel(o)}${o.markLocal || o.markedInSheet || o.addedLocal ? ' · by you' : ''}</span>` :
     `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}${o.markLocal || o.markedInSheet || o.addedLocal ? ' · by you' : ''}</span>`;
   // Any order's status can be set by hand (a PayPal payment has no delivery to set).
   const markable = o => !o.viaPayPal;
@@ -6146,14 +6375,14 @@ function renderShopping(){
   const q = shoppingQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const hay = o => [o.items, o.note, o.store, o.no, o.trk.join(' '), day(o.first), ymd(o.first),
     o.gross > 0 ? o.gross.toFixed(2) + ' ' + money(o.gross, o.cur) : '', o.amount > 0 ? o.amount.toFixed(2) : '',
-    o.ils > 0 ? Math.round(o.ils) + ' ' + fmt(o.ils) : '', SHOP_STATUS[o.status] || '', o.stale ? staleLabel(o) : ''].join(' ').toLowerCase().replace(/,/g, '');
+    o.ils > 0 ? Math.round(o.ils) + ' ' + fmt(o.ils) : '', SHOP_STATUS[o.status] || ''].join(' ').toLowerCase().replace(/,/g, '');
   // Status filter (All orders): by the label each order shows, a PayPal receipt being "Paid".
-  const statusOf = o => o.viaPayPal && o.status === 'paid' ? 'Paid' : o.stale ? staleLabel(o) : (SHOP_STATUS[o.status] || o.status);
+  const statusOf = o => o.viaPayPal && o.status === 'paid' ? 'Paid' : (SHOP_STATUS[o.status] || o.status);
   const byStoreAndText = (shoppingStore ? all.filter(o => o.brand === shoppingStore) : all)
     .filter(o => q.length ? q.every(w => hay(o).includes(w.replace(/,/g, ''))) : (!shoppingRange || monthKey(o.first) >= months[0]));
   const statusCounts = {};
   byStoreAndText.forEach(o => { const st = statusOf(o); statusCounts[st] = (statusCounts[st] || 0) + 1; });
-  const STATUS_ORDER = ['Ordered', 'On the way', 'Out for delivery', 'Ready for pickup', 'Delivered', 'Probably picked up', 'Probably delivered', 'Delivery issue', 'Lost', 'Canceled', 'Refunded', 'Paid'];
+  const STATUS_ORDER = ['Ordered', 'On the way', 'Out for delivery', 'Ready for pickup', 'Delivered', 'Delivery issue', 'Lost', 'Canceled', 'Refunded', 'Paid'];
   const statusList = Object.keys(statusCounts).sort((a, b) => (STATUS_ORDER.indexOf(a) + 1 || 99) - (STATUS_ORDER.indexOf(b) + 1 || 99));
   if(shoppingStatus && !statusCounts[shoppingStatus] && !statusList.includes(shoppingStatus)) statusList.push(shoppingStatus);
   const shown = shoppingStatus ? byStoreAndText.filter(o => statusOf(o) === shoppingStatus) : byStoreAndText;
@@ -6224,6 +6453,12 @@ function renderShopping(){
   // Setting a status by hand: saved on this device at once; the panel offers the row to paste into the
   // Shopping tab so every device sees it (Message id "manual").
   const panel = document.getElementById('shopMark');
+  const MARK_CHOICES = [['ordered', 'Ordered'], ['shipped', 'On the way'], ['out for delivery', 'Out for delivery'], ['pickup', 'Ready for pickup'],
+    ['delivered', 'Delivered / picked up'], ['issue', 'Delivery issue'], ['canceled', 'Canceled'], ['lost', 'Lost, never arrived'], ['refunded', 'Refunded']];
+  const markBtns = o => MARK_CHOICES.map(([v, t]) => {
+    const cur = (SHOP_STATUS[o.status] || o.status) === (SHOP_STATUS[v] || v);
+    return `<button type="button" class="pay-chip${cur ? ' on' : ''}" data-act="${v}"${cur ? ' aria-pressed="true"' : ''}>${t}</button>`;
+  }).join('');
   const openMark = o => {
     const today = new Date().toISOString().slice(0, 10);
     const what = `<b>${esc(o.store)}</b> · ${esc(label(o))}`;
@@ -6233,10 +6468,13 @@ function renderShopping(){
       panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
         <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there (the daily run keeps the tab sorted by date):<code>${esc(r.replace(/\t/g, ' │ '))}</code>
         <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
-        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+        <div class="pay-confirm-row">Change it again:</div>
+        <div class="pay-confirm-btns">${markBtns(o)}</div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo (back to the emails)</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
     } else {
-      panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. What really happened?</div>
-        <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-act="delivered">Delivered / picked up</button><button type="button" class="pay-chip" data-act="canceled">Canceled</button><button type="button" class="pay-chip" data-act="lost">Lost, never arrived</button>${o.addedLocal ? '<button type="button" class="pay-chip" data-act="delete">Delete this order</button>' : ''}<button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
+      panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. Set the status:</div>
+        <div class="pay-confirm-btns">${markBtns(o)}</div>
+        <div class="pay-confirm-btns">${o.addedLocal ? '<button type="button" class="pay-chip" data-act="delete">Delete this order</button>' : ''}<button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
     }
     panel.hidden = false;
     panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
