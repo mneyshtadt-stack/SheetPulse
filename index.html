@@ -554,6 +554,11 @@
   .shop-form label{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
   .shop-form input, .shop-form select{font:inherit; font-size:13px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:7px 9px; min-height:36px; box-sizing:border-box;}
   .shop-form-err{color:var(--down-ink); font-size:12px; align-self:center;}
+  .shop-search{font:inherit; font-size:13px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); width:300px; max-width:100%; box-sizing:border-box;}
+  .shop-search:focus{border-color:var(--accent); outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);}
+  .shop-note{font-size:12px; color:var(--ink); background:var(--hover); border-radius:6px; padding:2px 8px; margin-top:4px; display:inline-block;}
+  .shop-note-btn{display:block; margin-top:3px; padding:0; border:0; background:none; font:inherit; font-size:11.5px; color:var(--accent); cursor:pointer;}
+  .shop-note-btn:hover{text-decoration:underline;}
   .shop-mark{min-height:26px; font-size:11.5px; padding:0 10px; margin-left:6px;}
   .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
@@ -1421,7 +1426,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791807263";
+const BUILD_ID = "1791808952";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5854,9 +5859,12 @@ const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for d
 const SHOP_STATUS = {ordered: 'Ordered', paid: 'Ordered', shipped: 'On the way', 'in transit': 'On the way', 'out for delivery': 'Out for delivery',
   pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded'};
 const SHOP_FX_USD = {EUR: 1.08, GBP: 1.27};   // approximate, for the few European orders
-let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '';
+let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '', shoppingQuery = '';
 
 // Delivery statuses set by hand on this device: {"store|order": {status, at}}.
+// Notes on orders set on this device: {"store|order": "text"}.
+function shopNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopNotes') || '{}') || {}; } catch(_){ return {}; } }
+function shopNotesSet(m){ try{ localStorage.setItem('sp_shopNotes', JSON.stringify(m)); } catch(_){} }
 function shopMarksGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopMarks') || '{}') || {}; } catch(_){ return {}; } }
 function shopMarksSet(m){ try{ localStorage.setItem('sp_shopMarks', JSON.stringify(m)); } catch(_){} }
 async function fetchShopping(){
@@ -5898,6 +5906,8 @@ function buildShopOrders(input){
   ev.forEach(e => { if(e.no && e.trk) trkNo[e.store + '|' + e.trk] = e.no; });
   const orders = new Map(), loose = [];
   const add = (key, e) => {
+    // A note (Event "note", the text in Items) only labels its order: it isn't a status, an item or a date.
+    if(e.event === 'note'){ const n = orders.get(key); if(n && e.items) n.note = e.items; return; }
     let o = orders.get(key);
     if(!o){ o = {key, store: e.store, no: e.no || (trkNo[e.store + '|' + e.trk] || ''), trk: new Set(), items: '', events: [], first: e.ms, last: e.ms}; orders.set(key, o); }
     if(o.events.some(x => x.event === e.event && Math.abs(x.ms - e.ms) < 86400000 && x.amount === e.amount)) return;   // the same email twice
@@ -5924,7 +5934,7 @@ function buildShopOrders(input){
     const refund = refunds.reduce((a, e) => a + (!priced || e.cur === priced.cur ? e.amount : 0), 0);
     // Status: the latest email, the furthest stage on the same day. A partial refund (Amazon refunds single
     // items) leaves the delivery status alone; a refund of the whole amount, or a cancellation, ends it.
-    const steps = o.events.filter(e => e.event !== 'refund');
+    const steps = o.events.filter(e => e.event !== 'refund' && e.event !== 'note');
     let st = steps.length ? steps.reduce((a, e) => e.ms > a.ms || (e.ms === a.ms && (SHOP_STAGE[e.event] || 0) >= (SHOP_STAGE[a.event] || 0)) ? e : a).event : 'ordered';
     if(priced && refund >= priced.amount - 0.01) st = 'refunded';
     else if(!steps.length && refunds.length) st = 'delivered';
@@ -5932,7 +5942,7 @@ function buildShopOrders(input){
     return {key: o.key, store: o.store, no: o.no, items: o.items, trk: [...o.trk], first: o.first, last: o.last, status: st,
       amount: st === 'canceled' ? 0 : amount, cur: priced ? priced.cur : '', gross: priced ? priced.amount : 0, refund,
       viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events, markedInSheet: o.events.some(e => e.manual && !e.added),
-      addedLocal: o.events.some(e => e.added)};
+      addedLocal: o.events.some(e => e.added), sheetNote: o.note || ''};
   });
   return list.sort((a, b) => b.first - a.first);
 }
@@ -5989,6 +5999,8 @@ function renderShopping(){
   const marks = shopMarksGet();
   all.forEach(o => { if(o.baseStatus === undefined) o.baseStatus = o.status; const m = !o.markedInSheet && marks[o.key];
     o.markLocal = m ? m.at : ''; o.status = m ? m.status : o.baseStatus; });
+  const notes = shopNotesGet();
+  all.forEach(o => { const n = notes[o.key]; o.noteLocal = n !== undefined && n !== o.sheetNote; o.note = o.noteLocal ? n : o.sheetNote; });
 
   // Deliveries still under way: recent orders not delivered, canceled or refunded.
   const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) &&
@@ -6000,7 +6012,7 @@ function renderShopping(){
   const last12 = all.filter(o => o.first > yearAgo && o.ils > 0), ytd = all.filter(o => o.first >= thisYear && o.ils > 0);
   const prev12 = all.filter(o => o.first > yearAgo - 365 * DAY && o.first <= yearAgo && o.ils > 0);
   const vs = spent(prev12) ? (spent(last12) - spent(prev12)) / spent(prev12) * 100 : NaN;
-  const label = o => o.items || (o.trk.length ? 'Package ' + o.trk[0] : o.no ? 'Order ' + o.no : 'Order');
+  const label = o => o.items || o.note || (o.trk.length ? 'Package ' + o.trk[0] : o.no ? 'Order ' + o.no : 'Order');
   const cards = `
     <div class="pay-cards">
       <button type="button" class="pay-card shop-card-link${pickup.length ? ' wait' : ''}${shoppingDeliv === 'pickup' ? ' sel' : ''}" data-deliv="pickup" title="Show these orders"><div class="pay-card-label">Waiting for pickup${pickup.length ? ' · ' + pickup.length : ''}</div>
@@ -6051,7 +6063,15 @@ function renderShopping(){
     return {s, total: byStore[s], n: os.length, avg: byStore[s] / os.length};
   });
 
-  const shown = (shoppingStore ? all.filter(o => o.brand === shoppingStore) : all).filter(o => !shoppingRange || monthKey(o.first) >= months[0]);
+  // Search (All orders): every word must appear in the order's items, store, date (12 Oct 2026 or
+  // 2026-10-12), order no., tracking no. or amount (what was paid, or its ≈ ₪). A search looks through
+  // all time, not just the chosen range.
+  const q = shoppingQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = o => [o.items, o.note, o.store, o.no, o.trk.join(' '), day(o.first), ymd(o.first),
+    o.gross > 0 ? o.gross.toFixed(2) + ' ' + money(o.gross, o.cur) : '', o.amount > 0 ? o.amount.toFixed(2) : '',
+    o.ils > 0 ? Math.round(o.ils) + ' ' + fmt(o.ils) : '', SHOP_STATUS[o.status] || ''].join(' ').toLowerCase().replace(/,/g, '');
+  const shown = (shoppingStore ? all.filter(o => o.brand === shoppingStore) : all)
+    .filter(o => q.length ? q.every(w => hay(o).includes(w.replace(/,/g, ''))) : (!shoppingRange || monthKey(o.first) >= months[0]));
   area.innerHTML = `
     <div class="pay-top"><div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}">${t}</button>`).join('')}</div></div>
     ${cards}
@@ -6070,18 +6090,20 @@ function renderShopping(){
     </div>
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>All orders</h3>
-        <div class="pay-chips"><button type="button" class="pay-chip shop-add">+ Add an order</button></div>
+        <div class="pay-chips"><input type="search" class="shop-search" placeholder="Search items, store, date, order, tracking or amount" aria-label="Search orders" value="${esc(shoppingQuery)}"><button type="button" class="pay-chip shop-add">+ Add an order</button></div>
+        ${q.length ? `<span class="pay-panel-note">${shown.length} found${shown.length > 100 ? ', the latest 100 shown' : ''} · all dates</span>` : ''}
         <div class="pay-chips"><button type="button" class="pay-chip${shoppingStore ? '' : ' on'}" data-store="">All</button>${stores.filter(s => all.filter(o => o.brand === s).length >= 2 || s === shoppingStore).map(s => `<button type="button" class="pay-chip${shoppingStore === s ? ' on' : ''}" data-store="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
       <div id="shopAdd" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
-        <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${esc(o.items || (o.viaPayPal ? 'via PayPal' : '—'))}</td>
+        <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></td>
           <td>${o.no && !/^PayPal /.test(o.no) ? esc(o.no) : ''}${o.trk.length ? '<div class="pay-sub">' + o.trk.map(esc).join(', ') + '</div>' : ''}</td>
           <td>${pill(o)}${markable(o) ? ` <button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Change</button>` : ''}</td><td class="num">${price(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${shown.slice(0, 100).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
-        <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small></div>
+        <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></div>
         <div class="pay-cat-num"><b>${price(o)}</b>${pill(o)}${markable(o) ? `<button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Change</button>` : ''}</div></div>`).join('')}</div>
+      ${q.length && !shown.length ? `<div class="pm-note">No order matches “${esc(shoppingQuery.trim())}”.</div>` : ''}
       ${shown.length > 100 ? `<div class="pm-note">Showing the latest 100 of ${shown.length}.</div>` : ''}
     </section>`;
 
@@ -6154,12 +6176,71 @@ function renderShopping(){
     }));
   };
   panel.addEventListener('reopen', ev => openMark(ev.detail));
+  // A note on an order ("Kettle Ninja"): saved on this device at once; the panel gives the row to paste
+  // into the Shopping tab (Event "note", the text in Items, Message id "manual") so every device shows it.
+  const openNote = o => {
+    const box = document.getElementById('shopAdd'); if(!box) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const noteRow = text => [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', 'note', text, '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
+    const what = `<b>${esc(o.store)}</b>${o.no && !/^PayPal /.test(o.no) ? ' · ' + esc(o.no) : o.trk.length ? ' · ' + esc(o.trk[0]) : ''}${o.items ? ' · ' + esc(o.items) : ''}`;
+    box.innerHTML = `<div>Note for ${what}</div>
+      <div class="shop-form"><label style="grid-column:1 / -1;">Note<input name="note" maxlength="200" value="${esc(o.note || '')}" placeholder="e.g. Kettle Ninja"></label></div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-n="save">Save note</button>${o.note ? '<button type="button" class="pay-chip" data-n="remove">Remove note</button>' : ''}<button type="button" class="pay-chip" data-n="cancel">Cancel</button></div>`;
+    box.hidden = false;
+    const input = box.querySelector('[name="note"]');
+    input.focus(); input.select();
+    const done = (text) => {
+      const n = shopNotesGet();
+      if(text) n[o.key] = text; else delete n[o.key];
+      shopNotesSet(n);
+      const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+      renderShopping();
+      if(body) body.scrollTop = top;
+      if(!text) return;
+      const b2 = document.getElementById('shopAdd'); if(!b2) return;
+      const r = noteRow(text);
+      b2.dataset.rows = r;
+      b2.innerHTML = `<div>Note saved on this device for ${what}: <b>${esc(text)}</b></div>
+        <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there:<code>${esc(r).replace(/\t/g, ' │ ')}</code>
+        <button type="button" class="pay-chip" data-n="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-n="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-n="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.rows).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+      b2.querySelector('[data-n="close"]').addEventListener('click', () => { b2.hidden = true; });
+      b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    };
+    box.querySelector('[data-n="save"]').addEventListener('click', () => done(input.value.trim()));
+    input.addEventListener('keydown', ev => { if(ev.key === 'Enter') done(input.value.trim()); });
+    const rm = box.querySelector('[data-n="remove"]'); if(rm) rm.addEventListener('click', () => done(''));
+    box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  area.querySelectorAll('.shop-note-btn').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const o = all.find(x => x.key === b.dataset.key); if(o) openNote(o);
+  }));
   // The Waiting for pickup / On the way cards show their orders in Deliveries (a second click shows all).
   area.querySelectorAll('.shop-card-link').forEach(b => b.addEventListener('click', () => {
     shoppingDeliv = shoppingDeliv === b.dataset.deliv ? '' : b.dataset.deliv;
     renderShopping();
     const sec = document.getElementById('shopDeliveries'); if(sec) sec.scrollIntoView({block: 'start', behavior: 'smooth'});
   }));
+  // Typing in Search re-renders after a short pause; the box keeps its focus and cursor.
+  const search = area.querySelector('.shop-search');
+  if(search){
+    let tmr = null;
+    search.addEventListener('input', () => {
+      clearTimeout(tmr);
+      tmr = setTimeout(() => {
+        shoppingQuery = search.value;
+        const pos = search.selectionStart, body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+        renderShopping();
+        if(body) body.scrollTop = top;
+        const again = document.querySelector('#shopArea .shop-search');
+        if(again){ again.focus(); try{ again.setSelectionRange(pos, pos); } catch(_){} }
+      }, 250);
+    });
+  }
   area.querySelectorAll('.shop-deliv-clear').forEach(b => b.addEventListener('click', () => { shoppingDeliv = ''; renderShopping(); }));
   // Add an order by hand (bought in a shop, paid another way, an email that never came): saved on this
   // device at once; the panel gives the rows to paste into the Shopping tab (Message id "manual"), one
