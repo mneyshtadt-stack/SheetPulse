@@ -122,6 +122,26 @@
   #autoRefreshSelect.hdr-interval option{color:var(--ink); background:var(--panel);}
   #diagBtn.hdr-icon{width:38px; height:38px; padding:0; display:flex; align-items:center; justify-content:center; border-radius:8px; color:var(--ink);}
   #diagBtn.hdr-icon svg{width:18px; height:18px;}
+  .hdr-tools{display:flex; align-items:center; gap:8px;}
+  /* Phones (design canvas phone frame): Refresh and Diagnostics as 44px icons beside the logo, the four
+     views below as two groups of two full-size buttons. The row of buttons stops scrolling sideways; the
+     auto-refresh interval keeps its saved value and is changed on a wider screen. */
+  @media (max-width:600px){
+    header{display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 8px; align-items:start;}
+    header > div:first-child{grid-column:1 / -1; grid-row:1; padding-right:104px; min-width:0;}
+    header .btnrow{display:contents;}
+    .hdr-tools{grid-column:1 / -1; grid-row:1; justify-self:end;}
+    .hdr-div, .hdr-split-sel{display:none;}
+    .hdr-split{border-radius:10px;}
+    .hdr-split #refreshBtn{width:44px; height:44px; padding:0; justify-content:center;}
+    .hdr-split #refreshBtn svg{width:18px; height:18px;}
+    .hdr-label{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+    #diagBtn.hdr-icon{width:44px; height:44px; border-radius:10px;}
+    .hdr-seg{grid-row:2; flex-direction:column; border-radius:10px;}
+    .hdr-seg button{min-height:44px; justify-content:center; font-size:13px; border-radius:7px;}
+    .hdr-seg button:first-child{border-radius:7px 7px 0 0;}
+    .hdr-seg button + button{border-top:1px solid var(--line); border-radius:0 0 7px 7px;}
+  }
   #autoRefreshSelect{
     font-family:var(--sans); font-size:12px; color:var(--muted); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:border-color 0.15s ease, color 0.15s ease;
@@ -517,6 +537,7 @@
   .pay-pill.wait{color:var(--warn); box-shadow:inset 0 0 0 1px var(--warn);}
   .pay-pill.bad{background:var(--down-1); color:var(--down-5);}
   .pay-pill.muted{background:var(--hover); color:var(--muted);}
+  .shop-mark{min-height:26px; font-size:11.5px; padding:0 10px; margin-left:6px;}
   .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
   .pay-key i{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-2px;}
@@ -1176,10 +1197,11 @@
         <button id="shoppingBtn" title="Online orders from Gmail — what they cost and where the packages are"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Shopping</button>
       </div>
       <span class="hdr-div" aria-hidden="true"></span>
+      <div class="hdr-tools">
       <div class="hdr-split" role="group" aria-label="Refresh">
         <button id="refreshBtn" title="Refresh from sheet">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-          Refresh
+          <span class="hdr-label">Refresh</span>
         </button>
         <span class="hdr-split-sel">
           <select id="autoRefreshSelect" class="hdr-interval" title="Auto-refresh interval" aria-label="Auto-refresh interval">
@@ -1193,6 +1215,7 @@
         </span>
       </div>
       <button id="diagBtn" class="hdr-icon" title="Diagnostics: check the connection to the server and the Google Sheet" aria-label="Diagnostics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></button>
+      </div>
     </div>
   </header>
 
@@ -1381,7 +1404,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791787211";
+const BUILD_ID = "1791790185";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5774,19 +5797,22 @@ function renderPayments(){
 // its first amount (the order or payment email), less refunds; shekels at the USD/ILS close on the order
 // date (PriceHistory), EUR and GBP through approximate dollar rates.
 const SHOPPING_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Shopping');
-const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for delivery': 4, pickup: 5, delivered: 6, issue: 7, canceled: 8, refunded: 8};
+const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for delivery': 4, pickup: 5, delivered: 6, issue: 7, canceled: 8, lost: 8, refunded: 8};
 const SHOP_STATUS = {ordered: 'Ordered', paid: 'Ordered', shipped: 'On the way', 'in transit': 'On the way', 'out for delivery': 'Out for delivery',
-  pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', refunded: 'Refunded'};
+  pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded'};
 const SHOP_FX_USD = {EUR: 1.08, GBP: 1.27};   // approximate, for the few European orders
 let shoppingOrders = null, shoppingStore = '', shoppingRange = 12;
 
+// Delivery statuses set by hand on this device: {"store|order": {status, at}}.
+function shopMarksGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopMarks') || '{}') || {}; } catch(_){ return {}; } }
+function shopMarksSet(m){ try{ localStorage.setItem('sp_shopMarks', JSON.stringify(m)); } catch(_){} }
 async function fetchShopping(){
   const res = await fetchViaProxy(SHOPPING_CSV_URL);
   if(!res.ok) throw new Error('HTTP ' + res.status);
   const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
   const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
   const c = name => h.indexOf(name);
-  const cD = c('date'), cS = c('store'), cN = c('order no'), cE = c('event'), cI = c('items'), cA = c('amount'), cC = c('currency'), cT = c('tracking');
+  const cD = c('date'), cS = c('store'), cN = c('order no'), cE = c('event'), cI = c('items'), cA = c('amount'), cC = c('currency'), cT = c('tracking'), cM = c('message id');
   if(cS < 0 || cE < 0) throw new Error('The Shopping tab has no Store / Event header');
   const ev = [];
   for(let i = 1; i < t.length; i++){
@@ -5794,7 +5820,8 @@ async function fetchShopping(){
     const event = String(r[cE] || '').trim().toLowerCase(), ms = payDateMs(r[cD]);
     if(!store || !event || isNaN(ms)) continue;
     ev.push({ms, store, no: String(r[cN] || '').trim(), event, items: String(r[cI] || '').trim(),
-      amount: num(r[cA]), cur: String(r[cC] || '').trim().toUpperCase(), trk: String(r[cT] || '').trim()});
+      amount: num(r[cA]), cur: String(r[cC] || '').trim().toUpperCase(), trk: String(r[cT] || '').trim(),
+      manual: cM >= 0 && /^manual/i.test(String(r[cM] || '').trim())});
   }
   ev.sort((a, b) => a.ms - b.ms);
   // Tracking no. → order no., wherever an email carried both.
@@ -5835,7 +5862,7 @@ async function fetchShopping(){
     const amount = priced ? Math.max(0, priced.amount - refund) : 0;
     return {key: o.key, store: o.store, no: o.no, items: o.items, trk: [...o.trk], first: o.first, last: o.last, status: st,
       amount: st === 'canceled' ? 0 : amount, cur: priced ? priced.cur : '', gross: priced ? priced.amount : 0, refund,
-      viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events};
+      viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events, markedInSheet: o.events.some(e => e.manual)};
   });
   return list.sort((a, b) => b.first - a.first);
 }
@@ -5883,10 +5910,17 @@ function renderShopping(){
   };
   const all = shoppingOrders;
   if(!all.length){ area.innerHTML = `<div class="pm-note">No orders yet — run updateShopping() in the Payments spreadsheet's Apps Script.</div>`; return; }
-  all.forEach(o => { o.ils = ils(o); });
+  // Amazon.com, .de, .fr, .co.uk and .it count as one store in the chips, the chart and By store; each
+  // order still shows its own site.
+  all.forEach(o => { o.ils = ils(o); o.brand = /^Amazon/i.test(o.store) ? 'Amazon' : o.store; });
+  // Statuses you set by hand (the email was deleted or never came): this device's marks win over the
+  // emails until a "manual" row for the order is in the Shopping tab, which every device reads.
+  const marks = shopMarksGet();
+  all.forEach(o => { if(o.baseStatus === undefined) o.baseStatus = o.status; const m = !o.markedInSheet && marks[o.key];
+    o.markLocal = m ? m.at : ''; o.status = m ? m.status : o.baseStatus; });
 
   // Deliveries still under way: recent orders not delivered, canceled or refunded.
-  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'refunded'].includes(o.status) &&
+  const open = all.filter(o => !o.viaPayPal && !['delivered', 'canceled', 'lost', 'refunded'].includes(o.status) &&
     now - o.last < (o.status === 'pickup' ? 21 : 45) * DAY).sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
@@ -5912,18 +5946,21 @@ function renderShopping(){
         <div class="pay-card-sub">${fmt(spent(last12) / 12)} a month${isNaN(vs) ? '' : ` · ${vs >= 0 ? '+' : '−'}${Math.abs(vs).toFixed(0)}% vs the year before`}</div></div>
     </div>`;
 
-  const pillCls = st => st === 'delivered' ? 'paid' : st === 'pickup' ? 'wait' : ['issue', 'canceled'].includes(st) ? 'bad' : st === 'refunded' ? 'muted' : 'due';
+  const pillCls = st => st === 'delivered' ? 'paid' : st === 'pickup' ? 'wait' : ['issue', 'canceled', 'lost'].includes(st) ? 'bad' : st === 'refunded' ? 'muted' : 'due';
   // A PayPal receipt is a payment, not a delivery: it has no shipping emails to follow.
   const pill = o => o.viaPayPal && o.status === 'paid' ? '<span class="pay-pill paid">Paid</span>' :
-    `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}</span>`;
+    `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}${o.markLocal || o.markedInSheet ? ' · by you' : ''}</span>`;
+  // Any order's status can be set by hand (a PayPal payment has no delivery to set).
+  const markable = o => !o.viaPayPal;
   const price = o => o.gross > 0 ? money(o.amount || o.gross, o.cur) + (o.refund > 0 && o.status !== 'refunded' ? `<div class="pay-sub">${money(o.refund, o.cur)} refunded</div>` : '') : '—';
   const deliveries = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Deliveries</h3><span class="pay-panel-note pay-hint">Orders from the last weeks that haven't arrived yet · hover a row for its emails</span></div>
       ${open.length ? `<div class="pay-cards-list" style="display:block;">${open.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
           <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)} · last update ${dayShort(o.last)}</small></div>
-          <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pill(o)}</div></div>`).join('')}</div>`
+          <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pill(o)}<button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Update</button></div></div>`).join('')}</div>`
         : '<div class="pm-note">Nothing on the way.</div>'}
+      <div id="shopMark" class="pay-confirm" hidden></div>
     </section>`;
 
   // Spending by month, stacked by the biggest stores in the range; the rest is "Other".
@@ -5931,18 +5968,18 @@ function renderShopping(){
   const months = []; for(let k = firstK; k <= thisM; k++) months.push(k);
   const inRange = all.filter(o => o.ils > 0 && monthKey(o.first) >= months[0]);
   const byStore = {};
-  inRange.forEach(o => { byStore[o.store] = (byStore[o.store] || 0) + o.ils; });
+  inRange.forEach(o => { byStore[o.brand] = (byStore[o.brand] || 0) + o.ils; });
   const top = Object.keys(byStore).sort((a, b) => byStore[b] - byStore[a]).slice(0, 5);
   const groupOf = s => top.includes(s) ? s : 'Other';
   const groups = top.concat(inRange.some(o => !top.includes(o.store)) ? ['Other'] : []);
   const colorOf = g => g === 'Other' ? 'var(--flat)' : PAY_CAT_COLORS[top.indexOf(g) % PAY_CAT_COLORS.length];
-  const stores = [...new Set(all.map(o => o.store))];
+  const stores = [...new Set(all.map(o => o.brand))];
   const storeRows = Object.keys(byStore).sort((a, b) => byStore[b] - byStore[a]).map(s => {
-    const os = inRange.filter(o => o.store === s);
+    const os = inRange.filter(o => o.brand === s);
     return {s, total: byStore[s], n: os.length, avg: byStore[s] / os.length};
   });
 
-  const shown = (shoppingStore ? all.filter(o => o.store === shoppingStore) : all).filter(o => !shoppingRange || monthKey(o.first) >= months[0]);
+  const shown = (shoppingStore ? all.filter(o => o.brand === shoppingStore) : all).filter(o => !shoppingRange || monthKey(o.first) >= months[0]);
   area.innerHTML = `
     <div class="pay-top"><div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}">${t}</button>`).join('')}</div></div>
     ${cards}
@@ -5961,23 +5998,23 @@ function renderShopping(){
     </div>
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>All orders</h3>
-        <div class="pay-chips"><button type="button" class="pay-chip${shoppingStore ? '' : ' on'}" data-store="">All</button>${stores.filter(s => all.filter(o => o.store === s).length >= 2 || s === shoppingStore).map(s => `<button type="button" class="pay-chip${shoppingStore === s ? ' on' : ''}" data-store="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
+        <div class="pay-chips"><button type="button" class="pay-chip${shoppingStore ? '' : ' on'}" data-store="">All</button>${stores.filter(s => all.filter(o => o.brand === s).length >= 2 || s === shoppingStore).map(s => `<button type="button" class="pay-chip${shoppingStore === s ? ' on' : ''}" data-store="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
         <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${esc(o.items || (o.viaPayPal ? 'via PayPal' : '—'))}</td>
           <td>${o.no && !/^PayPal /.test(o.no) ? esc(o.no) : ''}${o.trk.length ? '<div class="pay-sub">' + o.trk.map(esc).join(', ') + '</div>' : ''}</td>
-          <td>${pill(o)}</td><td class="num">${price(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
+          <td>${pill(o)}${markable(o) ? ` <button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Change</button>` : ''}</td><td class="num">${price(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${shown.slice(0, 100).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
         <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small></div>
-        <div class="pay-cat-num"><b>${price(o)}</b>${pill(o)}</div></div>`).join('')}</div>
+        <div class="pay-cat-num"><b>${price(o)}</b>${pill(o)}${markable(o) ? `<button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Change</button>` : ''}</div></div>`).join('')}</div>
       ${shown.length > 100 ? `<div class="pm-note">Showing the latest 100 of ${shown.length}.</div>` : ''}
     </section>`;
 
   // Monthly bars.
   const box = document.getElementById('shopChartBox');
   const byMonth = months.map(k => { const os = inRange.filter(o => monthKey(o.first) === k); const per = {};
-    os.forEach(o => { const g = groupOf(o.store); per[g] = (per[g] || 0) + o.ils; }); return {k, os, per, total: spent(os)}; });
+    os.forEach(o => { const g = groupOf(o.brand); per[g] = (per[g] || 0) + o.ils; }); return {k, os, per, total: spent(os)}; });
   const w = Math.max(280, box.clientWidth || 600), h = 220, padL = 50, padR = 4, padT = 10, padB = 24;
   const max = Math.max(...byMonth.map(m => m.total), 1);
   const step = [100, 200, 250, 500, 1000, 2000, 2500, 5000].find(s => max / s <= 5) || 10000;
@@ -6003,12 +6040,50 @@ function renderShopping(){
   });
   box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
 
+  // Setting a status by hand: saved on this device at once; the panel offers the row to paste into the
+  // Shopping tab so every device sees it (Message id "manual").
+  const panel = document.getElementById('shopMark');
+  const openMark = o => {
+    const today = new Date().toISOString().slice(0, 10);
+    const what = `<b>${esc(o.store)}</b> · ${esc(label(o))}`;
+    if(o.markLocal){
+      const r = [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
+      panel.dataset.row = r;
+      panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
+        <div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Shopping tab:<code>${esc(r.replace(/\t/g, ' │ '))}</code>
+        <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
+    } else {
+      panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. What really happened?</div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-act="delivered">Delivered / picked up</button><button type="button" class="pay-chip" data-act="canceled">Canceled</button><button type="button" class="pay-chip" data-act="lost">Lost, never arrived</button><button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
+    }
+    panel.hidden = false;
+    panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    panel.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      if(act === 'close'){ panel.hidden = true; return; }
+      if(act === 'copy'){ navigator.clipboard.writeText(panel.dataset.row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
+      const m = shopMarksGet();
+      if(act === 'undo') delete m[o.key]; else m[o.key] = {status: act, at: today};
+      shopMarksSet(m);
+      const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+      renderShopping();
+      if(body) body.scrollTop = top;
+      // Right after marking, show the row to paste (and Undo) for that order.
+      if(act !== 'undo'){ const again = shoppingOrders.find(x => x.key === o.key); const p2 = document.getElementById('shopMark'); if(again && p2) p2.dispatchEvent(new CustomEvent('reopen', {detail: again})); }
+    }));
+  };
+  panel.addEventListener('reopen', ev => openMark(ev.detail));
+  area.querySelectorAll('.shop-mark').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const o = all.find(x => x.key === b.dataset.key); if(o) openMark(o);
+  }));
   area.querySelectorAll('.shop-range').forEach(b => b.addEventListener('click', () => { shoppingRange = Number(b.dataset.n); renderShopping(); }));
   area.querySelectorAll('.pay-chip[data-store]').forEach(b => b.addEventListener('click', () => { shoppingStore = b.dataset.store; renderShopping(); }));
   area.querySelectorAll('.shop-hit').forEach(r => {
     const m = byMonth[Number(r.dataset.i)];
     attachHoverTooltip(r, () => `<b>${monthLabel(m.k)} · ${fmt(m.total)}</b>` + (m.os.length
-      ? m.os.map(o => `<div><span class="pay-dot" style="background:${colorOf(groupOf(o.store))}"></span>${esc(o.store)} ${fmt(o.ils)} <span style="color:var(--muted)">${esc((o.items || '').slice(0, 40))}</span></div>`).join('')
+      ? m.os.map(o => `<div><span class="pay-dot" style="background:${colorOf(groupOf(o.brand))}"></span>${esc(o.store)} ${fmt(o.ils)} <span style="color:var(--muted)">${esc((o.items || '').slice(0, 40))}</span></div>`).join('')
       : '<div style="color:var(--muted)">no orders</div>'));
   });
   const byKey = new Map(all.map(o => [o.key, o]));
