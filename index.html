@@ -510,6 +510,31 @@
   /* Contracts: a type badge per row */
   .ct-badge{width:40px; height:40px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; letter-spacing:.02em; flex:none;}
   .ct-row{display:flex; gap:14px; align-items:flex-start; min-width:0;}
+  /* Contracts → Timeline (design canvas "SheetPulse Contracts and Receipts", option A) */
+  .pay-seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel);}
+  .pay-seg button{font-family:var(--sans); font-size:13px; border:0; background:transparent; color:var(--tile-ink-flat); padding:0 14px; min-height:40px; cursor:pointer;}
+  .pay-seg button + button{border-left:1px solid var(--line);}
+  .pay-seg button.on{background:color-mix(in srgb, var(--accent) 13%, var(--panel)); color:var(--accent-hover); font-weight:600;}
+  .ct-tl{overflow-x:auto;}
+  .ct-tl-in{min-width:680px;}
+  .ct-tl-head, .ct-tl-row{display:grid; grid-template-columns:230px minmax(0, 1fr); align-items:center; border-bottom:1px solid var(--line);}
+  .ct-tl-name{display:flex; flex-direction:column; gap:2px; padding-right:14px; min-width:0;}
+  .ct-tl-name b{font-size:14px; font-weight:650; color:var(--ink);}
+  .ct-tl-name small{font-size:12px; color:var(--muted);}
+  .ct-tl-track{position:relative; height:58px;}
+  .ct-tl-head .ct-tl-track{height:26px;}
+  .ct-tl-year{position:absolute; top:5px; font-size:12px; color:var(--muted); font-family:var(--mono); padding-left:4px;}
+  .ct-tl-grid{position:absolute; top:0; bottom:0; width:1px; background:var(--line);}
+  .ct-tl-today{position:absolute; top:0; bottom:0; width:2px; background:var(--accent);}
+  .ct-tl-bar{position:absolute; top:17px; height:24px; border-radius:6px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; color:var(--ink);}
+  .ct-tl-bar.fixed{background:color-mix(in srgb, var(--accent) 24%, var(--panel));}
+  .ct-tl-bar.soon{background:color-mix(in srgb, var(--warn) 38%, var(--panel));}
+  .ct-tl-bar.open{background:var(--paper); border:1.5px dashed var(--axis);}
+  .ct-tl-bar.ended{background:var(--paper); color:var(--muted);}
+  .ct-tl-none{position:absolute; top:20px; left:6px; font-size:12px; color:var(--accent-hover);}
+  .ct-tl-legend{display:flex; flex-wrap:wrap; gap:8px 20px; padding-top:12px; font-size:12px; color:var(--muted);}
+  .ct-tl-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .ct-tl-legend i{display:inline-block; width:22px; height:10px; border-radius:3px; box-sizing:border-box;}
   /* Receipts */
   .rc-kind{font-size:11px; font-weight:650; border-radius:999px; padding:1px 8px; margin-left:8px; vertical-align:1px;}
   .rc-kind.product{background:color-mix(in srgb, var(--accent) 14%, var(--panel)); color:var(--accent-hover);}
@@ -517,6 +542,27 @@
   .rc-kind.skip{background:var(--paper); color:var(--muted);}
   .rc-ask{color:var(--muted) !important; font-weight:600;}
   .rc-flag{font-size:12px; color:var(--warn); font-weight:550;}
+  .rc-kind.ask{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--ink);}
+  /* Receipts → Shelf (option B): kept forever, a "say what these were for" tray, then cards. */
+  .rc-tray{background:var(--panel); border-radius:12px; padding:16px 20px; box-shadow:inset 0 0 0 1.5px var(--warn); margin:0 0 16px; font-family:var(--sans);}
+  .rc-tray-head{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 16px; margin-bottom:8px;}
+  .rc-tray-head h3{margin:0; font-size:16px; font-weight:650; color:var(--ink);}
+  .rc-tray-row{display:grid; grid-template-columns:220px minmax(0, 1fr) 120px; gap:14px; align-items:center; padding:6px 0;}
+  .rc-tray-row input{min-height:40px; border:1px solid var(--line); border-radius:8px; padding:0 12px; font:inherit; font-size:14px; color:var(--ink); background:var(--panel); width:100%; box-sizing:border-box;}
+  .rc-tray-row .rc-amt{text-align:right; font-size:14px;}
+  .rc-bar{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; margin:0 0 12px;}
+  .rc-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; font-family:var(--sans);}
+  .rc-card{background:var(--panel); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:7px; min-height:150px; box-sizing:border-box; min-width:0;}
+  .rc-card.skip{opacity:.6;}
+  .rc-card-top{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; color:var(--muted); font-family:var(--mono);}
+  .rc-card .rc-kind{margin:0; font-family:var(--sans);}
+  .rc-card b{font-size:15px; font-weight:650; line-height:1.3; color:var(--ink);}
+  .rc-card small{font-size:12.5px; color:var(--muted);}
+  .rc-card-foot{margin-top:auto; display:flex; justify-content:space-between; align-items:center;}
+  .rc-amt{font-size:17px; font-weight:700; font-family:var(--mono); color:var(--ink); font-variant-numeric:tabular-nums;}
+  .rc-slot{grid-column:1 / -1;}
+  .rc-slot:empty{display:none;}
+  @media (max-width:600px){ .rc-tray-row{grid-template-columns:minmax(0, 1fr) auto;} .rc-tray-row input{grid-column:1 / -1; grid-row:2;} }
   .rc-edit{background:color-mix(in srgb, var(--accent) 6%, var(--panel)); border:1px solid color-mix(in srgb, var(--accent) 30%, var(--panel)); border-radius:12px; padding:14px 16px; margin:4px 0 12px;}
   .ct-list{display:flex; flex-direction:column;}
   .ct-item{display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 1.2fr) auto; gap:6px 18px; align-items:start; padding:14px 0; border-top:1px solid var(--line);}
@@ -1480,7 +1526,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791822679";
+const BUILD_ID = "1791823486";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5519,7 +5565,7 @@ async function loadNetWorthYear(year){
 const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
-let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '';
+let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false;
 
 // A date cell as local-noon ms: yyyy-mm-dd, dd/mm/yy(yy) (day first, as on Israeli bills) or a
 // Sheets serial day number. NaN if empty or unreadable.
@@ -5634,6 +5680,7 @@ function contractsSoonCount(list){
   const now = Date.now();
   return list.filter(k => !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now)).length;
 }
+let contractsLayout = (() => { try{ return localStorage.getItem('sp_ctLayout') || 'timeline'; } catch(_){ return 'timeline'; } })();
 const CT_TYPE_LOOK = {Insurance: ['INS', 'var(--accent)'], Warranty: ['WAR', 'var(--up-4)'], 'Utility plan': ['UTL', 'var(--warn)'], Subscription: ['SUB', 'var(--cmp-5)'], Investment: ['INV', 'var(--muted)'], Loan: ['LN', 'var(--down-4)'], 'Service plan': ['SRV', 'var(--cmp-3)']};
 function renderContracts(area){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -5675,24 +5722,49 @@ function renderContracts(area){
     const f = Math.max(0, Math.min(1, (now - k.start) / (k.end - k.start)));
     return `<div class="ct-bar" title="${Math.round(f * 100)}% of the way through"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   };
+  // Timeline: one row per contract on a years scale with today's line. A fixed term is a solid bar (amber
+  // when it ends within 3 months), an open-ended one a dashed bar running off the right edge.
+  const timeline = list => {
+    const thisY = new Date(now).getFullYear();
+    const starts = list.map(k => k.start).filter(v => !isNaN(v)), ends = list.map(k => k.end).filter(v => !isNaN(v));
+    let y0 = Math.min(thisY - 1, ...starts.map(v => new Date(v).getFullYear()));
+    const y1 = Math.max(thisY + 3, ...ends.map(v => new Date(v).getFullYear() + 1));
+    if(y1 - y0 > 12) y0 = y1 - 12;
+    const t0 = new Date(y0, 0, 1).getTime(), t1 = new Date(y1, 0, 1).getTime();
+    const at = ms => Math.max(0, Math.min(100, (ms - t0) / (t1 - t0) * 100));
+    const years = []; for(let y = y0; y < y1; y++) years.push(y);
+    const grid = years.map(y => `<span class="ct-tl-grid" style="left:${at(new Date(y, 0, 1).getTime()).toFixed(2)}%"></span>`).join('') + `<span class="ct-tl-today" style="left:${at(now).toFixed(2)}%"></span>`;
+    const barOf = k => {
+      if(isNaN(k.start) && isNaN(k.end)) return `<span class="ct-tl-none">start date not entered</span>`;
+      const a = isNaN(k.start) ? 0 : at(k.start), b = isNaN(k.end) ? 100 : at(k.end);
+      const cls = isNaN(k.end) ? 'open' : k.state === 'ended' ? 'ended' : k.state === 'soon' ? 'soon' : 'fixed';
+      const txt = isNaN(k.end) ? (isNaN(k.start) ? 'no dates' : 'since ' + day(k.start)) : k.state === 'ended' ? 'ended ' + day(k.end) : 'until ' + day(k.end) + ' · ' + left(k.end);
+      return `<span class="ct-tl-bar ${cls}" style="left:${a.toFixed(2)}%; width:${Math.max(1.5, b - a).toFixed(2)}%" title="${esc(k.name)}: ${isNaN(k.start) ? '?' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}">${txt}</span>`;
+    };
+    return `<div class="ct-tl"><div class="ct-tl-in">
+      <div class="ct-tl-head"><span class="pay-sub" style="font-weight:600;">Contract</span><div class="ct-tl-track">${years.map(y => `<span class="ct-tl-year" style="left:${at(new Date(y, 0, 1).getTime()).toFixed(2)}%">${y}</span>`).join('')}</div></div>
+      ${list.map(k => `<div class="ct-tl-row"><div class="ct-tl-name"><b>${esc(k.name)}</b><small>${esc(k.type)}${k.monthly ? ' · ' + fmt(k.monthly) + ' a month' : k.provider ? ' · ' + esc(k.provider) : ''}${k.local ? ' · this device' : ''}</small></div><div class="ct-tl-track">${grid}${barOf(k)}</div></div>`).join('')}
+    </div></div>
+    <div class="ct-tl-legend"><span><i style="width:2px; height:14px; background:var(--accent);"></i>Today, ${day(now)}</span><span><i style="background:color-mix(in srgb, var(--accent) 24%, var(--panel));"></i>Fixed term</span><span><i style="background:color-mix(in srgb, var(--warn) 38%, var(--panel));"></i>Ends within 3 months</span><span><i style="border:1.5px dashed var(--axis);"></i>No end date</span></div>`;
+  };
   const period = k => `${isNaN(k.start) ? '—' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}${!isNaN(k.end) ? `<div class="pay-sub">${left(k.end)}</div>` : ''}${bar(k)}`;
   area.innerHTML = `
-    <div class="pay-top">${payViewSwitch()}<button type="button" class="pay-btn primary ct-add">${PAY_ICONS.plus}Add a contract</button></div>
+    <div class="pay-top">${payViewSwitch()}<div class="pay-seg" role="group" aria-label="Layout">${[['timeline', 'Timeline'], ['list', 'List']].map(([v, t]) => `<button type="button" class="${contractsLayout === v ? 'on' : ''}" data-ctlayout="${v}" aria-pressed="${contractsLayout === v}">${t}</button>`).join('')}</div><button type="button" class="pay-btn primary ct-add">${PAY_ICONS.plus}Add a contract</button></div>
     ${contractsList.error ? `<div class="pm-note">The Contracts tab isn't there yet (${contractsList.error}): run <b>setupContractsTab()</b> in the Payments spreadsheet's Apps Script. It creates the tab and fills it from the Gmail label payments-contracts.</div>` : ''}
     <div class="pay-cards">
-      <div class="pay-card"><div class="pay-card-label">Active</div><div class="pay-card-val">${live.length} contract${live.length === 1 ? '' : 's'}</div>
-        <div class="pay-card-sub">${types.filter(t => live.some(k => k.type === t)).map(t => `${esc(t)} ${live.filter(k => k.type === t).length}`).join(' · ') || 'None yet'}</div></div>
+      <div class="pay-card${soon.length ? ' wait' : ''}"><div class="pay-card-label">${soon.length ? 'Ends within 3 months · ' + soon.length : 'Next to end'}</div>
+        <div class="pay-card-val">${soon.length ? soon.map(k => `${esc(k.name)} · ${left(k.end)}`).join('<br>') : nextEnd ? `${esc(nextEnd.name)} · ${left(nextEnd.end)}` : 'Nothing has an end date'}</div>
+        <div class="pay-card-sub">${soon.length ? soon.map(k => day(k.end)).join(', ') + '. Compare offers before it renews.' : nextEnd ? day(nextEnd.end) : 'Add end dates to see what ends when.'}</div></div>
       <div class="pay-card"><div class="pay-card-label">Paying for them</div><div class="pay-card-val">${fmt(monthly)} a month</div>
-        <div class="pay-card-sub">${fmt(monthly * 12)} a year · contracts billed monthly or yearly</div></div>
-      <div class="pay-card${soon.length ? ' wait' : ''}"><div class="pay-card-label">Ending within 3 months${soon.length ? ' · ' + soon.length : ''}</div>
-        <div class="pay-card-val">${soon.length ? soon.map(k => esc(k.name)).join(', ') : 'Nothing ends soon'}</div>
-        <div class="pay-card-sub">${soon.length ? soon.map(k => `${day(k.end)} · ${left(k.end)}`).join('<br>') : nextEnd ? `Next: ${esc(nextEnd.name)}, ${day(nextEnd.end)} (${left(nextEnd.end)})` : 'No end dates entered.'}</div></div>
+        <div class="pay-card-sub">${fmt(monthly * 12)} a year${live.filter(k => !(k.cost > 0)).length ? ` · ${live.filter(k => !(k.cost > 0)).length} without a cost entered` : ''}</div></div>
+      <div class="pay-card"><div class="pay-card-label">Open-ended</div><div class="pay-card-val">${live.filter(k => isNaN(k.end)).length} of ${live.length}</div>
+        <div class="pay-card-sub">No end date: they run until you cancel.</div></div>
     </div>
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Contracts</h3>
         <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="" aria-pressed="${!contractsType}">All<span class="n">${all.length}</span></button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}" aria-pressed="${contractsType === t}">${esc(t)}<span class="n">${all.filter(k => k.type === t).length}</span></button>`).join('')}</div></div>
       <div id="ctAdd" class="pay-confirm" hidden></div>
-      ${shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
+      ${shown.length && contractsLayout === 'timeline' ? timeline(shown) : shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
         <div class="ct-row">${(lk => `<span class="ct-badge" style="background:color-mix(in srgb, ${lk[1]} 16%, var(--panel)); color:var(--ink);" aria-hidden="true">${lk[0]}</span>`)(CT_TYPE_LOOK[k.type] || [esc(k.type.slice(0, 3).toUpperCase()), 'var(--muted)'])}<div class="ct-main"><b>${esc(k.name)}</b><small>${esc(k.provider)}${k.provider && k.type ? ' · ' : ''}${esc(k.type)}${k.ref ? ' · ' + esc(k.ref) : ''}</small>
           ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="pay-sub">${esc(k.notes)}</div>` : ''}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div></div>
         <div class="ct-when">${period(k)}</div>
@@ -5701,6 +5773,7 @@ function renderContracts(area){
     </section>`;
 
   area.querySelectorAll('[data-ctype]').forEach(b => b.addEventListener('click', () => { contractsType = b.dataset.ctype; renderContracts(area); }));
+  area.querySelectorAll('[data-ctlayout]').forEach(b => b.addEventListener('click', () => { contractsLayout = b.dataset.ctlayout; try{ localStorage.setItem('sp_ctLayout', contractsLayout); } catch(_){} renderContracts(area); }));
   // Add a contract: saved on this device; the panel gives the row to paste into the Contracts tab.
   const addBtn = area.querySelector('.ct-add'), box = document.getElementById('ctAdd');
   addBtn.addEventListener('click', () => {
@@ -5759,7 +5832,16 @@ async function fetchReceipts(){
   return t.slice(1).map(r => ({ms: payDateMs(v(r, 'date')), dateRaw: v(r, 'date'), from: v(r, 'from'), subject: v(r, 'subject'), amount: num(v(r, 'amount')),
     cur: (v(r, 'currency') || 'ILS').toUpperCase(), files: v(r, 'attachments'), link: v(r, 'link'), id: v(r, 'message id'), notes: v(r, 'notes'),
     product: v(r, 'product'), kind: receiptKind(v(r, 'kind'))}))
-    .filter(x => !isNaN(x.ms) && (x.subject || x.from || x.product)).sort((a, b) => b.ms - a.ms);
+    .filter(x => !isNaN(x.ms) && (x.subject || x.from || x.product))
+    // Rows with the same message id are one receipt: a row pasted from the window (the same receipt
+    // with what it was for, kind, note, amount) fills in the original; non-empty values win.
+    .reduce((acc, x) => {
+      const y = x.id && acc.find(a => a.id === x.id);
+      if(!y){ acc.push(x); return acc; }
+      ['product', 'kind', 'notes'].forEach(f => { if(x[f]) y[f] = x[f]; });
+      if(x.amount > 0) y.amount = x.amount;
+      return acc;
+    }, []).sort((a, b) => b.ms - a.ms);
 }
 // Kind: Product, Service, or Don't count (a duplicate, a refund…), kept out of the totals.
 function receiptKind(s){ s = String(s || '').trim().toLowerCase(); return /^prod/.test(s) ? 'product' : /^serv/.test(s) ? 'service' : /^(don|skip|not|no )/.test(s) ? 'skip' : ''; }
@@ -5803,6 +5885,8 @@ function renderReceipts(area){
     return;
   }
   const all = receiptsMerged();
+  // The row for the Receipts tab: Date | From | Subject | Amount | Currency | Attachments | Link | Message id | Notes | Product | Kind.
+  const tabRow = x => [x.dateRaw || ymdOf(x.ms), x.from, x.subject, x.amount > 0 ? x.amount : '', x.cur || 'ILS', x.files, x.link, x.id, x.notes, x.product, RECEIPT_KIND_LABEL[x.kind] || ''].join('\t');
   const rateOn = ms => (usdIlsOn(ymdOf(ms)) || {}).rate || window.lastFxQ1 || 3.7;
   const ils = x => !(x.amount > 0) || x.kind === 'skip' ? 0 : x.cur === 'USD' ? x.amount * rateOn(x.ms) : x.cur === 'EUR' ? x.amount * SHOP_FX_USD.EUR * rateOn(x.ms) : x.amount;
   // The same amount twice within 45 days (an invoice and its receipt): flagged on the later one.
@@ -5823,37 +5907,52 @@ function renderReceipts(area){
   const ask = all.filter(x => !x.product && x.kind !== 'skip'), dups = all.filter(x => x.dup);
   const biggest = all.filter(x => x.kind !== 'skip' && x.amount > 0).sort((a, b) => ils(b) - ils(a))[0];
   const kindChip = (v, t, n) => `<button type="button" class="pay-chip${receiptsKind === v ? ' on' : ''}" data-rkind="${v}" aria-pressed="${receiptsKind === v}">${t}<span class="n">${n}</span></button>`;
-  const row = x => `<div class="ct-item" data-rid="${esc(x.id)}">
-      <div class="ct-main"><b class="${x.product ? '' : 'rc-ask'}">${x.product ? esc(x.product) : 'What was it for?'}${x.kind ? `<span class="rc-kind ${x.kind}">${RECEIPT_KIND_LABEL[x.kind]}</span>` : ''}</b>
-        <small>${esc(x.from)}${x.subject ? ' · <span dir="auto">' + esc(x.subject) + '</span>' : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
-        ${x.notes ? `<div class="ct-covers" dir="auto">${esc(x.notes)}</div>` : ''}
-        ${x.dup ? `<div class="rc-flag">Same amount as the ${day(x.dup.ms)} receipt from ${esc(x.dup.from)}: counted twice? Edit one and set Kind to Don't count.</div>` : ''}
-        ${x.files ? `<div class="pay-sub">📎 ${esc(x.files)}</div>` : ''}</div>
-      <div class="ct-when">${day(x.ms)}</div>
-      <div class="ct-cost"><b>${x.amount > 0 ? money(x.amount, x.cur) : '—'}</b><span><button type="button" class="pay-icon-btn rc-edit-btn" data-rid="${esc(x.id)}" aria-label="Edit what it was for, amount and note" title="Edit">${PAY_ICONS.edit}</button>${x.link ? `<a class="pay-icon-btn" href="${esc(x.link)}" target="_blank" rel="noopener" aria-label="Open the email" title="Open the email">${PAY_ICONS.mail}</a>` : ''}</span></div>
+  const kindPill = x => x.kind ? `<span class="rc-kind ${x.kind}">${RECEIPT_KIND_LABEL[x.kind]}</span>` : !x.product ? '<span class="rc-kind ask">To describe</span>' : '<span></span>';
+  const card = x => `<div class="rc-card${x.kind === 'skip' ? ' skip' : ''}" data-rid="${esc(x.id)}">
+      <div class="rc-card-top">${kindPill(x)}<span>${day(x.ms)}</span></div>
+      <b class="${x.product ? '' : 'rc-ask'}">${x.product ? esc(x.product) : 'What was it for?'}</b>
+      <small dir="auto">${esc(x.from)}${x.subject && !x.product ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
+      ${x.notes ? `<small dir="auto" style="color:var(--ink);">${esc(x.notes)}</small>` : ''}
+      ${x.dup ? `<div class="rc-flag">Same amount as the ${day(x.dup.ms)} receipt (${esc(x.dup.product || x.dup.from)}): counted twice? Set one to Don't count.</div>` : ''}
+      <div class="rc-card-foot"><span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span><span><button type="button" class="pay-icon-btn rc-edit-btn" data-rid="${esc(x.id)}" aria-label="Edit what it was for, kind, amount and note" title="Edit">${PAY_ICONS.edit}</button>${x.link ? `<a class="pay-icon-btn" href="${esc(x.link)}" target="_blank" rel="noopener" aria-label="Open the email" title="Open the email">${PAY_ICONS.mail}</a>` : ''}</span></div>
     </div><div class="rc-slot" data-rid="${esc(x.id)}"></div>`;
+  const tray = ask.slice(0, 3);
+  const localRows = all.filter(x => x.local || x.addedLocal);
+  const LIMIT = 48, cut = shown.slice(0, receiptsShowAll ? shown.length : LIMIT);
   area.innerHTML = `
     <div class="pay-top">${payViewSwitch()}<button type="button" class="pay-btn primary rc-add">${PAY_ICONS.plus}Add a receipt</button></div>
     ${receiptsList.error ? `<div class="pm-note">The Receipts tab isn't there yet (${receiptsList.error}): put receipts in the Gmail label <b>payments-receipts</b> and run <b>updateReceipts()</b> in the Payments spreadsheet's Apps Script (it then runs daily with updatePayments).</div>` : ''}
     <div id="rcAdd" class="pay-confirm rc-edit" hidden></div>
-    <div class="pay-cards">
-      <div class="pay-card"><div class="pay-card-label">${thisY}</div><div class="pay-card-val">${fmt(total(inY))}</div>
-        <div class="pay-card-sub">${inY.length} receipt${inY.length === 1 ? '' : 's'} · products ${fmt(total(inY.filter(x => x.kind === 'product')))} · services ${fmt(total(inY.filter(x => x.kind === 'service')))}</div></div>
-      <div class="pay-card"><div class="pay-card-label">Biggest</div><div class="pay-card-val">${biggest ? esc(biggest.product || biggest.from) : '—'}</div>
-        <div class="pay-card-sub">${biggest ? `${money(biggest.amount, biggest.cur)} · ${esc(biggest.from)} · ${new Date(biggest.ms).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'})}` : 'No amounts yet'}</div></div>
-      <div class="pay-card${ask.length || dups.length ? ' wait' : ''}"><div class="pay-card-label">Needs a look${ask.length + dups.length ? ' · ' + (ask.length + dups.length) : ''}</div>
-        <div class="pay-card-val">${ask.length || dups.length ? [ask.length ? `${ask.length} without "what for"` : '', dups.length ? `${dups.length} possible duplicate${dups.length > 1 ? 's' : ''}` : ''].filter(String).join(' · ') : 'All described'}</div>
-        <div class="pay-card-sub">${all.length} receipts${all.length ? ' since ' + day(all[all.length - 1].ms) : ''}. Edit a receipt (✎) to say what it was for.</div></div>
+    ${tray.length ? `<section class="rc-tray"><div class="rc-tray-head"><h3>Say what these were for · ${tray.length} of ${ask.length}</h3><span class="pay-sub" style="font-size:12.5px;">Type and press Enter; the next one comes up</span></div>
+      ${tray.map(x => `<div class="rc-tray-row"><span class="ct-main"><b style="font-size:13.5px;">${esc(x.from)}</b><small dir="auto">${day(x.ms)}${x.subject ? ' · ' + esc(x.subject) : ''}</small></span>
+        <label><span class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden;">What was ${esc(x.from)} on ${day(x.ms)} for</span><input type="text" class="rc-tray-in" data-rid="${esc(x.id)}" placeholder="what you bought or the service" autocomplete="off"></label>
+        <span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span></div>`).join('')}</section>` : ''}
+    ${localRows.length ? `<div class="pay-confirm rc-edit" style="margin:0 0 14px;"><div class="pay-confirm-row"><b>${localRows.length} change${localRows.length === 1 ? '' : 's'} on this device only.</b> To keep them on every device, copy the rows and paste them at the bottom of the Receipts tab (a row with the same message id updates that receipt).</div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn rc-copy-all">Copy ${localRows.length} row${localRows.length === 1 ? '' : 's'}</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
+    <div class="rc-bar">
+      <div class="pay-chips">${kindChip('', 'All', all.length)}${kindChip('product', 'Products', all.filter(x => x.kind === 'product').length)}${kindChip('service', 'Services', all.filter(x => x.kind === 'service').length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}${all.some(x => x.kind === 'skip') ? kindChip('skip', 'Not counted', all.filter(x => x.kind === 'skip').length) : ''}</div>
+      <input type="search" class="shop-search rc-search" placeholder="Search product, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts">
     </div>
-    <section class="pay-panel">
-      <div class="pay-panel-head"><input type="search" class="shop-search rc-search" placeholder="Search product, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts">
-        <div class="pay-chips">${kindChip('', 'All', all.length)}${kindChip('product', 'Products', all.filter(x => x.kind === 'product').length)}${kindChip('service', 'Services', all.filter(x => x.kind === 'service').length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}</div>
-        <div class="pay-chips"><button type="button" class="pay-chip${receiptsYear ? '' : ' on'}" data-ryear="" aria-pressed="${!receiptsYear}">All years</button>${years.map(y => `<button type="button" class="pay-chip${receiptsYear === y ? ' on' : ''}" data-ryear="${y}" aria-pressed="${receiptsYear === y}">${y}</button>`).join('')}</div></div>
-      ${shown.length ? `<div class="ct-list">${shown.map(row).join('')}</div>` : `<div class="pm-note">${all.length ? 'Nothing matches.' : 'No receipts yet.'}</div>`}
-    </section>`;
+    <div class="pay-sub" style="font-size:12.5px; margin:0 0 10px;">Kept forever · ${all.length} receipt${all.length === 1 ? '' : 's'}${all.length ? ' since ' + new Date(all[all.length - 1].ms).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'}) : ''} · ${thisY} ${fmt(total(inY))}${biggest ? ` · biggest ${esc(biggest.product || biggest.from)} ${money(biggest.amount, biggest.cur)}` : ''}${dups.length ? ` · <span class="rc-flag">${dups.length} possible duplicate${dups.length > 1 ? 's' : ''}</span>` : ''}</div>
+    ${cut.length ? `<div class="rc-grid">${cut.map(card).join('')}</div>${shown.length > cut.length ? `<div style="margin-top:12px;"><button type="button" class="pay-btn rc-more">Show all ${shown.length}</button></div>` : ''}` : `<div class="pm-note">${all.length ? 'Nothing matches.' : 'No receipts yet.'}</div>`}`;
 
   const rerender = () => { const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; renderReceipts(area); if(body) body.scrollTop = top; };
-  area.querySelectorAll('[data-ryear]').forEach(b => b.addEventListener('click', () => { receiptsYear = b.dataset.ryear; rerender(); }));
+  const more = area.querySelector('.rc-more');
+  if(more) more.addEventListener('click', () => { receiptsShowAll = true; rerender(); });
+  // The tray: Enter saves what it was for and brings up the next one.
+  area.querySelectorAll('.rc-tray-in').forEach(inp => inp.addEventListener('keydown', ev => {
+    if(ev.key !== 'Enter' || !inp.value.trim()) return;
+    ev.preventDefault();
+    const x = all.find(r => r.id === inp.dataset.rid); if(!x) return;
+    const m = receiptEditsGet();
+    m[x.id] = {product: inp.value.trim(), kind: x.kind || '', notes: x.notes || '', amount: x.amount > 0 ? x.amount : ''};
+    receiptEditsSet(m);
+    rerender();
+    refreshPayTabs();
+    const next = area.querySelector('.rc-tray-in'); if(next) next.focus();
+  }));
+  const copyAll = area.querySelector('.rc-copy-all');
+  if(copyAll) copyAll.addEventListener('click', () => navigator.clipboard.writeText(localRows.map(tabRow).join('\n')).then(() => { copyAll.nextElementSibling.hidden = false; }).catch(() => {}));
   area.querySelectorAll('[data-rkind]').forEach(b => b.addEventListener('click', () => { receiptsKind = b.dataset.rkind; rerender(); }));
   const search = area.querySelector('.rc-search');
   search.addEventListener('input', () => {
@@ -5862,8 +5961,6 @@ function renderReceipts(area){
     renderReceipts(area);
     const s2 = area.querySelector('.rc-search'); s2.focus(); s2.setSelectionRange(pos, pos);
   });
-  // The row for the Receipts tab: Date | From | Subject | Amount | Currency | Attachments | Link | Message id | Notes | Product | Kind.
-  const tabRow = x => [x.dateRaw || ymdOf(x.ms), x.from, x.subject, x.amount > 0 ? x.amount : '', x.cur || 'ILS', x.files, x.link, x.id, x.notes, x.product, RECEIPT_KIND_LABEL[x.kind] || ''].join('\t');
   const showPaste = (box, x, how) => {
     const r = tabRow(x);
     box.dataset.row = r;
@@ -5904,7 +6001,7 @@ function renderReceipts(area){
       receiptEditsSet(m);
       rerender();
       const nx = receiptsMerged().find(r => r.id === x.id), s2 = area.querySelector(`.rc-slot[data-rid="${CSS.escape(x.id)}"]`);
-      if(nx && s2){ s2.innerHTML = '<div class="pay-confirm rc-edit"></div>'; showPaste(s2.firstElementChild, nx, x.addedLocal ? 'insert a row under the header of the Receipts tab and paste it there' : `in the Receipts tab select the Date cell of this receipt's row (dated ${esc(x.dateRaw || ymdOf(x.ms))}) and paste over the row`); }
+      if(nx && s2){ s2.innerHTML = '<div class="pay-confirm rc-edit"></div>'; showPaste(s2.firstElementChild, nx, x.addedLocal ? 'paste it at the bottom of the Receipts tab' : 'paste it at the bottom of the Receipts tab (the same message id updates this receipt)'); }
     });
   }));
   // Add a receipt with no email (paid in a shop, paper receipt).
@@ -5923,7 +6020,7 @@ function renderReceipts(area){
       rerender();
       refreshPayTabs();
       const nx = receiptsMerged().find(r => r.id === a.id), b2 = document.getElementById('rcAdd');
-      if(nx) showPaste(b2, nx, 'insert a row under the header of the Receipts tab and paste it there');
+      if(nx) showPaste(b2, nx, 'paste it at the bottom of the Receipts tab');
     });
   });
 }
