@@ -1324,9 +1324,9 @@
         <button id="universeBtn" title="Browse the full research watchlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3.2 3 14.8 0 18"/><path d="M12 3c-3 3.2-3 14.8 0 18"/></svg>Market Universe</button>
         <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/></svg>Net Worth</button>
       </div>
-      <div class="hdr-seg" role="group" aria-label="Spending">
-        <button id="paymentsBtn" title="Monthly bills from Gmail — electricity, TV & internet, arnona, water"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>Payments</button>
-        <button id="shoppingBtn" title="Online orders from Gmail — what they cost and where the packages are"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Shopping</button>
+      <div class="hdr-seg" role="group" aria-label="Bills and purchases">
+        <button id="paymentsBtn" title="Bills & Contracts: what you pay again and again (electricity, water, arnona, TV) and what you signed for it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>Bills &amp; Contracts</button>
+        <button id="shoppingBtn" title="Purchases: online orders on their way, receipts of big buys you keep, and what it all cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Purchases</button>
       </div>
       <span class="hdr-div" aria-hidden="true"></span>
       <div class="hdr-tools">
@@ -1536,7 +1536,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791837415";
+const BUILD_ID = "1791840055";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5576,6 +5576,12 @@ const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
 let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false;
+// Bills & Contracts (paymentsView: bills / contracts) and Purchases (shoppingView: orders / receipts /
+// spending) reopen on the tab used last on this device.
+let shoppingView = 'orders';
+try{ paymentsView = localStorage.getItem('sp_payView') || 'bills'; shoppingView = localStorage.getItem('sp_shopView') || 'orders'; } catch(_){}
+if(!['bills', 'contracts'].includes(paymentsView)) paymentsView = 'bills';
+if(!['orders', 'receipts', 'spending'].includes(shoppingView)) shoppingView = 'orders';
 
 // A date cell as local-noon ms: yyyy-mm-dd, dd/mm/yy(yy) (day first, as on Israeli bills) or a
 // Sheets serial day number. NaN if empty or unreadable.
@@ -5632,6 +5638,8 @@ const PAY_ICONS = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
   hide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-3 3.5M6.5 7.6C4.3 9.2 3 12 3 12s4 6 9 6a8.6 8.6 0 0 0 4-1M9.9 10a3 3 0 0 0 4.1 4.1"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 20h16M7 16v-5M12 16V7M17 16v-8"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'
 };
 // Each tab's badge: Bills from the last Bills render (missing, else no bill yet this month); Contracts
@@ -5651,16 +5659,37 @@ function payTabBadge(v){
   return null;
 }
 function payViewSwitch(){
-  return `<div class="pay-view" role="tablist" aria-label="Payments view">${[['bills', 'Bills'], ['contracts', 'Contracts'], ['receipts', 'Receipts']].map(([v, t]) => {
+  return `<div class="pay-view" role="tablist" aria-label="Bills and Contracts">${[['bills', 'Bills'], ['contracts', 'Contracts']].map(([v, t]) => {
     const b = payTabBadge(v);
     return `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}">${PAY_ICONS[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
   }).join('')}</div>`;
 }
-function refreshPayTabs(){ document.querySelectorAll('#payArea .pay-view').forEach(el => { el.outerHTML = payViewSwitch(); }); }
+// Purchases: Orders | Receipts | Spending (data-win="shop" tells the click handler which window).
+let shopOrdersBadge = null;
+function shopViewSwitch(){
+  const icons = {orders: PAY_ICONS.box, receipts: PAY_ICONS.receipts, spending: PAY_ICONS.chart};
+  return `<div class="pay-view" role="tablist" aria-label="Purchases">${[['orders', 'Orders'], ['receipts', 'Receipts'], ['spending', 'Spending']].map(([v, t]) => {
+    const b = v === 'orders' ? shopOrdersBadge : v === 'receipts' ? payTabBadge('receipts') : null;
+    return `<button type="button" role="tab" class="pay-view-btn${shoppingView === v ? ' on' : ''}" aria-selected="${shoppingView === v}" data-win="shop" data-view="${v}">${icons[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
+  }).join('')}</div>`;
+}
+function refreshPayTabs(){
+  document.querySelectorAll('#payArea .pay-view').forEach(el => { el.outerHTML = payViewSwitch(); });
+  document.querySelectorAll('#shopArea .pay-view').forEach(el => { el.outerHTML = shopViewSwitch(); });
+}
 document.addEventListener('click', ev => {
   const b = ev.target.closest && ev.target.closest('.pay-view-btn');
-  if(!b || b.dataset.view === paymentsView) return;
+  if(!b) return;
+  if(b.dataset.win === 'shop'){
+    if(b.dataset.view === shoppingView) return;
+    shoppingView = b.dataset.view;
+    try{ localStorage.setItem('sp_shopView', shoppingView); } catch(_){}
+    renderShopping();
+    return;
+  }
+  if(b.dataset.view === paymentsView) return;
   paymentsView = b.dataset.view;
+  try{ localStorage.setItem('sp_payView', paymentsView); } catch(_){}
   renderPayments();
 });
 
@@ -5915,11 +5944,11 @@ function renderReceipts(area){
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const money = (n, cur) => (cur === 'USD' ? '$' : cur === 'EUR' ? '€' : '₪') + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   if(!receiptsList){
-    area.innerHTML = `<div class="pay-top">${payViewSwitch()}</div><div class="pm-note">Loading receipts…</div>`;
-    fetchReceipts().then(l => { receiptsList = l; if(paymentsView === 'receipts') renderReceipts(area); }).catch(e => {
+    area.innerHTML = `<div class="pay-top">${shopViewSwitch()}</div><div class="pm-note">Loading receipts…</div>`;
+    fetchReceipts().then(l => { receiptsList = l; if(shoppingView === 'receipts') renderReceipts(area); }).catch(e => {
       receiptsList = [];
       receiptsList.error = String(e.message).replace(/[<>&]/g, '');
-      if(paymentsView === 'receipts') renderReceipts(area);
+      if(shoppingView === 'receipts') renderReceipts(area);
     });
     return;
   }
@@ -5962,7 +5991,7 @@ function renderReceipts(area){
   const localRows = merged.filter(x => x.local || x.addedLocal);
   const LIMIT = 48, cut = shown.slice(0, receiptsShowAll ? shown.length : LIMIT);
   area.innerHTML = `
-    <div class="pay-top">${payViewSwitch()}<button type="button" class="pay-btn primary rc-add">${PAY_ICONS.plus}Add a receipt</button></div>
+    <div class="pay-top">${shopViewSwitch()}<button type="button" class="pay-btn primary rc-add">${PAY_ICONS.plus}Add a receipt</button></div>
     ${receiptsList.error ? `<div class="pm-note">The Receipts tab isn't there yet (${receiptsList.error}): put receipts in the Gmail label <b>payments-receipts</b> and run <b>updateReceipts()</b> in the Payments spreadsheet's Apps Script (it then runs daily with updatePayments).</div>` : ''}
     <div id="rcAdd" class="pay-confirm rc-edit" hidden></div>
     ${tray.length ? `<section class="rc-tray"><div class="rc-tray-head"><h3>Say what these were for · ${tray.length} of ${ask.length}</h3><span class="pay-sub" style="font-size:12.5px;">Type and press Enter; the next one comes up</span></div>
@@ -6082,7 +6111,8 @@ function renderReceipts(area){
 
 async function openPaymentsDetail(){
   document.getElementById('marketDetailTitle').textContent = 'Payments';
-  document.getElementById('marketDetailSubtitle').textContent = 'Monthly bills, from Gmail';
+  document.getElementById('marketDetailTitle').textContent = 'Bills & Contracts';
+  document.getElementById('marketDetailSubtitle').textContent = 'What you pay again and again, and what you signed for it';
   hideBrokerFilter();
   hideNwYearSwitcher();
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -6096,7 +6126,6 @@ async function openPaymentsDetail(){
     body.innerHTML = `<div id="payArea"></div>`;
     renderPayments();
     if(!contractsList) fetchContracts().then(l => { if(!contractsList){ contractsList = l; refreshPayTabs(); } }).catch(() => {});
-    if(!receiptsList) fetchReceipts().then(l => { if(!receiptsList){ receiptsList = l; refreshPayTabs(); } }).catch(() => {});
   } catch(e){
     body.innerHTML = `<div class="pm-note" style="color:var(--down-ink);">Could not load the Payments spreadsheet (${String(e.message).replace(/[<>&]/g, '')}). Diagnostics shows whether the proxy is reachable.</div>`;
   }
@@ -6203,7 +6232,6 @@ function renderPayments(){
   const area = document.getElementById('payArea');
   if(!area || !paymentsList) return;
   if(paymentsView === 'contracts'){ renderContracts(area); return; }
-  if(paymentsView === 'receipts'){ renderReceipts(area); return; }
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const fmt2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -6584,8 +6612,8 @@ function buildShopOrders(input){
 }
 
 async function openShoppingDetail(){
-  document.getElementById('marketDetailTitle').textContent = 'Shopping';
-  document.getElementById('marketDetailSubtitle').textContent = 'Online orders and deliveries, from Gmail';
+  document.getElementById('marketDetailTitle').textContent = 'Purchases';
+  document.getElementById('marketDetailSubtitle').textContent = 'What you bought once: on its way, kept for good, and what it all cost';
   hideBrokerFilter();
   hideNwYearSwitcher();
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -6600,6 +6628,7 @@ async function openShoppingDetail(){
     if(marketDetailState.marketKey !== 'shopping') return;
     body.innerHTML = `<div id="shopArea"></div>`;
     renderShopping();
+    if(!receiptsList) fetchReceipts().then(l => { if(!receiptsList){ receiptsList = l; refreshPayTabs(); } }).catch(() => {});
   } catch(e){
     body.innerHTML = `<div class="pm-note" style="color:var(--down-ink);">Could not load the Shopping tab (${String(e.message).replace(/[<>&]/g, '')}). Run updateShopping() in the Payments spreadsheet's Apps Script.</div>`;
   }
@@ -6608,6 +6637,7 @@ async function openShoppingDetail(){
 function renderShopping(){
   const area = document.getElementById('shopArea');
   if(!area || !shoppingOrders) return;
+  if(shoppingView === 'receipts'){ renderReceipts(area); return; }
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const sym = {USD: '$', EUR: '€', GBP: '£', ILS: '₪'};
@@ -6646,6 +6676,7 @@ function renderShopping(){
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
+  shopOrdersBadge = pickup.length ? {t: pickup.length + ' to pick up', c: 'warn'} : moving.length ? {t: moving.length + ' on the way', c: ''} : null;
   const spent = arr => arr.reduce((a, o) => a + o.ils, 0);
   const yearAgo = now - 365 * DAY, thisYear = new Date(new Date().getFullYear(), 0, 1).getTime();
   const last12 = all.filter(o => o.first > yearAgo && o.ils > 0), ytd = all.filter(o => o.first >= thisYear && o.ils > 0);
@@ -6660,6 +6691,9 @@ function renderShopping(){
       <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
         <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'Nothing on the way'}</div>
         <div class="pay-card-sub">${moving.length ? moving.slice(0, 4).map(o => `${esc(o.store)}: ${esc(SHOP_STATUS[o.status])}`).join(' · ') + (moving.length > 4 ? ' · …' : '') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
+    </div>`;
+  const moneyCards = `
+    <div class="pay-cards">
       <div class="pay-card"><div class="pay-card-label">Spent this year</div>
         <div class="pay-card-val">${fmt(spent(ytd))}</div>
         <div class="pay-card-sub">${ytd.length} order${ytd.length === 1 ? '' : 's'} with a price</div></div>
@@ -6675,6 +6709,9 @@ function renderShopping(){
   // Any order's status can be set by hand (a PayPal payment has no delivery to set).
   const markable = o => !o.viaPayPal;
   const pillBtn = o => markable(o) ? `<button type="button" class="shop-mark shop-pill-btn" data-key="${esc(o.key)}" aria-label="Change the status" title="Click to change the status">${pill(o)}</button>` : pill(o);
+  const receiptIds = new Set((receiptsList || []).map(x => x.id).concat(receiptsAddedGet().map(a => a.id)));
+  const keepBtn = o => o.status === 'delivered' && o.gross > 0 && !o.viaPayPal
+    ? (receiptIds.has('order-' + o.key) ? '<span class="pay-sub">In Receipts ✓</span>' : `<button type="button" class="shop-note-btn shop-keep" data-key="${esc(o.key)}">Move to Receipts →</button>`) : '';
   const price = o => o.gross > 0 ? money(o.amount || o.gross, o.cur) + (o.refund > 0 && o.status !== 'refunded' ? `<div class="pay-sub">${money(o.refund, o.cur)} refunded</div>` : '') : '—';
   const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
   const deliveries = `
@@ -6720,11 +6757,12 @@ function renderShopping(){
   const statusList = Object.keys(statusCounts).sort((a, b) => (STATUS_ORDER.indexOf(a) + 1 || 99) - (STATUS_ORDER.indexOf(b) + 1 || 99));
   if(shoppingStatus && !statusCounts[shoppingStatus] && !statusList.includes(shoppingStatus)) statusList.push(shoppingStatus);
   const shown = shoppingStatus ? byStoreAndText.filter(o => statusOf(o) === shoppingStatus) : byStoreAndText;
+  const rangeChips = `<div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}" aria-pressed="${shoppingRange === n}">${t}</button>`).join('')}</div>`;
+  const spending = shoppingView === 'spending';
   area.innerHTML = `
-    <div class="pay-top"><div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}">${t}</button>`).join('')}</div></div>
-    ${cards}
-    ${deliveries}
-    <div class="pay-row">
+    <div class="pay-top">${shopViewSwitch()}${rangeChips}</div>
+    ${spending ? moneyCards : cards + deliveries}
+    ${spending ? `<div class="pay-row">
       <section class="pay-panel pay-chart-panel">
         <div class="pay-panel-head"><h3>Spent by month</h3>
           <div class="div-legend" style="margin:0;">${groups.map(g => `<span><i style="background:${colorOf(g)}"></i>${esc(g)}</span>`).join('')}</div></div>
@@ -6735,8 +6773,8 @@ function renderShopping(){
         ${storeRows.map(r => `<div class="pay-cat-item"><span class="pay-dot" style="background:${colorOf(groupOf(r.s))}"></span>
           <div class="pay-cat-main"><b>${esc(r.s)}</b><small>${r.n} order${r.n === 1 ? '' : 's'} · ${fmt(r.avg)} on average</small></div>
           <div class="pay-cat-num"><b>${fmt(r.total)}</b></div></div>`).join('') || '<div class="pm-note">No priced orders in this range.</div>'}</section>
-    </div>
-    <section class="pay-panel">
+    </div>` : ''}
+    ${spending ? '' : `<section class="pay-panel">
       <div class="pay-panel-head"><h3>All orders</h3>
         <div class="pay-chips"><select class="shop-status" aria-label="Filter by status"><option value="">All statuses · ${byStoreAndText.length}</option>${statusList.map(st => `<option value="${esc(st)}"${shoppingStatus === st ? ' selected' : ''}>${esc(st)} · ${statusCounts[st] || 0}</option>`).join('')}</select><input type="search" class="shop-search" placeholder="Search items, store, date, order, tracking or amount" aria-label="Search orders" value="${esc(shoppingQuery)}"><button type="button" class="pay-chip shop-add">+ Add an order</button></div>
         ${q.length ? `<span class="pay-panel-note">${shown.length} found${shown.length > 100 ? ', the latest 100 shown' : ''} · all dates</span>` : ''}
@@ -6744,22 +6782,22 @@ function renderShopping(){
       <div id="shopAdd" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
-        <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></td>
+        <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</td>
           <td>${o.no && !/^PayPal /.test(o.no) ? esc(o.no) : ''}${o.trk.length ? '<div class="pay-sub">' + o.trk.map(esc).join(', ') + '</div>' : ''}</td>
           <td>${pillBtn(o)}</td><td class="num">${price(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${shown.slice(0, 100).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
-        <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></div>
+        <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</div>
         <div class="pay-cat-num"><b>${price(o)}</b>${pillBtn(o)}</div></div>`).join('')}</div>
       ${q.length && !shown.length ? `<div class="pm-note">No order matches “${esc(shoppingQuery.trim())}”.</div>` : ''}
       ${shown.length > 100 ? `<div class="pm-note">Showing the latest 100 of ${shown.length}.</div>` : ''}
-    </section>`;
+    </section>`}`;
 
   // Monthly bars.
   const box = document.getElementById('shopChartBox');
   const byMonth = months.map(k => { const os = inRange.filter(o => monthKey(o.first) === k); const per = {};
     os.forEach(o => { const g = groupOf(o.brand); per[g] = (per[g] || 0) + o.ils; }); return {k, os, per, total: spent(os)}; });
-  const w = Math.max(280, box.clientWidth || 600), h = 220, padL = 50, padR = 4, padT = 10, padB = 24;
+  const w = Math.max(280, (box && box.clientWidth) || 600), h = 220, padL = 50, padR = 4, padT = 10, padB = 24;
   const max = Math.max(...byMonth.map(m => m.total), 1);
   const step = [100, 200, 250, 500, 1000, 2000, 2500, 5000].find(s => max / s <= 5) || 10000;
   const topV = Math.ceil(max / step) * step;
@@ -6782,11 +6820,11 @@ function renderShopping(){
       labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
     hits += `<rect class="shop-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
-  box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
+  if(box) box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
 
   // Setting a status by hand: saved on this device at once; the panel offers the row to paste into the
   // Shopping tab so every device sees it (Message id "manual").
-  const panel = document.getElementById('shopMark');
+  const panel = document.getElementById('shopMark') || document.createElement('div');
   const MARK_CHOICES = [['ordered', 'Ordered'], ['shipped', 'On the way'], ['out for delivery', 'Out for delivery'], ['pickup', 'Ready for pickup'],
     ['delivered', 'Delivered / picked up'], ['issue', 'Delivery issue'], ['canceled', 'Canceled'], ['lost', 'Lost, never arrived'], ['refunded', 'Refunded']];
   const markBtns = o => MARK_CHOICES.map(([v, t]) => {
@@ -6909,7 +6947,17 @@ function renderShopping(){
   // Add an order by hand (bought in a shop, paid another way, an email that never came): saved on this
   // device at once; the panel gives the rows to paste into the Shopping tab (Message id "manual"), one
   // "ordered" row with the price and, for any other status, a second row with it.
-  const addPanel = document.getElementById('shopAdd');
+  const addPanel = document.getElementById('shopAdd') || document.createElement('div');
+  area.querySelectorAll('.shop-keep').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const o = all.find(x => x.key === b.dataset.key); if(!o) return;
+    receiptsAddedSet(receiptsAddedGet().concat([{id: 'order-' + o.key, date: ymd(o.first), from: o.store, product: o.items || o.note || '', kind: 'product',
+      amount: o.amount || o.gross, cur: o.cur || 'ILS', notes: o.no && !/^PayPal /.test(o.no) ? 'Order ' + o.no : ''}]));
+    shoppingView = 'receipts';
+    try{ localStorage.setItem('sp_shopView', shoppingView); } catch(_){}
+    renderShopping();
+    document.getElementById('marketDetailBody').scrollTop = 0;
+  }));
   const addRows = a => {
     const base = [a.date, a.store, a.no, 'ordered', a.items, a.amount || '', a.amount ? a.cur : '', '', 'manual', 'manual ' + a.date];
     const rows = [base];
