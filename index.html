@@ -117,6 +117,10 @@
   .hdr-seg{display:flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:3px; gap:2px;}
   .hdr-seg button{font-family:var(--sans); font-size:12.5px; color:var(--ink); background:transparent; border:0; border-radius:6px;
     padding:7px 12px; display:flex; align-items:center; gap:7px; cursor:pointer; white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;}
+  /* Market Universe and Net Worth: separate buttons, not a joined group (Payments | Shopping stay joined). */
+  .hdr-seg.sep{background:transparent; border:0; padding:0; gap:8px;}
+  .hdr-seg.sep button{background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:9px 13px;}
+  .hdr-seg.sep button:hover{background:var(--hover);}
   .hdr-seg button svg{width:15px; height:15px; color:var(--muted); flex:none;}
   .hdr-seg button:hover{background:var(--hover);}
   .hdr-seg button:hover svg{color:var(--accent);}
@@ -148,8 +152,10 @@
     #diagBtn.hdr-icon{width:44px; height:44px; border-radius:10px;}
     .hdr-seg{grid-row:2; flex-direction:column; border-radius:10px;}
     .hdr-seg button{min-height:44px; justify-content:center; font-size:13px; border-radius:7px;}
-    .hdr-seg button:first-child{border-radius:7px 7px 0 0;}
-    .hdr-seg button + button{border-top:1px solid var(--line); border-radius:0 0 7px 7px;}
+    .hdr-seg:not(.sep) button:first-child{border-radius:7px 7px 0 0;}
+    .hdr-seg:not(.sep) button + button{border-top:1px solid var(--line); border-radius:0 0 7px 7px;}
+    .hdr-seg.sep{gap:8px;}
+    .hdr-seg.sep button{border-radius:10px;}
   }
   #autoRefreshSelect{
     font-family:var(--sans); font-size:12px; color:var(--muted); background:var(--panel);
@@ -1314,7 +1320,7 @@
       <div class="meta" id="buildInfo"></div>
     </div>
     <div class="btnrow">
-      <div class="hdr-seg" role="group" aria-label="Investments">
+      <div class="hdr-seg sep" role="group" aria-label="Investments">
         <button id="universeBtn" title="Browse the full research watchlist"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c3 3.2 3 14.8 0 18"/><path d="M12 3c-3 3.2-3 14.8 0 18"/></svg>Market Universe</button>
         <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/></svg>Net Worth</button>
       </div>
@@ -1530,7 +1536,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791824345";
+const BUILD_ID = "1791837415";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
