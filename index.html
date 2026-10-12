@@ -546,6 +546,14 @@
   .pay-pill.wait{color:var(--warn); box-shadow:inset 0 0 0 1px var(--warn);}
   .pay-pill.bad{background:var(--down-1); color:var(--down-5);}
   .pay-pill.muted{background:var(--hover); color:var(--muted);}
+  .shop-card-link{font:inherit; color:var(--ink); text-align:left; cursor:pointer; border:0; width:100%; transition:box-shadow 0.15s ease, transform 0.1s ease;}
+  .shop-card-link:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
+  .shop-card-link.sel{box-shadow:inset 0 0 0 2px var(--accent);}
+  .shop-card-link:active{transform:translateY(1px);}
+  .shop-form{display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px;}
+  .shop-form label{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
+  .shop-form input, .shop-form select{font:inherit; font-size:13px; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:7px 9px; min-height:36px; box-sizing:border-box;}
+  .shop-form-err{color:var(--down-ink); font-size:12px; align-self:center;}
   .shop-mark{min-height:26px; font-size:11.5px; padding:0 10px; margin-left:6px;}
   .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
@@ -1413,7 +1421,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791794899";
+const BUILD_ID = "1791807263";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5798,7 +5806,7 @@ function renderPayments(){
     const what = `<b>${esc(s.payee)}</b> · ${s.byPeriod ? monthName(k) + ' bill' : monthName(k)}`;
     const ym = Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
     const row = [ym + '-15', s.payee, s.category, '', 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12), '', '', '', '', 'manual', 'manual ' + new Date().toISOString().slice(0, 10)].join('\t');
-    const sheetRow = `<div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Payments tab (the amount column is left empty; type the amount if you know it):
+    const sheetRow = `<div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Payments tab and paste it there (the amount is left empty; type it if you know it; the daily run keeps the tab sorted by date):
         <code>${esc(row.replace(/\t/g, ' │ '))}</code>
         <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>`;
     if(c && c.st === 'missing'){
@@ -5846,7 +5854,7 @@ const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for d
 const SHOP_STATUS = {ordered: 'Ordered', paid: 'Ordered', shipped: 'On the way', 'in transit': 'On the way', 'out for delivery': 'Out for delivery',
   pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded'};
 const SHOP_FX_USD = {EUR: 1.08, GBP: 1.27};   // approximate, for the few European orders
-let shoppingOrders = null, shoppingStore = '', shoppingRange = 12;
+let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '';
 
 // Delivery statuses set by hand on this device: {"store|order": {status, at}}.
 function shopMarksGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopMarks') || '{}') || {}; } catch(_){ return {}; } }
@@ -5868,7 +5876,23 @@ async function fetchShopping(){
       amount: num(r[cA]), cur: String(r[cC] || '').trim().toUpperCase(), trk: String(r[cT] || '').trim(),
       manual: cM >= 0 && /^manual/i.test(String(r[cM] || '').trim())});
   }
-  ev.sort((a, b) => a.ms - b.ms);
+  return ev;
+}
+// Orders you added by hand on this device (All orders → Add an order): {date, store, no, event, items,
+// amount, cur}. Shown until the same order (store + order no.) is in the Shopping tab as a manual row.
+function shopAddedGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_shopAdded') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
+function shopAddedSet(a){ try{ localStorage.setItem('sp_shopAdded', JSON.stringify(a)); } catch(_){} }
+function shopAddedEvents(sheetEv){
+  const inSheet = new Set(sheetEv.filter(e => e.manual).map(e => e.store + '|' + e.no));
+  // Like the rows it offers to paste: an "ordered" event with the price, plus the status when it's another.
+  return shopAddedGet().filter(a => !inSheet.has(a.store + '|' + a.no)).flatMap(a => {
+    const e = {ms: payDateMs(a.date), store: a.store, no: a.no, items: a.items || '', cur: a.cur || '', trk: '', manual: true, added: true};
+    return [{...e, event: 'ordered', amount: Number(a.amount) || NaN}].concat(a.event !== 'ordered' ? [{...e, event: a.event, items: '', amount: NaN, ms: e.ms + 1}] : []);
+  }).filter(e => !isNaN(e.ms));
+}
+// Store emails (and rows added by hand) → orders.
+function buildShopOrders(input){
+  const ev = input.slice().sort((a, b) => a.ms - b.ms);
   // Tracking no. → order no., wherever an email carried both.
   const trkNo = {};
   ev.forEach(e => { if(e.no && e.trk) trkNo[e.store + '|' + e.trk] = e.no; });
@@ -5907,7 +5931,8 @@ async function fetchShopping(){
     const amount = priced ? Math.max(0, priced.amount - refund) : 0;
     return {key: o.key, store: o.store, no: o.no, items: o.items, trk: [...o.trk], first: o.first, last: o.last, status: st,
       amount: st === 'canceled' ? 0 : amount, cur: priced ? priced.cur : '', gross: priced ? priced.amount : 0, refund,
-      viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events, markedInSheet: o.events.some(e => e.manual)};
+      viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events, markedInSheet: o.events.some(e => e.manual && !e.added),
+      addedLocal: o.events.some(e => e.added)};
   });
   return list.sort((a, b) => b.first - a.first);
 }
@@ -5923,8 +5948,9 @@ async function openShoppingDetail(){
   body.innerHTML = `<div class="pm-note">Loading…</div>`;
   document.getElementById('marketDetailModal').classList.add('open');
   try{
-    const [list] = await Promise.all([fetchShopping(), ensureUsdIlsHistory()]);
-    shoppingOrders = list;
+    const [events] = await Promise.all([fetchShopping(), ensureUsdIlsHistory()]);
+    shoppingEvents = events;
+    shoppingOrders = buildShopOrders(events.concat(shopAddedEvents(events)));
     if(marketDetailState.marketKey !== 'shopping') return;
     body.innerHTML = `<div id="shopArea"></div>`;
     renderShopping();
@@ -5977,12 +6003,12 @@ function renderShopping(){
   const label = o => o.items || (o.trk.length ? 'Package ' + o.trk[0] : o.no ? 'Order ' + o.no : 'Order');
   const cards = `
     <div class="pay-cards">
-      <div class="pay-card${pickup.length ? ' wait' : ''}"><div class="pay-card-label">Waiting for pickup${pickup.length ? ' · ' + pickup.length : ''}</div>
+      <button type="button" class="pay-card shop-card-link${pickup.length ? ' wait' : ''}${shoppingDeliv === 'pickup' ? ' sel' : ''}" data-deliv="pickup" title="Show these orders"><div class="pay-card-label">Waiting for pickup${pickup.length ? ' · ' + pickup.length : ''}</div>
         <div class="pay-card-val">${pickup.length ? pickup.map(o => esc(o.store)).join(', ') : 'Nothing to collect'}</div>
-        <div class="pay-card-sub">${pickup.length ? pickup.map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') : 'No package is waiting at a pickup point.'}</div></div>
-      <div class="pay-card${moving.length ? ' due' : ''}"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
+        <div class="pay-card-sub">${pickup.length ? pickup.map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') : 'No package is waiting at a pickup point.'}</div></button>
+      <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
         <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'Nothing on the way'}</div>
-        <div class="pay-card-sub">${moving.length ? moving.slice(0, 4).map(o => `${esc(o.store)}: ${esc(SHOP_STATUS[o.status])}`).join(' · ') + (moving.length > 4 ? ' · …' : '') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></div>
+        <div class="pay-card-sub">${moving.length ? moving.slice(0, 4).map(o => `${esc(o.store)}: ${esc(SHOP_STATUS[o.status])}`).join(' · ') + (moving.length > 4 ? ' · …' : '') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
       <div class="pay-card"><div class="pay-card-label">Spent this year</div>
         <div class="pay-card-val">${fmt(spent(ytd))}</div>
         <div class="pay-card-sub">${ytd.length} order${ytd.length === 1 ? '' : 's'} with a price</div></div>
@@ -5994,14 +6020,15 @@ function renderShopping(){
   const pillCls = st => st === 'delivered' ? 'paid' : st === 'pickup' ? 'wait' : ['issue', 'canceled', 'lost'].includes(st) ? 'bad' : st === 'refunded' ? 'muted' : 'due';
   // A PayPal receipt is a payment, not a delivery: it has no shipping emails to follow.
   const pill = o => o.viaPayPal && o.status === 'paid' ? '<span class="pay-pill paid">Paid</span>' :
-    `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}${o.markLocal || o.markedInSheet ? ' · by you' : ''}</span>`;
+    `<span class="pay-pill ${pillCls(o.status)}">${esc(SHOP_STATUS[o.status] || o.status)}${o.markLocal || o.markedInSheet || o.addedLocal ? ' · by you' : ''}</span>`;
   // Any order's status can be set by hand (a PayPal payment has no delivery to set).
   const markable = o => !o.viaPayPal;
   const price = o => o.gross > 0 ? money(o.amount || o.gross, o.cur) + (o.refund > 0 && o.status !== 'refunded' ? `<div class="pay-sub">${money(o.refund, o.cur)} refunded</div>` : '') : '—';
+  const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
   const deliveries = `
-    <section class="pay-panel">
-      <div class="pay-panel-head"><h3>Deliveries</h3><span class="pay-panel-note pay-hint">Orders from the last weeks that haven't arrived yet · hover a row for its emails</span></div>
-      ${open.length ? `<div class="pay-cards-list" style="display:block;">${open.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
+    <section class="pay-panel" id="shopDeliveries">
+      <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders from the last weeks that haven't arrived yet · hover a row for its emails</span>`}</div>
+      ${delivShown.length ? `<div class="pay-cards-list" style="display:block;">${delivShown.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
           <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)} · last update ${dayShort(o.last)}</small></div>
           <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pill(o)}<button type="button" class="pay-chip shop-mark" data-key="${esc(o.key)}">Update</button></div></div>`).join('')}</div>`
         : '<div class="pm-note">Nothing on the way.</div>'}
@@ -6043,7 +6070,9 @@ function renderShopping(){
     </div>
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>All orders</h3>
+        <div class="pay-chips"><button type="button" class="pay-chip shop-add">+ Add an order</button></div>
         <div class="pay-chips"><button type="button" class="pay-chip${shoppingStore ? '' : ' on'}" data-store="">All</button>${stores.filter(s => all.filter(o => o.brand === s).length >= 2 || s === shoppingStore).map(s => `<button type="button" class="pay-chip${shoppingStore === s ? ' on' : ''}" data-store="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
+      <div id="shopAdd" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
         <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${esc(o.items || (o.viaPayPal ? 'via PayPal' : '—'))}</td>
@@ -6095,12 +6124,12 @@ function renderShopping(){
       const r = [today, o.store, o.no && !/^PayPal /.test(o.no) ? o.no : '', o.status, '', '', '', o.trk[0] || '', 'manual', 'manual ' + today].join('\t');
       panel.dataset.row = r;
       panel.innerHTML = `<div>${what}: marked <b>${esc(SHOP_STATUS[o.status])}</b> on this device.</div>
-        <div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Shopping tab:<code>${esc(r.replace(/\t/g, ' │ '))}</code>
+        <div class="pay-confirm-row">To keep it on every device, insert a row under the header of the Shopping tab and paste it there (the daily run keeps the tab sorted by date):<code>${esc(r.replace(/\t/g, ' │ '))}</code>
         <button type="button" class="pay-chip" data-act="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
         <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-act="undo">Undo</button><button type="button" class="pay-chip" data-act="close">Close</button></div>`;
     } else {
       panel.innerHTML = `<div>${what}: <b>${esc(SHOP_STATUS[o.status] || o.status)}</b> by its emails, the last one ${dayShort(o.last)}. What really happened?</div>
-        <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-act="delivered">Delivered / picked up</button><button type="button" class="pay-chip" data-act="canceled">Canceled</button><button type="button" class="pay-chip" data-act="lost">Lost, never arrived</button><button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-act="delivered">Delivered / picked up</button><button type="button" class="pay-chip" data-act="canceled">Canceled</button><button type="button" class="pay-chip" data-act="lost">Lost, never arrived</button>${o.addedLocal ? '<button type="button" class="pay-chip" data-act="delete">Delete this order</button>' : ''}<button type="button" class="pay-chip" data-act="close">Cancel</button></div>`;
     }
     panel.hidden = false;
     panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
@@ -6108,6 +6137,12 @@ function renderShopping(){
       const act = b.dataset.act;
       if(act === 'close'){ panel.hidden = true; return; }
       if(act === 'copy'){ navigator.clipboard.writeText(panel.dataset.row).then(() => { panel.querySelector('.pay-copied').hidden = false; }).catch(() => {}); return; }
+      if(act === 'delete'){
+        shopAddedSet(shopAddedGet().filter(a => !(a.store === o.store && a.no === o.no)));
+        shoppingOrders = buildShopOrders(shoppingEvents.concat(shopAddedEvents(shoppingEvents)));
+        renderShopping();
+        return;
+      }
       const m = shopMarksGet();
       if(act === 'undo') delete m[o.key]; else m[o.key] = {status: act, at: today};
       shopMarksSet(m);
@@ -6119,6 +6154,64 @@ function renderShopping(){
     }));
   };
   panel.addEventListener('reopen', ev => openMark(ev.detail));
+  // The Waiting for pickup / On the way cards show their orders in Deliveries (a second click shows all).
+  area.querySelectorAll('.shop-card-link').forEach(b => b.addEventListener('click', () => {
+    shoppingDeliv = shoppingDeliv === b.dataset.deliv ? '' : b.dataset.deliv;
+    renderShopping();
+    const sec = document.getElementById('shopDeliveries'); if(sec) sec.scrollIntoView({block: 'start', behavior: 'smooth'});
+  }));
+  area.querySelectorAll('.shop-deliv-clear').forEach(b => b.addEventListener('click', () => { shoppingDeliv = ''; renderShopping(); }));
+  // Add an order by hand (bought in a shop, paid another way, an email that never came): saved on this
+  // device at once; the panel gives the rows to paste into the Shopping tab (Message id "manual"), one
+  // "ordered" row with the price and, for any other status, a second row with it.
+  const addPanel = document.getElementById('shopAdd');
+  const addRows = a => {
+    const base = [a.date, a.store, a.no, 'ordered', a.items, a.amount || '', a.amount ? a.cur : '', '', 'manual', 'manual ' + a.date];
+    const rows = [base];
+    if(a.event !== 'ordered') rows.push([a.date, a.store, a.no, a.event, '', '', '', '', 'manual', 'manual ' + a.date]);
+    return rows.map(r => r.join('\t')).join('\n');
+  };
+  const showAdded = a => {
+    const box = document.getElementById('shopAdd'); if(!box) return;
+    const rows = addRows(a);
+    box.dataset.rows = rows;
+    box.innerHTML = `<div><b>${esc(a.store)}</b>${a.items ? ' · ' + esc(a.items) : ''}: added on this device.</div>
+      <div class="pay-confirm-row">To keep it on every device, insert ${rows.includes('\n') ? 'two rows' : 'a row'} under the header of the Shopping tab and paste ${rows.includes('\n') ? 'them' : 'it'} there:<code>${esc(rows).replace(/\t/g, ' │ ').replace(/\n/g, '<br>')}</code>
+      <button type="button" class="pay-chip" data-add="copy">Copy</button> <span class="pay-copied" hidden>Copied</span></div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-add="close">Close</button></div>`;
+    box.hidden = false;
+    box.querySelector('[data-add="copy"]').addEventListener('click', () => navigator.clipboard.writeText(box.dataset.rows).then(() => { box.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+    box.querySelector('[data-add="close"]').addEventListener('click', () => { box.hidden = true; });
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  };
+  area.querySelectorAll('.shop-add').forEach(b => b.addEventListener('click', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    addPanel.innerHTML = `<div><b>Add an order</b> · for one with no email (bought in a shop, an email that was deleted)</div>
+      <div class="shop-form">
+        <label>Date<input type="date" name="date" value="${today}" required></label>
+        <label>Store<input name="store" list="shopStoreList" placeholder="e.g. Amazon" required></label>
+        <datalist id="shopStoreList">${stores.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+        <label>Items<input name="items" placeholder="what you bought"></label>
+        <label>Amount<input name="amount" type="number" step="0.01" min="0" placeholder="0.00"></label>
+        <label>Currency<select name="cur"><option>ILS</option><option>USD</option><option>EUR</option><option>GBP</option></select></label>
+        <label>Status<select name="event"><option value="ordered">On the way</option><option value="pickup">Ready for pickup</option><option value="delivered" selected>Delivered</option><option value="canceled">Canceled</option><option value="lost">Lost</option></select></label>
+        <label>Order no.<input name="no" placeholder="optional"></label>
+      </div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-chip on" data-add="save">Add</button><button type="button" class="pay-chip" data-add="cancel">Cancel</button><span class="shop-form-err" hidden>Date and store are needed.</span></div>`;
+    addPanel.hidden = false;
+    addPanel.querySelector('[data-add="cancel"]').addEventListener('click', () => { addPanel.hidden = true; });
+    addPanel.querySelector('[data-add="save"]').addEventListener('click', () => {
+      const v = n => (addPanel.querySelector(`[name="${n}"]`).value || '').trim();
+      if(!v('date') || !v('store')){ addPanel.querySelector('.shop-form-err').hidden = false; return; }
+      const a = {date: v('date'), store: v('store'), no: v('no') || 'M' + Date.now().toString(36).toUpperCase(), event: v('event'),
+        items: v('items'), amount: Number(v('amount')) > 0 ? Number(v('amount')) : '', cur: v('cur')};
+      shopAddedSet(shopAddedGet().concat([a]));
+      shoppingOrders = buildShopOrders(shoppingEvents.concat(shopAddedEvents(shoppingEvents)));
+      renderShopping();
+      showAdded(a);
+    });
+    addPanel.querySelector('[name="store"]').focus();
+  }));
   area.querySelectorAll('.shop-mark').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation();
     const o = all.find(x => x.key === b.dataset.key); if(o) openMark(o);
