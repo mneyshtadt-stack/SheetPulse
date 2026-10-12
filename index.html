@@ -518,6 +518,10 @@
   .ct-tl{overflow-x:auto;}
   .ct-tl-in{min-width:680px;}
   .ct-tl-head, .ct-tl-row{display:grid; grid-template-columns:230px minmax(0, 1fr); align-items:center; border-bottom:1px solid var(--line);}
+  .ct-tl-namecell{display:flex; align-items:center; gap:2px; padding-right:8px; min-width:0;}
+  .ct-tl-namecell .ct-tl-name{flex:1;}
+  .ct-tl-namecell .ct-hide{opacity:.55;}
+  .ct-tl-row:hover .ct-hide, .ct-hide:focus-visible{opacity:1;}
   .ct-tl-name{display:flex; flex-direction:column; gap:2px; padding-right:14px; min-width:0;}
   .ct-tl-name b{font-size:14px; font-weight:650; color:var(--ink);}
   .ct-tl-name small{font-size:12px; color:var(--muted);}
@@ -1526,7 +1530,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791823486";
+const BUILD_ID = "1791824097";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5621,6 +5625,7 @@ const PAY_ICONS = {
   receipts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+  hide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a16 16 0 0 1-3 3.5M6.5 7.6C4.3 9.2 3 12 3 12s4 6 9 6a8.6 8.6 0 0 0 4-1M9.9 10a3 3 0 0 0 4.1 4.1"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>'
 };
 // Each tab's badge: Bills from the last Bills render (missing, else no bill yet this month); Contracts
@@ -5630,7 +5635,8 @@ function payTabBadge(v){
   if(v === 'bills') return payBillsBadge;
   if(v === 'contracts' && contractsList && !contractsList.error){
     const soon = contractsSoonCount(contractsList);
-    return soon ? {t: soon + ' ends soon', c: 'warn'} : {t: String(contractsList.length), c: ''};
+    const hidden = new Set(ctHiddenGet());
+    return soon ? {t: soon + ' ends soon', c: 'warn'} : {t: String(contractsList.filter(k => !hidden.has(ctKey(k))).length), c: ''};
   }
   if(v === 'receipts' && receiptsList && !receiptsList.error){
     const all = receiptsMerged(), ask = all.filter(x => !x.product && x.kind !== 'skip').length;
@@ -5676,9 +5682,12 @@ async function fetchContracts(){
   }
   return out;
 }
+function ctHiddenGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_contractsHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
+function ctHiddenSet(a){ try{ localStorage.setItem('sp_contractsHidden', JSON.stringify(a)); } catch(_){} }
+const ctKey = k => k.name + '|' + (k.ref || '');
 function contractsSoonCount(list){
-  const now = Date.now();
-  return list.filter(k => !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now)).length;
+  const now = Date.now(), hidden = new Set(ctHiddenGet());
+  return list.filter(k => !hidden.has(ctKey(k)) && !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now)).length;
 }
 let contractsLayout = (() => { try{ return localStorage.getItem('sp_ctLayout') || 'timeline'; } catch(_){ return 'timeline'; } })();
 const CT_TYPE_LOOK = {Insurance: ['INS', 'var(--accent)'], Warranty: ['WAR', 'var(--up-4)'], 'Utility plan': ['UTL', 'var(--warn)'], Subscription: ['SUB', 'var(--cmp-5)'], Investment: ['INV', 'var(--muted)'], Loan: ['LN', 'var(--down-4)'], 'Service plan': ['SRV', 'var(--cmp-3)']};
@@ -5700,9 +5709,13 @@ function renderContracts(area){
   }
   const inSheet = new Set(contractsList.map(k => k.name + '|' + k.ref));
   const added = contractsAddedGet().filter(a => !inSheet.has(a.name + '|' + (a.ref || ''))).map(a => ({...a, start: payDateMs(a.start), end: payDateMs(a.end), cost: Number(a.cost) || NaN, local: true}));
-  const all = contractsList.concat(added);
+  const hiddenKeys = new Set(ctHiddenGet());
+  const everything = contractsList.concat(added);
+  const hiddenList = everything.filter(k => hiddenKeys.has(ctKey(k)));
+  const all = everything.filter(k => !hiddenKeys.has(ctKey(k)));
+  if(contractsType === '__hidden' && !hiddenList.length) contractsType = '';
   // Status: ended, ends within 90 days, active (or open-ended), not started yet.
-  all.forEach(k => {
+  everything.forEach(k => {
     k.state = !isNaN(k.start) && k.start > now ? 'upcoming' : !isNaN(k.end) && k.end < now ? 'ended' : !isNaN(k.end) && k.end - now <= 90 * DAY ? 'soon' : 'active';
     k.monthly = !(k.cost > 0) ? 0 : k.per === 'month' ? k.cost : k.per === 'year' ? k.cost / 12 : 0;
   });
@@ -5712,7 +5725,8 @@ function renderContracts(area){
   const nextEnd = live.filter(k => !isNaN(k.end)).sort((a, b) => a.end - b.end)[0];
   const left = ms => { const d = Math.round((ms - now) / DAY); return d < 0 ? 'ended ' + day(ms) : d < 60 ? d + ' days left' : d < 730 ? Math.round(d / 30.4) + ' months left' : (d / 365.25).toFixed(1).replace(/\.0$/, '') + ' years left'; };
   const types = [...new Set(all.map(k => k.type))].sort();
-  const shown = (contractsType ? all.filter(k => k.type === contractsType) : all).sort((a, b) =>
+  const showingHidden = contractsType === '__hidden';
+  const shown = (showingHidden ? hiddenList : contractsType ? all.filter(k => k.type === contractsType) : all).sort((a, b) =>
     (a.state === 'ended') - (b.state === 'ended') || (isNaN(a.end) ? Infinity : a.end) - (isNaN(b.end) ? Infinity : b.end));
   const pill = k => `<span class="pay-pill ${k.state === 'ended' ? 'muted' : k.state === 'soon' ? 'wait' : k.state === 'upcoming' ? 'due' : 'paid'}">${k.state === 'ended' ? 'Ended' : k.state === 'soon' ? 'Ends soon' : k.state === 'upcoming' ? 'Starts ' + day(k.start) : 'Active'}${k.local ? ' · this device' : ''}</span>`;
   const costTxt = k => k.cost > 0 ? fmt2(k.cost) + (k.per === 'month' ? ' a month' : k.per === 'year' ? ' a year' : ' once') : '—';
@@ -5722,6 +5736,7 @@ function renderContracts(area){
     const f = Math.max(0, Math.min(1, (now - k.start) / (k.end - k.start)));
     return `<div class="ct-bar" title="${Math.round(f * 100)}% of the way through"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   };
+  const hideBtn = k => `<button type="button" class="pay-icon-btn ct-hide" data-key="${esc(ctKey(k))}" aria-label="Hide ${esc(k.name)}" title="Hide: not relevant any more">${PAY_ICONS.hide}</button>`;
   // Timeline: one row per contract on a years scale with today's line. A fixed term is a solid bar (amber
   // when it ends within 3 months), an open-ended one a dashed bar running off the right edge.
   const timeline = list => {
@@ -5743,7 +5758,7 @@ function renderContracts(area){
     };
     return `<div class="ct-tl"><div class="ct-tl-in">
       <div class="ct-tl-head"><span class="pay-sub" style="font-weight:600;">Contract</span><div class="ct-tl-track">${years.map(y => `<span class="ct-tl-year" style="left:${at(new Date(y, 0, 1).getTime()).toFixed(2)}%">${y}</span>`).join('')}</div></div>
-      ${list.map(k => `<div class="ct-tl-row"><div class="ct-tl-name"><b>${esc(k.name)}</b><small>${esc(k.type)}${k.monthly ? ' · ' + fmt(k.monthly) + ' a month' : k.provider ? ' · ' + esc(k.provider) : ''}${k.local ? ' · this device' : ''}</small></div><div class="ct-tl-track">${grid}${barOf(k)}</div></div>`).join('')}
+      ${list.map(k => `<div class="ct-tl-row"><div class="ct-tl-namecell"><div class="ct-tl-name"><b>${esc(k.name)}</b><small>${esc(k.type)}${k.monthly ? ' · ' + fmt(k.monthly) + ' a month' : k.provider ? ' · ' + esc(k.provider) : ''}${k.local ? ' · this device' : ''}</small></div>${hideBtn(k)}</div><div class="ct-tl-track">${grid}${barOf(k)}</div></div>`).join('')}
     </div></div>
     <div class="ct-tl-legend"><span><i style="width:2px; height:14px; background:var(--accent);"></i>Today, ${day(now)}</span><span><i style="background:color-mix(in srgb, var(--accent) 24%, var(--panel));"></i>Fixed term</span><span><i style="background:color-mix(in srgb, var(--warn) 38%, var(--panel));"></i>Ends within 3 months</span><span><i style="border:1.5px dashed var(--axis);"></i>No end date</span></div>`;
   };
@@ -5762,17 +5777,31 @@ function renderContracts(area){
     </div>
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Contracts</h3>
-        <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="" aria-pressed="${!contractsType}">All<span class="n">${all.length}</span></button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}" aria-pressed="${contractsType === t}">${esc(t)}<span class="n">${all.filter(k => k.type === t).length}</span></button>`).join('')}</div></div>
+        <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="" aria-pressed="${!contractsType}">All<span class="n">${all.length}</span></button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}" aria-pressed="${contractsType === t}">${esc(t)}<span class="n">${all.filter(k => k.type === t).length}</span></button>`).join('')}${hiddenList.length ? `<button type="button" class="pay-chip${showingHidden ? ' on' : ''}" data-ctype="__hidden" aria-pressed="${showingHidden}">Hidden<span class="n">${hiddenList.length}</span></button>` : ''}</div></div>
       <div id="ctAdd" class="pay-confirm" hidden></div>
-      ${shown.length && contractsLayout === 'timeline' ? timeline(shown) : shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
+      ${showingHidden ? `<div class="pay-sub" style="font-size:12.5px; margin-bottom:6px;">Hidden on this device. To hide one on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>` : ''}
+      ${shown.length && contractsLayout === 'timeline' && !showingHidden ? timeline(shown) : shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
         <div class="ct-row">${(lk => `<span class="ct-badge" style="background:color-mix(in srgb, ${lk[1]} 16%, var(--panel)); color:var(--ink);" aria-hidden="true">${lk[0]}</span>`)(CT_TYPE_LOOK[k.type] || [esc(k.type.slice(0, 3).toUpperCase()), 'var(--muted)'])}<div class="ct-main"><b>${esc(k.name)}</b><small>${esc(k.provider)}${k.provider && k.type ? ' · ' : ''}${esc(k.type)}${k.ref ? ' · ' + esc(k.ref) : ''}</small>
           ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="pay-sub">${esc(k.notes)}</div>` : ''}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div></div>
         <div class="ct-when">${period(k)}</div>
-        <div class="ct-cost"><b>${costTxt(k)}</b>${pill(k)}</div></div>`).join('')}</div>`
+        <div class="ct-cost"><b>${costTxt(k)}</b>${pill(k)}${showingHidden ? `<button type="button" class="pay-btn ct-unhide" data-key="${esc(ctKey(k))}" style="min-height:34px;">Show again</button>` : hideBtn(k)}</div></div>`).join('')}</div>`
         : `<div class="pm-note">No contracts yet.</div>`}
     </section>`;
 
   area.querySelectorAll('[data-ctype]').forEach(b => b.addEventListener('click', () => { contractsType = b.dataset.ctype; renderContracts(area); }));
+  area.querySelectorAll('.ct-hide').forEach(b => b.addEventListener('click', () => {
+    const key = b.dataset.key, k = everything.find(x => ctKey(x) === key);
+    ctHiddenSet([...new Set(ctHiddenGet().concat([key]))]);
+    renderContracts(area);
+    refreshPayTabs();
+    const box = document.getElementById('ctAdd');
+    box.innerHTML = `<div><b>${esc(k ? k.name : key)}</b> is hidden on this device. To hide it on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn" data-h="undo">Undo</button><button type="button" class="pay-btn text" data-h="close">Close</button></div>`;
+    box.hidden = false;
+    box.querySelector('[data-h="undo"]').addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== key)); renderContracts(area); refreshPayTabs(); });
+    box.querySelector('[data-h="close"]').addEventListener('click', () => { box.hidden = true; });
+  }));
+  area.querySelectorAll('.ct-unhide').forEach(b => b.addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== b.dataset.key)); renderContracts(area); refreshPayTabs(); }));
   area.querySelectorAll('[data-ctlayout]').forEach(b => b.addEventListener('click', () => { contractsLayout = b.dataset.ctlayout; try{ localStorage.setItem('sp_ctLayout', contractsLayout); } catch(_){} renderContracts(area); }));
   // Add a contract: saved on this device; the panel gives the row to paste into the Contracts tab.
   const addBtn = area.querySelector('.ct-add'), box = document.getElementById('ctAdd');
