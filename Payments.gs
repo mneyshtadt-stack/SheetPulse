@@ -272,6 +272,13 @@ function contractsSheet_() {
   return sh;
 }
 function setupContractsTab() { contractsSheet_(); updateContracts(); }
+// Deletes every row of the Contracts tab (hand edits too) and imports the label again.
+function rebuildContracts() {
+  const sh = contractsSheet_();
+  if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+  PropertiesService.getScriptProperties().deleteProperty('contractsSeen');
+  updateContracts();
+}
 
 // "01/12/2024" → 1 Dec 2024; "11/2024" → 1 Nov 2024 (day/month, Israeli order).
 function contractDate_(s) {
@@ -294,13 +301,17 @@ function contractFromEmail_(t, me) {
   // Your own subjects: "Name - details" or "Name---details".
   const parts = mine ? subject.split(/\s*(?:-{2,}|\s-\s)\s*/) : [subject];
   let name = mine ? parts[0] : '';
-  const rest = mine ? parts.slice(1).join(' - ') : subject;
+  const own = mine ? body.split(/-{5,}\s*(?:Forwarded message|הודעה שהועברה)|\n\s*(?:From|מאת)\s*:/i)[0].replace(/\s+/g, ' ').trim().slice(0, 300) : '';
+  const rest = mine ? [parts.slice(1).join(' - '), own].filter(String).join(' ') : subject;
   CONTRACT_NAMES.forEach(([re, n]) => { if (re.test(name)) name = n; });
   const prov = (CONTRACT_PROVIDERS.find(([re]) => re.test(hay)) || [])[1] || fromName || '';
   if (!name) name = prov || subject.slice(0, 60);
   const type = (CONTRACT_TYPES.find(([re]) => re.test(hay)) || [])[1] || 'Other';
   const st = rest.match(/start(?:ing|s)?\s+([\d\/.]+)/i), till = rest.match(/(?:till|until|ends?|עד)\s+([\d\/.]+)/i);
-  let start = st ? contractDate_(st[1]) : mine ? '' : m.getDate();
+  // A forwarded document starts on its original date ("Date: Thu, Mar 7, 2024 at 10:12 AM").
+  const fd = mine && (body.match(/(?:^|\n)\s*\*?(?:Date|תאריך)\s*:\s*\*?\s*([^\n]+)/i) || [])[1];
+  const fdMs = fd ? new Date(fd.replace(/\s+at\s+/, ' ').replace(/\s*[AP]M\s*$/i, '')) : null;
+  let start = st ? contractDate_(st[1]) : mine ? (fdMs && !isNaN(fdMs) ? fdMs : '') : m.getDate();
   let end = till ? contractDate_(till[1]) : '';
   const yrs = rest.match(/(\d+)\s*years?/i);
   if (!end && start && yrs) { end = new Date(start); end.setFullYear(end.getFullYear() + +yrs[1]); }
@@ -308,8 +319,9 @@ function contractFromEmail_(t, me) {
   const cost = costs.length ? costs[costs.length - 1] : '';
   const covers = mine ? rest.replace(/start(?:ing|s)?\s+[\d\/.]+|(?:till|until)\s+[\d\/.]+|\d+(?:\.\d+)?\s*(?:NIS|ILS|₪)/gi, '').replace(/\s{2,}/g, ' ').trim() : '';
   return {name, prov, type, start, end, cost, per: cost !== '' ? 'month' : '', covers,
-    notes: (mine ? 'Your note: ' : 'Email: ') + subject + (msgs.length > 1 ? ` (${msgs.length} emails)` : ''),
-    link: 'https://mail.google.com/mail/u/0/#all/' + t.getId(), date: m.getDate()};
+    notes: (mine ? 'Your note: ' + [subject, own].filter(String).join(' · ') : 'Email: ' + subject) + (msgs.length > 1 ? ` (${msgs.length} emails)` : ''),
+    link: 'https://mail.google.com/mail/u/0/#all/' + t.getId(), date: m.getDate(), mine, body,
+    refNo: (subject.match(/\d{5,}/g) || [])};
 }
 
 function updateContracts() {
@@ -319,7 +331,9 @@ function updateContracts() {
   const me = Session.getEffectiveUser().getEmail().toLowerCase();
   const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
   const threads = GmailApp.search('label:' + CONTRACTS_LABEL, 0, 200).filter(t => !seen.has(t.getId()));
-  const found = threads.map(t => contractFromEmail_(t, me)).sort((a, b) => a.date - b.date);
+  let found = threads.map(t => contractFromEmail_(t, me)).sort((a, b) => a.date - b.date);
+  const myText = found.filter(c => c.mine).map(c => c.body).join(' ');
+  found = found.filter(c => c.mine || !c.refNo.some(n => myText.includes(n)));
   const data = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, CONTRACTS_HEADER.length).getValues() : [];
   let added = 0, merged = 0;
   found.forEach(c => {
@@ -357,12 +371,14 @@ function listContracts() {
 
 // ---- Receipts tab: every email in the Gmail label payments-receipts (purchase receipts, invoices,
 // guarantees of things you bought), read by SheetPulse's Payments window → Receipts. One row per email:
-// Date | From | Subject | Amount | Currency | Attachments | Link (the Gmail thread) | Message id | Notes.
+// Date | From | Subject | Amount | Currency | Attachments | Link (the Gmail thread) | Message id | Notes |
+// Product (what it paid for) | Kind (Product, Service or Don't count): the last two typed by you, here or
+// in SheetPulse's Receipts tab (✎).
 // The amount is a guess from the subject, then the email's text (a total, ₪ / NIS / $); correct it by hand,
 // the script never changes a row again. Runs with updatePayments (daily), or run updateReceipts() any time.
 const RECEIPTS_SHEET = 'Receipts';
 const RECEIPTS_LABEL = 'payments-receipts';
-const RECEIPTS_HEADER = ['Date', 'From', 'Subject', 'Amount', 'Currency', 'Attachments', 'Link', 'Message id', 'Notes'];
+const RECEIPTS_HEADER = ['Date', 'From', 'Subject', 'Amount', 'Currency', 'Attachments', 'Link', 'Message id', 'Notes', 'Product', 'Kind'];
 
 function receiptAmount_(text) {
   const t = String(text);
@@ -382,6 +398,23 @@ function receiptAmount_(text) {
   return {amount: '', cur: ''};
 }
 
+// A receipt PDF's total. OCR of these Hebrew documents separates labels from their numbers, so instead of
+// "total → number": the largest amount written with agorot (1,234.00; not a percentage) that appears at
+// least twice, a document's total being printed more than once; else the largest one. Tested 12 Oct 2026
+// on Home Center, Talcar (invoice and receipt) and Comp4U PDFs.
+function receiptPdfAmount_(text) {
+  const t = String(text).replace(/\s+/g, ' ');
+  const counts = {};
+  for (const m of t.matchAll(/(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})(?![\d%])(?!\s*%)/g)) {
+    const v = +(m[1].replace(/,/g, '') + '.' + m[2]);
+    if (v > 0) counts[v] = (counts[v] || 0) + 1;
+  }
+  const vals = Object.keys(counts).map(Number);
+  const twice = vals.filter(v => counts[v] >= 2);
+  const v = Math.max(...(twice.length ? twice : vals), 0);
+  return v > 0 ? {amount: v, cur: /\$|USD/.test(t) && !/₪|ש"?ח|ILS/.test(t) ? 'USD' : 'ILS'} : {amount: '', cur: ''};
+}
+
 function updateReceipts() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName(RECEIPTS_SHEET);
@@ -392,6 +425,8 @@ function updateReceipts() {
     sh.getRange('A:A').setNumberFormat('yyyy-mm-dd');
     sh.getRange('H:H').setNumberFormat('@');
   }
+  // Tabs made before Product / Kind existed get the two header cells.
+  if (sh.getLastColumn() < RECEIPTS_HEADER.length) sh.getRange(1, 1, 1, RECEIPTS_HEADER.length).setValues([RECEIPTS_HEADER]).setFontWeight('bold');
   const ids = new Set(sh.getLastRow() > 1 ? sh.getRange(2, 8, sh.getLastRow() - 1, 1).getValues().map(r => String(r[0])) : []);
   const rows = [];
   let start = 0, batch;
@@ -401,14 +436,51 @@ function updateReceipts() {
       if (ids.has(m.getId())) return;
       const subject = m.getSubject().replace(/^\s*(fwd?|fw|הועבר)\s*:\s*/i, '').trim();
       const a = receiptAmount_(subject).amount ? receiptAmount_(subject) : receiptAmount_((m.getPlainBody() || '').slice(0, 6000));
-      rows.push([m.getDate(), m.getFrom().replace(/\s*<.*$/, '').replace(/"/g, '') || m.getFrom(), subject, a.amount, a.cur,
-        m.getAttachments().map(x => x.getName()).join(', '), 'https://mail.google.com/mail/u/0/#all/' + t.getId(), m.getId(), '']);
+      rows.push([m.getDate(), m.getFrom().replace(/\s*<.*$/, '').replace(/"/g, '').trim() || m.getFrom().replace(/[<>]/g, ''), subject, a.amount, a.cur,
+        m.getAttachments().map(x => x.getName()).join(', '), 'https://mail.google.com/mail/u/0/#all/' + t.getId(), m.getId(), '', '', '']);
     }));
     start += batch.length;
   } while (batch.length === 100 && start < 1000);
   if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, RECEIPTS_HEADER.length).setValues(rows);
+  const props = PropertiesService.getScriptProperties();
+  const tried = new Set(JSON.parse(props.getProperty('receiptsPdfTried') || '[]'));
+  let ocr = 0, filled = 0;
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, RECEIPTS_HEADER.length).getValues().forEach((r, i) => {
+    const id = String(r[7]);
+    if (r[3] !== '' || !id || tried.has(id) || ocr >= 15 || !/pdf/i.test(String(r[5]))) return;
+    tried.add(id); ocr++;
+    try {
+      const m = GmailApp.getMessageById(id);
+      const pdf = m.getAttachments().filter(x => /pdf$/i.test(x.getContentType()) || /\.pdf$/i.test(x.getName()))[0];
+      if (!pdf) return;
+      const a = receiptPdfAmount_(payPdfText_(pdf.copyBlob()));
+      if (a.amount) { sh.getRange(i + 2, 4, 1, 2).setValues([[a.amount, a.cur]]); filled++; }
+    } catch (e) { Logger.log('Receipt PDF ' + id + ': ' + e); }
+  });
+  props.setProperty('receiptsPdfTried', JSON.stringify([...tried]));
+  if (ocr) Logger.log(`Receipts: ${ocr} PDFs read, ${filled} amounts found.`);
   if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, RECEIPTS_HEADER.length).sort({column: 1, ascending: false});
   Logger.log(`Receipts: ${rows.length} added from ${RECEIPTS_LABEL}.`);
+}
+
+// Nothing written: for each receipt with a PDF and no amount (up to 4), the PDF's text as read by OCR
+// and the amount found in it, to tune receiptPdfAmount_(). Also clears the "tried" list, so the next
+// updateReceipts() reads those PDFs again.
+function testReceiptPdfs() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(RECEIPTS_SHEET);
+  let n = 0;
+  sh.getRange(2, 1, sh.getLastRow() - 1, RECEIPTS_HEADER.length).getValues().forEach(r => {
+    if (n >= 4 || r[3] !== '' || !/pdf/i.test(String(r[5]))) return;
+    n++;
+    try {
+      const m = GmailApp.getMessageById(String(r[7]));
+      const pdf = m.getAttachments().filter(x => /pdf$/i.test(x.getContentType()) || /\.pdf$/i.test(x.getName()))[0];
+      const text = pdf ? payPdfText_(pdf.copyBlob()) : '';
+      Logger.log('=== ' + r[1] + ' | ' + r[2] + ' | PDF: ' + (pdf ? pdf.getName() : 'none') + ' | found: ' + JSON.stringify(receiptPdfAmount_(text)));
+      Logger.log(text.replace(/\s+/g, ' ').slice(0, 1800));
+    } catch (e) { Logger.log('=== ' + r[2] + ': ' + e); }
+  });
+  PropertiesService.getScriptProperties().deleteProperty('receiptsPdfTried');
 }
 
 // Daily at 07:00 (Israel time of the script). Safe to run again: replaces only this script's trigger.
