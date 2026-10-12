@@ -40,6 +40,13 @@ const PAY_SOURCES = [
     parse: payParseRamatGan_
   },
   {
+    // The same receipts from cityPay's older address, up to Jul 2023 (onecity.co.il took over in Nov 2023).
+    // A receipt whose transaction no. is already in the tab is skipped, so nothing is counted twice.
+    payee: 'Ramat Gan', category: 'Arnona',
+    query: 'label:payments-bills from:citypay@ladpc.co.il has:attachment filename:pdf',
+    parse: payParseRamatGan_
+  },
+  {
     // Water (Mei Ramat Gan) paid through MAST: the amount is in the email text, there's no PDF.
     // All three MAST sender addresses over the years.
     payee: 'Mei Ramat Gan', category: 'Water', body: true,
@@ -142,12 +149,50 @@ function paySheet_() {
   return sh;
 }
 
-// New bills from every source into the Payments tab (oldest first, up to PAY_MAX_PER_RUN a run).
+// Emails read but not a bill (a Partner phone invoice, a receipt already stored) are remembered in a hidden
+// tab, so they're read only once and the Payments tab keeps only real rows.
+const PAY_SEEN_SHEET = 'Payments seen';
+function paySeenSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(PAY_SEEN_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(PAY_SEEN_SHEET);
+    sh.getRange(1, 1, 1, 2).setValues([['Message id', 'Added']]);
+    sh.getRange('A:A').setNumberFormat('@');
+    sh.hideSheet();
+  }
+  return sh;
+}
+// Moves the empty "skipped" rows of earlier runs out of the Payments tab into the hidden tab, then sorts
+// the Payments tab by date, newest first (rows pasted by hand, anywhere, land in their place).
+function payTidy_(sh, seenSh) {
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const all = sh.getRange(2, 1, last - 1, PAY_HEADER.length).getValues();
+  const keep = all.filter(r => String(r[1]).trim());
+  const skipped = all.filter(r => !String(r[1]).trim() && String(r[PAY_COL_MSG - 1]).trim());
+  if (skipped.length) {
+    seenSh.getRange(seenSh.getLastRow() + 1, 1, skipped.length, 2).setValues(skipped.map(r => [String(r[PAY_COL_MSG - 1]), r[PAY_HEADER.length - 1]]));
+    sh.getRange(2, 1, last - 1, PAY_HEADER.length).clearContent();
+    if (keep.length) sh.getRange(2, 1, keep.length, PAY_HEADER.length).setValues(keep);
+  }
+  if (keep.length > 1) sh.getRange(2, 1, keep.length, PAY_HEADER.length).sort({column: 1, ascending: false});
+}
+
+// New bills from every source into the Payments tab (up to PAY_MAX_PER_RUN PDFs a run). At the end the
+// tab is tidied and sorted (payTidy_).
 function updatePayments() {
-  const sh = paySheet_();
+  const sh = paySheet_(), seenSh = paySeenSheet_();
+  payTidy_(sh, seenSh);
   const last = sh.getLastRow();
   const seen = {};
-  if (last > 1) sh.getRange(2, PAY_COL_MSG, last - 1, 1).getValues().forEach(r => { seen[String(r[0])] = true; });
+  const seenNo = {};   // payee|invoice no. already in the tab (the same receipt from two senders)
+  const noKey = (payee, no) => payee + '|' + String(no).replace(/^0+/, '');   // Sheets drops leading zeros
+  if (last > 1) sh.getRange(2, 1, last - 1, PAY_COL_MSG).getValues().forEach(r => {
+    seen[String(r[PAY_COL_MSG - 1])] = true;
+    if (r[1] && r[8]) seenNo[noKey(r[1], r[8])] = true;
+  });
+  if (seenSh.getLastRow() > 1) seenSh.getRange(2, 1, seenSh.getLastRow() - 1, 1).getValues().forEach(r => { seen[String(r[0])] = true; });
   const tz = Session.getScriptTimeZone();
   let added = 0, skipped = 0, ocr = 0;
   PAY_SOURCES.forEach(src => {
@@ -166,17 +211,20 @@ function updatePayments() {
         ocr++;
         try { p = src.parse(payPdfText_(pdf.copyBlob())); } catch (e) { Logger.log('OCR failed for ' + m.getSubject() + ': ' + e); return; }
       }
-      // Not this source's kind of bill (e.g. a Partner phone invoice): remember it, store nothing.
-      if (!p || !(p.amount > 0)) {
-        sh.appendRow(['', '', '', '', '', '', '', '', '', m.getId(), 'skipped ' + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')]);
+      // Not this source's kind of bill (e.g. a Partner phone invoice), or a receipt already stored from
+      // another sender: remember the email, store nothing.
+      if (!p || !(p.amount > 0) || (p.invoiceNo && seenNo[noKey(src.payee, p.invoiceNo)])) {
+        seenSh.appendRow([m.getId(), 'skipped ' + Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')]);
         skipped++; return;
       }
       sh.appendRow([Utilities.formatDate(m.getDate(), tz, 'yyyy-MM-dd'), src.payee, src.category, p.amount,
                     p.period, p.invoiceDate, p.dueDate, p.card, p.invoiceNo, m.getId(), Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd')]);
+      if (p.invoiceNo) seenNo[noKey(src.payee, p.invoiceNo)] = true;
       added++;
     });
   });
-  Logger.log('Payments: ' + added + ' added, ' + skipped + ' skipped (not a matching bill).');
+  payTidy_(sh, seenSh);
+  Logger.log('Payments: ' + added + ' added, ' + skipped + ' skipped (not a matching bill, or already in the tab).');
 }
 
 // Daily at 07:00 (Israel time of the script). Safe to run again: replaces only this script's trigger.
@@ -221,6 +269,35 @@ function listPaymentSenders() {
   Object.keys(by).sort((a, b) => by[b].n - by[a].n).forEach(k => {
     const e = by[k];
     Logger.log(`${k} | ${e.n} emails, ${e.pdf} with PDF | latest ${Utilities.formatDate(e.last, Session.getScriptTimeZone(), 'yyyy-MM-dd')} | ${e.subject}`);
+  });
+}
+
+// Where could arnona and water get a billing period from? The payment receipts don't state one
+// (Ramat Gan: "ארנונה חיוב תקופתי" and a voucher number; MAST: amount, approval and stub number).
+// This logs (nothing written): the latest two PDFs from the older Ramat Gan sender citypay@ladpc.co.il,
+// and every sender in the whole mailbox (not only the label) whose emails mention the water company
+// or an arnona bill, so the actual bills, which state their period, can be found.
+function findPeriodSources() {
+  GmailApp.search('label:payments-bills from:citypay@ladpc.co.il has:attachment', 0, 2).forEach(t => {
+    const m = t.getMessages().pop();
+    const pdf = m.getAttachments().filter(a => /pdf$/i.test(a.getContentType()) || /\.pdf$/i.test(a.getName()))[0];
+    Logger.log('=== ladpc: ' + m.getDate() + ' | ' + m.getSubject() + ' | PDF: ' + (pdf ? pdf.getName() : 'none'));
+    if (pdf) Logger.log(payPdfText_(pdf.copyBlob()).slice(0, 2500));
+  });
+  [['water', '"מי רמת גן" OR "מי-רמת-גן" OR "תאגיד המים"'], ['arnona', '(ארנונה OR "שובר תשלום" OR "הודעת תשלום") ("רמת גן" OR "רמת-גן")']].forEach(([what, q]) => {
+    const by = {};
+    GmailApp.search(q, 0, 200).forEach(t => t.getMessages().forEach(m => {
+      const from = m.getFrom().replace(/.*<([^>]+)>.*/, '$1').toLowerCase();
+      const e = by[from] || (by[from] = {n: 0, pdf: 0, last: null, subject: ''});
+      e.n++;
+      if (m.getAttachments().some(a => /\.pdf$/i.test(a.getName()) || /pdf/i.test(a.getContentType()))) e.pdf++;
+      if (!e.last || m.getDate() > e.last) { e.last = m.getDate(); e.subject = m.getSubject(); }
+    }));
+    Logger.log('=== ' + what + ' senders, whole mailbox ===');
+    Object.keys(by).sort((a, b) => by[b].n - by[a].n).forEach(k => {
+      const e = by[k];
+      Logger.log(`${k} | ${e.n} emails, ${e.pdf} with PDF | latest ${Utilities.formatDate(e.last, Session.getScriptTimeZone(), 'yyyy-MM-dd')} | ${e.subject}`);
+    });
   });
 }
 
