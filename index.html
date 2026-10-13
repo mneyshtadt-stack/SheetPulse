@@ -549,6 +549,11 @@
   /* Receipts */
   .rc-kind{font-size:11px; font-weight:650; border-radius:999px; padding:1px 8px; margin-left:8px; vertical-align:1px;}
   .rc-kind.product{background:color-mix(in srgb, var(--accent) 14%, var(--panel)); color:var(--accent-hover);}
+  .rc-kind.transport{background:color-mix(in srgb, var(--cmp-3) 18%, var(--panel)); color:var(--ink);}
+  .rc-groups{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13.5px;}
+  .rc-groups label{display:inline-flex; align-items:center; gap:6px; min-height:34px; cursor:pointer;}
+  .rc-groups input{width:16px; height:16px; accent-color:var(--accent); margin:0;}
+  .rc-groups .n{color:var(--muted);}
   .rc-kind.service{background:color-mix(in srgb, var(--cmp-5) 18%, var(--panel)); color:var(--ink);}
   .rc-kind.skip{background:var(--paper); color:var(--muted);}
   .rc-ask{color:var(--muted) !important; font-weight:600;}
@@ -1539,7 +1544,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791897193";
+const BUILD_ID = "1791899579";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5779,7 +5784,7 @@ function payTabBadge(v){
     return soon ? {t: soon + ' ends soon', c: 'warn'} : {t: String(contractsList.filter(k => !hidden.has(ctKey(k))).length), c: ''};
   }
   if(v === 'receipts' && receiptsList && !receiptsList.error){
-    const hid = new Set(rcHiddenGet()), all = receiptsMerged().filter(x => x.kind !== 'hidden' && !hid.has(x.id)), ask = all.filter(x => !x.product && x.kind !== 'skip').length;
+    const hid = new Set(rcHiddenGet()), all = receiptsMerged().filter(x => x.kind !== 'hidden' && !hid.has(x.id)), ask = all.filter(x => !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product').length;
     return ask ? {t: ask + ' to describe', c: 'warn'} : {t: String(all.length), c: ''};
   }
   return null;
@@ -6132,10 +6137,16 @@ async function fetchReceipts(){
     }, []).sort((a, b) => b.ms - a.ms);
 }
 // Kind: Product, Service, or Don't count (a duplicate, a refund…), kept out of the totals.
-function receiptKind(s){ s = String(s || '').trim().toLowerCase(); return /^prod/.test(s) ? 'product' : /^serv/.test(s) ? 'service' : /^hid/.test(s) ? 'hidden' : /^(don|skip|not|no )/.test(s) ? 'skip' : ''; }
+function receiptKind(s){ s = String(s || '').trim().toLowerCase(); return /^prod/.test(s) ? 'product' : /^serv/.test(s) ? 'service' : /^trans/.test(s) ? 'transport' : /^hid/.test(s) ? 'hidden' : /^(don|skip|not|no )/.test(s) ? 'skip' : ''; }
 const receiptUpd = x => ({key: {'Message id': x.id}, set: {Amount: x.amount > 0 ? x.amount : '', Currency: x.cur || '',
   Notes: x.notes || '', Product: x.product || '', Kind: RECEIPT_KIND_LABEL[x.kind] || ''}});
-const RECEIPT_KIND_LABEL = {product: 'Product', service: 'Service', skip: "Don't count", hidden: 'Hidden'};
+const RECEIPT_KIND_LABEL = {product: 'Product', service: 'Service', transport: 'Transport', skip: "Don't count", hidden: 'Hidden'};
+// Receipts' checkboxes: Products (also receipts not described yet), Services, Transport. Unchecked ones leave the
+// list and the totals. Remembered on this device; Services and Transport start unchecked (the user's choice).
+const RC_GROUPS = [['product', 'Products'], ['service', 'Services'], ['transport', 'Transport']];
+const rcGroupOf = x => x.kind === 'service' ? 'service' : x.kind === 'transport' ? 'transport' : 'product';
+function rcGroupsGet(){ try{ const g = JSON.parse(localStorage.getItem('sp_rcGroups') || 'null'); if(g && typeof g === 'object') return g; } catch(_){} return {product: true, service: false, transport: false}; }
+function rcGroupsSet(g){ try{ localStorage.setItem('sp_rcGroups', JSON.stringify(g)); } catch(_){} }
 // Hidden receipts (not relevant, very old): kept, never deleted, just out of the shelf, the tray and the
 // totals. Hidden on this device by message id; Kind "Hidden" in the tab hides one on every device.
 function rcHiddenGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_receiptsHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
@@ -6180,7 +6191,8 @@ function renderReceipts(area){
   }
   const merged = receiptsMerged(), rcHid = new Set(rcHiddenGet());
   const isHidden = x => x.kind === 'hidden' || rcHid.has(x.id);
-  const hiddenRc = merged.filter(isHidden), all = merged.filter(x => !isHidden(x));
+  const rcGroups = rcGroupsGet();
+  const hiddenRc = merged.filter(isHidden), allKinds = merged.filter(x => !isHidden(x)), all = allKinds.filter(x => rcGroups[rcGroupOf(x)]);
   if(receiptsKind === '__hidden' && !hiddenRc.length) receiptsKind = '';
   // The row for the Receipts tab: Date | From | Subject | Amount | Currency | Attachments | Link | Message id | Notes | Product | Kind.
   const tabRow = x => [x.dateRaw || ymdOf(x.ms), x.from, x.subject, x.amount > 0 ? x.amount : '', x.cur || 'ILS', x.files, x.link, x.id, x.notes, x.product, RECEIPT_KIND_LABEL[x.kind] || ''].join('\t');
@@ -6197,18 +6209,19 @@ function renderReceipts(area){
   const years = [...new Set(all.map(yearOf))].sort().reverse();
   const q = receiptsQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const hay = x => [x.product, x.from, x.subject, x.files, x.notes, RECEIPT_KIND_LABEL[x.kind] || '', day(x.ms), x.amount > 0 ? x.amount.toFixed(2) : ''].join(' ').toLowerCase();
-  const byKind = x => !receiptsKind || (receiptsKind === 'ask' ? !x.product && x.kind !== 'skip' : x.kind === receiptsKind);
+  const byKind = x => !receiptsKind || (receiptsKind === 'ask' ? !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product' : x.kind === receiptsKind);
   const shown = (receiptsKind === '__hidden' ? hiddenRc : all).filter(x => (receiptsKind === '__hidden' || byKind(x)) && (q.length ? q.every(w => hay(x).includes(w)) : (!receiptsYear || yearOf(x) === receiptsYear)));
   const thisY = String(new Date().getFullYear()), inY = all.filter(x => yearOf(x) === thisY && x.kind !== 'skip');
   const total = l => l.reduce((a, x) => a + ils(x), 0);
-  const ask = all.filter(x => !x.product && x.kind !== 'skip'), dups = all.filter(x => x.dup);
+  // Only big buys ask what they were for; a service or transport email's subject already says it.
+  const ask = all.filter(x => !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product'), dups = all.filter(x => x.dup);
   const biggest = all.filter(x => x.kind !== 'skip' && x.amount > 0).sort((a, b) => ils(b) - ils(a))[0];
   const kindChip = (v, t, n) => `<button type="button" class="pay-chip${receiptsKind === v ? ' on' : ''}" data-rkind="${v}" aria-pressed="${receiptsKind === v}">${t}<span class="n">${n}</span></button>`;
   const kindPill = x => x.kind ? `<span class="rc-kind ${x.kind}">${RECEIPT_KIND_LABEL[x.kind]}</span>` : !x.product ? '<span class="rc-kind ask">To describe</span>' : '<span></span>';
   const card = x => `<div class="rc-card${x.kind === 'skip' ? ' skip' : ''}" data-rid="${esc(x.id)}">
       <div class="rc-card-top">${kindPill(x)}<span>${day(x.ms)}</span></div>
-      <b class="${x.product ? '' : 'rc-ask'}">${x.product ? esc(x.product) : 'What was it for?'}</b>
-      <small dir="auto">${esc(x.from)}${x.subject && !x.product ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
+      <b class="${x.product || rcGroupOf(x) !== 'product' ? '' : 'rc-ask'}" dir="auto">${x.product ? esc(x.product) : rcGroupOf(x) !== 'product' ? esc(x.subject || x.from) : 'What was it for?'}</b>
+      <small dir="auto">${esc(x.from)}${x.subject && !x.product && rcGroupOf(x) === 'product' ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
       ${x.notes ? `<div class="shop-note" dir="auto">${esc(x.notes)}</div>` : ''}<button type="button" class="shop-note-btn rc-note-btn" data-rid="${esc(x.id)}">${x.notes ? 'Edit note' : '+ Note'}</button>
       ${x.dup ? `<div class="rc-flag">Same amount as the ${day(x.dup.ms)} receipt (${esc(x.dup.product || x.dup.from)}): counted twice? Set one to Don't count.</div>` : ''}
       <div class="rc-card-foot"><span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span><span>${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : `<button type="button" class="pay-btn rc-unhide" data-rid="${esc(x.id)}" style="min-height:32px; padding:0 10px;">Show again</button>`) : `<button type="button" class="pay-icon-btn rc-hide" data-rid="${esc(x.id)}" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}<button type="button" class="pay-icon-btn rc-edit-btn" data-rid="${esc(x.id)}" aria-label="Edit what it was for, kind, amount and note" title="Edit">${PAY_ICONS.edit}</button>${x.link ? `<a class="pay-icon-btn" href="${esc(x.link)}" target="_blank" rel="noopener" aria-label="Open the email" title="Open the email">${PAY_ICONS.mail}</a>` : ''}</span></div>
@@ -6227,7 +6240,8 @@ function renderReceipts(area){
     ${localRows.length ? `<div class="pay-confirm rc-edit" style="margin:0 0 14px;"><div class="pay-confirm-row"><b>${localRows.length} change${localRows.length === 1 ? '' : 's'} on this device only.</b> To keep them on every device, copy the rows and paste them at the bottom of the Receipts tab (a row with the same message id updates that receipt).</div>
       <div class="pay-confirm-btns"><button type="button" class="pay-btn primary rc-copy-all">Save ${localRows.length} to the sheet</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
     <div class="rc-bar">
-      <div class="pay-chips">${kindChip('', 'All', all.length)}${kindChip('product', 'Products', all.filter(x => x.kind === 'product').length)}${kindChip('service', 'Services', all.filter(x => x.kind === 'service').length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}${all.some(x => x.kind === 'skip') ? kindChip('skip', 'Not counted', all.filter(x => x.kind === 'skip').length) : ''}${hiddenRc.length ? kindChip('__hidden', 'Hidden', hiddenRc.length) : ''}</div>
+      <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g).length}</span></label>`).join('')}</div>
+      <div class="pay-chips">${kindChip('', 'All', all.length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}${all.some(x => x.kind === 'skip') ? kindChip('skip', 'Not counted', all.filter(x => x.kind === 'skip').length) : ''}${hiddenRc.length ? kindChip('__hidden', 'Hidden', hiddenRc.length) : ''}</div>
       <input type="search" class="shop-search rc-search" placeholder="Search product, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts">
     </div>
     <div class="pay-sub" style="font-size:12.5px; margin:0 0 10px;">Kept forever · ${all.length} receipt${all.length === 1 ? '' : 's'}${all.length ? ' since ' + new Date(all[all.length - 1].ms).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'}) : ''} · ${thisY} ${fmt(total(inY))}${biggest ? ` · biggest ${esc(biggest.product || biggest.from)} ${money(biggest.amount, biggest.cur)}` : ''}${dups.length ? ` · <span class="rc-flag">${dups.length} possible duplicate${dups.length > 1 ? 's' : ''}</span>` : ''}</div>
@@ -6247,6 +6261,11 @@ function renderReceipts(area){
     box.querySelector('[data-h="close"]').addEventListener('click', () => { box.hidden = true; });
   }));
   area.querySelectorAll('.rc-unhide').forEach(b => b.addEventListener('click', () => { rcHiddenSet(rcHiddenGet().filter(v => v !== b.dataset.rid)); rerender(); refreshPayTabs(); }));
+  area.querySelectorAll('.rc-grp').forEach(c => c.addEventListener('change', () => {
+    const g = rcGroupsGet(); g[c.dataset.g] = c.checked; rcGroupsSet(g);
+    if(['product', 'service', 'transport'].includes(receiptsKind)) receiptsKind = '';
+    rerender();
+  }));
   const more = area.querySelector('.rc-more');
   if(more) more.addEventListener('click', () => { receiptsShowAll = true; rerender(); });
   // The tray: Enter saves what it was for and brings up the next one.
@@ -6301,7 +6320,7 @@ function renderReceipts(area){
     <div class="shop-form">
       ${isNew ? `<label>Date<input type="date" name="date" value="${ymdOf(Date.now())}"></label><label>Store / from<input name="from" placeholder="who you paid"></label>` : ''}
       <label style="grid-column:span 2;">Product or service<input name="product" value="${esc(x.product || '')}" placeholder="e.g. air fryer, technician visit"></label>
-      <label>Kind<select name="kind">${[['', '—'], ['product', 'Product'], ['service', 'Service'], ['skip', "Don't count"], ['hidden', 'Hidden (every device)']].map(([v, t]) => `<option value="${v}"${(x.kind || '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label>Kind<select name="kind">${[['', '—'], ['product', 'Product'], ['service', 'Service'], ['transport', 'Transport'], ['skip', "Don't count"], ['hidden', 'Hidden (every device)']].map(([v, t]) => `<option value="${v}"${(x.kind || '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
       <label>Amount<input name="amount" type="number" step="0.01" min="0" value="${x.amount > 0 ? x.amount : ''}" placeholder="0.00"></label>
       ${isNew ? `<label>Currency<select name="cur"><option>ILS</option><option>USD</option><option>EUR</option></select></label>` : ''}
       <label style="grid-column:1 / -1;">Note<input name="notes" value="${esc(x.notes || '')}" placeholder="warranty, who it's for, anything to remember"></label>
