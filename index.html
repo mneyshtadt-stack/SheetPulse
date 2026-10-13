@@ -665,8 +665,8 @@
   .shop-status{font:inherit; font-size:13px; min-height:32px; padding:0 10px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer;}
   .shop-search{font:inherit; font-size:13px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); width:300px; max-width:100%; box-sizing:border-box;}
   .shop-search:focus{border-color:var(--accent); outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);}
-  .shop-note{font-size:12px; color:var(--ink); background:var(--hover); border-radius:6px; padding:2px 8px; margin-top:4px; display:inline-block;}
-  .shop-note-btn{display:block; margin-top:3px; padding:0; border:0; background:none; font:inherit; font-size:11.5px; color:var(--accent); cursor:pointer;}
+  .shop-note{font-size:12px; font-weight:400; color:var(--ink); background:var(--hover); border-radius:6px; padding:2px 8px; margin-top:4px; display:inline-block;}
+  .shop-note-btn{display:block; margin-top:3px; padding:0; border:0; background:none; font:inherit; font-size:11.5px; font-weight:500; color:var(--accent); cursor:pointer;}
   .shop-note-btn:hover{text-decoration:underline;}
   .shop-pill-btn{border:0; background:none; padding:0; margin:0; font:inherit; cursor:pointer; border-radius:999px;}
   .shop-pill-btn .pay-pill{transition:box-shadow 0.15s ease;}
@@ -1327,7 +1327,7 @@
         <button id="netWorthBtn" title="Full financial picture — portfolio, study funds, assets, mortgage, equity loan, pension"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 7a3 3 0 0 0 6 0z"/><path d="M19 7l-3 7a3 3 0 0 0 6 0z"/></svg>Net Worth</button>
       </div>
       <div class="hdr-seg" role="group" aria-label="Bills and purchases">
-        <button id="paymentsBtn" title="Bills & Contracts: what you pay again and again (electricity, water, arnona, TV) and what you signed for it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>Bills &amp; Contracts</button>
+        <button id="paymentsBtn" title="Bills &amp; Contracts. Bills = each payment (electricity, water, arnona, TV, Netflix). Contracts = the agreement behind it, when it has terms that matter (insurance, warranties, plans)."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6"/><path d="M9 12h6"/></svg>Bills &amp; Contracts</button>
         <button id="shoppingBtn" title="Purchases: online orders on their way, receipts of big buys you keep, and what it all cost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Purchases</button>
       </div>
       <span class="hdr-div" aria-hidden="true"></span>
@@ -1538,7 +1538,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791846020";
+const BUILD_ID = "1791878617";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5767,9 +5767,12 @@ function payTabBadge(v){
   return null;
 }
 function payViewSwitch(){
+  // Bills = each payment; Contracts = the agreement behind it, when it has terms that matter.
+  const tips = {bills: 'Bills = each payment: electricity, water, arnona, TV, and routine charges like Netflix (add those with + Add a routine bill).',
+    contracts: 'Contracts = the agreement behind a payment, when it has terms that matter: insurance, warranties, plans with a discount or an end date, quotes.'};
   return `<div class="pay-view" role="tablist" aria-label="Bills and Contracts">${[['bills', 'Bills'], ['contracts', 'Contracts']].map(([v, t]) => {
     const b = payTabBadge(v);
-    return `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}">${PAY_ICONS[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
+    return `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}" title="${tips[v]}">${PAY_ICONS[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
   }).join('')}</div>`;
 }
 // Purchases: Orders | Receipts | Spending (data-win="shop" tells the click handler which window).
