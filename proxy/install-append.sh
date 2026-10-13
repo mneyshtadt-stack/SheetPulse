@@ -1,6 +1,7 @@
 #!/bin/bash
 # Installs or updates SheetPulse's save routes in the proxy on the Oracle VM:
-#   POST /sheetpulse/append  (adds rows)   and   POST /sheetpulse/update  (changes one existing row in place).
+#   POST /sheetpulse/append  (adds rows),  POST /sheetpulse/update  (changes one existing row in place),
+#   POST /sheetpulse/clear-avg  (clears a hand-typed Broker Avg Cost in the Tracker's Transactions tab).
 # Safe to re-run: each patch does nothing if its route is already there; the module is always refreshed.
 # Run with:  bash ~/install-append.sh
 set -e
@@ -20,6 +21,11 @@ cat > sheetpulse-append.js <<'APPEND_EOF'
 //   (trimmed, ignoring case): Name + Reference in Contracts, Message id in Receipts, Payee in Routine bills.
 //   Only the columns listed below can be set; the header row is never written. No match: 404, and the
 //   dashboard falls back to adding a row.
+//
+// POST /sheetpulse/clear-avg  {ticker, value}
+//   The one write to the Tracker spreadsheet: clears the hand-typed Broker Avg Cost cell(s) of one ticker in its
+//   Transactions tab, only where the cell holds that value (the Dividends tab's "Delete now"). Nothing else
+//   in the Tracker can be written.
 //
 // Deliberately narrow: only the Payments spreadsheet, only the tabs below, never deletes a row, at most 20
 // rows of 20 cells per append. Both routes sit after the shared Google ID-token check in index.js, so only the
@@ -116,7 +122,25 @@ async function handleSheetPulseUpdate(sheets, body){
   return { ok: true, tab: body.tab, row: rowNo, cells: setCols };
 }
 
-module.exports = { handleSheetPulseAppend, handleSheetPulseUpdate, SheetPulseAppendError, SheetPulseNotFound, PAYMENTS_SHEET_ID };
+const TRACKER_SHEET_ID = '1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g';
+async function handleSheetPulseClearAvg(sheets, body){
+  const ticker = norm(body && body.ticker), value = Number(body && body.value);
+  if(!ticker || ticker.length > 20 || !isFinite(value) || value <= 0) throw new SheetPulseAppendError('ticker and value are needed');
+  const grid = (await sheets.spreadsheets.values.get({ spreadsheetId: TRACKER_SHEET_ID, range: "'Transactions'!A1:Z", valueRenderOption: 'UNFORMATTED_VALUE' })).data.values || [];
+  const head = (grid[0] || []).map(norm);
+  const cT = head.indexOf('ticker'), cA = head.findIndex(h => /^broker\s*avg\.?\s*cost$/.test(h));
+  if(cT < 0 || cA < 0) throw new SheetPulseAppendError('The Transactions tab has no Ticker / Broker Avg Cost column');
+  const data = [];
+  for(let r = 1; r < grid.length; r++){
+    const row = grid[r] || [], v = Number(String(row[cA] === undefined ? '' : row[cA]).replace(/[$,\s]/g, ''));
+    if(norm(row[cT]) === ticker && isFinite(v) && Math.abs(v - value) < 0.005) data.push({ range: `'Transactions'!${colLetter(cA)}${r + 1}`, values: [['']] });
+  }
+  if(!data.length) throw new SheetPulseNotFound('No such Broker Avg Cost cell');
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: TRACKER_SHEET_ID, requestBody: { valueInputOption: 'RAW', data } });
+  return { ok: true, cleared: data.map(d => d.range) };
+}
+
+module.exports = { handleSheetPulseAppend, handleSheetPulseUpdate, handleSheetPulseClearAvg, SheetPulseAppendError, SheetPulseNotFound, PAYMENTS_SHEET_ID };
 APPEND_EOF
 
 cat > patch-append.js <<'APPEND_EOF'
@@ -216,11 +240,60 @@ fs.writeFileSync(file, src);
 console.log('Patched index.js (backup: index.js.bak-update).');
 APPEND_EOF
 
+cat > patch-clearavg.js <<'APPEND_EOF'
+// One-time patch for /home/ubuntu/sheet-proxy/index.js: adds POST /sheetpulse/clear-avg (clears one ticker's
+// hand-typed Broker Avg Cost in the Tracker's Transactions tab), next to /sheetpulse/update.
+// Safe to re-run -- it does nothing if the route is already there. Keeps a backup as index.js.bak-clearavg.
+// Usage (in /home/ubuntu/sheet-proxy):  node patch-clearavg.js
+
+const fs = require('fs');
+const path = require('path');
+
+const file = path.join(__dirname, 'index.js');
+let src = fs.readFileSync(file, 'utf8');
+
+if (src.includes('/sheetpulse/clear-avg')) {
+  console.log('Already patched - nothing to do.');
+  process.exit(0);
+}
+
+const oldRequire = "const { handleSheetPulseAppend, handleSheetPulseUpdate, SheetPulseAppendError, SheetPulseNotFound } = require('./sheetpulse-append');";
+const routeAnchor = '  const sheetId = parsed.query.sheetId;';
+if (!src.includes(oldRequire) || !src.includes(routeAnchor)) {
+  console.error('Could not find the expected lines in index.js (is the update route installed?) - not changed.');
+  process.exit(1);
+}
+
+const newRequire = "const { handleSheetPulseAppend, handleSheetPulseUpdate, handleSheetPulseClearAvg, SheetPulseAppendError, SheetPulseNotFound } = require('./sheetpulse-append');";
+const route = `  // --- SheetPulse: clear a hand-typed Broker Avg Cost in the Tracker (same token check as the reads above) ---
+  if (parsed.pathname === '/sheetpulse/clear-avg' && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const sheets = await getSheetsClient();
+      const result = await handleSheetPulseClearAvg(sheets, body);
+      return send(res, req, 200, JSON.stringify(result), 'application/json');
+    } catch (err) {
+      const status = err instanceof SheetPulseNotFound ? 404 : err instanceof SheetPulseAppendError ? 400 : 500;
+      console.error(new Date().toISOString(), 'sheetpulse clear-avg error:', err.message);
+      return send(res, req, status, JSON.stringify({ error: err.message }), 'application/json');
+    }
+  }
+
+`;
+
+fs.writeFileSync(file + '.bak-clearavg', src);
+src = src.replace(oldRequire, newRequire);
+src = src.replace(routeAnchor, route + routeAnchor);
+fs.writeFileSync(file, src);
+console.log('Patched index.js (backup: index.js.bak-clearavg).');
+APPEND_EOF
+
 node --check sheetpulse-append.js
 node patch-append.js
 node patch-update.js
+node patch-clearavg.js
 node --check index.js
 sudo systemctl restart sheet-proxy
 sleep 2
 echo "sheet-proxy is: $(systemctl is-active sheet-proxy)"
-echo "routes installed: $(grep -c '/sheetpulse/append\|/sheetpulse/update' index.js) of 2"
+echo "routes installed: $(grep -c '/sheetpulse/append\|/sheetpulse/update\|/sheetpulse/clear-avg' index.js) of 3"
