@@ -581,6 +581,76 @@
   .rc-slot{grid-column:1 / -1;}
   .rc-slot:empty{display:none;}
   @media (max-width:600px){ .rc-tray-row{grid-template-columns:minmax(0, 1fr) auto;} .rc-tray-row input{grid-column:1 / -1; grid-row:2;} }
+  /* Receipts window, design D: year summary + month tiles, big buys strip, needs-a-look chips, list + details panel. */
+  .rc-mono{font-family:var(--mono); font-variant-numeric:tabular-nums;}
+  .rc-sum{margin:0 0 14px !important; background:var(--panel); border-radius:14px; padding:16px 20px; display:grid; grid-template-columns:minmax(240px, 300px) minmax(0, 1fr); gap:16px 28px; align-items:center; margin:0 0 14px; font-family:var(--sans);}
+  .rc-sum-l{display:flex; flex-direction:column; gap:6px; min-width:0;}
+  .rc-sum-l .pay-chips{display:flex; flex-wrap:wrap; gap:4px;}
+  .rc-sum-total{font-size:30px; font-weight:700; color:var(--ink); line-height:1.15;}
+  .rc-sum-l .pay-sub{font-size:13px;}
+  .rc-sum-l .pay-sub b{color:var(--ink);}
+  .rc-sum-r{display:flex; flex-direction:column; gap:8px; min-width:0;}
+  .rc-sum-h{font-size:13px; font-weight:700; color:var(--muted);}
+  .rc-tiles{display:grid; gap:6px;}
+  .rc-tile{border:0; padding:0; background:none; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; font-family:var(--sans); min-width:0;}
+  .rc-tile:disabled{cursor:default;}
+  .rc-tile-box{width:100%; height:58px; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; background:var(--paper); color:var(--accent-hover); box-sizing:border-box;}
+  .rc-tile-box b{font-size:13px;}
+  .rc-tile-box span{font-size:10px; font-family:var(--mono); white-space:nowrap;}
+  .rc-tile.l1 .rc-tile-box{background:color-mix(in srgb, var(--accent) 22%, var(--panel));}
+  .rc-tile.l2 .rc-tile-box{background:color-mix(in srgb, var(--accent) 62%, var(--panel)); color:var(--on-accent);}
+  .rc-tile.l3 .rc-tile-box{background:var(--accent-hover); color:var(--on-accent);}
+  .rc-tile:not(:disabled):hover .rc-tile-box{box-shadow:0 0 0 2px var(--accent);}
+  .rc-tile-m{font-size:11.5px; color:var(--muted);}
+  .rc-bigs{margin:0 0 14px; font-family:var(--sans);}
+  .rc-bigs-h{display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:8px; min-height:32px;}
+  .rc-big-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;}
+  .rc-big{text-align:left; border:0; border-radius:12px; padding:12px 14px; background:var(--panel); display:flex; flex-direction:column; gap:4px; cursor:pointer; font-family:var(--sans); color:var(--ink); min-width:0;}
+  .rc-big.sel{box-shadow:inset 0 0 0 2px var(--accent);}
+  .rc-big:hover{background:var(--hover);}
+  .rc-big-top{display:flex; justify-content:space-between; gap:8px; font-size:14px;}
+  .rc-big-top b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:650;}
+  .rc-big-top .rc-mono{font-weight:700; flex:none;}
+  .rc-big small{font-size:12px; color:var(--muted);}
+  .rc-cover{margin-top:4px; font-size:11.5px; font-weight:600; border-radius:7px; padding:4px 8px; align-self:stretch;}
+  .rc-cover.on{background:color-mix(in srgb, var(--up-4) 16%, var(--panel)); color:var(--up-ink);}
+  .rc-cover.off{background:var(--paper); color:var(--muted);}
+  .rc-cover.add{background:var(--paper); color:var(--accent-hover);}
+  .rc-cover.big{font-size:13px; padding:7px 10px; margin:0 0 4px;}
+  .rc-looks{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px;}
+  .rc-looks-h{font-size:13px; font-weight:650; color:var(--muted); margin-right:4px;}
+  .rc-look:not(.on){background:color-mix(in srgb, var(--warn) 20%, var(--panel)); border-color:transparent; font-weight:600;}
+  .rc-split{display:grid; grid-template-columns:minmax(0, 1fr) 380px; gap:16px; align-items:start; font-family:var(--sans);}
+  .rc-list{margin:0; background:var(--panel); border-radius:14px; padding:4px 0 8px; overflow:hidden;}
+  .rc-month{display:flex; justify-content:space-between; padding:14px 18px 6px; font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); scroll-margin-top:12px;}
+  .rc-row{width:100%; text-align:left; border:0; background:none; display:grid; grid-template-columns:30px minmax(0, 1fr) auto 120px; gap:12px; align-items:center; padding:8px 18px; cursor:pointer; font-family:var(--sans); color:var(--ink);}
+  .rc-row:hover{background:var(--hover);}
+  .rc-row.sel{background:color-mix(in srgb, var(--accent) 8%, var(--panel)); box-shadow:inset 3px 0 0 var(--accent);}
+  .rc-row.skip{opacity:.6;}
+  .rc-row-d{font-size:13px; color:var(--muted); font-family:var(--mono);}
+  .rc-row-main{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  .rc-row-main b{font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rc-row-main small{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rc-row .rc-kind{margin:0;}
+  .rc-row-a{text-align:right; font-size:14px; font-weight:700;}
+  .rc-panel{background:var(--panel); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:12px; position:sticky; top:8px; max-height:calc(100vh - 140px); overflow:auto; box-sizing:border-box;}
+  .rc-p-top{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted);}
+  .rc-p-top .rc-kind{margin:0;}
+  .rc-panel h3{margin:0; font-size:20px; font-weight:700; color:var(--ink); line-height:1.25;}
+  .rc-p-amt{font-size:26px; font-weight:700; color:var(--ink);}
+  .rc-p-amt small{font-size:13px; color:var(--muted); font-weight:500;}
+  .rc-p-warn{font-size:12.5px; background:color-mix(in srgb, var(--warn) 20%, var(--panel)); border-radius:8px; padding:7px 10px; color:var(--ink);}
+  .rc-panel section{margin:0; border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:4px; align-items:flex-start; font-size:13.5px;}
+  .rc-panel section > .rc-cover{align-self:stretch;}
+  .rc-panel h4{margin:0 0 2px; font-size:12.5px; font-weight:650; color:var(--muted);}
+  .rc-panel section .pay-btn.text{padding:0; min-height:30px;}
+  .rc-wslot, .rc-editslot{align-self:stretch;}
+  .rc-wslot:empty, .rc-editslot:empty{display:none;}
+  .rc-p-btns{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:4px;}
+  .rc-p-btns a.pay-btn{text-decoration:none;}
+  .rc-p-btns .rc-hide{margin-left:auto;}
+  @media (max-width:900px){ .rc-sum{grid-template-columns:minmax(0, 1fr);} .rc-split{grid-template-columns:minmax(0, 1fr);} .rc-panel{order:-1; position:static; max-height:none;} }
+  @media (max-width:600px){ .rc-tiles{grid-template-columns:repeat(6, minmax(0, 1fr)) !important;} .rc-row{grid-template-columns:24px minmax(0, 1fr) auto; } .rc-row .rc-kind{display:none;} .rc-big-grid{grid-template-columns:minmax(0, 1fr);} .pay-top .rc-search{width:100%;} }
   .rc-edit{background:color-mix(in srgb, var(--accent) 6%, var(--panel)); border:1px solid color-mix(in srgb, var(--accent) 30%, var(--panel)); border-radius:12px; padding:14px 16px; margin:4px 0 12px;}
   .ct-list{display:flex; flex-direction:column;}
   .ct-item{display:grid; grid-template-columns:minmax(0, 2fr) minmax(0, 1.2fr) auto; gap:6px 18px; align-items:start; padding:14px 0; border-top:1px solid var(--line);}
@@ -1544,7 +1614,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791899579";
+const BUILD_ID = "1791901090";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5656,7 +5726,7 @@ const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
 let paymentsQuery = '', contractsQuery = '';
-let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false;
+let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false, receiptsSel = '', receiptsBigAll = false;
 // Bills & Contracts (paymentsView: bills / contracts) and Purchases (shoppingView: orders / receipts /
 // spending) reopen on the tab used last on this device.
 let shoppingView = 'orders';
@@ -6174,12 +6244,29 @@ function receiptsMerged(){
   if(dirty) receiptEditsSet(edits);
   return out;
 }
+// Receipts window (design D, Oct 2026): a year summary with a month-by-month grid (click a month to jump to
+// it), a "Big buys" strip (₪1,000 and up, every year, with what covers them), "Needs a look" chips, then the
+// receipts grouped by month with a details panel beside them (documents, Covered by, note, Edit).
+// "Covered by" comes from the Contracts tab: a warranty / insurance / service plan whose provider is the
+// store, or whose name or Covers mentions what was bought. "+ Add a warranty" adds such a contract.
+const RC_BIG = 1000;
+function rcCoverFor(x){
+  const list = (contractsList || []).concat(contractsAddedGet().map(a => ({...a, start: payDateMs(a.start), end: payDateMs(a.end)})));
+  const hid = new Set(ctHiddenGet()), n = s => String(s || '').trim().toLowerCase();
+  const from = n(x.from), prod = n(x.product);
+  return list.filter(k => !hid.has(ctKey(k)) && /warrant|insur|service plan|other/i.test(k.type || 'Other')).filter(k => {
+    const p = n(k.provider), txt = n(k.name) + ' ' + n(k.covers);
+    return (p && from && (from.includes(p) || p.includes(from))) || (prod.length >= 4 && txt.includes(prod)) || (prod && n(k.covers) && prod.includes(n(k.covers)));
+  }).sort((a, b) => (b.end || 0) - (a.end || 0));
+}
 function renderReceipts(area){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const short = n => n >= 99500 ? '₪' + Math.round(n / 1000) + 'K' : n >= 1000 ? '₪' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : '₪' + Math.round(n);
   const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const money = (n, cur) => (cur === 'USD' ? '$' : cur === 'EUR' ? '€' : '₪') + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   if(!receiptsList){
     area.innerHTML = `<div class="pay-top">${shopViewSwitch()}</div><div class="pm-note">Loading receipts…</div>`;
     fetchReceipts().then(l => { receiptsList = l; if(shoppingView === 'receipts') renderReceipts(area); }).catch(e => {
@@ -6188,6 +6275,12 @@ function renderReceipts(area){
       if(shoppingView === 'receipts') renderReceipts(area);
     });
     return;
+  }
+  // Contracts feed "Covered by"; loaded once in the background.
+  if(!contractsList && !renderReceipts.ctLoading){
+    renderReceipts.ctLoading = true;
+    fetchContracts().then(l => { if(!contractsList) contractsList = l; }).catch(() => { if(!contractsList){ contractsList = []; } })
+      .then(() => { renderReceipts.ctLoading = false; if(shoppingView === 'receipts' && area.isConnected) rerender(); });
   }
   const merged = receiptsMerged(), rcHid = new Set(rcHiddenGet());
   const isHidden = x => x.kind === 'hidden' || rcHid.has(x.id);
@@ -6199,7 +6292,7 @@ function renderReceipts(area){
   const rateOn = ms => (usdIlsOn(ymdOf(ms)) || {}).rate || window.lastFxQ1 || 3.7;
   const ils = x => !(x.amount > 0) || x.kind === 'skip' ? 0 : x.cur === 'USD' ? x.amount * rateOn(x.ms) : x.cur === 'EUR' ? x.amount * SHOP_FX_USD.EUR * rateOn(x.ms) : x.amount;
   // The same amount twice within 45 days (an invoice and its receipt): flagged on the later one.
-  all.forEach(x => { x.dup = null; });
+  allKinds.forEach(x => { x.dup = null; });
   all.forEach((x, i) => {
     if(!(x.amount > 0) || x.kind === 'skip') return;
     const y = all.slice(i + 1).find(y => y.kind !== 'skip' && y.amount > 0 && Math.abs(y.amount - x.amount) < 0.005 && y.cur === x.cur && x.ms - y.ms <= 45 * 86400000);
@@ -6207,60 +6300,143 @@ function renderReceipts(area){
   });
   const yearOf = x => String(new Date(x.ms).getFullYear());
   const years = [...new Set(all.map(yearOf))].sort().reverse();
+  const thisY = String(new Date().getFullYear());
+  // The year shown: this year if it has receipts, else the latest one; "all" = every year.
+  if(receiptsYear !== 'all' && !years.includes(receiptsYear)) receiptsYear = years.includes(thisY) ? thisY : (years[0] || 'all');
+  const allYears = receiptsYear === 'all';
   const q = receiptsQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const hay = x => [x.product, x.from, x.subject, x.files, x.notes, RECEIPT_KIND_LABEL[x.kind] || '', day(x.ms), x.amount > 0 ? x.amount.toFixed(2) : ''].join(' ').toLowerCase();
-  const byKind = x => !receiptsKind || (receiptsKind === 'ask' ? !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product' : x.kind === receiptsKind);
-  const shown = (receiptsKind === '__hidden' ? hiddenRc : all).filter(x => (receiptsKind === '__hidden' || byKind(x)) && (q.length ? q.every(w => hay(x).includes(w)) : (!receiptsYear || yearOf(x) === receiptsYear)));
-  const thisY = String(new Date().getFullYear()), inY = all.filter(x => yearOf(x) === thisY && x.kind !== 'skip');
-  const total = l => l.reduce((a, x) => a + ils(x), 0);
   // Only big buys ask what they were for; a service or transport email's subject already says it.
-  const ask = all.filter(x => !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product'), dups = all.filter(x => x.dup);
-  const biggest = all.filter(x => x.kind !== 'skip' && x.amount > 0).sort((a, b) => ils(b) - ils(a))[0];
-  const kindChip = (v, t, n) => `<button type="button" class="pay-chip${receiptsKind === v ? ' on' : ''}" data-rkind="${v}" aria-pressed="${receiptsKind === v}">${t}<span class="n">${n}</span></button>`;
+  const isAsk = x => !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product';
+  const ask = all.filter(isAsk), dups = all.filter(x => x.dup), noAmt = all.filter(x => !(x.amount > 0) && x.kind !== 'skip');
+  const FILTERS = {ask: isAsk, dup: x => !!x.dup, noamt: x => !(x.amount > 0) && x.kind !== 'skip', skip: x => x.kind === 'skip'};
+  const byKind = x => !receiptsKind || (FILTERS[receiptsKind] ? FILTERS[receiptsKind](x) : x.kind === receiptsKind);
+  // A "Needs a look" filter or a search looks at every year; otherwise the year shown.
+  const everyYear = q.length || (receiptsKind && receiptsKind !== '');
+  const shown = (receiptsKind === '__hidden' ? hiddenRc : all).filter(x => (receiptsKind === '__hidden' || byKind(x)) && (q.length ? q.every(w => hay(x).includes(w)) : (everyYear || allYears || yearOf(x) === receiptsYear)));
+  const total = l => l.reduce((a, x) => a + ils(x), 0);
+  const counted = all.filter(x => x.kind !== 'skip' && (allYears || yearOf(x) === receiptsYear));
+  const yTotal = total(counted);
+  const top = counted.filter(x => ils(x) > 0).sort((a, b) => ils(b) - ils(a))[0];
+  const withoutTop = top && counted.length > 1 && ils(top) / yTotal >= 0.5
+    ? `Without the ${esc(top.product || top.from)}: <b class="rc-mono">${fmt(yTotal - ils(top))}</b> · it was ${Math.round(ils(top) / yTotal * 100)}% of ${allYears ? 'everything' : 'the year'}` : '';
+  // Month by month (or year by year for All): darker = more spent; the number is how many receipts.
+  const level = v => !v ? 0 : v > 10000 ? 3 : v > RC_BIG ? 2 : 1;
+  const tiles = allYears
+    ? years.slice(0, 12).reverse().map(y => { const l = all.filter(x => yearOf(x) === y && x.kind !== 'skip'), v = total(l); return {label: y, n: l.length, v, go: 'y' + y}; })
+    : MON.map((m, i) => { const l = counted.filter(x => new Date(x.ms).getMonth() === i), v = total(l); return {label: m, n: l.length, v, go: receiptsYear + '-' + String(i + 1).padStart(2, '0')}; });
+  const tileHtml = t => `<button type="button" class="rc-tile l${level(t.v)}" data-go="${t.go}"${t.n ? '' : ' disabled'} title="${t.label}: ${t.n ? fmt(t.v) + ' · ' + t.n + ' receipt' + (t.n > 1 ? 's' : '') : 'nothing'}"><span class="rc-tile-box"><b>${t.n || ''}</b><span>${t.n && t.v ? short(t.v) : ''}</span></span><span class="rc-tile-m">${t.label}</span></button>`;
+  // Big buys: ₪1,000 and up, every year, newest first.
+  const big = allKinds.filter(x => rcGroupOf(x) === 'product' && x.kind !== 'skip' && ils(x) >= RC_BIG && !(x.dup)).sort((a, b) => b.ms - a.ms);
+  const coverLine = x => {
+    const c = rcCoverFor(x)[0], now = Date.now();
+    if(!c) return '';
+    const live = isNaN(c.end) || c.end >= now;
+    return `<span class="rc-cover ${live ? 'on' : 'off'}">${live ? (isNaN(c.end) ? 'Covered · ' + esc(c.name) : 'Covered until ' + day(c.end)) : 'Ended ' + day(c.end)}</span>`;
+  };
+  const bigCard = x => `<button type="button" class="rc-big${receiptsSel === x.id ? ' sel' : ''}" data-sel="${esc(x.id)}">
+      <span class="rc-big-top"><b class="${x.product ? '' : 'rc-ask'}" dir="auto">${x.product ? esc(x.product) : 'What was it for?'}</b><span class="rc-mono">${fmt(ils(x))}</span></span>
+      <small dir="auto">${esc(x.from)} · ${new Date(x.ms).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'})}</small>
+      ${coverLine(x) || '<span class="rc-cover add">+ Link a warranty</span>'}</button>`;
   const kindPill = x => x.kind ? `<span class="rc-kind ${x.kind}">${RECEIPT_KIND_LABEL[x.kind]}</span>` : !x.product ? '<span class="rc-kind ask">To describe</span>' : '<span></span>';
-  const card = x => `<div class="rc-card${x.kind === 'skip' ? ' skip' : ''}" data-rid="${esc(x.id)}">
-      <div class="rc-card-top">${kindPill(x)}<span>${day(x.ms)}</span></div>
-      <b class="${x.product || rcGroupOf(x) !== 'product' ? '' : 'rc-ask'}" dir="auto">${x.product ? esc(x.product) : rcGroupOf(x) !== 'product' ? esc(x.subject || x.from) : 'What was it for?'}</b>
-      <small dir="auto">${esc(x.from)}${x.subject && !x.product && rcGroupOf(x) === 'product' ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
-      ${x.notes ? `<div class="shop-note" dir="auto">${esc(x.notes)}</div>` : ''}<button type="button" class="shop-note-btn rc-note-btn" data-rid="${esc(x.id)}">${x.notes ? 'Edit note' : '+ Note'}</button>
-      ${x.dup ? `<div class="rc-flag">Same amount as the ${day(x.dup.ms)} receipt (${esc(x.dup.product || x.dup.from)}): counted twice? Set one to Don't count.</div>` : ''}
-      <div class="rc-card-foot"><span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span><span>${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : `<button type="button" class="pay-btn rc-unhide" data-rid="${esc(x.id)}" style="min-height:32px; padding:0 10px;">Show again</button>`) : `<button type="button" class="pay-icon-btn rc-hide" data-rid="${esc(x.id)}" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}<button type="button" class="pay-icon-btn rc-edit-btn" data-rid="${esc(x.id)}" aria-label="Edit what it was for, kind, amount and note" title="Edit">${PAY_ICONS.edit}</button>${x.link ? `<a class="pay-icon-btn" href="${esc(x.link)}" target="_blank" rel="noopener" aria-label="Open the email" title="Open the email">${PAY_ICONS.mail}</a>` : ''}</span></div>
-    </div><div class="rc-slot" data-rid="${esc(x.id)}"></div>`;
-  const tray = ask.slice(0, 3);
+  const titleOf = x => x.product ? esc(x.product) : rcGroupOf(x) !== 'product' ? esc(x.subject || x.from) : 'What was it for?';
+  const LIMIT = 60, cut = shown.slice(0, receiptsShowAll ? shown.length : LIMIT);
+  if(!receiptsSel || !merged.some(x => x.id === receiptsSel)) receiptsSel = (cut[0] || {}).id || '';
+  const sel = merged.find(x => x.id === receiptsSel);
+  // The list, grouped by month.
+  const groups = [];
+  cut.forEach(x => { const d = new Date(x.ms), k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); let g = groups[groups.length - 1]; if(!g || g.k !== k){ g = {k, label: d.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'}), rows: []}; groups.push(g); } g.rows.push(x); });
+  const row = x => `<button type="button" class="rc-row${x.id === receiptsSel ? ' sel' : ''}${x.kind === 'skip' ? ' skip' : ''}" data-sel="${esc(x.id)}">
+      <span class="rc-row-d">${String(new Date(x.ms).getDate()).padStart(2, '0')}</span>
+      <span class="rc-row-main"><b class="${x.product || rcGroupOf(x) !== 'product' ? '' : 'rc-ask'}" dir="auto">${titleOf(x)}</b><small dir="auto">${esc(x.from)}${x.subject && !x.product && rcGroupOf(x) === 'product' ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}${x.dup ? ' · <span class="rc-flag">same amount as ' + day(x.dup.ms) + '</span>' : ''}${x.notes ? ' · ✎' : ''}</small></span>
+      ${kindPill(x)}<span class="rc-mono rc-row-a">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span></button>`;
+  // The details panel.
+  const panel = x => {
+    if(!x) return '<div class="pm-note">Pick a receipt to see its details.</div>';
+    const covers = rcCoverFor(x), now = Date.now();
+    const files = String(x.files || '').split(/,\s*/).filter(Boolean);
+    return `<div class="rc-p-top">${kindPill(x)}<span class="rc-mono">${day(x.ms)}</span></div>
+      <div><h3 class="${x.product || rcGroupOf(x) !== 'product' ? '' : 'rc-ask'}" dir="auto">${titleOf(x)}</h3><div class="pay-sub" dir="auto">${esc(x.from)}${x.local || x.addedLocal ? ' · on this device' : ''}</div></div>
+      <div class="rc-p-amt rc-mono">${x.amount > 0 ? money(x.amount, x.cur) : '<span class="rc-flag">No amount yet</span>'}${x.cur === 'USD' || x.cur === 'EUR' ? `<small> ≈ ${fmt(ils(x))}</small>` : ''}</div>
+      ${x.dup ? `<div class="rc-p-warn">Same amount as the ${day(x.dup.ms)} receipt (${esc(x.dup.product || x.dup.from)}): an invoice and its receipt? Set one to Don't count.</div>` : ''}
+      <section><h4>Covered by</h4>${covers.length ? covers.map(c => { const live = isNaN(c.end) || c.end >= now, left = !isNaN(c.end) && live ? Math.round((c.end - now) / (365.25 * 86400000) * 10) / 10 : 0;
+        return `<div class="rc-cover ${live ? 'on' : 'off'} big">${esc(c.name)}${c.provider ? ' · ' + esc(c.provider) : ''}${isNaN(c.end) ? '' : live ? ' · until ' + day(c.end) + (left >= 1 ? ` · ${left} year${left === 1 ? '' : 's'} left` : ` · ${Math.max(1, Math.round((c.end - now) / (30.4 * 86400000)))} months left`) : ' · ended ' + day(c.end)}</div>`; }).join('')
+        : ''}<button type="button" class="pay-btn text rc-warranty">+ ${covers.length ? 'Add another' : 'Add a warranty or insurance'}</button><div class="rc-wslot"></div></section>
+      <section><h4>Documents</h4>${x.subject ? `<div dir="auto">${esc(x.subject)}</div>` : ''}${files.length ? files.map(f => `<div class="pay-sub" dir="auto">📎 ${esc(f)}</div>`).join('') : x.link ? '' : '<div class="pay-sub">No email: added by hand</div>'}</section>
+      <section><h4>Note</h4>${x.notes ? `<div class="shop-note" dir="auto">${esc(x.notes)}</div>` : ''}<button type="button" class="pay-btn text rc-note-btn">${x.notes ? 'Edit note' : '+ Add a note'}</button></section>
+      <div class="rc-editslot"></div>
+      <div class="rc-p-btns"><button type="button" class="pay-btn rc-edit-btn">${PAY_ICONS.edit}Edit</button>${x.link ? `<a class="pay-btn" href="${esc(x.link)}" target="_blank" rel="noopener">${PAY_ICONS.mail}Open the email</a>` : ''}${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : '<button type="button" class="pay-btn text rc-unhide">Show again</button>') : `<button type="button" class="pay-icon-btn rc-hide" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}</div>`;
+  };
+  const chip = (v, t, n, warn) => `<button type="button" class="pay-chip${warn ? ' rc-look' : ''}${receiptsKind === v ? ' on' : ''}" data-rkind="${v}" aria-pressed="${receiptsKind === v}">${n} ${t}</button>`;
+  const looks = [ask.length ? chip('ask', 'to describe', ask.length, true) : '', dups.length ? chip('dup', 'possible duplicate' + (dups.length > 1 ? 's' : ''), dups.length, true) : '',
+    noAmt.length ? chip('noamt', 'without an amount', noAmt.length) : '', all.some(x => x.kind === 'skip') ? chip('skip', 'not counted', all.filter(x => x.kind === 'skip').length) : '',
+    hiddenRc.length ? chip('__hidden', 'hidden', hiddenRc.length) : ''].join('');
+  const tray = receiptsKind === 'ask' ? ask.slice(0, 3) : [];
   const localRows = merged.filter(x => x.local || x.addedLocal);
-  const LIMIT = 48, cut = shown.slice(0, receiptsShowAll ? shown.length : LIMIT);
   area.innerHTML = `
-    <div class="pay-top">${shopViewSwitch()}<button type="button" class="pay-btn primary rc-add">${PAY_ICONS.plus}Add a receipt</button></div>
+    <div class="pay-top">${shopViewSwitch()}<input type="search" class="shop-search rc-search" placeholder="Search item, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts"><button type="button" class="pay-btn primary rc-add">${PAY_ICONS.plus}Add a receipt</button></div>
     ${receiptsList.error ? `<div class="pm-note">The Receipts tab isn't there yet (${receiptsList.error}): put receipts in the Gmail label <b>payments-receipts</b> and run <b>updateReceipts()</b> in the Payments spreadsheet's Apps Script (it then runs daily with updatePayments).</div>` : ''}
     <div id="rcAdd" class="pay-confirm rc-edit" hidden></div>
+    ${localRows.length ? `<div class="pay-confirm rc-edit" style="margin:0 0 14px;"><div class="pay-confirm-row"><b>${localRows.length} change${localRows.length === 1 ? '' : 's'} on this device only.</b> To keep them on every device, save them to the Receipts tab (a row with the same message id updates that receipt).</div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary rc-copy-all">Save ${localRows.length} to the sheet</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
+    <section class="rc-sum">
+      <div class="rc-sum-l">
+        <div class="pay-chips" role="group" aria-label="Year">${years.map(y => `<button type="button" class="pay-chip${receiptsYear === y ? ' on' : ''}" data-ry="${y}" aria-pressed="${receiptsYear === y}">${y}</button>`).join('')}<button type="button" class="pay-chip${allYears ? ' on' : ''}" data-ry="all" aria-pressed="${allYears}">All</button></div>
+        <div class="rc-sum-total rc-mono">${fmt(yTotal)}</div>
+        <div class="pay-sub">${withoutTop || `${counted.length} receipt${counted.length === 1 ? '' : 's'} ${allYears ? 'since ' + (years[years.length - 1] || thisY) : 'in ' + receiptsYear} · kept forever`}</div>
+        <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g).length}</span></label>`).join('')}</div>
+      </div>
+      <div class="rc-sum-r"><div class="rc-sum-h">${allYears ? 'Year by year' : 'Month by month'}</div><div class="rc-tiles" style="grid-template-columns:repeat(${tiles.length}, minmax(0, 1fr));">${tiles.map(tileHtml).join('')}</div><div class="pay-sub" style="font-size:12px;">Darker = more spent · number = receipts · click to jump there</div></div>
+    </section>
+    ${big.length ? `<section class="rc-bigs"><div class="rc-bigs-h"><span>Big buys · ₪1,000 and up, every year</span>${big.length > 4 ? `<button type="button" class="pay-btn text rc-big-all">${receiptsBigAll ? 'Show fewer' : 'Show all ' + big.length}</button>` : ''}</div><div class="rc-big-grid">${big.slice(0, receiptsBigAll ? big.length : 4).map(bigCard).join('')}</div></section>` : ''}
+    ${looks ? `<div class="rc-looks"><span class="rc-looks-h">Needs a look</span>${looks}${receiptsKind ? '<button type="button" class="pay-btn text" data-rkind="">Show all</button>' : ''}</div>` : ''}
     ${tray.length ? `<section class="rc-tray"><div class="rc-tray-head"><h3>Say what these were for · ${tray.length} of ${ask.length}</h3><span class="pay-sub" style="font-size:12.5px;">Type and press Enter; the next one comes up</span></div>
       ${tray.map(x => `<div class="rc-tray-row"><span class="ct-main"><b style="font-size:13.5px;">${esc(x.from)}</b><small dir="auto">${day(x.ms)}${x.subject ? ' · ' + esc(x.subject) : ''}</small></span>
         <label><span class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden;">What was ${esc(x.from)} on ${day(x.ms)} for</span><input type="text" class="rc-tray-in" data-rid="${esc(x.id)}" placeholder="what you bought or the service" autocomplete="off"></label>
         <span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span></div>`).join('')}</section>` : ''}
-    ${localRows.length ? `<div class="pay-confirm rc-edit" style="margin:0 0 14px;"><div class="pay-confirm-row"><b>${localRows.length} change${localRows.length === 1 ? '' : 's'} on this device only.</b> To keep them on every device, copy the rows and paste them at the bottom of the Receipts tab (a row with the same message id updates that receipt).</div>
-      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary rc-copy-all">Save ${localRows.length} to the sheet</button> <span class="pay-copied" hidden>Copied</span></div></div>` : ''}
-    <div class="rc-bar">
-      <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g).length}</span></label>`).join('')}</div>
-      <div class="pay-chips">${kindChip('', 'All', all.length)}${ask.length ? kindChip('ask', 'To describe', ask.length) : ''}${all.some(x => x.kind === 'skip') ? kindChip('skip', 'Not counted', all.filter(x => x.kind === 'skip').length) : ''}${hiddenRc.length ? kindChip('__hidden', 'Hidden', hiddenRc.length) : ''}</div>
-      <input type="search" class="shop-search rc-search" placeholder="Search product, store, amount, note" value="${esc(receiptsQuery)}" aria-label="Search receipts">
-    </div>
-    <div class="pay-sub" style="font-size:12.5px; margin:0 0 10px;">Kept forever · ${all.length} receipt${all.length === 1 ? '' : 's'}${all.length ? ' since ' + new Date(all[all.length - 1].ms).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'}) : ''} · ${thisY} ${fmt(total(inY))}${biggest ? ` · biggest ${esc(biggest.product || biggest.from)} ${money(biggest.amount, biggest.cur)}` : ''}${dups.length ? ` · <span class="rc-flag">${dups.length} possible duplicate${dups.length > 1 ? 's' : ''}</span>` : ''}</div>
-    ${cut.length ? `<div class="rc-grid">${cut.map(card).join('')}</div>${shown.length > cut.length ? `<div style="margin-top:12px;"><button type="button" class="pay-btn rc-more">Show all ${shown.length}</button></div>` : ''}` : `<div class="pm-note">${all.length ? 'Nothing matches.' : 'No receipts yet.'}</div>`}`;
+    <div class="rc-split">
+      <section class="rc-list">${groups.length ? groups.map(g => `<div class="rc-month" id="rc-m-${g.k}"><span>${g.label}</span><span class="rc-mono">${total(g.rows) > 0 ? fmt(total(g.rows)) : ''}</span></div>${g.rows.map(row).join('')}`).join('')
+        + (shown.length > cut.length ? `<div style="padding:12px 18px;"><button type="button" class="pay-btn rc-more">Show all ${shown.length}</button></div>` : '')
+        : `<div class="pm-note" style="margin:14px;">${all.length ? 'Nothing matches.' : 'No receipts yet.'}</div>`}</section>
+      <aside class="rc-panel" aria-label="Receipt details">${panel(sel)}</aside>
+    </div>`;
 
-  const rerender = () => { const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; renderReceipts(area); if(body) body.scrollTop = top; };
-  area.querySelectorAll('.rc-hide').forEach(b => b.addEventListener('click', () => {
-    const id = b.dataset.rid, x = merged.find(r => r.id === id);
+  function rerender(){ const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; renderReceipts(area); if(body) body.scrollTop = top; }
+  const P = area.querySelector('.rc-panel');
+  // Pick a receipt: the panel shows it (on a phone the panel is above the list, so scroll to it).
+  area.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => {
+    receiptsSel = b.dataset.sel;
+    // A big buy from another year: show that year, so it is also in the list.
+    const x = merged.find(r => r.id === receiptsSel);
+    if(x && b.classList.contains('rc-big') && receiptsYear !== 'all' && !receiptsKind && !receiptsQuery) receiptsYear = yearOf(x);
+    rerender();
+    if(window.matchMedia('(max-width:900px)').matches || b.classList.contains('rc-big')){ const p = area.querySelector('.rc-panel'); if(p) p.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
+  }));
+  area.querySelectorAll('[data-ry]').forEach(b => b.addEventListener('click', () => { receiptsYear = b.dataset.ry; receiptsKind = ''; receiptsSel = ''; receiptsShowAll = false; rerender(); }));
+  area.querySelectorAll('.rc-tile[data-go]').forEach(b => b.addEventListener('click', () => {
+    const g = b.dataset.go;
+    if(g[0] === 'y'){ receiptsYear = g.slice(1); receiptsSel = ''; rerender(); return; }
+    if(receiptsKind || receiptsQuery){ receiptsKind = ''; receiptsQuery = ''; rerender(); }
+    const el = document.getElementById('rc-m-' + g); if(el) el.scrollIntoView({block: 'start', behavior: 'smooth'});
+  }));
+  const bigAll = area.querySelector('.rc-big-all');
+  if(bigAll) bigAll.addEventListener('click', () => { receiptsBigAll = !receiptsBigAll; rerender(); });
+  const hide = P.querySelector('.rc-hide');
+  if(hide) hide.addEventListener('click', () => {
+    const id = sel.id, x = sel;
     rcHiddenSet([...new Set(rcHiddenGet().concat([id]))]);
+    receiptsSel = '';
     rerender();
     refreshPayTabs();
     const box = document.getElementById('rcAdd');
-    box.innerHTML = `<div><b>${esc(x ? x.product || x.from : 'The receipt')}</b> is hidden on this device (kept, not deleted). To hide it on every device, edit it (✎) and set Kind to Hidden.</div>
+    box.innerHTML = `<div><b>${esc(x.product || x.from)}</b> is hidden on this device (kept, not deleted). To hide it on every device, edit it and set Kind to Hidden.</div>
       <div class="pay-confirm-btns"><button type="button" class="pay-btn" data-h="undo">Undo</button><button type="button" class="pay-btn text" data-h="close">Close</button></div>`;
     box.hidden = false;
-    box.querySelector('[data-h="undo"]').addEventListener('click', () => { rcHiddenSet(rcHiddenGet().filter(v => v !== id)); box.hidden = true; rerender(); refreshPayTabs(); });
+    box.querySelector('[data-h="undo"]').addEventListener('click', () => { rcHiddenSet(rcHiddenGet().filter(v => v !== id)); receiptsSel = id; box.hidden = true; rerender(); refreshPayTabs(); });
     box.querySelector('[data-h="close"]').addEventListener('click', () => { box.hidden = true; });
-  }));
-  area.querySelectorAll('.rc-unhide').forEach(b => b.addEventListener('click', () => { rcHiddenSet(rcHiddenGet().filter(v => v !== b.dataset.rid)); rerender(); refreshPayTabs(); }));
+  });
+  const unhide = P.querySelector('.rc-unhide');
+  if(unhide) unhide.addEventListener('click', () => { rcHiddenSet(rcHiddenGet().filter(v => v !== sel.id)); rerender(); refreshPayTabs(); });
   area.querySelectorAll('.rc-grp').forEach(c => c.addEventListener('change', () => {
     const g = rcGroupsGet(); g[c.dataset.g] = c.checked; rcGroupsSet(g);
     if(['product', 'service', 'transport'].includes(receiptsKind)) receiptsKind = '';
@@ -6268,7 +6444,7 @@ function renderReceipts(area){
   }));
   const more = area.querySelector('.rc-more');
   if(more) more.addEventListener('click', () => { receiptsShowAll = true; rerender(); });
-  // The tray: Enter saves what it was for and brings up the next one.
+  // The tray (with "to describe" picked): Enter saves what it was for and brings up the next one.
   area.querySelectorAll('.rc-tray-in').forEach(inp => inp.addEventListener('keydown', ev => {
     if(ev.key !== 'Enter' || !inp.value.trim()) return;
     ev.preventDefault();
@@ -6297,10 +6473,11 @@ function renderReceipts(area){
       copyAll.onclick = () => navigator.clipboard.writeText(todo.join('\n')).catch(() => {});
     });
   });
-  area.querySelectorAll('[data-rkind]').forEach(b => b.addEventListener('click', () => { receiptsKind = b.dataset.rkind; rerender(); }));
+  area.querySelectorAll('[data-rkind]').forEach(b => b.addEventListener('click', () => { receiptsKind = receiptsKind === b.dataset.rkind ? '' : b.dataset.rkind; receiptsSel = ''; receiptsShowAll = false; rerender(); }));
   const search = area.querySelector('.rc-search');
   search.addEventListener('input', () => {
     receiptsQuery = search.value;
+    receiptsSel = '';
     const pos = search.selectionStart;
     renderReceipts(area);
     const s2 = area.querySelector('.rc-search'); s2.focus(); s2.setSelectionRange(pos, pos);
@@ -6319,44 +6496,72 @@ function renderReceipts(area){
   const form = (x, isNew) => `
     <div class="shop-form">
       ${isNew ? `<label>Date<input type="date" name="date" value="${ymdOf(Date.now())}"></label><label>Store / from<input name="from" placeholder="who you paid"></label>` : ''}
-      <label style="grid-column:span 2;">Product or service<input name="product" value="${esc(x.product || '')}" placeholder="e.g. air fryer, technician visit"></label>
+      <label style="grid-column:1 / -1;">Product or service<input name="product" value="${esc(x.product || '')}" placeholder="e.g. air fryer, technician visit"></label>
       <label>Kind<select name="kind">${[['', '—'], ['product', 'Product'], ['service', 'Service'], ['transport', 'Transport'], ['skip', "Don't count"], ['hidden', 'Hidden (every device)']].map(([v, t]) => `<option value="${v}"${(x.kind || '') === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
       <label>Amount<input name="amount" type="number" step="0.01" min="0" value="${x.amount > 0 ? x.amount : ''}" placeholder="0.00"></label>
       ${isNew ? `<label>Currency<select name="cur"><option>ILS</option><option>USD</option><option>EUR</option></select></label>` : ''}
-      <label style="grid-column:1 / -1;">Note<input name="notes" value="${esc(x.notes || '')}" placeholder="warranty, who it's for, anything to remember"></label>
+      <label style="grid-column:1 / -1;">Note<input name="notes" value="${esc(x.notes || '')}" placeholder="who it's for, serial no., anything to remember"></label>
     </div>`;
   const read = box => { const f = n => { const el = box.querySelector(`[name="${n}"]`); return el ? String(el.value || '').trim() : ''; }; return f; };
-  // Edit (✎): what it was for, kind, amount, note, in a panel under the receipt.
-  // "+ Note / Edit note" opens the same edit panel with the note field ready.
-  area.querySelectorAll('.rc-note-btn').forEach(b => b.addEventListener('click', () => {
-    const ed = area.querySelector(`.rc-edit-btn[data-rid="${CSS.escape(b.dataset.rid)}"]`); if(!ed) return;
-    ed.click();
-    const box = area.querySelector(`.rc-slot[data-rid="${CSS.escape(b.dataset.rid)}"] .rc-edit`);
-    const n = box && box.querySelector('[name="notes"]');
-    if(n){ n.focus(); n.select(); box.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
-  }));
-  area.querySelectorAll('.rc-edit-btn').forEach(b => b.addEventListener('click', () => {
-    const x = merged.find(r => r.id === b.dataset.rid); if(!x) return;
-    area.querySelectorAll('.rc-slot').forEach(s => { s.innerHTML = ''; });
-    const slot = area.querySelector(`.rc-slot[data-rid="${CSS.escape(x.id)}"]`);
+  // Edit, in the panel: what it was for, kind, amount, note.
+  const openEdit = focusNote => {
+    const x = sel; if(!x) return;
+    const slot = P.querySelector('.rc-editslot');
     slot.innerHTML = `<div class="pay-confirm rc-edit">${form(x, false)}
       <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-e="save">Save</button><button type="button" class="pay-btn text" data-e="cancel">Cancel</button>${x.local ? '<button type="button" class="pay-btn text" data-e="undo">Undo my changes</button>' : ''}${x.addedLocal ? '<button type="button" class="pay-btn text" data-e="delete">Delete this receipt</button>' : ''}</div></div>`;
     const box = slot.firstElementChild, f = read(box);
-    box.querySelector('[name="product"]').focus();
+    const fld = box.querySelector(focusNote ? '[name="notes"]' : '[name="product"]'); fld.focus(); if(focusNote) fld.select();
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     box.querySelector('[data-e="cancel"]').addEventListener('click', () => { slot.innerHTML = ''; });
     const u = box.querySelector('[data-e="undo"]');
     if(u) u.addEventListener('click', () => { const m = receiptEditsGet(); delete m[x.id]; receiptEditsSet(m); rerender(); refreshPayTabs(); });
     const d = box.querySelector('[data-e="delete"]');
-    if(d) d.addEventListener('click', () => { receiptsAddedSet(receiptsAddedGet().filter(a => a.id !== x.id)); const m = receiptEditsGet(); delete m[x.id]; receiptEditsSet(m); rerender(); });
+    if(d) d.addEventListener('click', () => { receiptsAddedSet(receiptsAddedGet().filter(a => a.id !== x.id)); const m = receiptEditsGet(); delete m[x.id]; receiptEditsSet(m); receiptsSel = ''; rerender(); });
     box.querySelector('[data-e="save"]').addEventListener('click', () => {
       const m = receiptEditsGet();
       m[x.id] = {product: f('product'), kind: f('kind'), notes: f('notes'), amount: f('amount') === '' ? '' : Number(f('amount'))};
       receiptEditsSet(m);
       rerender();
-      const nx = receiptsMerged().find(r => r.id === x.id), s2 = area.querySelector(`.rc-slot[data-rid="${CSS.escape(x.id)}"]`);
+      refreshPayTabs();
+      const nx = receiptsMerged().find(r => r.id === x.id), s2 = area.querySelector('.rc-panel .rc-editslot');
       if(nx && s2){ s2.innerHTML = '<div class="pay-confirm rc-edit"></div>'; showPaste(s2.firstElementChild, nx, x.addedLocal ? 'paste it at the bottom of the Receipts tab' : 'paste it at the bottom of the Receipts tab (the same message id updates this receipt)'); }
     });
-  }));
+  };
+  const eb = P.querySelector('.rc-edit-btn'); if(eb) eb.addEventListener('click', () => openEdit(false));
+  const nb = P.querySelector('.rc-note-btn'); if(nb) nb.addEventListener('click', () => openEdit(true));
+  // + Add a warranty or insurance: a contract in the Contracts tab, so it also shows under Bills & Contracts.
+  const wb = P.querySelector('.rc-warranty');
+  if(wb) wb.addEventListener('click', () => {
+    const x = sel, slot = P.querySelector('.rc-wslot');
+    const end = new Date(x.ms); end.setFullYear(end.getFullYear() + 1);
+    slot.innerHTML = `<div class="pay-confirm rc-edit"><div class="shop-form">
+        <label style="grid-column:1 / -1;">Name<input name="name" value="${esc((x.product || x.from) + ' warranty')}"></label>
+        <label>Type<select name="type"><option>Warranty</option><option>Insurance</option><option>Service plan</option></select></label>
+        <label>Provider<input name="provider" value="${esc(x.from)}"></label>
+        <label>Start<input type="date" name="start" value="${ymdOf(x.ms)}"></label>
+        <label>Until<input type="date" name="end" value="${ymdOf(end.getTime())}"></label>
+        <label style="grid-column:1 / -1;">Covers<input name="covers" value="${esc(x.product || '')}" placeholder="what it covers"></label>
+        <label style="grid-column:1 / -1;">Notes<input name="notes" placeholder="phone, conditions, where the card is"></label>
+      </div><div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-w="save">Add</button><button type="button" class="pay-btn text" data-w="cancel">Cancel</button></div></div>`;
+    const box = slot.firstElementChild, f = read(box);
+    box.querySelector('[name="end"]').focus();
+    box.querySelector('[data-w="cancel"]').addEventListener('click', () => { slot.innerHTML = ''; });
+    box.querySelector('[data-w="save"]').addEventListener('click', () => {
+      if(!f('name')) return;
+      const a = {name: f('name'), provider: f('provider'), type: f('type'), ref: '', start: f('start'), end: f('end'), cost: '', per: 'once', covers: f('covers'), notes: f('notes'), link: x.link || ''};
+      contractsAddedSet(contractsAddedGet().concat([a]));
+      const r = [a.name, a.provider, a.type, a.ref, a.start, a.end, a.cost, a.per, a.covers, a.notes, a.link, localYmd()].join('\t');
+      rerender();
+      refreshPayTabs();
+      const s2 = area.querySelector('.rc-panel .rc-wslot');
+      if(s2){
+        s2.innerHTML = `<div class="pay-confirm rc-edit"><div><b>${esc(a.name)}</b> added to Contracts.</div><div class="pay-confirm-row">To keep it on every device, paste this row under the Contracts tab's header:<code>${esc(r).replace(/\t/g, ' │ ')}</code></div><div class="pay-confirm-btns"><button type="button" class="pay-btn text" data-w="close">Close</button></div></div>`;
+        const b2 = s2.firstElementChild;
+        b2.querySelector('[data-w="close"]').addEventListener('click', () => { s2.innerHTML = ''; });
+        autoSaveSheet(b2, 'Contracts', r);
+      }
+    });
+  });
   // Add a receipt with no email (paid in a shop, paper receipt).
   area.querySelector('.rc-add').addEventListener('click', () => {
     const box = document.getElementById('rcAdd');
@@ -6370,6 +6575,8 @@ function renderReceipts(area){
       if(!f('product') && !f('from')){ box.querySelector('.shop-form-err').hidden = false; return; }
       const a = {id: 'manual-' + Date.now(), date: f('date') || ymdOf(Date.now()), from: f('from'), product: f('product'), kind: f('kind'), amount: f('amount') === '' ? '' : Number(f('amount')), cur: f('cur') || 'ILS', notes: f('notes')};
       receiptsAddedSet(receiptsAddedGet().concat([a]));
+      receiptsSel = a.id;
+      receiptsYear = String(new Date(payDateMs(a.date)).getFullYear());
       rerender();
       refreshPayTabs();
       const nx = receiptsMerged().find(r => r.id === a.id), b2 = document.getElementById('rcAdd');
