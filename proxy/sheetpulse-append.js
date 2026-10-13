@@ -1,14 +1,19 @@
-// SheetPulse write endpoint for the proxy (runs on the Oracle VM, next to index.js).
+// SheetPulse write endpoints for the proxy (runs on the Oracle VM, next to index.js).
 //
 // POST /sheetpulse/append  {sheetId, tab, rows: [[cell, ...], ...]}
-// Adds rows at the bottom of one tab of the SheetPulse Payments spreadsheet: what the dashboard's
-// "saved on this device" changes used to ask you to paste by hand (a routine bill, a contract, a receipt
-// or its description, an order's status or note, a bill marked paid or its note).
+//   Adds rows at the bottom of one tab of the SheetPulse Payments spreadsheet: events that belong in rows of
+//   their own (an order's status, a bill marked paid, a bill's note, a new contract, receipt or routine bill).
 //
-// Deliberately narrow: only the Payments spreadsheet, only the tabs below, only appends (never edits or
-// deletes a row), at most 20 rows of 20 cells per request. The dashboard reads rows with the same message
-// id or key as one record, so appending is enough. The route sits after the shared Google ID-token check
-// in index.js, so only the allowed account can call it.
+// POST /sheetpulse/update  {sheetId, tab, key: {Column: value, ...}, set: {Column: value, ...}}
+//   Changes cells of ONE existing row in place, so an edit (a contract's note, what a receipt was for, a
+//   routine bill's amount) doesn't add a second row. The row is the first one whose key columns all match
+//   (trimmed, ignoring case): Name + Reference in Contracts, Message id in Receipts, Payee in Routine bills.
+//   Only the columns listed below can be set; the header row is never written. No match: 404, and the
+//   dashboard falls back to adding a row.
+//
+// Deliberately narrow: only the Payments spreadsheet, only the tabs below, never deletes a row, at most 20
+// rows of 20 cells per append. Both routes sit after the shared Google ID-token check in index.js, so only the
+// allowed account can call them.
 //
 // Cells: numbers are written as numbers, a yyyy-mm-dd string as a date, and any other string that Sheets
 // would turn into a number, date or formula (an order no. like 405-1244688, a message id like 188e20, "2026-07",
@@ -16,9 +21,15 @@
 
 const PAYMENTS_SHEET_ID = '1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA';
 const ALLOWED_TABS = ['Payments', 'Shopping', 'Contracts', 'Receipts', 'Routine bills'];
+const UPDATE_RULES = {
+  'Contracts':     { key: ['Name', 'Reference'], set: ['Provider', 'Type', 'Start', 'End', 'Cost', 'Per', 'Covers', 'Notes', 'Link'] },
+  'Receipts':      { key: ['Message id'],        set: ['Amount', 'Currency', 'Notes', 'Product', 'Kind'] },
+  'Routine bills': { key: ['Payee'],             set: ['Category', 'Amount', 'Every', 'Day', 'Start', 'End', 'Card', 'Notes'] },
+};
 const MAX_ROWS = 20, MAX_CELLS = 20, MAX_LEN = 500;
 
 class SheetPulseAppendError extends Error {}
+class SheetPulseNotFound extends SheetPulseAppendError {}
 
 function cellValue(v){
   if(v === null || v === undefined) return '';
@@ -34,9 +45,13 @@ function cellValue(v){
   return s;
 }
 
-function validate(body){
+function checkSheetAndTab(body, tabs){
   if(!body || body.sheetId !== PAYMENTS_SHEET_ID) throw new SheetPulseAppendError('Unknown sheet');
-  if(!ALLOWED_TABS.includes(body.tab)) throw new SheetPulseAppendError('Tab not allowed');
+  if(!tabs.includes(body.tab)) throw new SheetPulseAppendError('Tab not allowed');
+}
+
+function validateAppend(body){
+  checkSheetAndTab(body, ALLOWED_TABS);
   const rows = body.rows;
   if(!Array.isArray(rows) || !rows.length || rows.length > MAX_ROWS) throw new SheetPulseAppendError('rows must hold 1 to ' + MAX_ROWS + ' rows');
   return rows.map(r => {
@@ -45,16 +60,50 @@ function validate(body){
   });
 }
 
+async function tabExists(sheets, tab){
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: PAYMENTS_SHEET_ID, fields: 'sheets.properties.title' });
+  if(!meta.data.sheets.some(s => s.properties.title === tab)) throw new SheetPulseAppendError(`No "${tab}" tab in the spreadsheet yet`);
+}
+
 async function handleSheetPulseAppend(sheets, body){
-  const values = validate(body);
-  const spreadsheetId = PAYMENTS_SHEET_ID;
-  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties.title' });
-  if(!meta.data.sheets.some(s => s.properties.title === body.tab)) throw new SheetPulseAppendError(`No "${body.tab}" tab in the spreadsheet yet`);
+  const values = validateAppend(body);
+  await tabExists(sheets, body.tab);
   const res = await sheets.spreadsheets.values.append({
-    spreadsheetId, range: `'${body.tab}'!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
+    spreadsheetId: PAYMENTS_SHEET_ID, range: `'${body.tab}'!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
     requestBody: { values },
   });
   return { ok: true, tab: body.tab, rows: values.length, range: (res.data.updates || {}).updatedRange || '' };
 }
 
-module.exports = { handleSheetPulseAppend, SheetPulseAppendError, PAYMENTS_SHEET_ID };
+function colLetter(i){ let s = ''; i += 1; while(i > 0){ const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+const norm = v => String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+
+async function handleSheetPulseUpdate(sheets, body){
+  checkSheetAndTab(body, Object.keys(UPDATE_RULES));
+  const rule = UPDATE_RULES[body.tab];
+  const key = body.key || {}, set = body.set || {};
+  if(Object.keys(key).length !== rule.key.length || !rule.key.every(k => k in key)) throw new SheetPulseAppendError('key must be ' + rule.key.join(' + '));
+  const setCols = Object.keys(set);
+  if(!setCols.length || setCols.some(c => !rule.set.includes(c))) throw new SheetPulseAppendError('Only these can be changed: ' + rule.set.join(', '));
+  const values = setCols.map(c => cellValue(set[c]));
+  await tabExists(sheets, body.tab);
+  const grid = (await sheets.spreadsheets.values.get({ spreadsheetId: PAYMENTS_SHEET_ID, range: `'${body.tab}'!A1:Z` })).data.values || [];
+  const head = (grid[0] || []).map(norm);
+  const col = name => head.indexOf(norm(name));
+  // A cleared header cell in column A still means the first key column (it happened to Contracts' "Name").
+  const keyIdx = rule.key.map((k, j) => { const i = col(k); return i < 0 && j === 0 && head[0] === '' ? 0 : i; });
+  if(keyIdx.some(i => i < 0)) throw new SheetPulseAppendError('The tab has no ' + rule.key.join(' / ') + ' column');
+  const setIdx = setCols.map(c => col(c));
+  if(setIdx.some(i => i < 0)) throw new SheetPulseAppendError('The tab has no ' + setCols.filter((c, j) => setIdx[j] < 0).join(', ') + ' column');
+  let rowNo = -1;
+  for(let r = 1; r < grid.length; r++){
+    const row = grid[r] || [];
+    if(rule.key.every((k, j) => norm(row[keyIdx[j]]) === norm(key[k]))){ rowNo = r + 1; break; }
+  }
+  if(rowNo < 0) throw new SheetPulseNotFound('Row not found');
+  const data = setIdx.map((i, j) => ({ range: `'${body.tab}'!${colLetter(i)}${rowNo}`, values: [[values[j]]] }));
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: PAYMENTS_SHEET_ID, requestBody: { valueInputOption: 'USER_ENTERED', data } });
+  return { ok: true, tab: body.tab, row: rowNo, cells: setCols };
+}
+
+module.exports = { handleSheetPulseAppend, handleSheetPulseUpdate, SheetPulseAppendError, SheetPulseNotFound, PAYMENTS_SHEET_ID };
