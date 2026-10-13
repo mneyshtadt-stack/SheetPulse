@@ -1539,7 +1539,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791879194";
+const BUILD_ID = "1791879444";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6138,7 +6138,7 @@ function renderReceipts(area){
       <div class="rc-card-top">${kindPill(x)}<span>${day(x.ms)}</span></div>
       <b class="${x.product ? '' : 'rc-ask'}">${x.product ? esc(x.product) : 'What was it for?'}</b>
       <small dir="auto">${esc(x.from)}${x.subject && !x.product ? ' · ' + esc(x.subject) : ''}${x.local || x.addedLocal ? ' · on this device' : ''}</small>
-      ${x.notes ? `<small dir="auto" style="color:var(--ink);">${esc(x.notes)}</small>` : ''}
+      ${x.notes ? `<div class="shop-note" dir="auto">${esc(x.notes)}</div>` : ''}<button type="button" class="shop-note-btn rc-note-btn" data-rid="${esc(x.id)}">${x.notes ? 'Edit note' : '+ Note'}</button>
       ${x.dup ? `<div class="rc-flag">Same amount as the ${day(x.dup.ms)} receipt (${esc(x.dup.product || x.dup.from)}): counted twice? Set one to Don't count.</div>` : ''}
       <div class="rc-card-foot"><span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span><span>${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : `<button type="button" class="pay-btn rc-unhide" data-rid="${esc(x.id)}" style="min-height:32px; padding:0 10px;">Show again</button>`) : `<button type="button" class="pay-icon-btn rc-hide" data-rid="${esc(x.id)}" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}<button type="button" class="pay-icon-btn rc-edit-btn" data-rid="${esc(x.id)}" aria-label="Edit what it was for, kind, amount and note" title="Edit">${PAY_ICONS.edit}</button>${x.link ? `<a class="pay-icon-btn" href="${esc(x.link)}" target="_blank" rel="noopener" aria-label="Open the email" title="Open the email">${PAY_ICONS.mail}</a>` : ''}</span></div>
     </div><div class="rc-slot" data-rid="${esc(x.id)}"></div>`;
@@ -6237,6 +6237,14 @@ function renderReceipts(area){
     </div>`;
   const read = box => { const f = n => { const el = box.querySelector(`[name="${n}"]`); return el ? String(el.value || '').trim() : ''; }; return f; };
   // Edit (✎): what it was for, kind, amount, note, in a panel under the receipt.
+  // "+ Note / Edit note" opens the same edit panel with the note field ready.
+  area.querySelectorAll('.rc-note-btn').forEach(b => b.addEventListener('click', () => {
+    const ed = area.querySelector(`.rc-edit-btn[data-rid="${CSS.escape(b.dataset.rid)}"]`); if(!ed) return;
+    ed.click();
+    const box = area.querySelector(`.rc-slot[data-rid="${CSS.escape(b.dataset.rid)}"] .rc-edit`);
+    const n = box && box.querySelector('[name="notes"]');
+    if(n){ n.focus(); n.select(); box.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }
+  }));
   area.querySelectorAll('.rc-edit-btn').forEach(b => b.addEventListener('click', () => {
     const x = merged.find(r => r.id === b.dataset.rid); if(!x) return;
     area.querySelectorAll('.rc-slot').forEach(s => { s.innerHTML = ''; });
