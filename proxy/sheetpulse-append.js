@@ -11,6 +11,11 @@
 //   Only the columns listed below can be set; the header row is never written. No match: 404, and the
 //   dashboard falls back to adding a row.
 //
+// POST /sheetpulse/clear-avg  {ticker, value}
+//   The one write to the Tracker spreadsheet: clears the hand-typed Broker Avg Cost cell(s) of one ticker in its
+//   Transactions tab, only where the cell holds that value (the Dividends tab's "Delete now"). Nothing else
+//   in the Tracker can be written.
+//
 // Deliberately narrow: only the Payments spreadsheet, only the tabs below, never deletes a row, at most 20
 // rows of 20 cells per append. Both routes sit after the shared Google ID-token check in index.js, so only the
 // allowed account can call them.
@@ -106,4 +111,22 @@ async function handleSheetPulseUpdate(sheets, body){
   return { ok: true, tab: body.tab, row: rowNo, cells: setCols };
 }
 
-module.exports = { handleSheetPulseAppend, handleSheetPulseUpdate, SheetPulseAppendError, SheetPulseNotFound, PAYMENTS_SHEET_ID };
+const TRACKER_SHEET_ID = '1eKHhkNP9F39jwqlwokLoJ0zC3i4jA5u91zg5WyNPb0g';
+async function handleSheetPulseClearAvg(sheets, body){
+  const ticker = norm(body && body.ticker), value = Number(body && body.value);
+  if(!ticker || ticker.length > 20 || !isFinite(value) || value <= 0) throw new SheetPulseAppendError('ticker and value are needed');
+  const grid = (await sheets.spreadsheets.values.get({ spreadsheetId: TRACKER_SHEET_ID, range: "'Transactions'!A1:Z", valueRenderOption: 'UNFORMATTED_VALUE' })).data.values || [];
+  const head = (grid[0] || []).map(norm);
+  const cT = head.indexOf('ticker'), cA = head.findIndex(h => /^broker\s*avg\.?\s*cost$/.test(h));
+  if(cT < 0 || cA < 0) throw new SheetPulseAppendError('The Transactions tab has no Ticker / Broker Avg Cost column');
+  const data = [];
+  for(let r = 1; r < grid.length; r++){
+    const row = grid[r] || [], v = Number(String(row[cA] === undefined ? '' : row[cA]).replace(/[$,\s]/g, ''));
+    if(norm(row[cT]) === ticker && isFinite(v) && Math.abs(v - value) < 0.005) data.push({ range: `'Transactions'!${colLetter(cA)}${r + 1}`, values: [['']] });
+  }
+  if(!data.length) throw new SheetPulseNotFound('No such Broker Avg Cost cell');
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: TRACKER_SHEET_ID, requestBody: { valueInputOption: 'RAW', data } });
+  return { ok: true, cleared: data.map(d => d.range) };
+}
+
+module.exports = { handleSheetPulseAppend, handleSheetPulseUpdate, handleSheetPulseClearAvg, SheetPulseAppendError, SheetPulseNotFound, PAYMENTS_SHEET_ID };
