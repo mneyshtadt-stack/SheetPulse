@@ -482,6 +482,7 @@
   .div-manual-row.ok .div-manual-tag{border-color:var(--up-ink); color:var(--up-ink);}
   .div-manual-row.done .div-manual-tag{border-color:var(--up-ink); color:var(--on-accent); background:var(--up-ink);}
   .div-manual.all-done{border-left-color:var(--up-ink);}
+  .div-manual-row .div-clear{margin-left:auto; flex:0 0 auto; min-height:32px; padding:0 12px; font-size:12.5px;}
   .div-dismiss{margin-left:auto; flex:0 0 auto; font-family:inherit; font-size:11.5px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:5px; padding:2px 8px; cursor:pointer;}
   .div-dismiss:hover{color:var(--ink); border-color:var(--accent);}
   .div-table{margin-top:14px;}
@@ -1614,7 +1615,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791904697";
+const BUILD_ID = "1791905430";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4831,7 +4832,29 @@ function applyPortfolioTab(){
 // in Transactions (column F), each with what to do about it. Data: row.dividends (applyDividends).
 const DIV_BROKER_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)'];
 // "Dismiss" on a Done mark: forget the ticker, so the mark doesn't come back.
+// "Delete it" (a hand-typed average the calculation now matches): the proxy clears that ticker's Broker Avg
+// Cost cell in the Tracker's Transactions tab (POST /sheetpulse/clear-avg, only where it holds that value),
+// then the data reloads and the row turns into "✓ Done".
+async function clearBrokerAvg(ticker, value){
+  const res = await fetch(PROXY_BASE_URL + '/sheetpulse/clear-avg', {method: 'POST', cache: 'no-store',
+    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('pf_idToken') || ''}`},
+    body: JSON.stringify({ticker, value})});
+  if(!res.ok){ let e = ''; try{ e = (await res.json()).error || ''; } catch(_){} throw new Error(res.status === 404 && !e ? 'the save route needs updating on the VM' : e || 'HTTP ' + res.status); }
+  return res.json();
+}
 function wireDividendDismiss(area, key){
+  area.querySelectorAll('.div-clear').forEach(b => b.addEventListener('click', () => {
+    const msg = b.parentElement.querySelector('.div-clear-msg');
+    b.disabled = true; b.textContent = 'Deleting…';
+    clearBrokerAvg(b.dataset.t, Number(b.dataset.v)).then(() => {
+      b.remove();
+      if(msg) msg.innerHTML = ' <span class="sheet-ok">✓ Deleted from Transactions.</span> Refreshing…';
+      const rb = document.getElementById('refreshBtn'); if(rb) setTimeout(() => rb.click(), 600);
+    }).catch(err => {
+      b.disabled = false; b.textContent = 'Delete it';
+      if(msg) msg.innerHTML = ` <span style="color:var(--down-ink)">Couldn't delete it (${String(err.message).replace(/[<>&]/g, '')}).</span>`;
+    });
+  }));
   area.querySelectorAll('.div-dismiss').forEach(b => b.addEventListener('click', () => {
     try{ localStorage.setItem(key, JSON.stringify(JSON.parse(localStorage.getItem(key) || '[]').filter(t => t !== b.dataset.t))); } catch(e){}
     renderDividendsTab();
@@ -4888,8 +4911,10 @@ function renderDividendsTab(){
           <span class="div-manual-tag">${matches ? 'Delete now' : 'Keep for now'}</span>
           <div><b>${esc(r.name)}</b>: your value ${$(r.brokerAvgCost)}${isFinite(auto) ? `, calculated ${$(auto)}` : ''}.
           ${matches
-            ? `The calculation now matches — clear ${$(r.brokerAvgCost)} from ${where}.`
-            : `The calculation is still off (usually a dividend Yahoo hasn't listed yet, or one paid in the last few days). Check ${esc(r.name)}'s newest row in the Dividends tab; once the latest dividend is there and paid, clear ${$(r.brokerAvgCost)} from ${where}.`}</div>
+            ? `The calculation now matches, so your typed value isn't needed (${where}).`
+            : `The calculation is still off (usually a dividend Yahoo hasn't listed yet, or one paid in the last few days). Check ${esc(r.name)}'s newest row in the Dividends tab; once the latest dividend is there and paid, clear ${$(r.brokerAvgCost)} from ${where}.`}
+          <span class="div-clear-msg" role="status"></span></div>
+          ${matches ? `<button type="button" class="pay-btn primary div-clear" data-t="${esc(r.name)}" data-v="${r.brokerAvgCost}">Delete it</button>` : ''}
         </div>`;
       }).join('')}
     </div>`;
