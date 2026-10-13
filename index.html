@@ -1539,7 +1539,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791879444";
+const BUILD_ID = "1791879986";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5817,6 +5817,8 @@ async function fetchContracts(){
   if(!res.ok) throw new Error('HTTP ' + res.status);
   const t = Papa.parse(await res.text(), {skipEmptyLines: true}).data;
   const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
+  // A cleared A1 (it happened, 13 Oct 2026) must not hide every contract: column A is Name.
+  if(h.indexOf('name') < 0 && h[0] === '' && h.indexOf('provider') >= 0) h[0] = 'name';
   if(h.indexOf('name') < 0) throw new Error('no Contracts tab yet');
   const c = name => h.indexOf(name), v = (r, name) => c(name) >= 0 ? String(r[c(name)] || '').trim() : '';
   const out = [], hidden = new Set();
@@ -6976,7 +6978,7 @@ function renderShopping(){
     <section class="pay-panel" id="shopDeliveries">
       <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders with news in the last 3 months that haven't arrived yet · hover a row for its emails</span>`}</div>
       ${delivShown.length ? `<div class="pay-cards-list" style="display:block;">${delivShown.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
-          <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small></div>
+          <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></div>
           <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pillBtn(o)}</div></div>`).join('')}</div>`
         : '<div class="pm-note">Nothing on the way.</div>'}
       <div id="shopMark" class="pay-confirm" hidden></div>
