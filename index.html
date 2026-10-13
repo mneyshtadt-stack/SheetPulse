@@ -532,6 +532,7 @@
   .ct-tl-name b{font-size:14px; font-weight:650; color:var(--ink);}
   .ct-tl-name small{font-size:12px; color:var(--muted);}
   .ct-tl-track{position:relative; height:58px;}
+  .ct-tl-name{padding:8px 0;}
   .ct-tl-head .ct-tl-track{height:26px;}
   .ct-tl-year{position:absolute; top:5px; font-size:12px; color:var(--muted); font-family:var(--mono); padding-left:4px;}
   .ct-tl-grid{position:absolute; top:0; bottom:0; width:1px; background:var(--line);}
@@ -1538,7 +1539,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791878912";
+const BUILD_ID = "1791879194";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5818,16 +5819,24 @@ async function fetchContracts(){
   const h = (t[0] || []).map(x => String(x).trim().toLowerCase());
   if(h.indexOf('name') < 0) throw new Error('no Contracts tab yet');
   const c = name => h.indexOf(name), v = (r, name) => c(name) >= 0 ? String(r[c(name)] || '').trim() : '';
-  const out = [];
+  const out = [], hidden = new Set();
   for(let i = 1; i < t.length; i++){
     const r = t[i];
-    if(!v(r, 'name') || /^hidden$/i.test(v(r, 'type'))) continue;
-    out.push({name: v(r, 'name'), provider: v(r, 'provider'), type: v(r, 'type') || 'Other', ref: v(r, 'reference'),
-      start: payDateMs(v(r, 'start')), end: payDateMs(v(r, 'end')), cost: num(v(r, 'cost')), per: (v(r, 'per') || 'once').toLowerCase(),
-      covers: v(r, 'covers'), notes: v(r, 'notes'), link: v(r, 'link')});
+    if(!v(r, 'name')) continue;
+    const k = {name: v(r, 'name'), provider: v(r, 'provider'), type: v(r, 'type'), ref: v(r, 'reference'),
+      start: payDateMs(v(r, 'start')), end: payDateMs(v(r, 'end')), cost: num(v(r, 'cost')), per: v(r, 'per').toLowerCase(),
+      covers: v(r, 'covers'), notes: v(r, 'notes'), link: v(r, 'link')};
+    if(/^hidden$/i.test(k.type)){ hidden.add(ctKey(k)); continue; }
+    const y = out.find(x => ctKey(x) === ctKey(k));
+    if(!y){ out.push(k); continue; }
+    ['provider', 'type', 'covers', 'notes', 'link', 'per'].forEach(f => { if(k[f]) y[f] = k[f]; });
+    ['start', 'end', 'cost'].forEach(f => { if(!isNaN(k[f])) y[f] = k[f]; });
   }
-  return out;
+  out.forEach(k => { if(!k.type) k.type = 'Other'; if(!k.per) k.per = 'once'; });
+  return out.filter(k => !hidden.has(ctKey(k)));
 }
+function ctNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_contractNotes') || '{}') || {}; } catch(_){ return {}; } }
+function ctNotesSet(m){ try{ localStorage.setItem('sp_contractNotes', JSON.stringify(m)); } catch(_){} }
 function ctHiddenGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_contractsHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
 function ctHiddenSet(a){ try{ localStorage.setItem('sp_contractsHidden', JSON.stringify(a)); } catch(_){} }
 const ctKey = k => k.name + '|' + (k.ref || '');
@@ -5856,6 +5865,11 @@ function renderContracts(area){
   const inSheet = new Set(contractsList.map(k => k.name + '|' + k.ref));
   const added = contractsAddedGet().filter(a => !inSheet.has(a.name + '|' + (a.ref || ''))).map(a => ({...a, start: payDateMs(a.start), end: payDateMs(a.end), cost: Number(a.cost) || NaN, local: true}));
   const hiddenKeys = new Set(ctHiddenGet());
+  // Notes typed here win until the tab holds the same text (then the local copy is dropped).
+  const ctNotes = ctNotesGet(); let ctNotesDirty = false;
+  contractsList.concat(contractsAddedGet()).forEach(k => { const n = ctNotes[ctKey(k)]; if(n === undefined) return;
+    if(n === (k.notes || '')){ delete ctNotes[ctKey(k)]; ctNotesDirty = true; } else { k.notes = n; k.noteLocal = true; } });
+  if(ctNotesDirty) ctNotesSet(ctNotes);
   const everything = contractsList.concat(added);
   const hiddenList = everything.filter(k => hiddenKeys.has(ctKey(k)));
   const all = everything.filter(k => !hiddenKeys.has(ctKey(k)));
@@ -5882,6 +5896,7 @@ function renderContracts(area){
     const f = Math.max(0, Math.min(1, (now - k.start) / (k.end - k.start)));
     return `<div class="ct-bar" title="${Math.round(f * 100)}% of the way through"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   };
+  const noteBtn = k => `<button type="button" class="shop-note-btn ct-note-btn" data-key="${esc(ctKey(k))}">${k.notes ? 'Edit note' : '+ Note'}</button>`;
   const hideBtn = k => `<button type="button" class="pay-icon-btn ct-hide" data-key="${esc(ctKey(k))}" aria-label="Hide ${esc(k.name)}" title="Hide: not relevant any more">${PAY_ICONS.hide}</button>`;
   // Timeline: one row per contract on a years scale with today's line. A fixed term is a solid bar (amber
   // when it ends within 3 months), an open-ended one a dashed bar running off the right edge.
@@ -5904,7 +5919,7 @@ function renderContracts(area){
     };
     return `<div class="ct-tl"><div class="ct-tl-in">
       <div class="ct-tl-head"><span class="pay-sub" style="font-weight:600;">Contract</span><div class="ct-tl-track">${years.map(y => `<span class="ct-tl-year" style="left:${at(new Date(y, 0, 1).getTime()).toFixed(2)}%">${y}</span>`).join('')}</div></div>
-      ${list.map(k => `<div class="ct-tl-row"><div class="ct-tl-namecell"><div class="ct-tl-name"><b>${esc(k.name)}</b><small>${esc(k.type)}${k.monthly ? ' · ' + fmt(k.monthly) + ' a month' : k.provider ? ' · ' + esc(k.provider) : ''}${k.local ? ' · this device' : ''}</small></div>${k.link ? `<a class="pay-icon-btn ct-mail" href="${esc(k.link)}" target="_blank" rel="noopener" aria-label="Open the email for ${esc(k.name)}" title="${/mail\.google\./.test(k.link) ? 'Open the email (with its attachments)' : 'Open the document'}">${PAY_ICONS.mail}</a>` : ''}${hideBtn(k)}</div><div class="ct-tl-track">${grid}${barOf(k)}</div></div>`).join('')}
+      ${list.map(k => `<div class="ct-tl-row"><div class="ct-tl-namecell"><div class="ct-tl-name"><b>${esc(k.name)}</b><small>${esc(k.type)}${k.monthly ? ' · ' + fmt(k.monthly) + ' a month' : k.provider ? ' · ' + esc(k.provider) : ''}${k.local ? ' · this device' : ''}</small>${k.notes ? `<div class="shop-note" dir="auto">${esc(k.notes)}</div>` : ''}${noteBtn(k)}</div>${k.link ? `<a class="pay-icon-btn ct-mail" href="${esc(k.link)}" target="_blank" rel="noopener" aria-label="Open the email for ${esc(k.name)}" title="${/mail\.google\./.test(k.link) ? 'Open the email (with its attachments)' : 'Open the document'}">${PAY_ICONS.mail}</a>` : ''}${hideBtn(k)}</div><div class="ct-tl-track">${grid}${barOf(k)}</div></div>`).join('')}
     </div></div>
     <div class="ct-tl-legend"><span><i style="width:2px; height:14px; background:var(--accent);"></i>Today, ${day(now)}</span><span><i style="background:color-mix(in srgb, var(--accent) 24%, var(--panel));"></i>Fixed term</span><span><i style="background:color-mix(in srgb, var(--warn) 38%, var(--panel));"></i>Ends within 3 months</span><span><i style="border:1.5px dashed var(--axis);"></i>No end date</span></div>`;
   };
@@ -5928,7 +5943,7 @@ function renderContracts(area){
       ${showingHidden ? `<div class="pay-sub" style="font-size:12.5px; margin-bottom:6px;">Hidden on this device. To hide one on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>` : ''}
       ${shown.length && contractsLayout === 'timeline' && !showingHidden ? timeline(shown) : shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
         <div class="ct-row">${(lk => `<span class="ct-badge" style="background:color-mix(in srgb, ${lk[1]} 16%, var(--panel)); color:var(--ink);" aria-hidden="true">${lk[0]}</span>`)(CT_TYPE_LOOK[k.type] || [esc(k.type.slice(0, 3).toUpperCase()), 'var(--muted)'])}<div class="ct-main"><b>${esc(k.name)}</b><small>${esc(k.provider)}${k.provider && k.type ? ' · ' : ''}${esc(k.type)}${k.ref ? ' · ' + esc(k.ref) : ''}</small>
-          ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="pay-sub">${esc(k.notes)}</div>` : ''}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div></div>
+          ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="shop-note" dir="auto">${esc(k.notes)}</div>` : ''}${noteBtn(k)}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div></div>
         <div class="ct-when">${period(k)}</div>
         <div class="ct-cost"><b>${costTxt(k)}</b>${pill(k)}${showingHidden ? `<button type="button" class="pay-btn ct-unhide" data-key="${esc(ctKey(k))}" style="min-height:34px;">Show again</button>` : hideBtn(k)}</div></div>`).join('')}</div>`
         : `<div class="pm-note">No contracts yet.</div>`}
@@ -5946,6 +5961,34 @@ function renderContracts(area){
     box.hidden = false;
     box.querySelector('[data-h="undo"]').addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== key)); renderContracts(area); refreshPayTabs(); });
     box.querySelector('[data-h="close"]').addEventListener('click', () => { box.hidden = true; });
+  }));
+  area.querySelectorAll('.ct-note-btn').forEach(b => b.addEventListener('click', () => {
+    const k = everything.find(x => ctKey(x) === b.dataset.key); if(!k) return;
+    const box = document.getElementById('ctAdd');
+    box.innerHTML = `<div>Note for <b>${esc(k.name)}</b>${k.provider ? ' · ' + esc(k.provider) : ''}</div>
+      <div class="shop-form"><label style="grid-column:1 / -1;">Note<textarea name="note" rows="3" maxlength="400" dir="auto" placeholder="what it covers, the price and conditions, phone, policy details" style="font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; resize:vertical;">${esc(k.notes || '')}</textarea></label></div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-n="save">Save note</button>${k.notes ? '<button type="button" class="pay-btn text" data-n="remove">Remove note</button>' : ''}<button type="button" class="pay-btn text" data-n="cancel">Cancel</button></div>`;
+    box.hidden = false;
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    const ta = box.querySelector('[name="note"]'); ta.focus();
+    const done = text => {
+      const m = ctNotesGet(); m[ctKey(k)] = text; ctNotesSet(m);
+      renderContracts(area);
+      const b2 = document.getElementById('ctAdd');
+      const row = [k.name, k.provider || '', k.type || '', k.ref || '', '', '', '', '', '', text || ' ', '', localYmd()].join('\t');
+      b2.innerHTML = `<div>Note ${text ? 'saved' : 'removed'} for <b>${esc(k.name)}</b>.</div>
+        <div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Contracts tab:<code>${esc(row).replace(/\t/g, ' │ ')}</code>
+        <button type="button" class="pay-chip" data-c="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-btn text" data-c="close">Close</button></div>`;
+      b2.dataset.row = row; b2.hidden = false;
+      b2.querySelector('[data-c="copy"]').addEventListener('click', () => navigator.clipboard.writeText(row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
+      b2.querySelector('[data-c="close"]').addEventListener('click', () => { b2.hidden = true; });
+      autoSaveSheet(b2, 'Contracts', row);
+      setTimeout(() => { if(b2.isConnected && b2.querySelector('.sheet-ok')) b2.hidden = true; }, 3500);
+    };
+    box.querySelector('[data-n="save"]').addEventListener('click', () => done(ta.value.trim()));
+    const rm = box.querySelector('[data-n="remove"]'); if(rm) rm.addEventListener('click', () => done(''));
+    box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
   }));
   area.querySelectorAll('.ct-unhide').forEach(b => b.addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== b.dataset.key)); renderContracts(area); refreshPayTabs(); }));
   area.querySelectorAll('[data-ctlayout]').forEach(b => b.addEventListener('click', () => { contractsLayout = b.dataset.ctlayout; try{ localStorage.setItem('sp_ctLayout', contractsLayout); } catch(_){} renderContracts(area); }));
