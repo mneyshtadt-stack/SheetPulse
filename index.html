@@ -1615,7 +1615,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791905430";
+const BUILD_ID = "1791905611";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6390,7 +6390,7 @@ function renderReceipts(area){
       <section><h4>Documents</h4>${x.subject ? `<div dir="auto">${esc(x.subject)}</div>` : ''}${files.length ? files.map(f => `<div class="pay-sub" dir="auto">📎 ${esc(f)}</div>`).join('') : x.link ? '' : '<div class="pay-sub">No email: added by hand</div>'}</section>
       <section><h4>Note</h4>${x.notes ? `<div class="shop-note" dir="auto">${esc(x.notes)}</div>` : ''}<button type="button" class="pay-btn text rc-note-btn">${x.notes ? 'Edit note' : '+ Add a note'}</button></section>
       <div class="rc-editslot"></div>
-      <div class="rc-p-btns"><button type="button" class="pay-btn rc-edit-btn">${PAY_ICONS.edit}Edit</button>${x.link ? `<a class="pay-btn" href="${esc(x.link)}" target="_blank" rel="noopener">${PAY_ICONS.mail}Open the email</a>` : ''}${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : '<button type="button" class="pay-btn text rc-unhide">Show again</button>') : `<button type="button" class="pay-icon-btn rc-hide" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}</div>`;
+      <div class="rc-p-btns"><button type="button" class="pay-btn rc-edit-btn">${PAY_ICONS.edit}Edit</button><button type="button" class="pay-btn rc-to-bills" title="A charge that repeats (a subscription): track it in Bills as a routine bill instead">Move to Bills</button>${x.link ? `<a class="pay-btn" href="${esc(x.link)}" target="_blank" rel="noopener">${PAY_ICONS.mail}Open the email</a>` : ''}${isHidden(x) ? (x.kind === 'hidden' ? '<span class="pay-sub">Hidden in the tab</span>' : '<button type="button" class="pay-btn text rc-unhide">Show again</button>') : `<button type="button" class="pay-icon-btn rc-hide" aria-label="Hide this receipt" title="Hide: not relevant or very old">${PAY_ICONS.hide}</button>`}</div>`;
   };
   const chip = (v, t, n, warn) => `<button type="button" class="pay-chip${warn ? ' rc-look' : ''}${receiptsKind === v ? ' on' : ''}" data-rkind="${v}" aria-pressed="${receiptsKind === v}">${n} ${t}</button>`;
   const looks = [ask.length ? chip('ask', 'to describe', ask.length, true) : '', dups.length ? chip('dup', 'possible duplicate' + (dups.length > 1 ? 's' : ''), dups.length, true) : '',
@@ -6554,6 +6554,55 @@ function renderReceipts(area){
   };
   const eb = P.querySelector('.rc-edit-btn'); if(eb) eb.addEventListener('click', () => openEdit(false));
   const nb = P.querySelector('.rc-note-btn'); if(nb) nb.addEventListener('click', () => openEdit(true));
+  // Move to Bills: a receipt that is really a repeating charge (a subscription on the card) becomes a routine
+  // bill (Bills & Contracts → Bills, same as "+ Add a routine bill"), and the receipt leaves Receipts: one added
+  // by hand is removed, one from the tab gets Kind Hidden (kept, hidden on every device).
+  const tb = P.querySelector('.rc-to-bills');
+  if(tb) tb.addEventListener('click', () => {
+    const x = sel, slot = P.querySelector('.rc-editslot'), d = new Date(x.ms);
+    const amt = Math.round(ils(x) * 100) / 100, foreign = x.amount > 0 && (x.cur === 'USD' || x.cur === 'EUR');
+    slot.innerHTML = `<div class="pay-confirm rc-edit"><div><b>Move to Bills</b> · it repeats, so Bills tracks each charge</div><div class="shop-form">
+        <label style="grid-column:1 / -1;">Payee<input name="payee" value="${esc(x.product || x.from)}"></label>
+        <label>Category<input name="category" value="Subscription"></label>
+        <label>Amount (₪)<input name="amount" type="number" step="0.01" min="0" value="${amt > 0 ? amt : ''}"></label>
+        <label>How often<select name="every"><option value="1">Every month</option><option value="2">Every 2 months</option><option value="3">Every 3 months</option><option value="12">Every year</option></select></label>
+        <label>Charge day<input name="day" type="number" min="1" max="31" value="${d.getDate()}"></label>
+        <label>Starts<input name="start" type="month" value="${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}"></label>
+        <label>Card (last 4)<input name="card" maxlength="4" inputmode="numeric" placeholder="optional"></label>
+        <label style="grid-column:1 / -1;">Note<input name="notes" value="${esc([foreign ? money(x.amount, x.cur) + ' a charge' : '', x.notes || ''].filter(Boolean).join(' · '))}"></label>
+      </div><div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-m="save">Move</button><button type="button" class="pay-btn text" data-m="cancel">Cancel</button><span class="shop-form-err" hidden>A payee and an amount are needed.</span></div></div>`;
+    const box = slot.firstElementChild, f = read(box);
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    box.querySelector('[name="amount"]').focus();
+    box.querySelector('[data-m="cancel"]').addEventListener('click', () => { slot.innerHTML = ''; });
+    box.querySelector('[data-m="save"]').addEventListener('click', () => {
+      if(!f('payee') || !(Number(f('amount')) > 0)){ box.querySelector('.shop-form-err').hidden = false; return; }
+      const a = {payee: f('payee'), category: f('category') || 'Other', amount: Number(f('amount')), every: Number(f('every')) || 1,
+        day: Math.min(31, Math.max(1, Number(f('day')) || 1)), start: f('start'), end: '', card: f('card').replace(/\D/g, ''), notes: f('notes')};
+      routineAddedSet(routineAddedGet().filter(r => String(r.payee).toLowerCase() !== a.payee.toLowerCase()).concat([a]));
+      const everyTxt = a.every === 12 ? 'year' : a.every === 1 ? 'month' : a.every + ' months';
+      const row = [a.payee, a.category, a.amount, everyTxt, a.day, a.start, a.end, a.card, a.notes, localYmd()].join('\t');
+      // The receipt leaves Receipts.
+      if(x.addedLocal){ receiptsAddedSet(receiptsAddedGet().filter(r => r.id !== x.id)); const m = receiptEditsGet(); delete m[x.id]; receiptEditsSet(m); }
+      else {
+        const m = receiptEditsGet();
+        m[x.id] = {product: x.product || '', kind: 'hidden', notes: [x.notes, 'moved to Bills'].filter(Boolean).join(' · '), amount: x.amount > 0 ? x.amount : ''};
+        receiptEditsSet(m);
+        const nx = receiptsMerged().find(r => r.id === x.id); if(nx) quietSaveSheet('Receipts', tabRow(nx), receiptUpd(nx));
+      }
+      receiptsSel = '';
+      rerender();
+      refreshPayTabs();
+      const b2 = document.getElementById('rcAdd');
+      b2.innerHTML = `<div><b>${esc(a.payee)}</b> moved to Bills: a routine bill of ₪${a.amount.toFixed(2)} every ${everyTxt}, from ${esc(a.start)} (Bills & Contracts → Bills).</div>
+        <div class="pay-confirm-row">Row for the Routine bills tab:<code>${esc(row).replace(/\t/g, ' │ ')}</code></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-btn text" data-m="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-m="close"]').addEventListener('click', () => { b2.hidden = true; });
+      autoSaveSheet(b2, 'Routine bills', row, {key: {Payee: a.payee}, set: {Category: a.category, Amount: a.amount, Every: everyTxt, Day: a.day, Start: a.start, End: a.end, Card: a.card, Notes: a.notes}});
+      b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    });
+  });
   // + Add a warranty or insurance: a contract in the Contracts tab, so it also shows under Bills & Contracts.
   const wb = P.querySelector('.rc-warranty');
   if(wb) wb.addEventListener('click', () => {
