@@ -1539,7 +1539,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791880878";
+const BUILD_ID = "1791897193";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1629,6 +1629,22 @@ async function sheetAppend(tab, rows){
   }
   return res.json();
 }
+// Changes cells of one existing row in place (POST /sheetpulse/update): the row whose key columns match
+// (Contracts: Name + Reference; Receipts: Message id; Routine bills: Payee). Throws if the route isn't
+// installed or no row matches; callers then add a row instead.
+async function sheetUpdate(tab, key, set){
+  const idToken = localStorage.getItem('pf_idToken') || '';
+  const res = await fetch(PROXY_BASE_URL + '/sheetpulse/update', {method: 'POST', cache: 'no-store',
+    headers: {'Content-Type': 'application/json', Authorization: `Bearer ${idToken}`},
+    body: JSON.stringify({sheetId: PAYMENTS_SHEET_ID, tab, key, set})});
+  if(!res.ok){ let e = ''; try{ e = (await res.json()).error || ''; } catch(_){} throw new Error('update ' + res.status + (e ? ': ' + e : '')); }
+  return res.json();
+}
+// Edit in place when possible (upd = {key, set}), else add the row.
+async function sheetSaveRow(tab, tsv, upd){
+  if(upd){ try{ return await sheetUpdate(tab, upd.key, upd.set); } catch(_){ /* not installed or no such row: add it */ } }
+  return sheetAppend(tab, tsvToRows(tsv));
+}
 // A tab-separated row (as the panels build them) → cells: plain numbers become numbers (not "0123").
 function tsvToRows(tsv){ return String(tsv).split('\n').filter(l => l.length).map(l => l.split('\t').map(c => /^-?(0|[1-9]\d{0,9})(\.\d+)?$/.test(c) ? Number(c) : c)); }
 // Rows already saved from this device (tab + row text), so reopening a panel never adds a row twice.
@@ -1636,7 +1652,7 @@ function sheetSavedGet(){ try{ return JSON.parse(localStorage.getItem('sp_sheetS
 function sheetSavedHas(key){ return !!sheetSavedGet()[key]; }
 function sheetSavedAdd(key){ try{ const m = sheetSavedGet(); m[key] = Date.now(); const ks = Object.keys(m); if(ks.length > 400) ks.sort((a, b) => m[a] - m[b]).slice(0, ks.length - 400).forEach(k => delete m[k]); localStorage.setItem('sp_sheetSaved', JSON.stringify(m)); } catch(_){} }
 // Saves a panel's row(s) and turns its "copy this row" part into "Saved to the … tab".
-function autoSaveSheet(box, tab, tsv){
+function autoSaveSheet(box, tab, tsv, upd){
   if(!box || !tsv) return;
   const key = tab + '|' + tsv;
   const row = [...box.querySelectorAll('.pay-confirm-row')].find(r => r.querySelector('code'));
@@ -1646,16 +1662,16 @@ function autoSaveSheet(box, tab, tsv){
   };
   if(sheetSavedHas(key)){ done(); return; }
   if(row) row.insertAdjacentHTML('afterbegin', '<div class="pay-sub sheet-saving">Saving to the sheet…</div>');
-  sheetAppend(tab, tsvToRows(tsv)).then(() => { sheetSavedAdd(key); if(box.isConnected) done(); }).catch(err => {
+  sheetSaveRow(tab, tsv, upd).then(() => { sheetSavedAdd(key); if(box.isConnected) done(); }).catch(err => {
     const sv = box.querySelector('.sheet-saving');
     if(sv){ sv.textContent = `Couldn't save to the sheet (${err.message}). It's kept on this device; to keep it everywhere, copy the row instead:`; sv.style.color = 'var(--down-ink)'; }
   });
 }
 // The same, with no panel (the Receipts tray, Move to Receipts): quiet on success, kept on the device on failure.
-function quietSaveSheet(tab, tsv){
+function quietSaveSheet(tab, tsv, upd){
   const key = tab + '|' + tsv;
   if(sheetSavedHas(key)) return;
-  sheetAppend(tab, tsvToRows(tsv)).then(() => sheetSavedAdd(key)).catch(() => {});
+  sheetSaveRow(tab, tsv, upd).then(() => sheetSavedAdd(key)).catch(() => {});
 }
 
 // ---- Connection diagnostics ----
@@ -2061,11 +2077,11 @@ const TROUBLESHOOTING = [
       {name: 'Node version', cmd: `node -v`},
     ]},
   {title: 'Saving to the sheet (Bills & Contracts, Purchases)', where: 'putty',
-    intro: 'Changes made in the Bills & Contracts and Purchases windows (a routine bill, a contract, a receipt, an order\'s status or note, a bill marked paid) are saved straight to the Payments spreadsheet through the proxy route POST /sheetpulse/append (~/sheet-proxy/sheetpulse-append.js). It only adds rows, only to that spreadsheet\'s Payments, Shopping, Contracts, Receipts and Routine bills tabs, behind the same sign-in check as the reads. Without it, changes stay on the device and the window offers rows to copy.',
+    intro: 'Changes made in the Bills & Contracts and Purchases windows are saved straight to the Payments spreadsheet through two proxy routes in ~/sheet-proxy/sheetpulse-append.js: POST /sheetpulse/append adds rows (an order\'s status, a bill marked paid, a new contract, receipt or routine bill) and POST /sheetpulse/update changes one existing row in place (editing a contract, a receipt or a routine bill). Only that spreadsheet\'s Payments, Shopping, Contracts, Receipts and Routine bills tabs; never deletes a row; behind the same sign-in check as the reads. Without them, changes stay on the device and the window offers rows to copy.',
     cmds: [
-      {name: 'Install or update the save route', note: 'Downloads the installer from the SheetPulse GitHub repo (the ?v= part skips GitHub\'s 5-minute cache). It backs up index.js (index.js.before-append), adds the module and the route, checks both parse and restarts the proxy. Safe to run again.', cmd: `curl -fsSL "https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/install-append.sh?v=$(date +%s)" -o ~/install-append.sh && bash ~/install-append.sh`},
-      {name: 'Is the save route installed?', note: '1 = installed, 0 = not yet.', cmd: `grep -c "/sheetpulse/append" ~/sheet-proxy/index.js`},
-      {name: 'Recent save errors', note: 'Nothing = no failed saves. "Tab not allowed" or "No ... tab" name the problem; "insufficient" or "PERMISSION_DENIED" means the proxy\'s Google token lacks write access to the Payments spreadsheet.', cmd: `journalctl -u sheet-proxy --since "-1 day" --no-pager | grep -i "sheetpulse append error" | tail -10`},
+      {name: 'Install or update the save routes', note: 'Downloads the installer from the SheetPulse GitHub repo (the ?v= part skips GitHub\'s 5-minute cache). It backs up index.js (index.js.before-append-<time>), refreshes the module, adds any missing route (add rows, edit in place), checks everything parses and restarts the proxy. Safe to run again.', cmd: `curl -fsSL "https://raw.githubusercontent.com/mneyshtadt-stack/SheetPulse/main/proxy/install-append.sh?v=$(date +%s)" -o ~/install-append.sh && bash ~/install-append.sh`},
+      {name: 'Are the save routes installed?', note: '2 = both (add rows and edit in place), 1 = only adding rows (run the install command again), 0 = none.', cmd: `grep -c "pathname === '/sheetpulse/" ~/sheet-proxy/index.js`},
+      {name: 'Recent save errors', note: 'Nothing = no failed saves. "Tab not allowed" or "No ... tab" name the problem; "insufficient" or "PERMISSION_DENIED" means the proxy\'s Google token lacks write access to the Payments spreadsheet.', cmd: `journalctl -u sheet-proxy --since "-1 day" --no-pager | grep -i "sheetpulse append error\\|sheetpulse update error" | tail -10`},
     ]},
   {title: 'AI analysis (Gemini)', where: 'putty',
     intro: 'The "AI analysis" button in Winners & losers. The proxy module ~/sheet-proxy/sheetpulse-ai.js sends percentages only to Google Gemini (free tier); the key is GEMINI_API_KEY in ~/sheet-proxy/.env.',
@@ -5855,6 +5871,8 @@ async function fetchContracts(){
   out.forEach(k => { if(!k.type) k.type = 'Other'; if(!k.per) k.per = 'once'; });
   return out.filter(k => !hidden.has(ctKey(k)));
 }
+function ctEditsGet(){ try{ return JSON.parse(localStorage.getItem('sp_contractEdits') || '{}') || {}; } catch(_){ return {}; } }
+function ctEditsSet(m){ try{ localStorage.setItem('sp_contractEdits', JSON.stringify(m)); } catch(_){} }
 function ctNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_contractNotes') || '{}') || {}; } catch(_){ return {}; } }
 function ctNotesSet(m){ try{ localStorage.setItem('sp_contractNotes', JSON.stringify(m)); } catch(_){} }
 function ctHiddenGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_contractsHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
@@ -5890,6 +5908,18 @@ function renderContracts(area){
   contractsList.concat(contractsAddedGet()).forEach(k => { const n = ctNotes[ctKey(k)]; if(n === undefined) return;
     if(n === (k.notes || '')){ delete ctNotes[ctKey(k)]; ctNotesDirty = true; } else { k.notes = n; k.noteLocal = true; } });
   if(ctNotesDirty) ctNotesSet(ctNotes);
+  // Whole-contract edits typed here (Edit): win until the tab holds the same values.
+  const ctEdits = ctEditsGet(); let ctEditsDirty = false;
+  const ymdMs = ms => isNaN(ms) ? '' : localYmd(new Date(ms));
+  contractsList.concat(contractsAddedGet()).forEach(k => {
+    const e = ctEdits[ctKey(k)]; if(!e) return;
+    const same = (e.provider || '') === (k.provider || '') && (e.type || 'Other') === (k.type || 'Other') && e.start === ymdMs(k.start) && e.end === ymdMs(k.end)
+      && (e.cost === '' ? !(k.cost > 0) : Number(e.cost) === k.cost) && (e.per || 'once') === (k.per || 'once') && (e.covers || '') === (k.covers || '') && (e.notes || '') === (k.notes || '');
+    if(same){ delete ctEdits[ctKey(k)]; ctEditsDirty = true; return; }
+    Object.assign(k, {provider: e.provider, type: e.type || 'Other', start: payDateMs(e.start), end: payDateMs(e.end), cost: e.cost === '' ? NaN : Number(e.cost),
+      per: e.per || 'once', covers: e.covers, notes: e.notes, edited: true});
+  });
+  if(ctEditsDirty) ctEditsSet(ctEdits);
   const everything = contractsList.concat(added);
   const hiddenList = everything.filter(k => hiddenKeys.has(ctKey(k)));
   const all = everything.filter(k => !hiddenKeys.has(ctKey(k)));
@@ -5917,7 +5947,7 @@ function renderContracts(area){
     const f = Math.max(0, Math.min(1, (now - k.start) / (k.end - k.start)));
     return `<div class="ct-bar" title="${Math.round(f * 100)}% of the way through"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
   };
-  const noteBtn = k => `<button type="button" class="shop-note-btn ct-note-btn" data-key="${esc(ctKey(k))}">${k.notes ? 'Edit note' : '+ Note'}</button>`;
+  const noteBtn = k => `<button type="button" class="shop-note-btn ct-note-btn" data-key="${esc(ctKey(k))}">Edit</button>`;
   const hideBtn = k => `<button type="button" class="pay-icon-btn ct-hide" data-key="${esc(ctKey(k))}" aria-label="Hide ${esc(k.name)}" title="Hide: not relevant any more">${PAY_ICONS.hide}</button>`;
   // Timeline: one row per contract on a years scale with today's line. A fixed term is a solid bar (amber
   // when it ends within 3 months), an open-ended one a dashed bar running off the right edge.
@@ -5984,33 +6014,50 @@ function renderContracts(area){
     box.querySelector('[data-h="undo"]').addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== key)); renderContracts(area); refreshPayTabs(); });
     box.querySelector('[data-h="close"]').addEventListener('click', () => { box.hidden = true; });
   }));
+  // Edit a contract: every field but its Name and Reference (they identify its row in the Contracts tab).
+  // Saved on this device at once and in the tab by changing that row in place.
   area.querySelectorAll('.ct-note-btn').forEach(b => b.addEventListener('click', () => {
     const k = everything.find(x => ctKey(x) === b.dataset.key); if(!k) return;
     const box = document.getElementById('ctAdd');
-    box.innerHTML = `<div>Note for <b>${esc(k.name)}</b>${k.provider ? ' · ' + esc(k.provider) : ''}</div>
-      <div class="shop-form"><label style="grid-column:1 / -1;">Note<textarea name="note" rows="3" maxlength="400" dir="auto" placeholder="what it covers, the price and conditions, phone, policy details" style="font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; resize:vertical;">${esc(k.notes || '')}</textarea></label></div>
-      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-n="save">Save note</button>${k.notes ? '<button type="button" class="pay-btn text" data-n="remove">Remove note</button>' : ''}<button type="button" class="pay-btn text" data-n="cancel">Cancel</button></div>`;
+    const ymdMs = ms => isNaN(ms) ? '' : localYmd(new Date(ms));
+    const typeList = [...new Set(types.concat(['Warranty', 'Insurance', 'Service plan', 'Utility plan', 'Subscription', 'Investment', 'Loan', 'Other']))];
+    box.innerHTML = `<div>Edit <b>${esc(k.name)}</b>${k.ref ? ' · ' + esc(k.ref) : ''}</div>
+      <div class="shop-form">
+        <label>Provider<input name="provider" value="${esc(k.provider || '')}" placeholder="who it's with"></label>
+        <label>Type<input name="type" list="ctTypesEdit" value="${esc(k.type || '')}" placeholder="Insurance, Warranty…"></label>
+        <datalist id="ctTypesEdit">${typeList.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
+        <label>Start<input type="date" name="start" value="${ymdMs(k.start)}"></label>
+        <label>End<input type="date" name="end" value="${ymdMs(k.end)}"></label>
+        <label>Cost<input name="cost" type="number" step="0.01" min="0" value="${k.cost > 0 ? k.cost : ''}" placeholder="0.00"></label>
+        <label>Per<select name="per">${['once', 'month', 'year'].map(v => `<option value="${v}"${(k.per || 'once') === v ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
+        <label style="grid-column:1 / -1;">Covers<input name="covers" value="${esc(k.covers || '')}" placeholder="what it covers"></label>
+        <label style="grid-column:1 / -1;">Note<textarea name="notes" rows="3" maxlength="400" dir="auto" placeholder="the price and conditions, phone, policy details" style="font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; resize:vertical;">${esc(k.notes || '')}</textarea></label>
+      </div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-n="save">Save</button><button type="button" class="pay-btn text" data-n="cancel">Cancel</button></div>`;
     box.hidden = false;
     box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-    const ta = box.querySelector('[name="note"]'); ta.focus();
-    const done = text => {
-      const m = ctNotesGet(); m[ctKey(k)] = text; ctNotesSet(m);
+    box.querySelector('[name="provider"]').focus();
+    const f = n => String(box.querySelector(`[name="${n}"]`).value || '').trim();
+    box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
+    box.querySelector('[data-n="save"]').addEventListener('click', () => {
+      const e = {provider: f('provider'), type: f('type') || 'Other', start: f('start'), end: f('end'), cost: Number(f('cost')) > 0 ? Number(f('cost')) : '',
+        per: f('per'), covers: f('covers'), notes: f('notes')};
+      const m = ctEditsGet(); m[ctKey(k)] = e; ctEditsSet(m);
+      const nm = ctNotesGet(); if(ctKey(k) in nm){ delete nm[ctKey(k)]; ctNotesSet(nm); }
       renderContracts(area);
       const b2 = document.getElementById('ctAdd');
-      const row = [k.name, k.provider || '', k.type || '', k.ref || '', '', '', '', '', '', text || ' ', '', localYmd()].join('\t');
-      b2.innerHTML = `<div>Note ${text ? 'saved' : 'removed'} for <b>${esc(k.name)}</b>.</div>
+      const row = [k.name, e.provider, e.type, k.ref || '', e.start, e.end, e.cost, e.per, e.covers, e.notes, k.link || '', localYmd()].join('\t');
+      b2.innerHTML = `<div><b>${esc(k.name)}</b> saved.</div>
         <div class="pay-confirm-row">To keep it on every device, paste this row at the bottom of the Contracts tab:<code>${esc(row).replace(/\t/g, ' │ ')}</code>
         <button type="button" class="pay-chip" data-c="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span></div>
         <div class="pay-confirm-btns"><button type="button" class="pay-btn text" data-c="close">Close</button></div>`;
       b2.dataset.row = row; b2.hidden = false;
       b2.querySelector('[data-c="copy"]').addEventListener('click', () => navigator.clipboard.writeText(row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
       b2.querySelector('[data-c="close"]').addEventListener('click', () => { b2.hidden = true; });
-      autoSaveSheet(b2, 'Contracts', row);
+      autoSaveSheet(b2, 'Contracts', row, {key: {Name: k.name, Reference: k.ref || ''},
+        set: {Provider: e.provider, Type: e.type, Start: e.start, End: e.end, Cost: e.cost, Per: e.per, Covers: e.covers, Notes: e.notes}});
       setTimeout(() => { if(b2.isConnected && b2.querySelector('.sheet-ok')) b2.hidden = true; }, 3500);
-    };
-    box.querySelector('[data-n="save"]').addEventListener('click', () => done(ta.value.trim()));
-    const rm = box.querySelector('[data-n="remove"]'); if(rm) rm.addEventListener('click', () => done(''));
-    box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
+    });
   }));
   area.querySelectorAll('.ct-unhide').forEach(b => b.addEventListener('click', () => { ctHiddenSet(ctHiddenGet().filter(x => x !== b.dataset.key)); renderContracts(area); refreshPayTabs(); }));
   area.querySelectorAll('[data-ctlayout]').forEach(b => b.addEventListener('click', () => { contractsLayout = b.dataset.ctlayout; try{ localStorage.setItem('sp_ctLayout', contractsLayout); } catch(_){} renderContracts(area); }));
@@ -6086,6 +6133,8 @@ async function fetchReceipts(){
 }
 // Kind: Product, Service, or Don't count (a duplicate, a refund…), kept out of the totals.
 function receiptKind(s){ s = String(s || '').trim().toLowerCase(); return /^prod/.test(s) ? 'product' : /^serv/.test(s) ? 'service' : /^hid/.test(s) ? 'hidden' : /^(don|skip|not|no )/.test(s) ? 'skip' : ''; }
+const receiptUpd = x => ({key: {'Message id': x.id}, set: {Amount: x.amount > 0 ? x.amount : '', Currency: x.cur || '',
+  Notes: x.notes || '', Product: x.product || '', Kind: RECEIPT_KIND_LABEL[x.kind] || ''}});
 const RECEIPT_KIND_LABEL = {product: 'Product', service: 'Service', skip: "Don't count", hidden: 'Hidden'};
 // Hidden receipts (not relevant, very old): kept, never deleted, just out of the shelf, the tray and the
 // totals. Hidden on this device by message id; Kind "Hidden" in the tab hides one on every device.
@@ -6208,7 +6257,7 @@ function renderReceipts(area){
     const m = receiptEditsGet();
     m[x.id] = {product: inp.value.trim(), kind: x.kind || '', notes: x.notes || '', amount: x.amount > 0 ? x.amount : ''};
     receiptEditsSet(m);
-    const nx = receiptsMerged().find(r => r.id === x.id); if(nx) quietSaveSheet('Receipts', tabRow(nx));
+    const nx = receiptsMerged().find(r => r.id === x.id); if(nx) quietSaveSheet('Receipts', tabRow(nx), receiptUpd(nx));
     rerender();
     refreshPayTabs();
     const next = area.querySelector('.rc-tray-in'); if(next) next.focus();
@@ -6246,7 +6295,7 @@ function renderReceipts(area){
     box.hidden = false;
     box.querySelector('[data-e="copy"]').addEventListener('click', () => navigator.clipboard.writeText(box.dataset.row).then(() => { box.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
     box.querySelector('[data-e="close"]').addEventListener('click', () => { box.hidden = true; box.innerHTML = ''; });
-    autoSaveSheet(box, 'Receipts', r);
+    autoSaveSheet(box, 'Receipts', r, x.addedLocal ? null : receiptUpd(x));
   };
   const form = (x, isNew) => `
     <div class="shop-form">
@@ -6677,7 +6726,8 @@ function renderPayments(){
       b2.hidden = false;
       b2.querySelector('[data-r="copy"]').addEventListener('click', () => navigator.clipboard.writeText(b2.dataset.row).then(() => { b2.querySelector('.pay-copied').hidden = false; }).catch(() => {}));
       b2.querySelector('[data-r="close"]').addEventListener('click', () => { b2.hidden = true; });
-      autoSaveSheet(b2, 'Routine bills', row);
+      autoSaveSheet(b2, 'Routine bills', row, {key: {Payee: a.payee}, set: {Category: a.category, Amount: a.amount, Every: a.every === 12 ? 'year' : a.every === 1 ? 'month' : a.every + ' months',
+        Day: a.day, Start: a.start, End: a.end, Card: a.card, Notes: a.notes}});
       b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     });
   });
