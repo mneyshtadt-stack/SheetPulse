@@ -1539,7 +1539,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791880715";
+const BUILD_ID = "1791880878";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5634,6 +5634,7 @@ async function loadNetWorthYear(year){
 const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
+let paymentsQuery = '', contractsQuery = '';
 let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false;
 // Bills & Contracts (paymentsView: bills / contracts) and Purchases (shoppingView: orders / receipts /
 // spending) reopen on the tab used last on this device.
@@ -5767,6 +5768,23 @@ function payTabBadge(v){
   }
   return null;
 }
+function wireSearch(area, sel, set, rerender){
+  const inp = area.querySelector(sel); if(!inp) return;
+  let tmr = null;
+  inp.addEventListener('input', () => {
+    clearTimeout(tmr);
+    tmr = setTimeout(() => {
+      set(inp.value);
+      const pos = inp.selectionStart, body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+      rerender();
+      if(body) body.scrollTop = top;
+      const again = document.querySelector(sel);
+      if(again){ again.focus(); try{ again.setSelectionRange(pos, pos); } catch(_){} }
+    }, 250);
+  });
+}
+// Every word must appear somewhere in the text (commas ignored, so 1,076 matches 1076).
+const searchMatch = (q, text) => { const ws = q.trim().toLowerCase().replace(/,/g, '').split(/\s+/).filter(Boolean); const t = String(text).toLowerCase().replace(/,/g, ''); return ws.every(w => t.includes(w)); };
 function payViewSwitch(){
   // Bills = each payment; Contracts = the agreement behind it, when it has terms that matter.
   const tips = {bills: 'Bills = each payment: electricity, water, arnona, TV, and routine charges like Netflix (add those with + Add a routine bill).',
@@ -5888,7 +5906,8 @@ function renderContracts(area){
   const left = ms => { const d = Math.round((ms - now) / DAY); return d < 0 ? 'ended ' + day(ms) : d < 60 ? d + ' days left' : d < 730 ? Math.round(d / 30.4) + ' months left' : (d / 365.25).toFixed(1).replace(/\.0$/, '') + ' years left'; };
   const types = [...new Set(all.map(k => k.type))].sort();
   const showingHidden = contractsType === '__hidden';
-  const shown = (showingHidden ? hiddenList : contractsType ? all.filter(k => k.type === contractsType) : all).sort((a, b) =>
+  const ctHay = k => [k.name, k.provider, k.type, k.ref, k.covers, k.notes, isNaN(k.start) ? '' : day(k.start), isNaN(k.end) ? '' : day(k.end), k.cost > 0 ? k.cost + ' ' + fmt2(k.cost) : '', k.per].join(' ');
+  const shown = (showingHidden ? hiddenList : contractsType ? all.filter(k => k.type === contractsType) : all).filter(k => !contractsQuery.trim() || searchMatch(contractsQuery, ctHay(k))).sort((a, b) =>
     (a.state === 'ended') - (b.state === 'ended') || (isNaN(a.end) ? Infinity : a.end) - (isNaN(b.end) ? Infinity : b.end));
   const pill = k => `<span class="pay-pill ${k.state === 'ended' ? 'muted' : k.state === 'soon' ? 'wait' : k.state === 'upcoming' ? 'due' : 'paid'}">${k.state === 'ended' ? 'Ended' : k.state === 'soon' ? 'Ends soon' : k.state === 'upcoming' ? 'Starts ' + day(k.start) : 'Active'}${k.local ? ' · this device' : ''}</span>`;
   const costTxt = k => k.cost > 0 ? fmt2(k.cost) + (k.per === 'month' ? ' a month' : k.per === 'year' ? ' a year' : ' once') : '—';
@@ -5939,7 +5958,7 @@ function renderContracts(area){
         <div class="pay-card-sub">No end date: they run until you cancel.</div></div>
     </div>
     <section class="pay-panel">
-      <div class="pay-panel-head"><h3>Contracts</h3>
+      <div class="pay-panel-head"><h3>Contracts</h3><input type="search" class="shop-search ct-search" placeholder="Search name, provider, reference, notes, amount" aria-label="Search contracts" value="${esc(contractsQuery)}">
         <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="" aria-pressed="${!contractsType}">All<span class="n">${all.length}</span></button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}" aria-pressed="${contractsType === t}">${esc(t)}<span class="n">${all.filter(k => k.type === t).length}</span></button>`).join('')}${hiddenList.length ? `<button type="button" class="pay-chip${showingHidden ? ' on' : ''}" data-ctype="__hidden" aria-pressed="${showingHidden}">Hidden<span class="n">${hiddenList.length}</span></button>` : ''}</div></div>
       <div id="ctAdd" class="pay-confirm" hidden></div>
       ${showingHidden ? `<div class="pay-sub" style="font-size:12.5px; margin-bottom:6px;">Hidden on this device. To hide one on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>` : ''}
@@ -5952,6 +5971,7 @@ function renderContracts(area){
     </section>`;
 
   area.querySelectorAll('[data-ctype]').forEach(b => b.addEventListener('click', () => { contractsType = b.dataset.ctype; renderContracts(area); }));
+  wireSearch(area, '.ct-search', v => { contractsQuery = v; }, () => renderContracts(area));
   area.querySelectorAll('.ct-hide').forEach(b => b.addEventListener('click', () => {
     const key = b.dataset.key, k = everything.find(x => ctKey(x) === key);
     ctHiddenSet([...new Set(ctHiddenGet().concat([key]))]);
@@ -6515,7 +6535,8 @@ function renderPayments(){
       <div class="pay-cat-num"><b>${fmt(r.total)}</b><small class="${isNaN(r.vs) ? '' : r.vs > 0.5 ? 'down' : r.vs < -0.5 ? 'up' : ''}">${isNaN(r.vs) ? 'no year before' : (r.vs > 0 ? '+' : r.vs < 0 ? '−' : '') + Math.abs(r.vs).toFixed(0) + '% vs year before'}</small></div></div>`).join('');
 
   // All bills: table on wider screens, cards on phones; category chips filter both.
-  const shown = paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list;
+  const billHay = p => [p.payee, p.category, p.period, p.card, p.note || p.sheetNote || '', day(p.charge), p.amount > 0 ? p.amount.toFixed(2) + ' ' + fmt2(p.amount) : '', p.routine ? 'routine' : '', p.manual ? 'marked paid' : ''].join(' ');
+  const shown = (paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list).filter(p => !paymentsQuery.trim() || searchMatch(paymentsQuery, billHay(p)));
   const pill = p => p.manual ? `<span class="pay-pill mark" title="Marked paid: no bill for this month came by email; you marked it paid in Bill check.">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.routine ? `<span class="pay-pill ${p.charge > now ? 'due' : 'paid'}" title="Routine: entered once by you as a routine bill (no email for it), so this charge is assumed from your schedule (amount, day, how often), not confirmed by a bill.">routine${p.charge > now ? ' · to be charged' : ''}${p.local ? ' · this device' : ''}</span>` : p.charge > now ? '<span class="pay-pill due" title="To be charged: its bill arrived by email; the card charge date is still ahead.">to be charged</span>' : '<span class="pay-pill paid" title="Paid: confirmed by its own bill, emailed to you and read from Gmail (actual amount, period and charge date).">paid</span>';
   const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -6526,7 +6547,7 @@ function renderPayments(){
   const rows = shown.slice(0, 60);
   const bills = `
     <section class="pay-panel">
-      <div class="pay-panel-head"><h3>All bills</h3>
+      <div class="pay-panel-head"><h3>All bills</h3><input type="search" class="shop-search pay-search" placeholder="Search payee, amount, date, period, card, note" aria-label="Search bills" value="${esc(paymentsQuery)}">
         <div class="pay-chips"><button type="button" class="pay-chip${paymentsFilter ? '' : ' on'}" data-cat="">All</button>${cats.map(cat => `<button type="button" class="pay-chip${paymentsFilter === cat ? ' on' : ''}" data-cat="${esc(cat)}"><i style="background:${colorOf(cat)}"></i>${esc(cat)}</button>`).join('')}</div></div>
       <div id="payNote" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
@@ -6612,6 +6633,7 @@ function renderPayments(){
     if(body) body.scrollTop = top;
   }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
+  wireSearch(area, '.pay-search', v => { paymentsQuery = v; }, renderPayments);
   area.querySelectorAll('.pay-routine-del').forEach(b => b.addEventListener('click', () => {
     const r = routines[+b.dataset.i]; if(!r) return;
     routineAddedSet(routineAddedGet().filter(a => String(a.payee).toLowerCase() !== r.payee.toLowerCase()));
