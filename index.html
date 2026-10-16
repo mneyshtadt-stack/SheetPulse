@@ -1615,7 +1615,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792151556";
+const BUILD_ID = "1792152931";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8026,6 +8026,7 @@ function roundTicksInZone(t0, t1, timeZone, stepMinutes){
 // fast move (whose neighbors keep trending, not snapping back) is never touched.
 // snapTo (the previous close): a lone point sitting exactly on it is a feed that briefly sent yesterday's
 // close (16 Oct 2026, 13:49: TASE ₪120,229 → 118,375 = prev close → 120,229), so it is dropped from 0.3% off.
+// snapTo can be a function of the point (5D: each day's own previous close).
 function removeIntradaySpikes(points, thresholdPct, snapTo){
   thresholdPct = thresholdPct || 0.02;
   if(points.length < 3) return points;
@@ -8034,7 +8035,8 @@ function removeIntradaySpikes(points, thresholdPct, snapTo){
     const prev = points[i-1], cur = points[i], next = points[i+1];
     const devPrev = prev.v ? Math.abs(cur.v - prev.v) / prev.v : 0;
     const devNext = next.v ? Math.abs(cur.v - next.v) / next.v : 0;
-    const t = snapTo > 0 && Math.abs(cur.v - snapTo) < 1 ? 0.003 : thresholdPct;
+    const snap = typeof snapTo === 'function' ? snapTo(cur) : snapTo;
+    const t = snap > 0 && Math.abs(cur.v - snap) < 1 ? 0.003 : thresholdPct;
     const neighborsAgree = prev.v ? Math.abs(next.v - prev.v) / prev.v <= t : true;
     if(devPrev > t && devNext > t && neighborsAgree) continue;
     cleaned.push(cur);
@@ -8906,8 +8908,13 @@ async function renderRangeChart(ctx, range){
       pts = range === '5D' ? series.slice(-5) : series.filter(p => p.t >= chartRangeStartMs(range));
       note = ctx.note || '';
     } else if(range === '5D'){
-      const raw = removeIntradaySpikes((await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now()));
       const dayKey = t => { const d = new Date(t); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); };
+      const all5 = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now());
+      // Each day's previous close = the last reading of the day before it in the log.
+      const lastOf = {}; all5.forEach(p => { const k = dayKey(p.t); if(!lastOf[k] || p.t > lastOf[k].t) lastOf[k] = p; });
+      const days5 = Object.keys(lastOf).map(Number).sort((a, b) => a - b);
+      const prevCloseOf = p => { const i = days5.indexOf(dayKey(p.t)); return i > 0 ? lastOf[days5[i - 1]].v : 0; };
+      const raw = removeIntradaySpikes(all5, 0, prevCloseOf);
       const inSession = raw.filter(p => {
         const d = new Date(p.t);
         const rng = ctx.dayRangeForDate(d.getFullYear(), d.getMonth()+1, d.getDate());
@@ -9158,7 +9165,7 @@ async function renderHomeDay(rows, totals){
       }
     }
   }
-  log = removeIntradaySpikes(log);
+  log = removeIntradaySpikes(log, 0, prevClose);
   if(!log.length){ el.innerHTML = `<div class="chart-msg">No readings yet today.</div>`; nowEl.innerHTML = ''; return; }
 
   const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
