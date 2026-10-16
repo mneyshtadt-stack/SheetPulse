@@ -316,6 +316,10 @@ function updateIbiPricesFromYahoo_(tracker) {
     if (!t) break;
     if (YAHOO_TASE_TICKERS.indexOf(t) === -1) continue;
     const row = i + 1, ref = tracker.getRange(row, cTicker + 1).getA1Notation(), q = quotes[t];
+    // Yahoo sometimes answers for a moment with the previous close as the price (16 Oct 2026 13:49: both
+    // funds, the TASE total fell 1.5% to exactly yesterday's close for one reading). Keep the current price then.
+    const cur = Number(data[i][cPrice]);
+    if (q && q.price === q.prevClose && cur > 0 && Math.abs(cur - q.prevClose) > 0.001) continue;
     const put = (col, value, googleAttr) => {
       if (col === -1) return;
       const cell = tracker.getRange(row, col + 1);
