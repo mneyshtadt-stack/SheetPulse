@@ -486,7 +486,8 @@
   .div-dismiss{margin-left:auto; flex:0 0 auto; font-family:inherit; font-size:11.5px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:5px; padding:2px 8px; cursor:pointer;}
   .div-dismiss:hover{color:var(--ink); border-color:var(--accent);}
   .div-table{margin-top:14px;}
-  .div-table thead th{cursor:default;}
+  .div-filter{display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-top:16px; font-size:13px;}
+  .div-filter select{font:inherit; min-height:34px; padding:0 8px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); margin-left:6px;}
   #premarketTreemap{position:relative; width:100%;}
   .pm-note{font-size:12.5px; color:var(--muted); padding:18px 0; line-height:1.5;}
   /* Payments window (design canvas "SheetPulse Payments tab", Oct 2026): status cards, bill check grid,
@@ -1615,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792152931";
+const BUILD_ID = "1792162978";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4860,6 +4861,8 @@ function wireDividendDismiss(area, key){
     renderDividendsTab();
   }));
 }
+// Dividends table: ticker filter ('' = all) and sort column, newest dividend first by default.
+let divTicker = '', divSort = {k: 'last', dir: -1};
 function renderDividendsTab(){
   const area = document.getElementById('mdDividendsArea');
   if(!area) return;
@@ -4874,8 +4877,11 @@ function renderDividendsTab(){
   const monthKey = ms => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
   const monthLabel = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'short', year: '2-digit'});
 
-  const pays = [];
+  let pays = [];
   rows.forEach(r => (r.dividends || []).forEach(d => pays.push({...d, ticker: r.name, broker: pfPlatforms(r).join(' / ') || '—'})));
+  const payTickers = [...new Set(pays.map(p => p.ticker))].sort();
+  if(divTicker && !payTickers.includes(divTicker)) divTicker = '';
+  if(divTicker) pays = pays.filter(p => p.ticker === divTicker);
   const now = Date.now(), yearAgo = now - 365 * 86400000;
   const sum = list => list.reduce((a, p) => a + p.net, 0);
   const last12 = sum(pays.filter(p => p.payMs > yearAgo)), total = sum(pays);
@@ -4969,7 +4975,15 @@ function renderDividendsTab(){
   const byTicker = {};
   pays.forEach(p => { const t = byTicker[p.ticker] = byTicker[p.ticker] || {ticker: p.ticker, broker: p.broker, n: 0, last: 0, y: 0, tot: 0};
     t.n++; t.last = Math.max(t.last, p.payMs); t.tot += p.net; if(p.payMs > yearAgo) t.y += p.net; });
-  const tickers = Object.values(byTicker).sort((a, b) => b.y - a.y || b.tot - a.tot);
+  const tickers = Object.values(byTicker);
+  // One ticker picked: its payments, one row each; otherwise one row per ticker. Every column sorts.
+  const cols = divTicker
+    ? [['ex', 'Ex-date', 0, p => p.exMs, p => day(p.exMs)], ['last', 'Paid', 1, p => p.payMs, p => day(p.payMs) + (p.estimated ? ' <span class="pay-sub" title="Estimated payment date">est.</span>' : '')],
+       ['amt', 'Per share', 1, p => p.amount, p => '$' + p.amount.toFixed(4).replace(/0{1,2}$/, '')], ['tot', 'Net', 1, p => p.net, p => '<span class="up">+' + $(p.net) + '</span>']]
+    : [['ticker', 'Ticker', 0, t => t.ticker, t => esc(t.ticker)], ['broker', 'Broker', 0, t => t.broker, t => esc(t.broker)], ['n', 'Payments', 1, t => t.n, t => t.n],
+       ['last', 'Last paid', 1, t => t.last, t => day(t.last)], ['y', 'Last 12 months', 1, t => t.y, t => t.y ? '<span class="up">+' + $(t.y) + '</span>' : '—'], ['tot', 'Total', 1, t => t.tot, t => '<span class="up">+' + $(t.tot) + '</span>']];
+  const sc = cols.find(c => c[0] === divSort.k) || cols.find(c => c[0] === 'last');
+  const tableRows = (divTicker ? pays.slice() : tickers).sort((a, b) => { const x = sc[3](a), y = sc[3](b); return (typeof x === 'string' ? x.localeCompare(y) : x - y) * divSort.dir; });
 
   area.innerHTML = `
     <div class="md-stat-tiles">
@@ -4980,13 +4994,20 @@ function renderDividendsTab(){
     <div class="div-legend">${stackOrder.map(b => `<span><i style="background:${colorOf(b)}"></i>${esc(b)}</span>`).join('')}<span class="div-legend-note">Net dividends per month, by payment date</span></div>
     <svg id="divChart" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">${grid}${bars}${labels}${hits}</svg>
     ${manualHtml}
+    <div class="div-filter"><label>Ticker <select class="div-tk" aria-label="Show one ticker"><option value="">All tickers</option>${payTickers.map(t => `<option${t === divTicker ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>${divTicker ? `<span class="pay-sub">${pays.length} payment${pays.length === 1 ? '' : 's'} of ${esc(divTicker)}</span>` : ''}</div>
     <table class="md-holdings-table div-table">
-      <thead><tr><th>Ticker</th><th>Broker</th><th class="num">Payments</th><th class="num">Last paid</th><th class="num">Last 12 months</th><th class="num">Total</th></tr></thead>
-      <tbody>${tickers.map(t => `<tr><td class="md-th-symbol">${esc(t.ticker)}</td><td>${esc(t.broker)}</td><td class="num">${t.n}</td><td class="num">${day(t.last)}</td><td class="num up">${t.y ? '+' + $(t.y) : '—'}</td><td class="num up">+${$(t.tot)}</td></tr>`).join('')}</tbody>
+      <thead><tr>${cols.map(c => `<th class="${c[2] ? 'num' : ''}${c === sc ? ' sorted' : ''}" data-sk="${c[0]}" aria-sort="${c === sc ? (divSort.dir < 0 ? 'descending' : 'ascending') : 'none'}">${c[1]}${c === sc ? (divSort.dir < 0 ? ' ▼' : ' ▲') : ''}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows.map(r => `<tr>${cols.map((c, j) => `<td class="${c[2] ? 'num' : ''}${!divTicker && j === 0 ? ' md-th-symbol' : ''}">${c[4](r)}</td>`).join('')}</tr>`).join('')}</tbody>
     </table>
     <p class="md-broker-note">Paid on the shares held at each ex-date, after 25% tax, from the Dividends tab (Dividends.gs, Yahoo Finance). Payment dates are estimated unless corrected in that tab. ₪ at today's rate.</p>`;
 
   wireDividendDismiss(area, SEEN_KEY);
+  area.querySelector('.div-tk').addEventListener('change', e => { divTicker = e.target.value; renderDividendsTab(); });
+  area.querySelectorAll('.div-table th[data-sk]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sk;
+    divSort = divSort.k === k ? {k, dir: -divSort.dir} : {k, dir: ['ticker', 'broker'].includes(k) ? 1 : -1};
+    renderDividendsTab();
+  }));
   area.querySelectorAll('#divChart .div-hit').forEach(el => {
     const m = byMonth[Number(el.dataset.i)];
     attachHoverTooltip(el, () => `<b>${new Date(Math.floor(m.k / 12), m.k % 12, 1).toLocaleDateString('en-US', {month: 'long', year: 'numeric'})}</b>`
