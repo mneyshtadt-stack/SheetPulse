@@ -1615,7 +1615,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1791905611";
+const BUILD_ID = "1792151556";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8024,7 +8024,9 @@ function roundTicksInZone(t0, t1, timeZone, stepMinutes){
 // shows up as a sharp V-shaped spike bounded by two normal, mutually-consistent points. Only the
 // last-resort case — sole point flanked by two agreeing neighbors — gets dropped, so a genuine
 // fast move (whose neighbors keep trending, not snapping back) is never touched.
-function removeIntradaySpikes(points, thresholdPct){
+// snapTo (the previous close): a lone point sitting exactly on it is a feed that briefly sent yesterday's
+// close (16 Oct 2026, 13:49: TASE ₪120,229 → 118,375 = prev close → 120,229), so it is dropped from 0.3% off.
+function removeIntradaySpikes(points, thresholdPct, snapTo){
   thresholdPct = thresholdPct || 0.02;
   if(points.length < 3) return points;
   const cleaned = [points[0]];
@@ -8032,8 +8034,9 @@ function removeIntradaySpikes(points, thresholdPct){
     const prev = points[i-1], cur = points[i], next = points[i+1];
     const devPrev = prev.v ? Math.abs(cur.v - prev.v) / prev.v : 0;
     const devNext = next.v ? Math.abs(cur.v - next.v) / next.v : 0;
-    const neighborsAgree = prev.v ? Math.abs(next.v - prev.v) / prev.v <= thresholdPct : true;
-    if(devPrev > thresholdPct && devNext > thresholdPct && neighborsAgree) continue;
+    const t = snapTo > 0 && Math.abs(cur.v - snapTo) < 1 ? 0.003 : thresholdPct;
+    const neighborsAgree = prev.v ? Math.abs(next.v - prev.v) / prev.v <= t : true;
+    if(devPrev > t && devNext > t && neighborsAgree) continue;
     cleaned.push(cur);
   }
   cleaned.push(points[points.length-1]);
@@ -8492,7 +8495,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // added). Drop a point only when it deviates sharply from BOTH neighbors AND those neighbors
   // agree with each other — that's the signature of an isolated bad read, not a real fast move
   // (a genuine move keeps trending, so its neighbors wouldn't agree with each other either).
-  log = removeIntradaySpikes(log);
+  log = removeIntradaySpikes(log, 0, prevClose);
 
   // Tag whichever point actually ends up first on screen with the FX move baked into that
   // session's opening number: previous close's recorded rate vs. the rate captured ahead of that
