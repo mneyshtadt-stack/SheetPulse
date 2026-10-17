@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792162978";
+const BUILD_ID = "1792243212";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1828,7 +1828,7 @@ const DIAG_CHECKS = [
     if(r.res) return r.ms > 5000
       ? {status:'warn', ms:r.ms, detail:'The server answered, but slowly — it may be short on memory (SSH in: free -h; uptime).'}
       : {status:'ok', ms:r.ms, detail:'The Oracle VM and Caddy are answering.'};
-    if(r.timedOut) return {status:'fail', ms:r.ms, stop:true, detail:`No answer in ${DIAG_TIMEOUT_MS / 1000} s — the VM is frozen or down (often out of memory). SSH in with PuTTY and run: free -h; uptime — or reboot it from the Oracle Console (Compute → Instances → n8n-server → Reboot).`};
+    if(r.timedOut) return {status:'fail', ms:r.ms, stop:true, detail:`No answer in ${DIAG_TIMEOUT_MS / 1000} s — the VM is frozen or down (often out of memory). SSH in with PuTTY and run: free -h; uptime — or reboot it from the Oracle Console (Compute → Instances → oracleVM → Reboot).`};
     return {status:'fail', ms:r.ms, stop:true, detail:'Refused or blocked immediately — the domain doesn\'t resolve, this network blocks it (office firewall?), or Caddy is stopped (sudo systemctl status caddy).'};
   }},
 
@@ -2088,7 +2088,7 @@ const TROUBLESHOOTING = [
   {title: 'VM frozen or unreachable', where: 'oracle',
     intro: 'Use when PuTTY connects but never shows "login as:" (or times out) and Checks says the server doesn\'t answer — the VM is frozen, usually from running out of memory. Oracle Cloud Shell: the >_ icon at the top of the Oracle Console. Run "Find the VM" first in every new Cloud Shell session — the others use its $ID.',
     cmds: [
-      {name: 'Find the VM (sets $ID)', cmd: `ID=$(oci search resource structured-search --query-text "query instance resources where displayName = 'n8n-server'" --query 'data.items[0].identifier' --raw-output); echo $ID`},
+      {name: 'Find the VM (sets $ID)', cmd: `ID=$(oci search resource structured-search --query-text "query instance resources where displayName = 'oracleVM'" --query 'data.items[0].identifier' --raw-output); echo $ID`},
       {name: 'Current state', note: 'RUNNING, STOPPING, STOPPED or STARTING.', cmd: `oci compute instance get --instance-id $ID --query 'data."lifecycle-state"' --raw-output`},
       {name: 'Save the VM\'s screen output', note: 'Only while RUNNING. Shows the last console messages (e.g. out-of-memory) before a reboot wipes them.', cmd: `CH=$(oci compute console-history capture --instance-id $ID --query 'data.id' --raw-output); sleep 20; oci compute console-history get-content --instance-console-history-id $CH --length 200000 --file - | tail -40`},
       {name: 'Reboot', note: 'A frozen VM sits in STOPPING a few minutes before Oracle powers it off and starts it again by itself.', cmd: `oci compute instance action --instance-id $ID --action SOFTRESET --query 'data."lifecycle-state"'`},
@@ -2101,7 +2101,7 @@ const TROUBLESHOOTING = [
     cmds: [
       {name: '1. Cloud Shell SSH key (once)', cmd: `ls ~/.ssh/id_rsa.pub || ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa`},
       {name: '2. Open a console connection', note: 'Prints CREATING; wait about 30 seconds before step 3.', cmd: `oci compute instance-console-connection create --instance-id $ID --ssh-public-key-file ~/.ssh/id_rsa.pub --query 'data."lifecycle-state"' --raw-output`},
-      {name: '3. Connect to the VM\'s screen', note: 'Type yes if asked, then press Enter: "n8n-server login:" means you are on the VM. To leave later: type ~ then .', cmd: `COMP=$(oci compute instance get --instance-id $ID --query 'data."compartment-id"' --raw-output); eval "$(oci compute instance-console-connection list --compartment-id $COMP --instance-id $ID --query 'data[?"lifecycle-state"==\`ACTIVE\`]."connection-string" | [0]' --raw-output)"`},
+      {name: '3. Connect to the VM\'s screen', note: 'Type yes if asked, then press Enter: "oraclevm login:" means you are on the VM. To leave later: type ~ then .', cmd: `COMP=$(oci compute instance get --instance-id $ID --query 'data."compartment-id"' --raw-output); eval "$(oci compute instance-console-connection list --compartment-id $COMP --instance-id $ID --query 'data[?"lifecycle-state"==\`ACTIVE\`]."connection-string" | [0]' --raw-output)"`},
       {name: '4. Reach the grub> prompt', note: 'With the console open, reboot from the Oracle Console in another browser tab, then tap Esc once a second in the console until "grub>" appears (the menu itself is hidden). Then type these three lines; a root prompt "root@(none):/#" follows.', cmd: `linux /vmlinuz root=LABEL=cloudimg-rootfs rw init=/bin/bash console=ttyS0\ninitrd /initrd.img\nboot`},
       {name: '5. Add SSH back to the saved rules (type each line)', note: 'The last command should list the INPUT rules with --dport 22 second. Then type sync.', cmd: `F=/etc/iptables/rules.v4\ncp $F /root/r.bak\nR='-A INPUT -p tcp --dport 22 -j ACCEPT'\ngrep -q "dport 22" $F || sed -i "/^-A INPUT -m/a $R" $F\ngrep -n "^-A INPUT" $F\nsync`},
       {name: '6. Restart normally', note: 'The root-prompt boot ignores a normal reboot, so power-cycle it from Cloud Shell (leave the console first with ~ then .). If it says "being modified", wait for the earlier reboot to time out (~15 min) and retry. PuTTY works a minute after RUNNING.', cmd: `oci compute instance action --instance-id $ID --action RESET --query 'data."lifecycle-state"' --raw-output`},
