@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792245655";
+const BUILD_ID = "1792246481";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1998,7 +1998,7 @@ const DIAG_CHECKS = [
     // Same VM and Caddy, separate service (Docker) -- a failure here alone means only n8n is down.
     // /healthz is n8n's own health endpoint; its editor page refuses to be fetched from another site.
     const r = await diagFetch('https://flows.sheetpulse.org/healthz', {mode:'no-cors'});
-    if(r.res) return {status:'ok', ms:r.ms, detail:'n8n is answering through Caddy (HTTPS).'};
+    if(r.res) return {status:'ok', ms:r.ms, detail:'flows (n8n) is answering through Caddy (HTTPS).'};
     return {status:'fail', ms:r.ms, detail: r.timedOut
       ? 'No answer — if the server check above is fine, only n8n is stuck. PuTTY: docker ps -a; docker logs flows --tail 25'
       : 'Not reachable — PuTTY: docker ps -a (is n8n Up?), then Troubleshooting → n8n.'};
@@ -2178,7 +2178,7 @@ const TROUBLESHOOTING = [
       {name: 'Check the config, then reload it', cmd: `sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && sudo systemctl reload caddy`},
     ]},
   {title: 'n8n (Docker)', where: 'putty',
-    intro: 'n8n is at https://flows.sheetpulse.org (the old n8n.sheetpulse.org still answers) — Caddy forwards to it on 127.0.0.1:5678, and the port is closed to the internet. Its data lives in ~/.n8n.',
+    intro: 'flows (n8n) is at https://flows.sheetpulse.org — Caddy forwards to it on 127.0.0.1:5678, and the port is closed to the internet. Its data lives in ~/.n8n.',
     cmds: [
       {name: 'Containers', note: 'Status "Exited" = stopped; ports should read 127.0.0.1:5678->5678/tcp.', cmd: `docker ps -a --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'`},
       {name: 'Why did it stop?', note: 'Out-of-memory kill, restart count and exit code; exit 0 after "Received SIGTERM" = it was told to stop, not a crash.', cmd: `docker inspect flows --format 'OOMKilled={{.State.OOMKilled}} Restarts={{.RestartCount}} ExitCode={{.State.ExitCode}} Finished={{.State.FinishedAt}}'; journalctl -u docker --since "-1 day" --no-pager | grep -iE 'stop|kill|restart|shutdown' | tail -10`},
