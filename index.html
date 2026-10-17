@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792243876";
+const BUILD_ID = "1792244213";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5823,9 +5823,16 @@ async function fetchRoutine(){
     end: routineMonth(v(r, 'end')), card: v(r, 'card'), notes: v(r, 'notes')})).filter(r => !isNaN(r.start));
 }
 function routineAll(){
-  const inSheet = new Set(routineList.map(r => r.payee.toLowerCase()));
-  return routineList.concat(routineAddedGet().filter(a => !inSheet.has(String(a.payee).toLowerCase()))
-    .map(a => ({...a, amount: Number(a.amount) || NaN, every: routineEvery(a.every), day: +a.day || 1, start: routineMonth(a.start), end: routineMonth(a.end), local: true})));
+  // A routine bill added or edited on this device beats the tab's row with the same payee, until the tab has
+  // the same values (then the local copy is dropped).
+  const local = routineAddedGet().map(a => ({...a, amount: Number(a.amount) || NaN, every: routineEvery(a.every), day: +a.day || 1, start: routineMonth(a.start), end: routineMonth(a.end), local: true}));
+  const same = (a, b) => a.category === b.category && Math.abs((a.amount || 0) - (b.amount || 0)) < 0.005 && a.every === b.every && a.day === b.day
+    && a.start === b.start && (isNaN(a.end) ? isNaN(b.end) : a.end === b.end) && (a.card || '') === (b.card || '') && (a.notes || '') === (b.notes || '');
+  const key = r => String(r.payee).toLowerCase();
+  const done = local.filter(l => routineList.some(r => key(r) === key(l) && same(r, l)));
+  if(done.length) routineAddedSet(routineAddedGet().filter(a => !done.some(d => key(d) === key(a))));
+  const live = local.filter(l => !done.includes(l));
+  return routineList.filter(r => !live.some(l => key(l) === key(r))).concat(live);
 }
 // One charge per due month from the start month to this month (not after the end month). A month where Gmail
 // already has a bill from the same payee keeps that bill instead.
@@ -6939,7 +6946,7 @@ function renderPayments(){
       <div class="ct-list">${routines.map((r, i) => `<div class="ct-item">
         <div class="ct-main"><b>${esc(r.payee)}</b><small>${esc(r.category)} · ${everyTxt(r.every)} on day ${r.day}${r.card ? ' · •• ' + esc(r.card) : ''}${r.local ? ' · on this device' : ''}</small>${r.notes ? `<div class="pay-sub">${esc(r.notes)}</div>` : ''}</div>
         <div class="ct-when">${monthTxt(r.start)} → ${isNaN(r.end) ? 'still running' : monthTxt(r.end)}</div>
-        <div class="ct-cost"><b>${r.amount > 0 ? fmt2(r.amount) : '—'}</b>${r.local ? `<button type="button" class="pay-btn text pay-routine-del" data-i="${i}" style="min-height:32px;">Remove</button>` : '<span class="pay-sub">in the Routine bills tab</span>'}</div>
+        <div class="ct-cost"><b>${r.amount > 0 ? fmt2(r.amount) : '—'}</b><button type="button" class="pay-btn text pay-routine-edit" data-i="${i}" style="min-height:32px;">Edit</button>${r.local && !routineList.some(x => x.payee.toLowerCase() === r.payee.toLowerCase()) ? `<button type="button" class="pay-btn text pay-routine-del" data-i="${i}" style="min-height:32px;">Remove</button>` : ''}</div>
       </div>`).join('')}</div>
     </section>` : '';
   area.innerHTML = `
@@ -7012,25 +7019,28 @@ function renderPayments(){
   // Add a routine bill: saved on this device at once; the panel gives the row to paste into the
   // "Routine bills" tab so every device has it.
   const rBox = area.querySelector('#payRoutine');
-  area.querySelector('.pay-add-routine').addEventListener('click', () => {
+  // Add a routine bill, or edit one (r): the payee is the key, so it stays as it is when editing.
+  const openRoutine = r => {
     const d = new Date(), thisMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-    rBox.innerHTML = `<div><b>Add a routine bill</b> · a charge that repeats without an email, such as an insurance premium or a standing order</div>
+    const ym = k => isNaN(k) ? '' : Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
+    rBox.innerHTML = `<div><b>${r ? 'Edit ' + esc(r.payee) : 'Add a routine bill'}</b> · ${r ? 'set an end month to stop it' : 'a charge that repeats without an email, such as an insurance premium or a standing order'}</div>
       <div class="shop-form">
-        <label>Payee<input name="payee" placeholder="e.g. Home insurance" required></label>
-        <label>Category<input name="category" list="payCatList" placeholder="e.g. Insurance"></label>
+        <label>Payee<input name="payee" placeholder="e.g. Home insurance" required${r ? ` value="${esc(r.payee)}" readonly` : ''}></label>
+        <label>Category<input name="category" list="payCatList" placeholder="e.g. Insurance"${r ? ` value="${esc(r.category)}"` : ''}></label>
         <datalist id="payCatList">${[...new Set(cats.concat(['Insurance', 'Loan', 'Subscription', 'Education']))].map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-        <label>Amount (₪)<input name="amount" type="number" step="0.01" min="0" placeholder="0.00" required></label>
-        <label>How often<select name="every"><option value="1">Every month</option><option value="2">Every 2 months</option><option value="3">Every 3 months</option><option value="12">Every year</option></select></label>
-        <label>Charge day<input name="day" type="number" min="1" max="31" value="${d.getDate()}"></label>
-        <label>Starts<input name="start" type="month" value="${thisMonth}"></label>
-        <label>Ends (optional)<input name="end" type="month"></label>
-        <label>Card (last 4)<input name="card" maxlength="4" inputmode="numeric" placeholder="optional"></label>
-        <label style="grid-column:1 / -1;">Note<input name="notes" placeholder="policy, what it covers, anything to remember"></label>
+        <label>Amount (₪)<input name="amount" type="number" step="0.01" min="0" placeholder="0.00" required${r && r.amount > 0 ? ` value="${r.amount}"` : ''}></label>
+        <label>How often<select name="every">${[[1, 'Every month'], [2, 'Every 2 months'], [3, 'Every 3 months'], [12, 'Every year']].map(([v, t]) => `<option value="${v}"${r && r.every === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label>Charge day<input name="day" type="number" min="1" max="31" value="${r ? r.day : d.getDate()}"></label>
+        <label>Starts<input name="start" type="month" value="${r ? ym(r.start) : thisMonth}"></label>
+        <label>Ends (optional)<input name="end" type="month"${r ? ` value="${ym(r.end)}"` : ''}></label>
+        <label>Card (last 4)<input name="card" maxlength="4" inputmode="numeric" placeholder="optional"${r && r.card ? ` value="${esc(r.card)}"` : ''}></label>
+        <label style="grid-column:1 / -1;">Note<input name="notes" placeholder="policy, what it covers, anything to remember"${r && r.notes ? ` value="${esc(r.notes)}"` : ''}></label>
       </div>
-      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-r="save">Add</button><button type="button" class="pay-btn text" data-r="cancel">Cancel</button><span class="shop-form-err" hidden>A payee and an amount are needed.</span></div>`;
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-r="save">${r ? 'Save' : 'Add'}</button><button type="button" class="pay-btn text" data-r="cancel">Cancel</button><span class="shop-form-err" hidden>A payee and an amount are needed.</span></div>`;
     rBox.hidden = false;
     const f = n => (rBox.querySelector(`[name="${n}"]`).value || '').trim();
-    rBox.querySelector('[name="payee"]').focus();
+    rBox.querySelector(r ? '[name="amount"]' : '[name="payee"]').focus();
+    rBox.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     rBox.querySelector('[data-r="cancel"]').addEventListener('click', () => { rBox.hidden = true; });
     rBox.querySelector('[data-r="save"]').addEventListener('click', () => {
       if(!f('payee') || !(Number(f('amount')) > 0)){ rBox.querySelector('.shop-form-err').hidden = false; return; }
@@ -7041,7 +7051,7 @@ function renderPayments(){
       const row = [a.payee, a.category, a.amount, a.every === 12 ? 'year' : a.every === 1 ? 'month' : a.every + ' months', a.day, a.start, a.end, a.card, a.notes, ymdOf(Date.now())].join('\t');
       const b2 = document.getElementById('payRoutine');
       b2.dataset.row = row;
-      b2.innerHTML = `<div><b>${esc(a.payee)}</b>: added on this device. Its charges now show in Bills, marked routine.</div>
+      b2.innerHTML = `<div><b>${esc(a.payee)}</b>: ${r ? 'changed' : 'added'} on this device. Its charges now show in Bills, marked routine.</div>
         <div class="pay-confirm-row">To keep it on every device, paste this row under the header of the <b>Routine bills</b> tab of the Payments spreadsheet (run setupRoutineBillsTab() once if it isn't there):<code>${esc(row).replace(/\t/g, ' │ ')}</code></div>
         <div class="pay-confirm-btns"><button type="button" class="pay-btn" data-r="copy">Copy row</button> <span class="pay-copied" hidden>Copied</span><button type="button" class="pay-btn text" data-r="close">Close</button></div>`;
       b2.hidden = false;
@@ -7051,7 +7061,9 @@ function renderPayments(){
         Day: a.day, Start: a.start, End: a.end, Card: a.card, Notes: a.notes}});
       b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     });
-  });
+  };
+  area.querySelector('.pay-add-routine').addEventListener('click', () => openRoutine(null));
+  area.querySelectorAll('.pay-routine-edit').forEach(b => b.addEventListener('click', () => { const r = routines[+b.dataset.i]; if(r) openRoutine(r); }));
   const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
