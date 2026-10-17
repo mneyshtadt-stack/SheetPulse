@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792244559";
+const BUILD_ID = "1792244677";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7773,7 +7773,7 @@ function renderShopping(){
   area.querySelectorAll('.shop-hit').forEach(r => {
     const m = byMonth[Number(r.dataset.i)];
     attachHoverTooltip(r, () => `<b>${monthLabel(m.k)} · ${fmt(m.total)}</b>` + (m.os.length
-      ? m.os.map(o => `<div><span class="pay-dot" style="background:${colorOf(groupOf(o.brand))}"></span>${esc(o.store)} ${fmt(o.ils)} <span style="color:var(--muted)">${esc((o.items || '').slice(0, 40))}</span></div>`).join('')
+      ? m.os.map(o => `<div><span class="pay-dot" style="background:${colorOf(groupOf(o.brand))}"></span>${esc(o.store)} ${fmt(o.ils)} <span style="color:var(--muted)">${esc((o.items || o.note || '').slice(0, 40))}</span></div>`).join('')
       : '<div style="color:var(--muted)">no orders</div>'));
   });
   const byKey = new Map(all.map(o => [o.key, o]));
