@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792244437";
+const BUILD_ID = "1792244559";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5846,7 +5846,7 @@ function routineBillRows(base, monthKey){
       const y = Math.floor(k / 12), m = k % 12, last = new Date(y, m + 1, 0).getDate();
       const ms = new Date(y, m, Math.min(r.day, last), 12).getTime();
       out.push({payee: r.payee, category: r.category, amount: r.amount > 0 ? r.amount : 0, date: ms, due: NaN, charge: ms, manual: false,
-        routine: true, local: !!r.local, period: '', card: r.card || '', sheetNote: r.notes || ''});
+        routine: true, every: r.every, local: !!r.local, period: '', card: r.card || '', sheetNote: r.notes || ''});
     }
   });
   return out;
@@ -6762,7 +6762,8 @@ function payBillStatus(list, now, monthKey){
     bills.forEach(p => { const k = monthKey(p.charge); (months[k] = months[k] || {bills: []}).bills.push(p); });
     const ks = Object.keys(months).map(Number).sort((a, b) => a - b);
     const gaps = ks.slice(1).map((k, i) => k - ks[i]).sort((a, b) => a - b);
-    const cadence = gaps.length ? Math.max(1, Math.min(12, gaps[Math.floor((gaps.length - 1) / 2)])) : 1;
+    // A routine bill's rhythm is what you entered (every 1/2/3/12 months), not guessed from its charges.
+    const cadence = bills.every(p => p.routine && p.every > 0) ? bills[0].every : gaps.length ? Math.max(1, Math.min(12, gaps[Math.floor((gaps.length - 1) / 2)])) : 1;
     ks.forEach(k => { const m = months[k]; m.st = m.bills.every(p => p.manual) ? 'confirmed' : m.bills.some(p => p.charge > now) ? 'due' : 'paid'; m.amount = m.bills.reduce((a, p) => a + p.amount, 0);
       if(m.st === 'due') m.bills.filter(p => p.charge > now && !p.manual).forEach(p => issues.due.push(p)); });
     const end = Math.max(thisM + (cadence > 1 ? 0 : 1), ks[ks.length - 1]);
@@ -6880,7 +6881,7 @@ function renderPayments(){
 
   // Bill check grid over the chosen range, plus the months ahead with a bill or an expected one.
   const gridMonths = []; for(let k = thisM - paymentsRange + 1; k <= status.lastK; k++) gridMonths.push(k);
-  const cadenceWord = c => c === 1 ? 'monthly' : `every ${c} months`;
+  const cadenceWord = c => c === 1 ? 'monthly' : c === 12 ? 'yearly' : `every ${c} months`;
   const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ paid', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
   const check = `
     <section class="pay-panel">
