@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792244213";
+const BUILD_ID = "1792244437";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6920,7 +6920,7 @@ function renderPayments(){
   const noteKey = p => p.payee + '|' + ymdOf(p.charge) + '|' + (p.amount || 0).toFixed(2);
   const payNotes = payNotesGet();
   list.forEach(p => { const n = payNotes[noteKey(p)]; p.noteLocal = n !== undefined && n !== (p.sheetNote || ''); p.note = p.noteLocal ? n : (p.sheetNote || ''); });
-  const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button>`;
+  const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button>${p.routine ? ` <button type="button" class="shop-note-btn pay-routine-row-edit" data-payee="${esc(p.payee)}">Edit routine</button>` : ''}`;
   const rows = shown.slice(0, 60);
   const bills = `
     <section class="pay-panel">
@@ -7063,6 +7063,7 @@ function renderPayments(){
     });
   };
   area.querySelector('.pay-add-routine').addEventListener('click', () => openRoutine(null));
+  area.querySelectorAll('.pay-routine-row-edit').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); const r = routines.find(x => x.payee.toLowerCase() === b.dataset.payee.toLowerCase()); if(r) openRoutine(r); }));
   area.querySelectorAll('.pay-routine-edit').forEach(b => b.addEventListener('click', () => { const r = routines[+b.dataset.i]; if(r) openRoutine(r); }));
   const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
