@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792243212";
+const BUILD_ID = "1792243761";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7167,6 +7167,8 @@ let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRang
 // Delivery statuses set by hand on this device: {"store|order": {status, at}}.
 // Notes on orders set on this device: {"store|order": "text"}.
 function shopNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopNotes') || '{}') || {}; } catch(_){ return {}; } }
+function shopPricesGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopPrices') || '{}') || {}; } catch(_){ return {}; } }
+function shopPricesSet(m){ try{ localStorage.setItem('sp_shopPrices', JSON.stringify(m)); } catch(_){} }
 function shopNotesSet(m){ try{ localStorage.setItem('sp_shopNotes', JSON.stringify(m)); } catch(_){} }
 function shopMarksGet(){ try{ return JSON.parse(localStorage.getItem('sp_shopMarks') || '{}') || {}; } catch(_){ return {}; } }
 function shopMarksSet(m){ try{ localStorage.setItem('sp_shopMarks', JSON.stringify(m)); } catch(_){} }
@@ -7217,6 +7219,9 @@ function buildShopOrders(input){
   const add = (key, e) => {
     // A note (Event "note", the text in Items) only labels its order: it isn't a status, an item or a date.
     if(e.event === 'note'){ const n = orders.get(key); if(n && e.items) n.note = e.items; return; }
+    // A price you typed (Event "price": Amount + Currency) for an order whose emails have none (AliExpress paid
+    // by card): the latest one is the order's price, and it beats an emailed one.
+    if(e.event === 'price'){ const n = orders.get(key); if(n && e.amount > 0) n.handPrice = {amount: e.amount, cur: e.cur || 'ILS'}; return; }
     let o = orders.get(key);
     if(!o){ o = {key, store: e.store, no: e.no || (trkNo[e.store + '|' + e.trk] || ''), trk: new Set(), items: '', events: [], first: e.ms, last: e.ms}; orders.set(key, o); }
     if(o.events.some(x => x.event === e.event && Math.abs(x.ms - e.ms) < 86400000 && x.amount === e.amount)) return;   // the same email twice
@@ -7238,7 +7243,7 @@ function buildShopOrders(input){
     if(best) add(best.key, e);
   });
   const list = [...orders.values()].map(o => {
-    const priced = o.events.find(e => (e.event === 'ordered' || e.event === 'paid') && e.amount > 0);
+    const priced = o.handPrice || o.events.find(e => (e.event === 'ordered' || e.event === 'paid') && e.amount > 0);
     const refunds = o.events.filter(e => e.event === 'refund' && e.amount > 0);
     const refund = refunds.reduce((a, e) => a + (!priced || e.cur === priced.cur ? e.amount : 0), 0);
     // Status: the latest email, the furthest stage on the same day. A partial refund (Amazon refunds single
@@ -7258,7 +7263,7 @@ function buildShopOrders(input){
     return {key: o.key, store: o.store, no: o.no, items: o.items, trk: [...o.trk], first: o.first, last: o.last, status: st,
       amount: st === 'canceled' ? 0 : amount, cur: priced ? priced.cur : '', gross: priced ? priced.amount : 0, refund,
       viaPayPal: !!o.viaPayPal || /^PayPal /.test(o.no), events: o.events, markedInSheet: o.events.some(e => e.manual && !e.added),
-      addedLocal: o.events.some(e => e.added), sheetNote: o.note || ''};
+      addedLocal: o.events.some(e => e.added), sheetNote: o.note || '', sheetPrice: o.handPrice || null};
   });
   return list.sort((a, b) => b.first - a.first);
 }
@@ -7311,6 +7316,13 @@ function renderShopping(){
   if(!all.length){ area.innerHTML = `<div class="pm-note">No orders yet — run updateShopping() in the Payments spreadsheet's Apps Script.</div>`; return; }
   // Amazon.com, .de, .fr, .co.uk and .it count as one store in the chips, the chart and By store; each
   // order still shows its own site.
+  const prices = shopPricesGet();
+  all.forEach(o => {
+    const lp = prices[o.key]; if(!lp) return;
+    const sp = o.sheetPrice;
+    if(sp && sp.amount === lp.amount && sp.cur === lp.cur){ delete prices[o.key]; shopPricesSet(prices); return; }
+    o.gross = lp.amount; o.cur = lp.cur; o.amount = o.status === 'canceled' ? 0 : Math.max(0, lp.amount - o.refund); o.priceLocal = true;
+  });
   all.forEach(o => { o.ils = ils(o); o.brand = /^Amazon/i.test(o.store) ? 'Amazon' : o.store; });
   // Statuses you set by hand (the email was deleted or never came): this device's marks win over the
   // emails until a "manual" row for the order is in the Shopping tab, which every device reads.
@@ -7365,13 +7377,14 @@ function renderShopping(){
   const receiptIds = new Set((receiptsList || []).map(x => x.id).concat(receiptsAddedGet().map(a => a.id)));
   const keepBtn = o => o.status === 'delivered' && o.gross > 0
     ? (receiptIds.has('order-' + o.key) ? '<span class="pay-sub">In Receipts ✓</span>' : `<button type="button" class="shop-note-btn shop-keep" data-key="${esc(o.key)}">Move to Receipts →</button>`) : '';
+  const priceBtn = o => !(o.gross > 0) || o.sheetPrice || o.priceLocal ? `<button type="button" class="shop-note-btn shop-price-btn" data-key="${esc(o.key)}">${o.gross > 0 ? 'Edit price' : '+ Price'}</button>` : '';
   const price = o => o.gross > 0 ? money(o.amount || o.gross, o.cur) + (o.refund > 0 && o.status !== 'refunded' ? `<div class="pay-sub">${money(o.refund, o.cur)} refunded</div>` : '') : '—';
   const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
   const deliveries = `
     <section class="pay-panel" id="shopDeliveries">
       <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders with news in the last 3 months that haven't arrived yet · hover a row for its emails</span>`}</div>
       ${delivShown.length ? `<div class="pay-cards-list" style="display:block;">${delivShown.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
-          <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button></div>
+          <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${priceBtn(o)}</div>
           <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pillBtn(o)}</div></div>`).join('')}</div>`
         : '<div class="pm-note">Nothing on the way.</div>'}
       <div id="shopMark" class="pay-confirm" hidden></div>
@@ -7437,11 +7450,11 @@ function renderShopping(){
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
         <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</td>
           <td>${o.no && !/^PayPal /.test(o.no) ? esc(o.no) : ''}${o.trk.length ? '<div class="pay-sub">' + o.trk.map(esc).join(', ') + '</div>' : ''}</td>
-          <td>${pillBtn(o)}</td><td class="num">${price(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
+          <td>${pillBtn(o)}</td><td class="num">${price(o)}${priceBtn(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="pay-cards-list">${shown.slice(0, 100).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
         <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</div>
-        <div class="pay-cat-num"><b>${price(o)}</b>${pillBtn(o)}</div></div>`).join('')}</div>
+        <div class="pay-cat-num"><b>${price(o)}</b>${priceBtn(o)}${pillBtn(o)}</div></div>`).join('')}</div>
       ${q.length && !shown.length ? `<div class="pm-note">No order matches “${esc(shoppingQuery.trim())}”.</div>` : ''}
       ${shown.length > 100 ? `<div class="pm-note">Showing the latest 100 of ${shown.length}.</div>` : ''}
     </section>`}`;
@@ -7600,9 +7613,45 @@ function renderShopping(){
     box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
     box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
   };
-  area.querySelectorAll('.shop-note-btn').forEach(b => b.addEventListener('click', ev => {
+  area.querySelectorAll('.shop-note-btn:not(.shop-price-btn)').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation();
     const o = all.find(x => x.key === b.dataset.key); if(o) openNote(o);
+  }));
+  // + Price: what you paid, for an order whose emails have no amount. Saved on this device at once and
+  // straight to the Shopping tab (Event "price", Amount, Currency, Message id "manual").
+  area.querySelectorAll('.shop-price-btn').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const o = all.find(x => x.key === b.dataset.key), box = document.getElementById('shopAdd'); if(!o || !box) return;
+    const what = `<b>${esc(o.store)}</b>${o.no && !/^PayPal /.test(o.no) ? ' · ' + esc(o.no) : ''}${o.items ? ' · ' + esc(o.items) : ''}`;
+    const cur0 = o.cur || 'ILS';
+    box.innerHTML = `<div>What you paid for ${what}</div>
+      <div class="shop-form"><label>Amount<input name="amount" type="number" step="0.01" min="0" value="${o.gross > 0 ? o.gross : ''}" placeholder="0.00"></label>
+        <label>Currency<select name="cur">${['ILS', 'USD', 'EUR'].map(c => `<option${c === cur0 ? ' selected' : ''}>${c}</option>`).join('')}</select></label></div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-p="save">Save price</button><button type="button" class="pay-chip" data-p="cancel">Cancel</button><span class="shop-form-err" hidden>Type the amount.</span></div>`;
+    box.hidden = false;
+    const amt = box.querySelector('[name="amount"]'); amt.focus(); amt.select();
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    const save = () => {
+      const a = Math.round(Number(amt.value) * 100) / 100, cur = box.querySelector('[name="cur"]').value;
+      if(!(a > 0)){ box.querySelector('.shop-form-err').hidden = false; return; }
+      const m = shopPricesGet(); m[o.key] = {amount: a, cur}; shopPricesSet(m);
+      const at = new Date().toISOString();
+      const row = [localYmd(), o.store, o.no || '', 'price', o.items || '', a, cur, o.trk[0] || '', 'manual', 'manual ' + at].join('	');
+      const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
+      renderShopping();
+      if(body) body.scrollTop = top;
+      const b2 = document.getElementById('shopAdd'); if(!b2) return;
+      b2.dataset.rows = row;
+      b2.innerHTML = `<div>${what}: <b>${money(a, cur)}</b> now counts in Spending.</div>
+        <div class="pay-confirm-row">Row for the Shopping tab:<code>${esc(row).replace(/	/g, ' │ ')}</code></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-p="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-p="close"]').addEventListener('click', () => { b2.hidden = true; });
+      autoSaveSheet(b2, 'Shopping', row);
+    };
+    box.querySelector('[data-p="save"]').addEventListener('click', save);
+    amt.addEventListener('keydown', e => { if(e.key === 'Enter') save(); });
+    box.querySelector('[data-p="cancel"]').addEventListener('click', () => { box.hidden = true; });
   }));
   // The Waiting for pickup / On the way cards show their orders in Deliveries (a second click shows all).
   area.querySelectorAll('.shop-card-link').forEach(b => b.addEventListener('click', () => {
