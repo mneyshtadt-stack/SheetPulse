@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792246623";
+const BUILD_ID = "1792247326";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1994,16 +1994,6 @@ const DIAG_CHECKS = [
       detail:`Set up (${d.model}); ${d.usedToday} of ${d.limit} analyses used today.`};
   }},
 
-  {name: 'flows.sheetpulse.org', always: true, run: async () => {
-    // Same VM and Caddy, separate service (Docker) -- a failure here alone means only flows is down.
-    // /healthz is flows' own health endpoint; its editor page refuses to be fetched from another site.
-    const r = await diagFetch('https://flows.sheetpulse.org/healthz', {mode:'no-cors'});
-    if(r.res) return {status:'ok', ms:r.ms, detail:'flows is answering through Caddy (HTTPS).'};
-    return {status:'fail', ms:r.ms, detail: r.timedOut
-      ? 'No answer — if the server check above is fine, only flows is stuck. PuTTY: docker ps -a; docker logs flows --tail 25'
-      : 'Not reachable — PuTTY: docker ps -a (is flows Up?), then Troubleshooting → flows.'};
-  }},
-
   {name: 'Page version', always: true, run: async () => {
     // A unique query string: GitHub Pages' CDN keeps the plain address for up to 10 minutes after a
     // deploy, so fetching it again just returns this same old copy and every build looked "latest".
@@ -2126,10 +2116,8 @@ const TROUBLESHOOTING = [
     intro: 'The VM has 1 GB of memory. Without swap, running low makes Linux re-read program files from disk over and over ("thrashing") until nothing answers — SSH included — often without any out-of-memory message.',
     cmds: [
       {name: 'Memory, swap and load', note: '"available" under ~150 Mi with Swap 0B is the danger zone.', cmd: `free -h; swapon --show; uptime`},
-      {name: 'Memory per Docker container (flows)', note: 'A BLOCK I/O read figure in the GB within hours is a sign of thrashing.', cmd: `docker stats --no-stream`},
       {name: 'Biggest memory users', cmd: `ps aux --sort=-%mem | head -8`},
       {name: 'Thrashing right now?', note: 'Five 1-second samples. High "si"/"so" (swapping), "bi" (disk reads) or "wa" (waiting on disk) every line = struggling for memory.', cmd: `vmstat 1 5`},
-      {name: 'Memory limits in place', note: 'Expect Swap 2.0Gi, proxy MemoryMax=262144000, flows 471859200 (450 MB). "infinity" / 0 = no limit.', cmd: `swapon --show; systemctl show sheet-proxy -p MemoryCurrent -p MemoryMax; docker inspect flows --format 'flows limit: {{.HostConfig.Memory}}'`},
       {name: 'Which boots the log covers', note: 'Needs sudo to see the system log. Only one line = logs from before a reboot are not kept.', cmd: `sudo journalctl --list-boots | tail -3`},
       {name: 'Why it froze last time', note: 'Out-of-memory kills from before the last reboot (empty is common with thrashing).', cmd: `sudo journalctl -k -b -1 | grep -i -E 'out of memory|oom|killed process' | tail -20`},
       {name: 'Errors from before the last reboot', cmd: `sudo journalctl -b -1 -p err --no-pager | tail -30`},
@@ -2141,7 +2129,6 @@ const TROUBLESHOOTING = [
     cmds: [
       {name: 'Add 2 GB swap', cmd: `[ -f /swapfile ] && echo "Swap already set up" || (sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile && echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab)`},
       {name: 'Cap the proxy at 250 MB', note: 'Restarts the proxy (about 25 s).', cmd: `sudo mkdir -p /etc/systemd/system/sheet-proxy.service.d && printf '[Service]\\nMemoryHigh=150M\\nMemoryMax=250M\\n' | sudo tee /etc/systemd/system/sheet-proxy.service.d/memory.conf && sudo systemctl daemon-reload && sudo systemctl restart sheet-proxy`},
-      {name: 'Cap flows at 450 MB', note: 'Edits ~/docker-compose.yml (backup saved as docker-compose.yml.bak-mem); then run "Apply docker-compose.yml changes" under flows.', cmd: `grep -q mem_limit ~/docker-compose.yml && echo "flows already capped" || (cp ~/docker-compose.yml ~/docker-compose.yml.bak-mem && sed -i -e 's/^\\(\\s*\\)restart: always/&\\n\\1mem_limit: 450m/' -e 's/^\\(\\s*\\)- N8N_PORT=5678/&\\n\\1- NODE_OPTIONS=--max-old-space-size=350/' ~/docker-compose.yml && grep -nE 'mem_limit|NODE_OPTIONS' ~/docker-compose.yml)`},
     ]},
   {title: 'Proxy (sheet-proxy)', where: 'putty',
     intro: 'The Node.js service the dashboard talks to, behind Caddy on 127.0.0.1:3000.',
@@ -2177,24 +2164,12 @@ const TROUBLESHOOTING = [
       {name: 'Recent log', cmd: `journalctl -u caddy -n 30 --no-pager`},
       {name: 'Check the config, then reload it', cmd: `sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile && sudo systemctl reload caddy`},
     ]},
-  {title: 'flows (Docker)', where: 'putty',
-    intro: 'flows is at https://flows.sheetpulse.org — Caddy forwards to it on 127.0.0.1:5678, and the port is closed to the internet. Its data lives in the ~/.n8n folder.',
-    cmds: [
-      {name: 'Containers', note: 'Status "Exited" = stopped; ports should read 127.0.0.1:5678->5678/tcp.', cmd: `docker ps -a --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'`},
-      {name: 'Why did it stop?', note: 'Out-of-memory kill, restart count and exit code; exit 0 after "Received SIGTERM" = it was told to stop, not a crash.', cmd: `docker inspect flows --format 'OOMKilled={{.State.OOMKilled}} Restarts={{.RestartCount}} ExitCode={{.State.ExitCode}} Finished={{.State.FinishedAt}}'; journalctl -u docker --since "-1 day" --no-pager | grep -iE 'stop|kill|restart|shutdown' | tail -10`},
-      {name: 'Test it on the VM itself', note: '200 = flows is up behind Caddy; 000 = not running.', cmd: `curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:5678/`},
-      {name: 'Start it (if Exited)', cmd: `cd ~ && docker compose up -d`},
-      {name: 'Back up flows\'s data', note: 'Readable only by you — the archive holds its\'s encryption key and saved credentials.', cmd: `sudo tar czf ~/flows-backup-$(date +%F).tar.gz -C /home/ubuntu .n8n && sudo chmod 600 ~/flows-backup-*.tar.gz && ls -lh ~/flows-backup-*.tar.gz`},
-      {name: 'Recent log', cmd: `docker logs flows --tail 30`},
-      {name: 'Restart', cmd: `docker restart flows`},
-      {name: 'Apply docker-compose.yml changes', note: 'Recreates the flows container with the edited settings; its data in ~/.n8n is kept.', cmd: `cd ~ && docker compose up -d`},
-    ]},
   {title: 'Ports and firewall', where: 'putty',
     cmds: [
       {name: 'What\'s listening', cmd: `sudo ss -tlnp`},
       {name: 'Firewall rules', note: 'Expect, in this order: RELATED,ESTABLISHED, --dport 22, icmp, -i lo, 443, 80, then REJECT. If there is no --dport 22 line, run "Allow SSH" before anything else.', cmd: `sudo iptables -S INPUT`},
       {name: 'Allow SSH (if missing)', note: 'Adds the port 22 rule right after RELATED,ESTABLISHED (before the REJECT) and saves it. Does nothing if it is already there.', cmd: `sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null && echo "SSH already allowed" || (sudo iptables -I INPUT 2 -p tcp --dport 22 -j ACCEPT && sudo netfilter-persistent save && echo "SSH rule added")`},
-      {name: 'Remove every firewall rule for a port', note: 'Here 5678 (flows). Refuses to run unless SSH (22) is allowed, removes the matching rules by their text (never by number), then saves. Before closing PuTTY, check that a second PuTTY login works.', cmd: `sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || { echo "No SSH rule - run Allow SSH first"; false; } && while r=$(sudo iptables -S INPUT | grep -m1 -- '--dport 5678'); [ -n "$r" ]; do sudo iptables $(echo "$r" | sed 's/^-A/-D/'); echo "removed: $r"; done && sudo netfilter-persistent save`},
+      {name: 'Remove every firewall rule for a port', note: 'Example port: 5678. Refuses to run unless SSH (22) is allowed, removes the matching rules by their text (never by number), then saves. Before closing PuTTY, check that a second PuTTY login works.', cmd: `sudo iptables -C INPUT -p tcp --dport 22 -j ACCEPT 2>/dev/null || { echo "No SSH rule - run Allow SSH first"; false; } && while r=$(sudo iptables -S INPUT | grep -m1 -- '--dport 5678'); [ -n "$r" ]; do sudo iptables $(echo "$r" | sed 's/^-A/-D/'); echo "removed: $r"; done && sudo netfilter-persistent save`},
       {name: 'SSH lockouts (fail2ban)', cmd: `sudo fail2ban-client status sshd`},
     ]},
   {title: 'Security hardening (one-time fixes)', where: 'putty',
