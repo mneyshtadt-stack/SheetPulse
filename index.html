@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792247326";
+const BUILD_ID = "1792336907";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5747,6 +5747,7 @@ const PAYMENTS_SHEET_ID = "1CYWfMLK8oJTz7LA85iaoVoYcDYia5uN3I6TEuz0unaA";
 const PAYMENTS_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Payments');
 const PAY_CAT_COLORS = ['var(--cmp-1)', 'var(--cmp-2)', 'var(--cmp-3)', 'var(--cmp-4)', 'var(--cmp-5)'];
 let paymentsQuery = '', contractsQuery = '';
+let shoppingPerPage = Number(localStorage.getItem('sp_shopPerPage')) || 20, shoppingPage = 1;
 let paymentsList = null, paymentsFilter = '', paymentsRange = 0, paymentsView = 'bills', contractsList = null, contractsType = '', receiptsList = null, receiptsQuery = '', receiptsYear = '', receiptsKind = '', receiptsShowAll = false, receiptsSel = '', receiptsBigAll = false;
 // Bills & Contracts (paymentsView: bills / contracts) and Purchases (shoppingView: orders / receipts /
 // spending) reopen on the tab used last on this device.
@@ -7151,7 +7152,7 @@ const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for d
 const SHOP_STATUS = {ordered: 'Ordered', paid: 'Ordered', shipped: 'On the way', 'in transit': 'On the way', 'out for delivery': 'Out for delivery',
   pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded'};
 const SHOP_FX_USD = {EUR: 1.08, GBP: 1.27};   // approximate, for the few European orders
-let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '', shoppingQuery = '', shoppingStatus = '';
+let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '', shoppingQuery = '', shoppingStatus = '', shoppingYear = String(new Date().getFullYear());
 
 // Delivery statuses set by hand on this device: {"store|order": {status, at}}.
 // Notes on orders set on this device: {"store|order": "text"}.
@@ -7408,13 +7409,22 @@ function renderShopping(){
   // Status filter (All orders): by the label each order shows, a PayPal receipt being "Paid".
   const statusOf = o => o.viaPayPal && o.status === 'paid' ? 'Paid' : (SHOP_STATUS[o.status] || o.status);
   const byStoreAndText = (shoppingStore ? all.filter(o => o.brand === shoppingStore) : all)
-    .filter(o => q.length ? q.every(w => hay(o).includes(w.replace(/,/g, ''))) : (!shoppingRange || monthKey(o.first) >= months[0]));
+    .filter(o => q.length ? q.every(w => hay(o).includes(w.replace(/,/g, ''))) : (shoppingYear ? String(new Date(o.first).getFullYear()) === shoppingYear : (!shoppingRange || monthKey(o.first) >= months[0])));
+  // Years the All orders list can show (newest first); the list shows one year at a time, or all years.
+  const orderYears = [...new Set(all.map(o => String(new Date(o.first).getFullYear())))].sort().reverse();
+  if(shoppingYear && !orderYears.includes(shoppingYear)) shoppingYear = orderYears[0] || '';
+  const yearChips = `<div class="pay-chips" role="group" aria-label="Year">${orderYears.map(y => `<button type="button" class="pay-chip${shoppingYear === y ? ' on' : ''}" data-oyear="${y}" aria-pressed="${shoppingYear === y}">${y}<span class="n">${all.filter(o => String(new Date(o.first).getFullYear()) === y).length}</span></button>`).join('')}<button type="button" class="pay-chip${shoppingYear ? '' : ' on'}" data-oyear="" aria-pressed="${!shoppingYear}">All years</button></div>`;
   const statusCounts = {};
   byStoreAndText.forEach(o => { const st = statusOf(o); statusCounts[st] = (statusCounts[st] || 0) + 1; });
   const STATUS_ORDER = ['Ordered', 'On the way', 'Out for delivery', 'Ready for pickup', 'Delivered', 'Delivery issue', 'Lost', 'Canceled', 'Refunded', 'Paid'];
   const statusList = Object.keys(statusCounts).sort((a, b) => (STATUS_ORDER.indexOf(a) + 1 || 99) - (STATUS_ORDER.indexOf(b) + 1 || 99));
   if(shoppingStatus && !statusCounts[shoppingStatus] && !statusList.includes(shoppingStatus)) statusList.push(shoppingStatus);
   const shown = shoppingStatus ? byStoreAndText.filter(o => statusOf(o) === shoppingStatus) : byStoreAndText;
+  // The page of the All orders list: clamped, so a filter that leaves fewer pages never shows an empty one.
+  const pages = Math.max(1, Math.ceil(shown.length / shoppingPerPage));
+  if(shoppingPage > pages) shoppingPage = pages;
+  if(shoppingPage < 1) shoppingPage = 1;
+  const pageStart = (shoppingPage - 1) * shoppingPerPage;
   const rangeChips = `<div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}" aria-pressed="${shoppingRange === n}">${t}</button>`).join('')}</div>`;
   const spending = shoppingView === 'spending';
   area.innerHTML = `
@@ -7433,22 +7443,22 @@ function renderShopping(){
           <div class="pay-cat-num"><b>${fmt(r.total)}</b></div></div>`).join('') || '<div class="pm-note">No priced orders in this range.</div>'}</section>
     </div>` : ''}
     ${spending ? '' : `<section class="pay-panel">
-      <div class="pay-panel-head"><h3>All orders</h3>
+      <div class="pay-panel-head"><h3>All orders</h3>${yearChips}
         <div class="pay-chips"><select class="shop-status" aria-label="Filter by status"><option value="">All statuses · ${byStoreAndText.length}</option>${statusList.map(st => `<option value="${esc(st)}"${shoppingStatus === st ? ' selected' : ''}>${esc(st)} · ${statusCounts[st] || 0}</option>`).join('')}</select><input type="search" class="shop-search" placeholder="Search items, store, date, order, tracking or amount" aria-label="Search orders" value="${esc(shoppingQuery)}"><button type="button" class="pay-chip shop-add">+ Add an order</button></div>
-        ${q.length ? `<span class="pay-panel-note">${shown.length} found${shown.length > 100 ? ', the latest 100 shown' : ''} · all dates</span>` : ''}
+        ${q.length ? `<span class="pay-panel-note">${shown.length} found · all dates</span>` : ''}
         <div class="pay-chips"><button type="button" class="pay-chip${shoppingStore ? '' : ' on'}" data-store="">All</button>${stores.filter(s => all.filter(o => o.brand === s).length >= 2 || s === shoppingStore).map(s => `<button type="button" class="pay-chip${shoppingStore === s ? ' on' : ''}" data-store="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>
       <div id="shopAdd" class="pay-confirm" hidden></div>
       <div class="pay-grid-wrap"><table class="md-holdings-table pay-list">
         <thead><tr><th>Ordered</th><th>Store</th><th>Items</th><th>Order / tracking</th><th>Status</th><th class="num">Paid</th><th class="num">≈ ₪</th></tr></thead>
-        <tbody>${shown.slice(0, 100).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</td>
+        <tbody>${shown.slice(pageStart, pageStart + shoppingPerPage).map(o => `<tr class="shop-row" data-key="${esc(o.key)}"><td>${day(o.first)}</td><td class="md-th-symbol">${esc(o.store)}</td><td>${o.items || o.viaPayPal || !o.note ? esc(o.items || (o.viaPayPal ? 'via PayPal' : '—')) : ''}${o.note ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</td>
           <td>${o.no && !/^PayPal /.test(o.no) ? esc(o.no) : ''}${o.trk.length ? '<div class="pay-sub">' + o.trk.map(esc).join(', ') + '</div>' : ''}</td>
           <td>${pillBtn(o)}</td><td class="num">${price(o)}${priceBtn(o)}</td><td class="num">${o.ils > 0 ? fmt(o.ils) : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
-      <div class="pay-cards-list">${shown.slice(0, 100).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
+      <div class="pay-cards-list">${shown.slice(pageStart, pageStart + shoppingPerPage).map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
         <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${dayShort(o.first)} ${new Date(o.first).getFullYear()}${o.ils > 0 ? ' · ≈ ' + fmt(o.ils) : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${keepBtn(o)}</div>
         <div class="pay-cat-num"><b>${price(o)}</b>${priceBtn(o)}${pillBtn(o)}</div></div>`).join('')}</div>
       ${q.length && !shown.length ? `<div class="pm-note">No order matches “${esc(shoppingQuery.trim())}”.</div>` : ''}
-      ${shown.length > 100 ? `<div class="pm-note">Showing the latest 100 of ${shown.length}.</div>` : ''}
+      <div class="shop-perpage" style="display:flex; gap:6px; align-items:center; justify-content:flex-end; flex-wrap:wrap; margin-top:10px; font-size:13px;"><span class="pay-sub">Show</span>${[20, 50, 100].map(n => `<button type="button" class="pay-chip${shoppingPerPage === n ? ' on' : ''}" data-perpage="${n}" aria-pressed="${shoppingPerPage === n}">${n}</button>`).join('')}<span class="pay-sub">${shown.length ? pageStart + 1 : 0}–${Math.min(pageStart + shoppingPerPage, shown.length)} of ${shown.length}</span>${pages > 1 ? `<button type="button" class="pay-chip" data-page="prev"${shoppingPage <= 1 ? ' disabled' : ''}>‹ Prev</button><span class="pay-sub">Page ${shoppingPage} of ${pages}</span><button type="button" class="pay-chip" data-page="next"${shoppingPage >= pages ? ' disabled' : ''}>Next ›</button>` : ''}</div>
     </section>`}`;
 
   // Monthly bars.
@@ -7605,6 +7615,17 @@ function renderShopping(){
     box.querySelector('[data-n="cancel"]').addEventListener('click', () => { box.hidden = true; });
     box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
   };
+  // How many orders the All orders list shows (20, 50 or 100), remembered on this device.
+  area.querySelectorAll('[data-perpage]').forEach(b => b.addEventListener('click', () => {
+    shoppingPerPage = Number(b.dataset.perpage); shoppingPage = 1;
+    try{ localStorage.setItem('sp_shopPerPage', String(shoppingPerPage)); } catch(_){}
+    renderShopping();
+  }));
+  area.querySelectorAll('[data-oyear]').forEach(b => b.addEventListener('click', () => { shoppingYear = b.dataset.oyear; shoppingPage = 1; renderShopping(); }));
+  area.querySelectorAll('[data-page]').forEach(b => b.addEventListener('click', () => {
+    shoppingPage += b.dataset.page === 'next' ? 1 : -1;
+    renderShopping();
+  }));
   area.querySelectorAll('.shop-note-btn:not(.shop-price-btn)').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation();
     const o = all.find(x => x.key === b.dataset.key); if(o) openNote(o);
