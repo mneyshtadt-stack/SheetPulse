@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792434547";
+const BUILD_ID = "1792434705";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9284,6 +9284,9 @@ async function renderHomeDay(rows, totals){
   log = removeIntradaySpikes(log, 0, prevClose);
   if(!log.length){ el.innerHTML = `<div class="chart-msg">No readings yet today.</div>`; nowEl.innerHTML = ''; return; }
 
+  // Today's session while a market is open: end the line at the live total the headline uses, so the chart and
+  // the headline show the same day change (the logger's last point can be a few minutes older, with its own rates).
+  if(!label && open && log.length) log = log.concat([{t: Date.now(), v: totals.totalValue}]);
   const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
   const cls = chg >= 0 ? 'up' : 'down', fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
   const hm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
