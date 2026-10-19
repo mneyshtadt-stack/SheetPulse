@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792396229";
+const BUILD_ID = "1792396397";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4512,7 +4512,7 @@ function portfolioRows(){
 function brokerTotals(rows){
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
   const totalCost = rows.reduce((a, r) => a + (r.cost || 0), 0);
-  const dayGain = rows.reduce((a, r) => isNaN(r.change) ? a : a + (r.value - r.value / (1 + r.change / 100)), 0);
+  const dayGain = rows.reduce((a, r) => ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0) ? (isNaN(r.change) ? a : a + (r.value - r.value / (1 + r.change / 100))) : a + usaDayIls(r), 0);
   const totalGain = totalValue - totalCost;
   return {totalValue, totalCost, totalGain, totalGainPct: totalCost ? totalGain / totalCost * 100 : 0,
     dayGain, dayGainPct: (totalValue - dayGain) ? dayGain / (totalValue - dayGain) * 100 : 0};
@@ -9414,6 +9414,13 @@ let phoneHeroShown = false;
 // price = the dollar move of today's prices at today's rate; dollar = the dollar value today at the change
 // in USD/ILS since the last recorded close. Together they are the USA part of the day change. Null when there
 // is no USA session today, or no dollar values or rates to split with.
+// One USA holding's day change in shekels. During a US session: its price change (the provider's change %) at today's
+// rate. Before the session opens that change is last Friday's US move, so only the dollar's move since the last close
+// counts (its dollar value x the change in USD/ILS). 18 Oct 2026: the USA bar showed -₪526 with the dollar up 0.4%.
+function usaDayIls(r){
+  if(usSessionStartedToday() && !isNaN(r.change)) return r.value - r.value / (1 + r.change / 100);
+  return window.lastCloseFxRate > 0 && window.lastFxRate > 0 && isFinite(r.valueUsd) ? r.valueUsd * (window.lastFxRate - window.lastCloseFxRate) : 0;
+}
 function usdSplitGains(rows){
   const usRows = rows.filter(r => !ISRAELI_TICKERS.includes(r.name) && isFinite(r.valueUsd) && isFinite(r.change));
   const todayRate = window.lastFxRate, prevRate = window.lastCloseFxRate;
