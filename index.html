@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792434231";
+const BUILD_ID = "1792434547";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7910,12 +7910,14 @@ async function syncGaugeToIntraday(split, totals){
   const usPoint = pickLatestGaugePoint(usRaw, getUsDayRangeMs(), getUsDayRangeForDate);
 
   if(taseOpen && ilPoint){
-    applyLive(document.getElementById('gaugeIlVal'), document.getElementById('gaugeIlSub'), ilPoint.v, split.il.value - split.il.gain);
+    // The live rows (the same values the headline uses), not the intraday log's latest point, so the strip and the
+    // headline always show the same day change.
+    applyLive(document.getElementById('gaugeIlVal'), document.getElementById('gaugeIlSub'), split.il.value, split.il.value - split.il.gain);
   } else if(ilPoint){
     appendAsOfToCurrentValue(document.getElementById('gaugeIlSub'), split.il.value, ilPoint.t);
   }
   if(usOpen && usPoint){
-    applyLive(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), usPoint.v, split.us.value - split.us.gain);
+    applyLive(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), split.us.value, split.us.value - split.us.gain);
   } else if(usPoint){
     appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t);
   }
@@ -7923,9 +7925,7 @@ async function syncGaugeToIntraday(split, totals){
   if(taseOpen || usOpen){
     // At least one side is live — refresh the combined figure the same snappy way, using
     // intraday data for whichever side is open and the Tracker's own value for the other.
-    const ilForCombined = (taseOpen && ilPoint) ? ilPoint.v : split.il.value;
-    const usForCombined = (usOpen && usPoint) ? usPoint.v : split.us.value;
-    applyLive(document.getElementById('gaugePortfolioVal'), document.getElementById('gaugePortfolioSub'), ilForCombined + usForCombined, totals.totalValue - totals.dayGain);
+    applyLive(document.getElementById('gaugePortfolioVal'), document.getElementById('gaugePortfolioSub'), split.il.value + split.us.value, totals.totalValue - totals.dayGain);
   } else if(ilPoint || usPoint){
     // Both closed — the value already exactly equals totals.totalValue, so just show when the
     // more recent of the two markets' last real ticks was.
