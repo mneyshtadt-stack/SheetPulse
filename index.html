@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792396397";
+const BUILD_ID = "1792396870";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7928,6 +7928,11 @@ async function syncGaugeToIntraday(split, totals){
 // Google-Finance-scraped formula), so this always matches Q2 exactly rather than disagreeing
 // with it by pulling a day-change number from a different provider.
 function getFxDayChange(rate){
+  // Against the rate the portfolio uses: Friday's recorded close (23:00), the same reference as the USA line.
+  if(typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate > 0){
+    const change = rate - window.lastCloseFxRate;
+    return {change, changePct: change / window.lastCloseFxRate * 100};
+  }
   if(typeof window.lastFxChange === 'number' && typeof window.lastFxChangePct === 'number'){
     return {change: window.lastFxChange, changePct: window.lastFxChangePct};
   }
@@ -7949,7 +7954,7 @@ function formatFxLine(rate){
   const {change, changePct} = getFxDayChange(rate);
   const cls = change >= 0 ? 'up' : 'down';
   const arrow = change >= 0 ? '▲' : '▼';
-  const asOf = window.lastFxAsOf || 'Today';
+  const asOf = (window.lastFxAsOf || 'Today') + (typeof window.lastCloseFxRate === 'number' ? ` · vs close ${window.lastCloseFxRate.toFixed(4)} (Oct 16, 23:00)` : '');
   // The latest Bank of Israel representative rate (BOIRate tab) after the live one.
   const boi = boiRateLatest();
   return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`
