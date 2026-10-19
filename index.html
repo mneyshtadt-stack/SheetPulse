@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792396928";
+const BUILD_ID = "1792396960";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7954,12 +7954,12 @@ function formatFxLine(rate){
   const {change, changePct} = getFxDayChange(rate);
   const cls = change >= 0 ? 'up' : 'down';
   const arrow = change >= 0 ? '▲' : '▼';
-  const asOf = (window.lastFxAsOf || 'Today') + (typeof window.lastCloseFxRate === 'number' ? ` · vs close ${window.lastCloseFxRate.toFixed(4)} (Oct 16, 23:00)` : '');
+  const asOf = (window.lastFxAsOf || 'Today') + (typeof window.lastCloseFxRate === 'number' ? ` · change since Fri 23:00 (${window.lastCloseFxRate.toFixed(4)})` : '');
   // The latest Bank of Israel representative rate (BOIRate tab) after the live one.
   const boi = boiRateLatest();
   const why = typeof window.lastCloseFxRate === 'number' ? `Change since the last recorded close (Friday, Oct 16 at 23:00: ${window.lastCloseFxRate.toFixed(4)}). The portfolio and the USA line use the same reference. Google Finance compares with its own previous close, so its figure can show the opposite sign.` : 'Change since the start of today (no recorded close yet).';
   return `<span class="gval ${cls}" title="${why.replace(/"/g, '&quot;')}" style="cursor:help;">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`
-    + (boi ? ` <span class="gval-sub" title="Bank of Israel representative rate">· Bank of Israel <b style="color:var(--ink);">${boi.rate.toFixed(4)}</b>${boiChangeHtml()} (${boiDay(boi.date)})</span>` : '');
+    + (boi ? ` <span class="gval-sub" title="Bank of Israel official daily rate, for reference only">· Bank of Israel fixing <b style="color:var(--ink);">${boi.rate.toFixed(4)}</b> (${boiDay(boi.date)})</span>` : '');
 }
 
 // Intraday value tracking — logged server-side by a single Google Apps Script time-driven trigger
