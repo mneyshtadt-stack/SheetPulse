@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792434705";
+const BUILD_ID = "1792437063";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4262,7 +4262,7 @@ function renderMarketDetailTable(){
 // current search/sort state in the table below.
 function renderMarketDetailHeader(marketKey){
   const rows = window.lastRows || [];
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
   const seg = marketKey === 'il' ? split.il : split.us;
   const title = marketKey === 'il' ? 'Israeli (TASE) holdings' : 'USA holdings';
 
@@ -4645,7 +4645,7 @@ function renderPortfolioHeader(){
   const pdWay = broker && PURCHASE_DATE_RATE_BROKERS.includes(broker) ? meitavWayDay(rows) : null;
   const totals = broker ? (() => { const t = brokerTotals(rows), d = usdDay ? usdDay.dayGain : brokerDayGains(allRows)[broker];
     return typeof d === 'number' && !isNaN(d) ? {...t, dayGain: d, dayGainPct: (t.totalValue - d) ? d / (t.totalValue - d) * 100 : 0} : t; })() : window.lastTotals;
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
   document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : 'All holdings';
@@ -4740,7 +4740,7 @@ function renderPortfolioHeader(){
     // broker's line is its share of each market (its value there ÷ the whole market's value now) applied
     // to them -- the same sharing its day change uses. The tiles keep the broker's own figures
     // (noSync), so the chart doesn't overwrite Meitav's / Psagot's way of counting the day.
-    const allSplit = splitByMarket(allRows);
+    const allSplit = snapSplit(allRows);
     const shIl = allSplit.il.value ? split.il.value / allSplit.il.value : 0;
     const shUs = allSplit.us.value ? split.us.value / allSplit.us.value : 0;
     const brokerRaw = async () => {
@@ -7827,7 +7827,7 @@ function renderGauge(rows, totals){
   const value = totals.dayGainPct;
   const gaugeCls = value >= 0 ? 'up' : 'down';
 
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
 
   const taseOpen = getTaseStatus();
@@ -8401,6 +8401,9 @@ function updateHeadlineDisplay(v, prevClose){
   }
 }
 function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
+  // Disabled (19 Oct 2026): the window's figures come from the same per-refresh snapshot as the headline and strip;
+  // a log point here made each window disagree with them. Hovering the chart still shows the hovered point.
+  return;
   updateHeadlineDisplay(latest, prevClose);
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const diff = latest - prevClose;
@@ -9247,7 +9250,7 @@ async function renderHomeDay(rows, totals){
   const el = document.getElementById('homeDay'), nowEl = document.getElementById('homeDayNow');
   if(!el) return;
   document.getElementById('homeDayPanel').onclick = () => openPortfolioDetail();
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
   let raw;
   try{
     if(!homeDayCache.raw || Date.now() - homeDayCache.t > 2*60000){
@@ -9321,7 +9324,7 @@ function renderHomeAlloc(rows){
     + parts.map(p => `<div class="al-row"><span class="dot" style="background:${p.color}"></span><span>${p.name}</span>`
       + `<span class="al-v"><b>${(p.value / total * 100).toFixed(1)}%</b> ${fmt(p.value)} <span class="${p.pct >= 0 ? 'up' : 'down'}">${p.pct >= 0 ? '+' : ''}${p.pct.toFixed(2)}%</span></span></div>`).join('')
     + `</div>`;
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
   let html = block('By market', [
     {name: 'Israel (TASE)', value: split.il.value, pct: split.il.pct, color: IL_SPLIT_PALETTE[0]},
     {name: 'USA', value: split.us.value, pct: split.us.pct, color: IL_SPLIT_PALETTE[1]}]);
@@ -9394,7 +9397,7 @@ function usdBrokerDayGain(rows){
 function brokerDayGains(rows){
   const names = brokerNames(rows), out = {}, isIL = r => ISRAELI_TICKERS.includes(r.name);
   names.forEach(b => out[b] = 0);
-  const split = splitByMarket(rows);
+  const split = snapSplit(rows);
   const mv = r => isNaN(r.change) ? 0 : r.value - r.value / (1 + r.change / 100);
   const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
   [[rows.filter(isIL), split.il.gain, getTaseStatus()], [rows.filter(r => !isIL(r)), split.us.gain, usOpen]].forEach(([mRows, gain, open]) => {
@@ -9466,9 +9469,15 @@ function renderPhoneHero(rows, totals){
   setTimeout(() => { if(num.isConnected) num.textContent = fin; }, dur + 150);   // background tabs pause animation frames
 }
 
+// One snapshot of the day figures per refresh: the headline, the market strip, the Portfolio, USA and TASE windows and
+// the home chart all read it, so they cannot drift apart between refreshes (they used to recompute from live state).
+function snapSplit(rows){
+  return window.snap && window.snap.rows === rows ? window.snap.split : splitByMarket(rows);
+}
 function render(rows, totals){
   window.lastRows = rows;
   window.lastTotals = totals;
+  window.snap = {rows, split: splitByMarket(rows)};
   renderGauge(rows, totals);
   const fmt = n => "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
   const cardsEl = document.getElementById('cards');
