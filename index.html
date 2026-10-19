@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792336907";
+const BUILD_ID = "1792394214";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2879,7 +2879,7 @@ async function applyTotalFallback(totals){
   const totalGain = value - totalCost;
   const loggedPrevClose = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseUS === 'number')
     ? window.lastCloseIL + window.lastCloseUS : null;
-  const dayGain = loggedPrevClose !== null ? value - loggedPrevClose : totals.dayGain;
+  const dayGain = preOpenToday() ? 0 : loggedPrevClose !== null ? value - loggedPrevClose : totals.dayGain;
   const dayBase = loggedPrevClose !== null ? loggedPrevClose : value - dayGain;
   return {...totals, totalValue: value, totalCost, totalGain, totalGainPct: totalCost ? totalGain/totalCost*100 : 0,
     dayGain, dayGainPct: dayBase ? dayGain/dayBase*100 : 0, fallback};
@@ -2963,6 +2963,14 @@ function applyFxCell(rateCellRaw, changeCellRaw){
 // across a weekend, before a provider's change% has rolled over to the new session), and its
 // implied "previous close" has no real connection to the calendar-math label shown next to it.
 // The summed method remains as a fallback for whenever no recorded close is available yet.
+// Before the day's session opens (weekday, Israel time before 10:00, TASE not trading yet): nothing has traded
+// today, so "today so far" is zero. Comparing live sheet values with the last close only moves the number
+// by exchange-rate and sheet-timing differences (18 Oct 2026: -₪1,534 with both markets still closed).
+function preOpenToday(){
+  const il = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Jerusalem'}));
+  const wd = il.getDay(), mins = il.getHours() * 60 + il.getMinutes();
+  return wd >= 1 && wd <= 5 && mins < 10 * 60 && !getTaseStatus();
+}
 function computeTotals(rows){
   // rows: {value, change, cost}
   const totalValue = rows.reduce((a,r)=>a+r.value,0);
@@ -2973,7 +2981,9 @@ function computeTotals(rows){
   const loggedPrevClose = (typeof window.lastCloseIL === 'number' && typeof window.lastCloseUS === 'number')
     ? window.lastCloseIL + window.lastCloseUS : null;
   let dayGain, dayGainPct;
-  if(loggedPrevClose !== null){
+  if(preOpenToday()){
+    dayGain = 0; dayGainPct = 0;
+  } else if(loggedPrevClose !== null){
     dayGain = totalValue - loggedPrevClose;
     dayGainPct = loggedPrevClose ? dayGain/loggedPrevClose*100 : 0;
   } else {
