@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792439460";
+const BUILD_ID = "1792444176";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3016,6 +3016,29 @@ function computeTotals(rows){
 const TICKER_NAME_MAP = {"AIQ":"Global X Artificial Intelligence & Technology ETF","ASGI":"Abrdn Global Infrastructure Income Fund","BAM":"BROOKFIELD ASSET MANAGEMENT LTD","BLK":"BlackRock Inc","BN":"Brookfield Corp","BOTZ":"Global X Robotics and Artificial Intelligence ETF","BRK.B":"Berkshire Hathaway Inc Class B","CEG":"Constellation Energy Corp","CGGO":"Capital Group Global Growth Equity ETF","COIN":"Coinbase Global Inc","COWZ":"Pacer US Cash Cows 100 ETF","CRNT":"Ceragon Networks Ltd","DBC":"Invesco DB Commodity Index Tracking Fund","DBMF":"iMGP DBi Managed Futures Strategy ETF","DYNF":"Ishares US Equity Factor Rotation Active ETF","ENB":"Enbridge Inc.","FIGB":"Fidelity Investment Grade Bond ETF","FRFHF":"Fairfax Financial Holdings Ltd","GDX":"VanEck Gold Miners ETF","GLD":"SPDR Gold Trust","GS":"The Goldman Sachs Group, Inc.","IBI.F35":"IBI SAL (4A) Index Israel Banks IL ETF","IBI.FK4":"IBI SAL (4A) Kosher TA-125 IL ETF","IVV":"iShares Core S&P 500 ETF","IXJ":"iShares Global Healthcare ETF","JEPI":"JPMorgan Equity Premium Income ETF","JPM":"JPMorgan Chase & Co","L":"Loews Corp","MCO":"Moody's Corp","MKL":"Markel Group Inc","MS":"Morgan Stanley","MSCI":"Msci Inc","O":"Realty Income Corp","OWL":"Blue Owl Capital Inc","PFF":"iShares Preferred and Income Securities ETF","POWR":"iShares US Power Infrastructure ETF","QNDX":"State Street SPDR Portfolio Nasdaq 100 ETF","QQQ":"Invesco QQQ Trust, Series 1","QTUM":"Defiance Quantum ETF","RTH":"VanEck Retail ETF","SCHD":"Schwab US Dividend Equity ETF","SCHY":"Schwab International Dividend Equity ETF","SIVR":"abrdn Physical Silver Shares ETF","SMH":"VanEck Semiconductor ETF","SPGI":"S&P Global Inc","SPY":"State Street SPDR S&P 500 ETF Trust","TCAF":"T Rowe Price Capital Appreciation Equity ETF","URA":"Global X Uranium ETF","VB":"Vanguard Morningstar Small-Cap Index Fund ETF","VCSH":"Vanguard Short-Term Corporate Bond Idx Fd ETF","VFVA":"Vanguard US Value Factor ETF","VGHY":"Vanguard High Yield Active ETF","VNQ":"Vanguard Real Estate Index Fund ETF","VO":"Vanguard Morningstar Mid-Cap Index Fund ETF","VOO":"Vanguard S&P 500 ETF","VTV":"Vanguard Morningstar Value Index Fund ETF","VWO":"Vanguard Emerging Markets Stock Index Fund ETF","VXUS":"Vanguard Total International Stock Index Fund ETF","VYMI":"Vanguard Internatl High Div Yield Index Fund ETF","WPC":"W.p. Carey Inc","XAR":"State Street SPDR S&P Aerospace & Defense ETF","XLE":"State Street Energy Select Sector SPDR ETF","XLP":"State Street Consumer Staples Sel Sect SPDR ETF","XLU":"State Street Utilities Select Sector SPDR ETF","XLV":"State Street Health Care Select Sector SPDR ETF"};
 const ISRAELI_TICKERS = ['IBI.F35','IBI.FK4'];
 
+// Before a market opens for the day (and at weekends), its day change is the last completed session, the same as
+// the brokers show it: previous close to latest close. {end, start} from the recorded closes, or null.
+function lastSessionFor(market){
+  const now = new Date();
+  const il = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem'}));
+  const ny = new Date(now.toLocaleString('en-US', {timeZone: 'America/New_York'}));
+  const d = market === 'il' ? il : ny;
+  const wd = d.getDay(), mins = d.getHours()*60 + d.getMinutes();
+  const [openM, closeM] = market === 'il' ? [10*60, 17*60+30] : [9*60+30, 16*60];
+  const weekday = wd >= 1 && wd <= 5;
+  // Before today's open (or on a weekend): the last completed session is before today.
+  // After today's close: today's session is the last completed one. In between, the market is open: no override.
+  let mode = null;
+  if(!weekday || mins < openM) mode = 'before';
+  else if(mins >= closeM) mode = 'after';
+  if(!mode) return null;
+  const todayKey = `${il.getFullYear()}-${String(il.getMonth()+1).padStart(2,'0')}-${String(il.getDate()).padStart(2,'0')}`;
+  const closes = window.lastCloseByDate || {};
+  const field = market === 'il' ? 'il' : 'us';
+  const ks = Object.keys(closes).filter(k => (mode === 'before' ? k < todayKey : k <= todayKey) && typeof closes[k][field] === 'number').sort().reverse();
+  if(ks.length < 2) return null;
+  return {end: closes[ks[0]][field], start: closes[ks[1]][field], endKey: ks[0]};
+}
 function splitByMarket(rows){
   const isIL = r => ISRAELI_TICKERS.includes(r.name);
   const ilAll = rows.filter(isIL);
@@ -3024,10 +3047,13 @@ function splitByMarket(rows){
   const us = usAll.filter(r=>!isNaN(r.change));
   // Same logged-close-first approach as computeTotals (see its comment) — a segment's gain/pct
   // prefer that market's own real recorded close over summing its holdings' live day-change%.
-  const calc = (arr, allArr, loggedPrevClose) => {
+  const calc = (arr, allArr, loggedPrevClose, ls) => {
     const allValue = allArr.reduce((a,r)=>a+r.value,0);
     let gain, pct;
-    if(typeof loggedPrevClose === 'number'){
+    if(ls){
+      gain = ls.end - ls.start;
+      pct = ls.start ? gain/ls.start*100 : 0;
+    } else if(typeof loggedPrevClose === 'number'){
       gain = allValue - loggedPrevClose;
       pct = loggedPrevClose ? gain/loggedPrevClose*100 : 0;
     } else {
@@ -3043,11 +3069,11 @@ function splitByMarket(rows){
     // total through a single blended rate.
     const usdRows = allArr.filter(r=>!isNaN(r.valueUsd));
     const usdValue = usdRows.length ? usdRows.reduce((a,r)=>a+r.valueUsd,0) : NaN;
-    return {value: allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr, usdValue};
+    return {value: ls ? ls.end : allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr, usdValue, lastSession: !!ls};
   };
   return {
-    il: calc(il, ilAll, window.lastCloseIL),
-    us: calc(us, usAll, window.lastCloseUS)
+    il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il')),
+    us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'))
   };
 }
 
