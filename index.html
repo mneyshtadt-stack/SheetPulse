@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792438469";
+const BUILD_ID = "1792438523";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8658,9 +8658,13 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // its headline and "Close" label match them. The logged close (e.g. TASE 17:30) can differ from the live sheet value.
   // TASE closed for the day: its closing value is the first logged reading at or after 18:00 Israel time, which is
   // after the sheet's closing prices have settled and stays fixed through the evening (rule set 19 Oct 2026).
-  if(!sessionLabel && window.liveMarket === 'il' && !getTaseStatus() && log.length){
-    const cut = dayRange.close + 30 * 60000;   // TASE closes 17:30; 18:00 is 30 minutes later
-    const settled = log.find(p => p.t >= cut);
+  // Each market's closing value is the first logged reading 30 minutes after its own close (TASE 17:30 -> 18:00,
+  // USA 16:00 New York -> 16:30 New York), once its prices have settled; while it is open, the current value.
+  if(!sessionLabel && log.length && (window.liveMarket === 'il' || window.liveMarket === 'us')){
+    const isIl = window.liveMarket === 'il';
+    const closed = isIl ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+    const closeMs = (isIl ? getTaseDayRangeMs() : getUsDayRangeMs()).close;
+    const settled = closed ? log.find(p => p.t >= closeMs + 30 * 60000) : null;
     if(settled) window.liveNow = settled.v;
   }
   if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close)
