@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792444176";
+const BUILD_ID = "1792468313";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2888,8 +2888,9 @@ async function applyTotalFallback(totals){
   // shows), so the headline always agrees with the strip. The total value above still uses the fallback.
   const seg = splitByMarket(window.lastRows || []);
   const segOk = [seg.il.gain, seg.us.gain].every(g => typeof g === 'number' && !isNaN(g));
-  const dayGain = preOpenToday() ? 0 : segOk ? seg.il.gain + seg.us.gain : loggedPrevClose !== null ? value - loggedPrevClose : totals.dayGain;
-  const dayBase = segOk ? (seg.il.value - seg.il.gain) + (seg.us.value - seg.us.gain) : loggedPrevClose !== null ? loggedPrevClose : value - dayGain;
+  const bd = brokerSessionDay(window.lastRows || []);
+  const dayGain = bd !== null ? bd : segOk ? seg.il.gain + seg.us.gain : loggedPrevClose !== null ? value - loggedPrevClose : totals.dayGain;
+  const dayBase = bd !== null ? value - bd : segOk ? (seg.il.value - seg.il.gain) + (seg.us.value - seg.us.gain) : loggedPrevClose !== null ? loggedPrevClose : value - dayGain;
   return {...totals, totalValue: value, totalCost, totalGain, totalGainPct: totalCost ? totalGain/totalCost*100 : 0,
     dayGain, dayGainPct: dayBase ? dayGain/dayBase*100 : 0, fallback};
 }
@@ -2993,8 +2994,9 @@ function computeTotals(rows){
   // The market strip's Portfolio figure is Israel's gain + USA's gain (splitByMarket); the headline uses the same.
   const seg = splitByMarket(rows);
   const segOk = [seg.il.gain, seg.us.gain].every(g => typeof g === 'number' && !isNaN(g));
-  if(preOpenToday()){
-    dayGain = 0; dayGainPct = 0;
+  const bd = brokerSessionDay(rows);
+  if(bd !== null){
+    dayGain = bd; dayGainPct = (totalValue - bd) ? bd/(totalValue - bd)*100 : 0;
   } else if(segOk){
     dayGain = seg.il.gain + seg.us.gain;
     const base = (seg.il.value - seg.il.gain) + (seg.us.value - seg.us.gain);
@@ -3016,6 +3018,21 @@ function computeTotals(rows){
 const TICKER_NAME_MAP = {"AIQ":"Global X Artificial Intelligence & Technology ETF","ASGI":"Abrdn Global Infrastructure Income Fund","BAM":"BROOKFIELD ASSET MANAGEMENT LTD","BLK":"BlackRock Inc","BN":"Brookfield Corp","BOTZ":"Global X Robotics and Artificial Intelligence ETF","BRK.B":"Berkshire Hathaway Inc Class B","CEG":"Constellation Energy Corp","CGGO":"Capital Group Global Growth Equity ETF","COIN":"Coinbase Global Inc","COWZ":"Pacer US Cash Cows 100 ETF","CRNT":"Ceragon Networks Ltd","DBC":"Invesco DB Commodity Index Tracking Fund","DBMF":"iMGP DBi Managed Futures Strategy ETF","DYNF":"Ishares US Equity Factor Rotation Active ETF","ENB":"Enbridge Inc.","FIGB":"Fidelity Investment Grade Bond ETF","FRFHF":"Fairfax Financial Holdings Ltd","GDX":"VanEck Gold Miners ETF","GLD":"SPDR Gold Trust","GS":"The Goldman Sachs Group, Inc.","IBI.F35":"IBI SAL (4A) Index Israel Banks IL ETF","IBI.FK4":"IBI SAL (4A) Kosher TA-125 IL ETF","IVV":"iShares Core S&P 500 ETF","IXJ":"iShares Global Healthcare ETF","JEPI":"JPMorgan Equity Premium Income ETF","JPM":"JPMorgan Chase & Co","L":"Loews Corp","MCO":"Moody's Corp","MKL":"Markel Group Inc","MS":"Morgan Stanley","MSCI":"Msci Inc","O":"Realty Income Corp","OWL":"Blue Owl Capital Inc","PFF":"iShares Preferred and Income Securities ETF","POWR":"iShares US Power Infrastructure ETF","QNDX":"State Street SPDR Portfolio Nasdaq 100 ETF","QQQ":"Invesco QQQ Trust, Series 1","QTUM":"Defiance Quantum ETF","RTH":"VanEck Retail ETF","SCHD":"Schwab US Dividend Equity ETF","SCHY":"Schwab International Dividend Equity ETF","SIVR":"abrdn Physical Silver Shares ETF","SMH":"VanEck Semiconductor ETF","SPGI":"S&P Global Inc","SPY":"State Street SPDR S&P 500 ETF Trust","TCAF":"T Rowe Price Capital Appreciation Equity ETF","URA":"Global X Uranium ETF","VB":"Vanguard Morningstar Small-Cap Index Fund ETF","VCSH":"Vanguard Short-Term Corporate Bond Idx Fd ETF","VFVA":"Vanguard US Value Factor ETF","VGHY":"Vanguard High Yield Active ETF","VNQ":"Vanguard Real Estate Index Fund ETF","VO":"Vanguard Morningstar Mid-Cap Index Fund ETF","VOO":"Vanguard S&P 500 ETF","VTV":"Vanguard Morningstar Value Index Fund ETF","VWO":"Vanguard Emerging Markets Stock Index Fund ETF","VXUS":"Vanguard Total International Stock Index Fund ETF","VYMI":"Vanguard Internatl High Div Yield Index Fund ETF","WPC":"W.p. Carey Inc","XAR":"State Street SPDR S&P Aerospace & Defense ETF","XLE":"State Street Energy Select Sector SPDR ETF","XLP":"State Street Consumer Staples Sel Sect SPDR ETF","XLU":"State Street Utilities Select Sector SPDR ETF","XLV":"State Street Health Care Select Sector SPDR ETF"};
 const ISRAELI_TICKERS = ['IBI.F35','IBI.FK4'];
 
+// The brokers' own day figure for the last completed session, when both markets are outside their sessions:
+// Meitav's way (its value at the Bank of Israel rate, meitavWayDay) plus Psagot's way (its dollar value today at the
+// live rate minus its dollar value at the previous close at the Bank of Israel rate). Null when not applicable.
+function brokerSessionDay(rows){
+  if(!(lastSessionFor('il') && lastSessionFor('us'))) return null;
+  const mz = rowsForBroker(rows, 'Meitav'), pz = rowsForBroker(rows, 'Psagot');
+  if(!mz.length || !pz.length) return null;
+  const mv = meitavWayDay(mz);
+  if(!mv || !isFinite(mv.day)) return null;
+  const usdNow = pz.reduce((a, r) => a + (isFinite(r.valueUsd) ? r.valueUsd : 0), 0);
+  const usdPrev = pz.reduce((a, r) => a + (isFinite(r.valueUsd) ? (isFinite(r.change) ? r.valueUsd / (1 + r.change/100) : r.valueUsd) : 0), 0);
+  const fx = window.lastFxRate, boi = meitavBoiRate() ? meitavBoiRate().rate : null;
+  if(!(fx > 0) || !(boi > 0)) return null;
+  return mv.day + (usdNow * fx - usdPrev * boi);
+}
 // Before a market opens for the day (and at weekends), its day change is the last completed session, the same as
 // the brokers show it: previous close to latest close. {end, start} from the recorded closes, or null.
 function lastSessionFor(market){
@@ -8685,13 +8702,13 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // TASE closed for the day: its closing value is the first logged reading at or after 18:00 Israel time, which is
   // after the sheet's closing prices have settled and stays fixed through the evening (rule set 19 Oct 2026).
   // Each market's closing value is the first logged reading 60 minutes after its own close for TASE (17:30 -> 18:30,
-  // the last change after the close in the last 7 days was 18:09), and 30 minutes for the USA (16:00 New York ->
-  // 16:30 New York); while it is open, the current value.
+  // the last change after the close in the last 7 days was 18:09), and 55 minutes for the USA (16:00 New York ->
+  // 16:55 New York, the USA $ value last changed by 23:54 Israel time in the last 6 days); while it is open, the current value.
   if(!sessionLabel && log.length && (window.liveMarket === 'il' || window.liveMarket === 'us')){
     const isIl = window.liveMarket === 'il';
     const closed = isIl ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
     const closeMs = (isIl ? getTaseDayRangeMs() : getUsDayRangeMs()).close;
-    const settleMin = isIl ? 60 : 30;   // TASE settles by 18:09 at the latest (last 7 days); see the note in SheetPulse.md
+    const settleMin = isIl ? 60 : 55;   // TASE settles by 18:09, USA by 23:54 Israel time (last 6-7 days); see the note in SheetPulse.md
     // Searched in the unfiltered readings: the day's log above stops at the close, the settled reading comes after it.
     const settled = closed ? raw.find(p => p.t >= closeMs + settleMin * 60000 && p.t <= Date.now()) : null;
     window.settledAt = settled ? settled.t : null;   // the time of the closing reading, shown on the chart's close label
