@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792614040";
+const BUILD_ID = "1792614081";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2990,7 +2990,11 @@ function preOpenToday(){
 }
 function computeTotals(rows){
   // rows: {value, change, cost}
-  const totalValue = rows.reduce((a,r)=>a+r.value,0);
+  // The whole portfolio's current values come from the latest IntradayLog row (B = Israel, D = USA ₪), so the
+  // dashboard reads one source (22 Oct 2026). Broker views (fewer rows) keep their holdings.
+  const logLast = window.lastLogRow;
+  const useLog = !!logLast && typeof logLast.il === 'number' && typeof logLast.us === 'number' && rows.length === (window.lastRows || []).length;
+  const totalValue = useLog ? logLast.il + logLast.us : rows.reduce((a,r)=>a+r.value,0);
   const totalCost = rows.reduce((a,r)=>a+(r.cost||0),0);
   const totalGain = totalValue-totalCost;
   const totalGainPct = totalCost ? totalGain/totalCost*100 : 0;
@@ -3006,8 +3010,8 @@ function computeTotals(rows){
   // dollars × the closing rate (23:55). The previous close is then exactly those two, and the day change is today's minus them.
   const ilClose = window.ilCloseIls, usClose = typeof window.usCloseUsd === 'number' && typeof window.usCloseFx === 'number' ? window.usCloseUsd * window.usCloseFx : NaN;
   if(typeof ilClose === 'number' && isFinite(usClose) && segOk){
-    const ilNow = rows.filter(r => ISRAELI_TICKERS.includes(r.name)).reduce((a, r) => a + r.value, 0);
-    const usNow = totalValue - ilNow;
+    const ilNow = useLog ? logLast.il : rows.filter(r => ISRAELI_TICKERS.includes(r.name)).reduce((a, r) => a + r.value, 0);
+    const usNow = useLog ? logLast.us : totalValue - ilNow;
     dayGain = (ilNow - ilClose) + (usNow - usClose);
     dayGainPct = (ilClose + usClose) ? dayGain / (ilClose + usClose) * 100 : 0;
   } else if(bd !== null){
