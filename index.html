@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792578190";
+const BUILD_ID = "1792578289";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8718,7 +8718,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // Each market's closing value is the first logged reading 60 minutes after its own close for TASE (17:30 -> 18:30,
   // the last change after the close in the last 7 days was 18:09), and 55 minutes for the USA (16:00 New York ->
   // 16:55 New York, the USA $ value last changed by 23:54 Israel time in the last 6 days); while it is open, the current value.
-  if(!sessionLabel && log.length && (window.liveMarket === 'il' || window.liveMarket === 'us')){
+  // Also before today's session starts (today's log empty), so the previous session's closing reading is found (22 Oct 2026).
+  if(!sessionLabel && (log.length || raw.length) && (window.liveMarket === 'il' || window.liveMarket === 'us')){
     const isIl = window.liveMarket === 'il';
     const closed = isIl ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
     const closeMs = (isIl ? getTaseDayRangeMs() : getUsDayRangeMs()).close;
