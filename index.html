@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792589629";
+const BUILD_ID = "1792589824";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7914,7 +7914,7 @@ function renderGauge(rows, totals){
       <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
       <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
       <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
-      <span class="mitem mlink" id="fxDetailTrigger" title="USD/ILS = the live rate, always, from the IntradayLog's USD/ILS column (C). It's the rate used for the USA holdings. The arrow compares it with the USA closing rate: the 23:55 reading of the last session (20 Oct: 3.0873). Red when below, green when above. Click to open the USD/ILS chart."><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
+      <span class="mitem mlink" id="fxDetailTrigger"><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
   `;
   document.getElementById('fxDetailTrigger').addEventListener('click', ()=> openFxDetail());
@@ -7923,6 +7923,7 @@ function renderGauge(rows, totals){
   document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
   attachUsTipPopup(document.getElementById('usDetailTrigger'));
   attachHoverTip(document.getElementById('ilDetailTrigger'), ilTipHtml);
+  attachHoverTip(document.getElementById('fxDetailTrigger'), fxTipHtml);
   if(!taseOpen) attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextOpen(getNextTaseOpenMs()));
   else attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextClose(getTaseCloseMs()));
   if(!usOpen) attachHoverTooltip(document.getElementById('usStatusLine'), () => formatNextOpen(getNextUsOpenMs()));
@@ -8142,6 +8143,21 @@ function ilPrevCloseMs(){
   const now = new Date(), sd = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
   const db = new Date(sd.y, sd.m-1, sd.d-1), pd = nearestTradingDayOnOrBefore(db.getFullYear(), db.getMonth()+1, db.getDate());
   return getTaseDayRangeForDate(pd.y, pd.m, pd.d).close;
+}
+// USD/ILS tooltip (22 Oct 2026): the live rate, the USA closing rate, and the change the arrow shows.
+function fxTipHtml(){
+  const live = window.lastFxRate, close = window.usCloseFx;
+  const hasClose = typeof close === 'number' && close > 0;
+  const f4 = n => typeof n === 'number' ? n.toFixed(4) : '—';
+  const ch = hasClose && typeof live === 'number' ? live - close : NaN;
+  const pct = hasClose && isFinite(ch) ? ch / close * 100 : NaN;
+  const col = isFinite(ch) ? (ch >= 0 ? '#1a7f37' : '#c62828') : 'inherit';
+  const sign = ch >= 0 ? '+' : '';
+  return `<div><b>USD/ILS</b> = the live rate, from the IntradayLog's USD/ILS column (C).</div>`
+    + `<div style="margin-top:4px;">Live now: <span style="color:${col}; font-weight:700;">${f4(live)}</span></div>`
+    + `<div style="margin-top:4px;">USA close, ${hasClose ? 'Oct 20, 23:55 reading' : 'not recorded yet'}: <b>${f4(close)}</b></div>`
+    + `<div style="margin-top:4px;">Change: <span style="color:${col}; font-weight:700;">${isFinite(ch) ? sign + ch.toFixed(4) + ' (' + sign + pct.toFixed(2) + '%)' : '—'}</span></div>`
+    + `<div style="margin-top:6px; color:var(--muted);">The arrow compares the live rate with the USA closing rate: red when below, green when above. The USA holdings use this rate too.</div>`;
 }
 // Israel tooltip, same layout as the USA one (22 Oct 2026): actual value and the TASE close, coloured green when above.
 function ilTipHtml(){
