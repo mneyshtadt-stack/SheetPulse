@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792619744";
+const BUILD_ID = "1792620206";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8039,7 +8039,7 @@ async function syncGaugeToIntraday(split, totals){
     // Until today's 23:55 settle has been logged, the USA close is the previous session's (same rule as TASE, 22 Oct 2026).
     const usRef = Date.now() < getUsDayRangeMs().close + 55 * 60000 ? usPrevCloseMs() : getUsDayRangeMs().close;
     const closeRd = rows.find(r => r.t >= usRef + 55 * 60000 && typeof r.fx === 'number');
-    if(closeRd) { window.usCloseFx = closeRd.fx; if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
+    if(closeRd) { window.usCloseFx = closeRd.fx; window.usCloseTs = new Date(closeRd.t); if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
   }
   // The TASE close: the log's Israel value at the settle time (18:30, the rule) of the last session, for the Israel tooltip (22 Oct 2026).
   {
@@ -8125,7 +8125,7 @@ function usPrevCloseMs(){
 function usaTipHtml(){
   const usd = window.snap && window.snap.split && window.snap.split.us ? window.snap.split.us.usdValue : NaN;
   const rate = window.lastFxRate, closeRate = window.usCloseFx;
-  const closeLbl = prevCloseReferenceLabel();
+  const closeLbl = window.usCloseTs ? formatPrevCloseLabel(window.usCloseTs) : prevCloseReferenceLabel();
   const fmtUsd = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const ils = n => '₪' + Math.round(n).toLocaleString('en-US');
   const hasClose = typeof closeRate === 'number' && isFinite(usd);
@@ -8638,7 +8638,7 @@ async function fetchIntradayLogRows(){
     const nowIlHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
     const dayOver = nowIlHms >= '23:59:00';
     const closeRd = dayOver ? lastOfDay(ilDayKey(Date.now())) : lastOfDay(ilDayKey(usPrevCloseMs()));
-    if(closeRd) { window.usCloseFx = closeRd.fx; if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
+    if(closeRd) { window.usCloseFx = closeRd.fx; window.usCloseTs = new Date(closeRd.t); if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
   }
 
   // Each market's opening USD/ILS rate per date ("yyyy-mm-dd"), for each chart's FX marker
