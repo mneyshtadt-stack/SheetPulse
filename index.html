@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792616026";
+const BUILD_ID = "1792616253";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4338,7 +4338,13 @@ function renderMarketDetailTable(){
 function renderMarketDetailHeader(marketKey){
   const rows = window.lastRows || [];
   const split = snapSplit(rows);
-  const seg = marketKey === 'il' ? split.il : split.us;
+  let seg = marketKey === 'il' ? split.il : split.us;
+  // USA's current value is the latest IntradayLog reading (column D) until today's 23:55 settle, so the window keeps updating
+  // to the real end of day; its day change is that value minus the previous close (22 Oct 2026).
+  if (marketKey === 'us' && window.lastLogRow && typeof window.lastLogRow.us === 'number' && typeof window.usCloseFx === 'number' && !(window.settleAt)) {
+    const lv = window.lastLogRow.us;
+    seg = {...seg, value: lv, gain: lv - window.usCloseFx * (window.usCloseUsd || 0)};
+  }
   window.liveNow = seg.value;   // the market's live value, used by its chart's last point
   window.liveMarket = marketKey;
   const title = marketKey === 'il' ? 'Israeli (TASE) holdings' : 'USA holdings';
