@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792589824";
+const BUILD_ID = "1792594114";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8893,7 +8893,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       closeRef = getUsDayRangeForDate(pd.y, pd.m, pd.d).close;
     }
     const settled = closed ? raw.find(p => p.t >= closeRef + settleMin * 60000 && p.t <= Date.now()) : null;
-    window.settledAt = settled ? settled.t : null;   // the time of the closing reading, shown on the chart's close label
+    // The chart's close label shows the market's close time (TASE 17:30, USA 23:00 Israel) with the value settled at the rule's time (22 Oct 2026).
+    window.settledAt = settled ? closeRef : null;
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
     if(settled) window.liveNow = settled.v;
     // The USA close's rate: the log's USD/ILS at the same closing reading (the 23:55 rule), shown in the USA tooltip.
