@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792616359";
+const BUILD_ID = "1792616602";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3115,7 +3115,8 @@ function splitByMarket(rows){
   // The USA dollars now (the holdings' Current Value ($)), for the day change against the closing value.
   const usdAllNow = usAll.filter(r=>!isNaN(r.valueUsd)).reduce((a,r)=>a+r.valueUsd,0);
   return {
-    il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il')),
+    // Israel's day change is measured from its settled close (18:30), the same rule as USA's (22 Oct 2026).
+    il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il'), typeof window.ilCloseIls === 'number' && ilAll.length ? window.ilCloseIls : undefined),
     us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'), typeof window.usCloseFx === 'number' ? (typeof window.usCloseUsd === 'number' ? window.usCloseUsd : usdAllNow) * window.usCloseFx : undefined)
   };
 }
