@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792617870";
+const BUILD_ID = "1792618233";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8500,7 +8500,8 @@ function headlineAsOfHtml(isClosed){
   return isClosed ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· as of ${currentSessionDateLabel()}</span>` : '';
 }
 function formatPrevCloseLabel(d){
-  return d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+  // The real timestamp of the closing reading, e.g. "Oct 20, 23:59:16" (22 Oct 2026).
+  return d.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
 }
 // loggedTs (window.lastCloseILTs/USTs, IntradayLog's close rows) is the real timestamp the Apps
 // Script trigger actually stamped when it captured that close — used whenever it's available,
@@ -8579,13 +8580,14 @@ async function fetchIntradayLogRows(){
   // The same for the dollars (column E): the previous close's dollar value is the last reading of the previous session,
   // or the one before it until 07:00 Israel time (22 Oct 2026).
   window.usdDayLast = {};
-  rows.forEach(r => { if (typeof r.usd === 'number' && r.usd > 0) window.usdDayLast[new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'})] = r.usd; });
+  window.usdDayLastT = {};
+  rows.forEach(r => { if (typeof r.usd === 'number' && r.usd > 0) { const k = new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'}); window.usdDayLast[k] = r.usd; window.usdDayLastT[k] = r.t; } });
   {
     const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pastK = Object.keys(window.usdDayLast).filter(k => k < todayK).sort();
     const hmsNow = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
     const idx = hmsNow < '07:00:00' && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
-    if (idx >= 0) window.lastCloseUSD = window.usdDayLast[pastK[idx]];
+    if (idx >= 0) { window.lastCloseUSD = window.usdDayLast[pastK[idx]]; window.lastCloseUSTs = new Date(window.usdDayLastT[pastK[idx]]); }
   }
   // The USA close rate and dollars (the 23:55 reading of the last session, until today's is logged): set on every log
   // load, not only when the chart is redrawn, so the USA window and tooltip don't fall back to the old 23:00 close (22 Oct 2026).
