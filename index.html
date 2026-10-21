@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792587549";
+const BUILD_ID = "1792587747";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7975,6 +7975,7 @@ async function syncGaugeToIntraday(split, totals){
   const taseOpen = getTaseStatus();
   const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
   const rows = await fetchIntradayLogRows().catch(()=>[]);
+  window.lastLogRow = rows.length ? rows[rows.length - 1] : null;   // the newest IntradayLog row (for the Total value tooltip)
   // The USA close's USD/ILS: the log's reading at the USA closing time (16:55 New York rule), for the USA tooltip (22 Oct 2026).
   {
     const usRef = Date.now() < getUsDayRangeMs().close ? usPrevCloseMs() : getUsDayRangeMs().close;
@@ -8077,6 +8078,47 @@ function attachUsTipPopup(el){
     pop.style.display = 'block';
   });
   el.addEventListener('mouseleave', () => { pop.style.display = 'none'; });
+}
+// A hover popup for any element: htmlFn() is called on each hover, so it always shows the current numbers.
+function attachHoverTip(el, htmlFn){
+  if(!el) return;
+  let pop = document.getElementById('usTipPop');
+  if(!pop){
+    pop = document.createElement('div');
+    pop.id = 'usTipPop';
+    pop.style.cssText = 'position:fixed; z-index:9999; max-width:360px; padding:8px 10px; border-radius:6px; background:var(--paper, #fff); color:var(--ink, #111); border:1px solid var(--line, #ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; display:none; pointer-events:none;';
+    document.body.appendChild(pop);
+  }
+  el.addEventListener('mouseenter', () => {
+    pop.innerHTML = htmlFn();
+    const r = el.getBoundingClientRect();
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 370)) + 'px';
+    pop.style.top = (r.bottom + 6) + 'px';
+    pop.style.display = 'block';
+  });
+  el.addEventListener('mouseleave', () => { pop.style.display = 'none'; });
+}
+// Total value = TASE shekels + USA dollars × the rate, with the IntradayLog's own B (IL Value) and D (USA ₪) shown alongside.
+function totalTipHtml(){
+  const s = window.snap && window.snap.split ? window.snap.split : {};
+  const il = s.il ? s.il.value : NaN;
+  const usd = s.us ? s.us.usdValue : NaN;
+  const rate = window.lastFxRate;
+  const usIls = usd * rate;
+  const total = il + usIls;
+  const log = window.lastLogRow || {};
+  const ils = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const usdF = n => '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const logB = typeof log.il === 'number' ? log.il : null;
+  const logD = typeof log.us === 'number' ? log.us : null;
+  const logE = typeof log.usd === 'number' ? log.usd : null;
+  const logC = typeof log.fx === 'number' ? log.fx : null;
+  const logTxt = logB !== null && logD !== null ? `IntradayLog B + D = ${ils(logB)} + ${ils(logD)} = <b>${ils(logB + logD)}</b>` : 'IntradayLog: not loaded';
+  return `<div><b>Total value</b> = TASE + USA, exact:</div>`
+    + `<div style="margin-top:4px;">TASE: <b>${isFinite(il) ? ils(il) : '—'}</b></div>`
+    + `<div>USA: <b>${isFinite(usd) ? usdF(usd) : '—'}</b> × USD/ILS <b>${isFinite(rate) ? rate.toFixed(4) : '—'}</b> = <b>${isFinite(usIls) ? ils(usIls) : '—'}</b></div>`
+    + `<div style="margin-top:4px;"><b>Total: ${isFinite(total) ? ils(total) : '—'}</b></div>`
+    + `<div style="margin-top:6px; color:var(--muted);">Log check (${logE !== null ? usdF(logE) + ' × ' + (logC !== null ? logC.toFixed(4) : '—') : ''}): ${logTxt}</div>`;
 }
 function usaTip(){
   const closeFx = typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate;
@@ -9650,6 +9692,8 @@ function render(rows, totals){
     el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
     (i === 0 && headlineEl ? headlineEl : cardsEl).appendChild(el);
   });
+  // Total value tooltip (22 Oct 2026): the exact calculation from the live values and the IntradayLog's B and D.
+  if(headlineEl && !headlineEl._totalTipAttached){ headlineEl._totalTipAttached = true; attachHoverTip(headlineEl, totalTipHtml); }
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
   if(headlineEl) headlineEl.onclick = () => openPortfolioDetail();
