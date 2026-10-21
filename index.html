@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792588151";
+const BUILD_ID = "1792588180";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8057,8 +8057,11 @@ function usaTipHtml(){
   const actualIls = typeof rate === 'number' && isFinite(usd) ? usd * rate : NaN;
   // Coloured by the dollars: green when the actual USD is at or above the closing USD, red when below (22 Oct 2026).
   const col = isFinite(usd) && isFinite(closeUsd) ? (usd >= closeUsd ? '#1a7f37' : '#c62828') : 'inherit';
+  // The rate and the shekel value each have their own colour: vs the closing rate, and vs the closing shekels (22 Oct 2026).
+  const rateCol = typeof rate === 'number' && hasClose ? (rate >= closeRate ? '#1a7f37' : '#c62828') : 'inherit';
+  const ilsCol = isFinite(actualIls) && isFinite(closeIls) ? (actualIls >= closeIls ? '#1a7f37' : '#c62828') : 'inherit';
   return `<div><b>USA</b> = your US holdings in shekels.</div>`
-    + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(usd) ? fmtUsd(usd) : '—'} at USD/ILS ${typeof rate === 'number' ? rate.toFixed(4) : '—'} = ${isFinite(actualIls) ? ils(actualIls) : '—'}</span></div>`
+    + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(usd) ? fmtUsd(usd) : '—'}</span> at USD/ILS <span style="color:${rateCol}; font-weight:700;">${typeof rate === 'number' ? rate.toFixed(4) : '—'}</span> = <span style="color:${ilsCol}; font-weight:700;">${isFinite(actualIls) ? ils(actualIls) : '—'}</span></div>`
     + `<div style="margin-top:4px;">USA close, ${closeLbl}: ${isFinite(closeUsd) ? fmtUsd(closeUsd) : '—'} at USD/ILS ${hasClose ? closeRate.toFixed(4) : 'not recorded yet'} = ${isFinite(closeIls) ? ils(closeIls) : '—'}</div>`
     + `<div style="margin-top:4px; color:var(--muted);">The day change is the change since that close, from the rate and any US price moves.</div>`;
 }
