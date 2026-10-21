@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792576790";
+const BUILD_ID = "1792577022";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2543,10 +2543,9 @@ function parseTableToRows(table){
   // The sheet converts USA values at its own USD/ILS (Q1), which stops updating around 18:00 Israel time, while
   // the live rate moves on (18 Oct 2026: the dollar rose and the USA line still fell). Re-price the USA rows at the
   // live rate, the same correction IntradayLogging.gs makes when it records a close. Israeli rows are in ILS already.
-  // Outside trading hours (both markets closed) the USA dollars use the Bank of Israel rate of the day before, the
-  // rate Meitav values with, so the total matches both brokers' screens (21 Oct 2026). During trading: the live rate.
-  const offHours = !getTaseStatus() && !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
-  const usRate = offHours && boiRateBeforeToday() ? boiRateBeforeToday().rate : window.lastFxRate;
+  // The dashboard uses the intraday log's live rate for the USA dollars, open or closed (22 Oct 2026). The broker-style
+  // Bank of Israel valuation is for the separate brokers window, not the dashboard.
+  const usRate = window.lastFxRate;
   const fxScale = window.lastFxQ1 > 0 && usRate > 0 ? usRate / window.lastFxQ1 : 1;
   if(fxScale !== 1) rows.forEach(r => { if(!ISRAELI_TICKERS.includes(r.name) && r.valueUsd > 0 && isFinite(r.value)) r.value *= fxScale; });
   const merged = mergeLots(rows);
@@ -8723,12 +8722,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // Searched in the unfiltered readings: the day's log above stops at the close, the settled reading comes after it.
     const settled = closed ? raw.find(p => p.t >= closeMs + settleMin * 60000 && p.t <= Date.now()) : null;
     window.settledAt = settled ? settled.t : null;   // the time of the closing reading, shown on the chart's close label
-    // USA closing value (Option A, 21 Oct 2026): the USA $ reading times the Bank of Israel rate of the
-    // day before the close, the rate Meitav values with (20 Oct night: 3.110 = 19 Oct; matches the brokers).
-    const boi = !isIl && settled ? boiRateBeforeDay(closeMs) : null;
-    const settledV = boi && typeof settled.usd === 'number' ? settled.usd * boi.rate : (settled ? settled.v : null);
-    if(settled) window.settledAt = settled.t;
-    if(typeof settledV === 'number') window.liveNow = settledV;
+    // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
+    if(settled) window.liveNow = settled.v;
   }
   if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close)
     log = [...log.slice(0, -1), {...log[log.length-1], v: window.liveNow}];
