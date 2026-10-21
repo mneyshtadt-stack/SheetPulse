@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792616713";
+const BUILD_ID = "1792616796";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8553,9 +8553,13 @@ async function fetchIntradayLogRows(){
   // The USA close rate and dollars (the 23:55 reading of the last session, until today's is logged): set on every log
   // load, not only when the chart is redrawn, so the USA window and tooltip don't fall back to the old 23:00 close (22 Oct 2026).
   {
-    // Until today's 23:55 settle is in the log, the previous session's settle is the close (the window stays live until then).
-    const todaySettle = rows.find(r => r.t >= getUsDayRangeMs().close + 55 * 60000 && typeof r.fx === 'number');
-    const closeRd = todaySettle || rows.find(r => r.t >= usPrevCloseMs() + 55 * 60000 && typeof r.fx === 'number');
+    // The USA close is the last logged reading of the Israel day (the real end of day, 23:59), per the owner's rule (22 Oct 2026).
+    // Until that day is over, the previous session's last reading is the close.
+    const ilDayKey = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
+    const lastOfDay = key => rows.filter(r => ilDayKey(r.t) === key && typeof r.fx === 'number').pop();
+    const nowIlHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const dayOver = nowIlHms >= '23:59:00';
+    const closeRd = dayOver ? lastOfDay(ilDayKey(Date.now())) : lastOfDay(ilDayKey(usPrevCloseMs()));
     if(closeRd) { window.usCloseFx = closeRd.fx; if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
   }
 
