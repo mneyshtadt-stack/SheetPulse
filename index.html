@@ -829,6 +829,7 @@
   #universeTable th[data-key="whenItHelps"], #universeTable td[data-col="whenItHelps"]{width:260px;}
   /* KPI tiles: separate panels (the v1c layout). */
   .cards{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; cursor:pointer;}
+  .cards.headline-card{grid-template-columns:1fr !important;}
   .card{background:var(--panel); padding:14px 16px; position:relative; border:1px solid var(--line); border-radius:10px; transition:border-color 0.15s ease;}
   .cards:hover .card{border-color:color-mix(in srgb, var(--accent) 45%, var(--line));}
   .card .label{font-family:var(--sans); font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;}
@@ -1433,8 +1434,9 @@
 
   <div id="phoneHero" title="View all holdings"></div>
   <div id="heroPanel">
-    <div class="cards" id="cards"></div>
+    <div class="cards headline-card" id="headlineCard"></div>
     <div id="gaugePanel"></div>
+    <div class="cards" id="cards"></div>
   </div>
   <div class="home-row">
     <div class="hpanel home-day" id="homeDayPanel" title="Open the Portfolio window">
@@ -1616,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792577022";
+const BUILD_ID = "1792577161";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9558,6 +9560,9 @@ function render(rows, totals){
   renderGauge(rows, totals);
   const fmt = n => "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
   const cardsEl = document.getElementById('cards');
+  // Order on the home screen: the headline (Total value) first, then the markets strip, then the other tiles.
+  const headlineEl = document.getElementById('headlineCard');
+  if(headlineEl) headlineEl.innerHTML = '';
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
@@ -9565,13 +9570,14 @@ function render(rows, totals){
     {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
-  cards.forEach(c=>{
+  cards.forEach((c, i)=>{
     const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '');
     el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
-    cardsEl.appendChild(el);
+    (i === 0 && headlineEl ? headlineEl : cardsEl).appendChild(el);
   });
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
+  if(headlineEl) headlineEl.onclick = () => openPortfolioDetail();
   renderPhoneHero(rows, totals);
   renderHomeAlloc(rows);
   renderHomeDay(rows, totals);
