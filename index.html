@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792619062";
+const BUILD_ID = "1792619122";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4761,7 +4761,7 @@ function renderPortfolioHeader(){
   const split = snapSplit(rows);
   // Until the USA opens (16:30 Israel) the All view shows the last session against the one before, built from the log:
   // TASE's 18:30 settle + USA's last reading of the day (22 Oct 2026).
-  if (!broker && usLastSessionFreeze() && window.ilDaySettle && window.usDayLast) {
+  if (!broker && window.ilDaySettle && window.usDayLast && new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '10:00:00') {   // until TASE opens (22 Oct 2026)
     const dk = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pk = Object.keys(window.ilDaySettle).filter(k => k < dk && window.usDayLast[k] !== undefined).sort();
     if (pk.length >= 2) {
