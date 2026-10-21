@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792617406";
+const BUILD_ID = "1792617491";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8950,7 +8950,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       ? raw.find(p => p.t >= closeRef + settleMin * 60000 && p.t <= Date.now())
       : raw.filter(p => ilDayOf(p.t) === ilDayOf(closeRef) && typeof p.v === 'number').pop();
     // The close label shows the reading's time (TASE: 17:30 close, value settled at 18:30; USA: the last reading of the day).
-    window.settledAt = closed ? (isIl ? closeRef : (settled ? settled.t : null)) : null;   // the close time (label)
+    // The close label shows the real timestamp of the reading the closing value comes from (22 Oct 2026), e.g. 21/10 23:59:06.
+    window.settledAt = settled ? settled.t : null;
     window.settleAt = settled ? settled.t : null;  // the reading the closing value comes from (label)
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
     // A broker's own header total stays as it is (renderPortfolioHeader), not the whole-market chart reading (22 Oct 2026).
@@ -9060,7 +9061,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     if(ty < top){ ty = top; prevCloseLabelY = ty + 15; }
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
     const hhmm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jerusalem'});
-    const settledLabel = window.settledAt ? 'Close ' + hhmm(window.settledAt) + ' ' : 'Close ';
+    const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+    const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${settledLabel}<tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
   }
 
