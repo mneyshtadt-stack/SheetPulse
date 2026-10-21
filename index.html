@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792618233";
+const BUILD_ID = "1792618579";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4351,7 +4351,7 @@ function renderMarketDetailHeader(marketKey){
   if (marketKey === 'us' && window.usDayLast) {
     const dayKeyOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const hms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
-    if (hms < '07:00:00') {
+    if (hms < '16:30:00') {   // until the USA market opens (16:30 Israel), the last session stays (22 Oct 2026)
       const today = dayKeyOf(Date.now());
       const past = Object.keys(window.usDayLast).filter(k => k < today).sort();
       if (past.length >= 2) {
@@ -8491,8 +8491,8 @@ function nearestTradingDayOnOrBefore(y, m, d){
 function currentSessionDateLabel(){
   // Until 07:00 Israel time the business day is still the previous one (22 Oct 2026): show the last session's date.
   const now = new Date();
-  const ilHour = Number(now.toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false}).slice(0, 2));
-  const ref = ilHour < 7 ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1) : now;
+  const ilHms = now.toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+  const ref = ilHms < '16:30:00' ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1) : now;
   const sessionDay = nearestTradingDayOnOrBefore(ref.getFullYear(), ref.getMonth()+1, ref.getDate());
   return new Date(sessionDay.y, sessionDay.m-1, sessionDay.d).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
 }
@@ -8586,7 +8586,7 @@ async function fetchIntradayLogRows(){
     const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pastK = Object.keys(window.usdDayLast).filter(k => k < todayK).sort();
     const hmsNow = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
-    const idx = hmsNow < '07:00:00' && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
+    const idx = hmsNow < '16:30:00' && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
     if (idx >= 0) { window.lastCloseUSD = window.usdDayLast[pastK[idx]]; window.lastCloseUSTs = new Date(window.usdDayLastT[pastK[idx]]); }
   }
   // The USA close rate and dollars (the 23:55 reading of the last session, until today's is logged): set on every log
