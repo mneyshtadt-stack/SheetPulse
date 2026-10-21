@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792587747";
+const BUILD_ID = "1792587801";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8113,7 +8113,8 @@ function totalTipHtml(){
   const logD = typeof log.us === 'number' ? log.us : null;
   const logE = typeof log.usd === 'number' ? log.usd : null;
   const logC = typeof log.fx === 'number' ? log.fx : null;
-  const logTxt = logB !== null && logD !== null ? `IntradayLog B + D = ${ils(logB)} + ${ils(logD)} = <b>${ils(logB + logD)}</b>` : 'IntradayLog: not loaded';
+  const logTot = typeof log.total === 'number' ? log.total : (logB !== null && logD !== null ? logB + logD : null);
+  const logTxt = logB !== null && logD !== null ? `IntradayLog B + D = ${ils(logB)} + ${ils(logD)} = <b>${ils(logB + logD)}</b>${typeof log.total === 'number' ? ` · column F = <b>${ils(log.total)}</b>` : ''}` : 'IntradayLog: not loaded';
   return `<div><b>Total value</b> = TASE + USA, exact:</div>`
     + `<div style="margin-top:4px;">TASE: <b>${isFinite(il) ? ils(il) : '—'}</b></div>`
     + `<div>USA: <b>${isFinite(usd) ? usdF(usd) : '—'}</b> × USD/ILS <b>${isFinite(rate) ? rate.toFixed(4) : '—'}</b> = <b>${isFinite(usIls) ? ils(usIls) : '—'}</b></div>`
@@ -8461,7 +8462,9 @@ async function fetchIntradayLogRows(){
     const fx = (r[2] !== undefined && r[2] !== '') ? Number(r[2]) : NaN;
     // Column E: USA's holdings in dollars (on older rows, only on the USA close rows).
     const usd = (r[4] !== undefined && r[4] !== '') ? Number(r[4]) : NaN;
-    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us, fx: fx > 0 ? fx : null, usd: usd > 0 ? usd : null});
+    // Column F: the logged total in shekels (B + D), when the sheet has it (from 22 Oct 2026).
+    const total = Number(r[5]);
+    rows.push({t: d.getTime(), il, us: isNaN(us) ? null : us, fx: fx > 0 ? fx : null, usd: usd > 0 ? usd : null, total: total > 0 ? total : null});
   }
   // Downstream logic assumes chronological (ascending) order, but the sheet's own row order isn't
   // guaranteed to stay that way (e.g. someone sorts it, or a script logs out of order) — sort
