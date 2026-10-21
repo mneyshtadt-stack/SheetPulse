@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792588568";
+const BUILD_ID = "1792588823";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7912,7 +7912,7 @@ function renderGauge(rows, totals){
       <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA <b>${usOpen?'open':'closed'}</b></span>
       <span class="msep"></span>
       <span class="mitem mlink" id="portfolioDetailTrigger" title="Portfolio = Israel + USA, always. Value: TASE shekels + USA dollars × the live USD/ILS. Today: Israel's day change + USA's day change (each market's value minus its previous close: TASE 18:30, USA 16:55 New York). Click to open the Portfolio window."><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
-      <span class="mitem mlink" id="ilDetailTrigger" title="Israel = TASE holdings in shekels, from the Tracker (no conversion). Day change: value minus the previous close (settled at 18:30 Israel time). Click to open the Israel window."><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
+      <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
       <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
       <span class="mitem mlink" id="fxDetailTrigger" title="USD/ILS = the rate used for USA holdings: live while a market is open, Bank of Israel rate of the day before when both are closed. The arrow compares with the previous close's rate. Click to open the USD/ILS chart."><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
@@ -7922,6 +7922,7 @@ function renderGauge(rows, totals){
   document.getElementById('ilDetailTrigger').addEventListener('click', ()=> openMarketDetail('il'));
   document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
   attachUsTipPopup(document.getElementById('usDetailTrigger'));
+  attachHoverTip(document.getElementById('ilDetailTrigger'), ilTipHtml);
   if(!taseOpen) attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextOpen(getNextTaseOpenMs()));
   else attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextClose(getTaseCloseMs()));
   if(!usOpen) attachHoverTooltip(document.getElementById('usStatusLine'), () => formatNextOpen(getNextUsOpenMs()));
@@ -7981,6 +7982,12 @@ async function syncGaugeToIntraday(split, totals){
     const usRef = Date.now() < getUsDayRangeMs().close ? usPrevCloseMs() : getUsDayRangeMs().close;
     const closeRd = rows.find(r => r.t >= usRef + 55 * 60000 && typeof r.fx === 'number');
     if(closeRd) { window.usCloseFx = closeRd.fx; if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
+  }
+  // The TASE close: the log's Israel value at the settle time (18:30, the rule) of the last session, for the Israel tooltip (22 Oct 2026).
+  {
+    const ilRef = Date.now() < getTaseDayRangeMs().close + 60 * 60000 ? ilPrevCloseMs() : getTaseDayRangeMs().close;
+    const ilCloseRd = rows.find(r => r.t >= ilRef + 60 * 60000 && typeof r.il === 'number');
+    if(ilCloseRd) window.ilCloseIls = ilCloseRd.il;
   }
   const ilRaw = rows.map(r => ({t: r.t, v: r.il}));
   const usRaw = rows.map(r => ({t: r.t, v: r.us})).filter(p => typeof p.v === 'number');
@@ -8124,6 +8131,25 @@ function totalTipHtml(){
     + `<div>USA: <b>${isFinite(usd) ? usdF(usd) : '—'}</b> × USD/ILS <b>${isFinite(rate) ? rate.toFixed(4) : '—'}</b> = <b>${isFinite(usIls) ? ils(usIls) : '—'}</b></div>`
     + `<div style="margin-top:4px;"><b>Total: ${isFinite(total) ? ils(total) : '—'}</b></div>`
     + `<div style="margin-top:6px; color:var(--muted);">Log check (${logE !== null ? usdF(logE) + ' × ' + (logC !== null ? logC.toFixed(4) : '—') : ''}): ${logTxt}</div>`;
+}
+// The previous TASE session's close (17:30 Israel) in ms, skipping today's when it hasn't settled yet.
+function ilPrevCloseMs(){
+  const now = new Date(), sd = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
+  const db = new Date(sd.y, sd.m-1, sd.d-1), pd = nearestTradingDayOnOrBefore(db.getFullYear(), db.getMonth()+1, db.getDate());
+  return getTaseDayRangeForDate(pd.y, pd.m, pd.d).close;
+}
+// Israel tooltip, same layout as the USA one (22 Oct 2026): actual value and the TASE close, coloured green when above.
+function ilTipHtml(){
+  const actual = window.snap && window.snap.split && window.snap.split.il ? window.snap.split.il.value : NaN;
+  const closeIls = window.ilCloseIls;
+  const ils = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const hasClose = typeof closeIls === 'number' && isFinite(closeIls);
+  const col = isFinite(actual) && hasClose ? (actual >= closeIls ? '#1a7f37' : '#c62828') : 'inherit';
+  const closeLbl = marketPrevCloseReferenceLabel(getTaseDayRangeForDate, window.lastCloseILTs);
+  return `<div><b>Israel</b> = your TASE holdings in shekels (no conversion).</div>`
+    + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(actual) ? ils(actual) : '—'}</span></div>`
+    + `<div style="margin-top:4px;">TASE close, ${closeLbl} (18:30 settle): <span>${hasClose ? ils(closeIls) : 'not recorded yet'}</span></div>`
+    + `<div style="margin-top:4px; color:var(--muted);">The day change is the change since that close.</div>`;
 }
 function usaTip(){
   const closeFx = typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate;
