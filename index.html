@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792577975";
+const BUILD_ID = "1792578190";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8724,7 +8724,14 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const closeMs = (isIl ? getTaseDayRangeMs() : getUsDayRangeMs()).close;
     const settleMin = isIl ? 60 : 55;   // TASE settles by 18:09, USA by 23:54 Israel time (last 6-7 days); see the note in SheetPulse.md
     // Searched in the unfiltered readings: the day's log above stops at the close, the settled reading comes after it.
-    const settled = closed ? raw.find(p => p.t >= closeMs + settleMin * 60000 && p.t <= Date.now()) : null;
+    // Before today's USA close has happened, the last closing reading is the previous session's (22 Oct 2026).
+    let closeRef = closeMs;
+    if(!isIl && Date.now() < closeMs){
+      const now = new Date(), sd = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
+      const db = new Date(sd.y, sd.m-1, sd.d-1), pd = nearestTradingDayOnOrBefore(db.getFullYear(), db.getMonth()+1, db.getDate());
+      closeRef = getUsDayRangeForDate(pd.y, pd.m, pd.d).close;
+    }
+    const settled = closed ? raw.find(p => p.t >= closeRef + settleMin * 60000 && p.t <= Date.now()) : null;
     window.settledAt = settled ? settled.t : null;   // the time of the closing reading, shown on the chart's close label
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
     if(settled) window.liveNow = settled.v;
