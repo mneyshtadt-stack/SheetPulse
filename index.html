@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792577810";
+const BUILD_ID = "1792577975";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8017,7 +8017,8 @@ function getFxDayChange(rate){
 // Tooltip for the USA item in the markets strip: the USA holdings are converted at today's USD/ILS, and their day
 // change is measured from the recorded USA close (Friday 23:00), when the rate was window.lastCloseFxRate.
 function usaTip(){
-  const fri = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate.toFixed(4) : 'not recorded yet';
+  const closeFx = typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate;
+  const fri = typeof closeFx === 'number' ? closeFx.toFixed(4) : 'not recorded yet';
   const today = window.lastFxRate ? window.lastFxRate.toFixed(4) : '—';
   const usd = window.snap && window.snap.split && window.snap.split.us && typeof window.snap.split.us.usdValue === 'number' ? '$' + window.snap.split.us.usdValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '—';
   return `USA = your US holdings in shekels. Actual: ${usd} USD at USD/ILS ${today}. USA close, ${prevCloseReferenceLabel()}: ${usd} USD at USD/ILS ${fri}. The day change is the change since that close, from the rate and any US price moves.`.replace(/"/g, '&quot;');
@@ -8404,7 +8405,7 @@ async function fetchIntradayFxRaw(){
 async function fetchIntradayLogRaw(which){
   const rows = await fetchIntradayLogRows();
   return rows
-    .map(r => ({t: r.t, v: which === 'us' ? r.us : r.il, usd: r.usd}))
+    .map(r => ({t: r.t, v: which === 'us' ? r.us : r.il, usd: r.usd, fx: r.fx}))
     .filter(p => typeof p.v === 'number');
 }
 async function fetchIntradayLog(which){
@@ -8727,6 +8728,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     window.settledAt = settled ? settled.t : null;   // the time of the closing reading, shown on the chart's close label
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
     if(settled) window.liveNow = settled.v;
+    // The USA close's rate: the log's USD/ILS at the same closing reading (the 23:55 rule), shown in the USA tooltip.
+    if(!isIl && settled && typeof settled.fx === 'number') window.usCloseFx = settled.fx;
   }
   if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close)
     log = [...log.slice(0, -1), {...log[log.length-1], v: window.liveNow}];
