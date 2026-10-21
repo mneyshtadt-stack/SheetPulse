@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792617609";
+const BUILD_ID = "1792617680";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8489,8 +8489,11 @@ function nearestTradingDayOnOrBefore(y, m, d){
 // only while the relevant market is closed, so it's clear that number is frozen as of that day
 // rather than reflecting a still-moving live price.
 function currentSessionDateLabel(){
+  // Until 07:00 Israel time the business day is still the previous one (22 Oct 2026): show the last session's date.
   const now = new Date();
-  const sessionDay = nearestTradingDayOnOrBefore(now.getFullYear(), now.getMonth()+1, now.getDate());
+  const ilHour = Number(now.toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', hour12: false}).slice(0, 2));
+  const ref = ilHour < 7 ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1) : now;
+  const sessionDay = nearestTradingDayOnOrBefore(ref.getFullYear(), ref.getMonth()+1, ref.getDate());
   return new Date(sessionDay.y, sessionDay.m-1, sessionDay.d).toLocaleDateString('en-US', {weekday:'long', month:'short', day:'numeric'});
 }
 function headlineAsOfHtml(isClosed){
