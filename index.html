@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792557702";
+const BUILD_ID = "1792566206";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2543,7 +2543,11 @@ function parseTableToRows(table){
   // The sheet converts USA values at its own USD/ILS (Q1), which stops updating around 18:00 Israel time, while
   // the live rate moves on (18 Oct 2026: the dollar rose and the USA line still fell). Re-price the USA rows at the
   // live rate, the same correction IntradayLogging.gs makes when it records a close. Israeli rows are in ILS already.
-  const fxScale = window.lastFxQ1 > 0 && window.lastFxRate > 0 ? window.lastFxRate / window.lastFxQ1 : 1;
+  // Outside trading hours (both markets closed) the USA dollars use the Bank of Israel rate of the day before, the
+  // rate Meitav values with, so the total matches both brokers' screens (21 Oct 2026). During trading: the live rate.
+  const offHours = !getTaseStatus() && !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
+  const usRate = offHours && boiRateBeforeToday() ? boiRateBeforeToday().rate : window.lastFxRate;
+  const fxScale = window.lastFxQ1 > 0 && usRate > 0 ? usRate / window.lastFxQ1 : 1;
   if(fxScale !== 1) rows.forEach(r => { if(!ISRAELI_TICKERS.includes(r.name) && r.valueUsd > 0 && isFinite(r.value)) r.value *= fxScale; });
   const merged = mergeLots(rows);
   rememberLastValues(merged);
