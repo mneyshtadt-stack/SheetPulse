@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792618594";
+const BUILD_ID = "1792618789";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4347,6 +4347,15 @@ function renderMarketDetailHeader(marketKey){
     seg = {...seg, value: lv, gain: lv - window.usCloseFx * (window.usCloseUsd || 0)};
   }
   // Until 07:00 Israel time the business day is still the previous one: show the last session (21 Oct) against the one before (20 Oct) (22 Oct 2026).
+  if (marketKey === 'il' && window.ilDaySettle) {
+    const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+    const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
+    if (nowHms < '10:00:00' && pastK.length >= 2) {
+      const val = window.ilDaySettle[pastK[pastK.length - 1]], prior = window.ilDaySettle[pastK[pastK.length - 2]];
+      seg = {...seg, value: val, gain: val - prior};
+    }
+  }
   let usPrevOverride = null;
   if (marketKey === 'us' && window.usDayLast) {
     const dayKeyOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
@@ -8577,6 +8586,21 @@ async function fetchIntradayLogRows(){
   // guaranteed to stay that way (e.g. someone sorts it, or a script logs out of order) — sort
   // defensively here rather than let a reordered sheet silently break every chart.
   rows.sort((a,b) => a.t - b.t);
+  // Each Israel day's TASE settle reading (first at or after 18:30) and its time, for the TASE window (22 Oct 2026).
+  window.ilDaySettle = {}; window.ilDaySettleT = {};
+  rows.forEach(r => {
+    if (typeof r.il !== 'number' || !(r.il > 0)) return;
+    const k = new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+    const hm = new Date(r.t).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    if (hm >= '18:30:00' && !(k in window.ilDaySettle)) { window.ilDaySettle[k] = r.il; window.ilDaySettleT[k] = r.t; }
+  });
+  {
+    const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+    const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
+    const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const idx = nowHms < '10:00:00' && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
+    if (idx >= 0) window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[idx]]);
+  }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
   rows.forEach(r => { if (typeof r.us === 'number' && r.us > 0) window.usDayLast[new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'})] = r.us; });
@@ -8886,9 +8910,10 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       if(fbRange.open >= dayRange.open) continue; // today's own range (or later) -- only look backward
       // USA's replayed session runs to its last logged reading of the Israel day (23:59), not only to the 23:00 close (22 Oct 2026).
       const ilDayOfFb = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
-      const fbEnd = window.liveMarket === 'us' ? Math.max(fbRange.close, ...raw.filter(p => ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)).map(p => p.t)) : fbRange.close;
+      const fbSettle = window.liveMarket === 'il' ? raw.find(p => p.t >= fbRange.close + 60 * 60000 && ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)) : null;
+      const fbEnd = fbSettle ? fbSettle.t : window.liveMarket === 'us' ? Math.max(fbRange.close, ...raw.filter(p => ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)).map(p => p.t)) : fbRange.close;
       const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbEnd);
-      if(window.liveMarket === 'us' && fbLog.length) { window.settledAt = fbLog[fbLog.length - 1].t; }
+      if((window.liveMarket === 'us' || window.liveMarket === 'il') && fbLog.length) { window.settledAt = fbLog[fbLog.length - 1].t; }
       if(fbLog.length >= 2){
         log = fbLog;
         dayRange = fbRange;
