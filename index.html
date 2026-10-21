@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792580109";
+const BUILD_ID = "1792580322";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3069,10 +3069,14 @@ function splitByMarket(rows){
   const us = usAll.filter(r=>!isNaN(r.change));
   // Same logged-close-first approach as computeTotals (see its comment) — a segment's gain/pct
   // prefer that market's own real recorded close over summing its holdings' live day-change%.
-  const calc = (arr, allArr, loggedPrevClose, ls) => {
+  const calc = (arr, allArr, loggedPrevClose, ls, closeIls) => {
     const allValue = allArr.reduce((a,r)=>a+r.value,0);
     let gain, pct;
-    if(ls){
+    if(typeof closeIls === 'number'){
+      // USA (22 Oct 2026): today's value (dollars × live rate) minus the closing value, so the day change follows the rate.
+      gain = allValue - closeIls;
+      pct = closeIls ? gain/closeIls*100 : 0;
+    } else if(ls){
       gain = ls.end - ls.start;
       pct = ls.start ? gain/ls.start*100 : 0;
     } else if(typeof loggedPrevClose === 'number'){
@@ -3093,9 +3097,11 @@ function splitByMarket(rows){
     const usdValue = usdRows.length ? usdRows.reduce((a,r)=>a+r.valueUsd,0) : NaN;
     return {value: ls ? ls.end : allValue, gain, pct, cost, totalGain, totalGainPct, tickers: allArr, usdValue, lastSession: !!ls};
   };
+  // The USA dollars now (the holdings' Current Value ($)), for the day change against the closing value.
+  const usdAllNow = usAll.filter(r=>!isNaN(r.valueUsd)).reduce((a,r)=>a+r.valueUsd,0);
   return {
     il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il')),
-    us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'))
+    us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'), usdAllNow > 0 && typeof window.usCloseFx === 'number' ? usdAllNow * window.usCloseFx : undefined)
   };
 }
 
