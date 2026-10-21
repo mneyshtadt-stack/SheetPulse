@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792619122";
+const BUILD_ID = "1792619375";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4771,6 +4771,7 @@ function renderPortfolioHeader(){
     }
   }
   window.liveNow = totals.totalValue;   // the Portfolio's live value, used by its chart's last point
+  window.liveMarket = null;             // the whole portfolio (not one market): its chart closes at the day's last reading (22 Oct 2026)
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
   document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : 'All holdings';
@@ -8922,9 +8923,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       // USA's replayed session runs to its last logged reading of the Israel day (23:59), not only to the 23:00 close (22 Oct 2026).
       const ilDayOfFb = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
       const fbSettle = window.liveMarket === 'il' ? raw.find(p => p.t >= fbRange.close + 60 * 60000 && ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)) : null;
-      const fbEnd = fbSettle ? fbSettle.t : window.liveMarket === 'us' ? Math.max(fbRange.close, ...raw.filter(p => ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)).map(p => p.t)) : fbRange.close;
+      const fbEnd = fbSettle ? fbSettle.t : window.liveMarket !== 'il' ? Math.max(fbRange.close, ...raw.filter(p => ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)).map(p => p.t)) : fbRange.close;
       const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbEnd);
-      if((window.liveMarket === 'us' || window.liveMarket === 'il') && fbLog.length) { window.settledAt = fbLog[fbLog.length - 1].t; }
+      if(window.liveMarket !== undefined && fbLog.length) { window.settledAt = fbLog[fbLog.length - 1].t; }
       if(fbLog.length >= 2){
         log = fbLog;
         dayRange = fbRange;
