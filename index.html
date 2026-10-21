@@ -1616,7 +1616,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792575360";
+const BUILD_ID = "1792575870";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8018,7 +8018,7 @@ function getFxDayChange(rate){
 function usaTip(){
   const fri = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate.toFixed(4) : 'not recorded yet';
   const today = window.lastFxRate ? window.lastFxRate.toFixed(4) : '—';
-  return `USA = your US holdings in shekels. Their dollar value is converted at today's USD/ILS (${today}). The day change is measured from the recorded USA close, Friday 23:00, when USD/ILS was ${fri}. So a change in the dollar rate since then moves this figure even if US prices did not move.`.replace(/"/g, '&quot;');
+  return `USA = your US holdings in shekels. Their dollar value is converted at today's USD/ILS (${today}). The day change is measured from the recorded USA close, ${prevCloseReferenceLabel()}, when USD/ILS was ${fri}. So a change in the dollar rate since then moves this figure even if US prices did not move.`.replace(/"/g, '&quot;');
 }
 function formatFxLine(rate){
   const {change, changePct} = getFxDayChange(rate);
