@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792589442";
+const BUILD_ID = "1792589629";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7914,7 +7914,7 @@ function renderGauge(rows, totals){
       <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
       <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
       <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
-      <span class="mitem mlink" id="fxDetailTrigger" title="USD/ILS = the live rate, always, from the IntradayLog's USD/ILS column (C). It's the rate used for the USA holdings. The arrow compares with the previous close's rate. Click to open the USD/ILS chart."><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
+      <span class="mitem mlink" id="fxDetailTrigger" title="USD/ILS = the live rate, always, from the IntradayLog's USD/ILS column (C). It's the rate used for the USA holdings. The arrow compares it with the USA closing rate: the 23:55 reading of the last session (20 Oct: 3.0873). Red when below, green when above. Click to open the USD/ILS chart."><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
   `;
   document.getElementById('fxDetailTrigger').addEventListener('click', ()=> openFxDetail());
@@ -8025,6 +8025,11 @@ async function syncGaugeToIntraday(split, totals){
 // Google-Finance-scraped formula), so this always matches Q2 exactly rather than disagreeing
 // with it by pulling a day-change number from a different provider.
 function getFxDayChange(rate){
+  // The arrow compares the live rate (IntradayLog column C) with the USA closing rate: the 23:55 reading of the last session (22 Oct 2026).
+  if(typeof window.usCloseFx === 'number' && typeof rate === 'number' && window.usCloseFx > 0){
+    const change = rate - window.usCloseFx;
+    return {change, changePct: change / window.usCloseFx * 100};
+  }
   if(typeof window.lastFxChange === 'number' && typeof window.lastFxChangePct === 'number'){
     return {change: window.lastFxChange, changePct: window.lastFxChangePct};
   }
