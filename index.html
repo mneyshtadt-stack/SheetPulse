@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792596057";
+const BUILD_ID = "1792600645";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8897,7 +8897,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     window.settledAt = closed ? closeRef : null;   // the market's close time (label)
     window.settleAt = settled ? settled.t : null;  // the reading the closing value comes from (label)
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
-    if(settled) window.liveNow = settled.v;
+    // A broker's own header total stays as it is (renderPortfolioHeader), not the whole-market chart reading (22 Oct 2026).
+    const brokerOn = typeof activeBroker === 'function' && !!activeBroker(window.lastRows || []);
+    if(settled && !brokerOn) window.liveNow = settled.v;
     // The USA close's rate: the log's USD/ILS at the same closing reading (the 23:55 rule), shown in the USA tooltip.
     if(!isIl && settled && typeof settled.fx === 'number') window.usCloseFx = settled.fx;
   }
