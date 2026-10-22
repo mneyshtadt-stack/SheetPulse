@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792653952";
+const BUILD_ID = "1792675905";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4337,6 +4337,7 @@ function renderMarketDetailTable(){
 // background refresh can re-render just the numbers without resetting the user's
 // current search/sort state in the table below.
 function renderMarketDetailHeader(marketKey){
+  refreshUsPrevFromLog();
   const rows = window.lastRows || [];
   const split = snapSplit(rows);
   let seg = marketKey === 'il' ? split.il : split.us;
@@ -8510,6 +8511,14 @@ function nearestTradingDayOnOrBefore(y, m, d){
 // only while the relevant market is closed, so it's clear that number is frozen as of that day
 // rather than reflecting a still-moving live price.
 // One rule for the USA "last session" freeze (22 Oct 2026): until the USA market opens (16:30 Israel), the last session stays.
+// The USA previous close (dollars and label) for the current moment (22 Oct 2026): recomputed at each render, so it
+// switches from the 20 Oct to the 21 Oct reading when the USA opens (16:30), not only when the log loads.
+function refreshUsPrevFromLog(){
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+  const pk = Object.keys(window.usdDayLast || {}).filter(k => k < today).sort();
+  const idx = usLastSessionFreeze() && pk.length >= 2 ? pk.length - 2 : pk.length - 1;
+  if (idx >= 0) { window.lastCloseUSD = window.usdDayLast[pk[idx]]; window.lastCloseUSTs = new Date(window.usdDayLastT[pk[idx]]); }
+}
 function usLastSessionFreeze(){
   return new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '16:30:00';
 }
