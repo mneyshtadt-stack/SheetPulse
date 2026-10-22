@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792681978";
+const BUILD_ID = "1792682194";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3219,8 +3219,9 @@ function formatNextClose(ms){
 // (top-left, inside its own padding) so a viewer who opened the window after hours can immediately
 // tell the chart is showing a closed/frozen session — without spending a header line on it.
 function marketStatusBadgeSvg(x, y, id, label, isOpen){
+  const icon = (isOpen ? SUN_ICON_SVG : MOON_ICON_SVG).replace('<svg ', `<svg x="${x-7}" y="${y-10.5}" width="14" height="14" `);
   return `<g id="${id}" style="cursor:help;">
-      <circle cx="${x}" cy="${y-3.5}" r="4" fill="${isOpen?'var(--up-ink)':'var(--down-ink)'}"/>
+      ${icon}
       <text x="${x+9}" y="${y}" font-size="11" fill="var(--ink)" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${label}: <tspan font-weight="700">${isOpen?'OPEN':'CLOSED'}</tspan></text>
     </g>`;
 }
