@@ -855,6 +855,9 @@
   .hd-head .hp-label{margin-bottom:4px;}
   .hd-now{font-family:var(--mono); font-size:13px; font-weight:600;}
   .hd-now .hd-time{color:var(--muted); font-weight:400; margin-left:6px;}
+  #headlineCard .total-zone{position:relative;}
+  #headlineCard .total-tip{display:none; position:absolute; left:0; top:100%; margin-top:6px; z-index:50; width:340px; max-width:85vw; padding:8px 10px; border-radius:6px; background:var(--paper,#fff); color:var(--ink,#111); border:1px solid var(--line,#ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; text-align:left; font-weight:400; cursor:default;}
+  #headlineCard .total-zone:hover .total-tip{display:block;}
   #homeDay{height:150px; position:relative; overflow:hidden; min-width:0;}
   #homeDay svg{display:block; width:100%; height:100%; overflow:hidden; max-width:100%;}
   #homeDay .chart-msg{padding:50px 8px; text-align:center; color:var(--muted); font-size:13px;}
@@ -1618,7 +1621,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792678489";
+const BUILD_ID = "1792681272";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9931,11 +9934,13 @@ function render(rows, totals){
   ];
   cards.forEach((c, i)=>{
     const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '');
-    el.innerHTML = `<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
+    // The total value's popup lives inside its card and shows by CSS hover, only over the label and number (22 Oct 2026).
+    const headTip = i === 0 && headlineEl ? `<div class="total-tip">${totalTipHtml()}</div>` : '';
+    const headOpen = headTip ? '<div class="total-zone">' : '';
+    el.innerHTML = `${headOpen}<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${headTip}${headOpen ? '</div>' : ''}${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
     (i === 0 && headlineEl ? headlineEl : cardsEl).appendChild(el);
   });
   // Total value tooltip (22 Oct 2026): the exact calculation from the live values and the IntradayLog's B and D.
-  if(headlineEl && !headlineEl._totalTipAttached){ headlineEl._totalTipAttached = true; attachZoneTip(headlineEl, totalTipHtml, '.card .label, .card .value'); }
   cardsEl.title = 'View all holdings';
   cardsEl.onclick = () => openPortfolioDetail();
   if(headlineEl) headlineEl.onclick = () => openPortfolioDetail();
