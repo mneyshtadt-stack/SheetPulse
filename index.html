@@ -898,8 +898,9 @@
   #gaugeInfo .gval.up{color:var(--up-ink);}
   #gaugeInfo .gval.down{color:var(--down-ink);}
   #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
-  .market-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px;}
-  .market-dot.open{background:var(--up-ink);} .market-dot.closed{background:var(--down-ink);}
+  .market-icon{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .market-icon.open{background:#fde8d3;} .market-icon.closed{background:#e3dff0;}
+  .market-icon svg{width:14px; height:14px;}
   section{margin-bottom:52px;}
   h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:var(--sans); letter-spacing:0.01em;}
   .legend{display:flex; gap:18px; font-family:var(--sans); font-size:12px; color:var(--muted); margin-bottom:14px; flex-wrap:wrap;}
@@ -1621,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792681583";
+const BUILD_ID = "1792681978";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7950,6 +7951,10 @@ async function openNetWorthDetail(){
   await loadNetWorthYear(year);
 }
 
+// Open = sun, closed = moon (the market-status icons, 22 Oct 2026).
+const SUN_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="#e8934f"/><g stroke="#e8934f" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>';
+const MOON_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="#7d70ad"/></svg>';
+
 function renderGauge(rows, totals){
   const panel = document.getElementById('gaugePanel');
   if(!panel) return;
@@ -7968,8 +7973,8 @@ function renderGauge(rows, totals){
   // updating Portfolio / Israel / USA live while a market trades.
   panel.innerHTML = `
     <div id="gaugeInfo" class="mstrip">
-      <span class="mitem" id="taseStatusLine" style="cursor:help;"><span class="market-dot ${taseOpen?'open':'closed'}"></span>TASE <b>${taseOpen?'open':'closed'}</b></span>
-      <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-dot ${usOpen?'open':'closed'}"></span>USA <b>${usOpen?'open':'closed'}</b></span>
+      <span class="mitem" id="taseStatusLine" style="cursor:help;"><span class="market-icon ${taseOpen?'open':'closed'}">${taseOpen ? SUN_ICON_SVG : MOON_ICON_SVG}</span>TASE <b>${taseOpen?'open':'closed'}</b></span>
+      <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-icon ${usOpen?'open':'closed'}">${usOpen ? SUN_ICON_SVG : MOON_ICON_SVG}</span>USA <b>${usOpen?'open':'closed'}</b></span>
       <span class="msep"></span>
       <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
       <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
