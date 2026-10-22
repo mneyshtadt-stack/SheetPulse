@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792675905";
+const BUILD_ID = "1792677790";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8151,8 +8151,9 @@ function attachUsTipPopup(el){
     pop.id = 'usTipPop';
     pop.style.cssText = 'position:fixed; z-index:9999; max-width:340px; padding:8px 10px; border-radius:6px; background:var(--paper, #fff); color:var(--ink, #111); border:1px solid var(--line, #ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; display:none; pointer-events:none;';
     document.body.appendChild(pop);
+    document.addEventListener('pointerdown', () => { pop.style.display = 'none'; }, true);
   }
-  el.addEventListener('mouseenter', () => {
+  el.addEventListener('pointerenter', (e) => { if (e.pointerType && e.pointerType !== 'mouse') return;   // hover only: on touch the popup would cover the chart (22 Oct 2026)
     pop.innerHTML = usaTipHtml();
     const r = el.getBoundingClientRect();
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 350)) + 'px';
@@ -8170,8 +8171,9 @@ function attachHoverTip(el, htmlFn){
     pop.id = 'usTipPop';
     pop.style.cssText = 'position:fixed; z-index:9999; max-width:360px; padding:8px 10px; border-radius:6px; background:var(--paper, #fff); color:var(--ink, #111); border:1px solid var(--line, #ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; display:none; pointer-events:none;';
     document.body.appendChild(pop);
+    document.addEventListener('pointerdown', () => { pop.style.display = 'none'; }, true);
   }
-  el.addEventListener('mouseenter', () => {
+  el.addEventListener('pointerenter', (e) => { if (e.pointerType && e.pointerType !== 'mouse') return;   // hover only: on touch the popup would cover the chart (22 Oct 2026)
     pop.innerHTML = htmlFn();
     const r = el.getBoundingClientRect();
     pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 370)) + 'px';
