@@ -1618,7 +1618,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792621112";
+const BUILD_ID = "1792653545";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4820,7 +4820,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
-          : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${prevCloseReferenceLabel()}</div>`}`}
+          : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${allPrevCloseLabel()}</div>`}`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -8542,6 +8542,15 @@ function marketPrevCloseReferenceLabel(dayRangeForDateFn, loggedTs){
 }
 // The combined portfolio's reference always lands on USA's close (it's always the later of the
 // two markets' closes in Israel time), so this is equivalent to using the combined range here.
+// The All view's previous close label (22 Oct 2026): once TASE opens (10:00), the last completed day's
+// USA reading time (21 Oct 23:59:06); before that, the shared label (which follows the USA freeze).
+function allPrevCloseLabel(){
+  const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+  const past = Object.keys(window.usDayLastT || {}).filter(k => k < today).sort();
+  if (nowHms >= '10:00:00' && past.length) return formatPrevCloseLabel(new Date(window.usDayLastT[past[past.length - 1]]));
+  return prevCloseReferenceLabel();
+}
 function prevCloseReferenceLabel(){
   return marketPrevCloseReferenceLabel(getUsDayRangeForDate, window.lastCloseUSTs);
 }
