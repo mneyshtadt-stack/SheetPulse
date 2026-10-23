@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792738558";
+const BUILD_ID = "1792738696";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10568,7 +10568,8 @@ function saveCache(rows, totals, asOfText){
     const closes = {}, closeDates = {};
     CACHE_CLOSE_KEYS.forEach(k => { if(typeof window[k] === 'number') closes[k] = window[k]; });
     CACHE_CLOSE_DATE_KEYS.forEach(k => { if(window[k] instanceof Date) closeDates[k] = window[k].getTime(); });
-    localStorage.setItem('pf_cache', JSON.stringify({rows, totals, fxRate: window.lastFxRate, asOfText, closes, closeDates}));
+    // The latest IntradayLog row too: the strip's Israel and USA are computed from it, the same as the saved totals.
+    localStorage.setItem('pf_cache', JSON.stringify({rows, totals, fxRate: window.lastFxRate, asOfText, closes, closeDates, logRow: window.lastLogRow || null}));
   } catch(e){ /* storage full or unavailable — ignore, cache is a nice-to-have */ }
 }
 function loadCache(){
@@ -10582,6 +10583,7 @@ function loadCache(){
     (c.rows || []).forEach(r => numFields.forEach(f => { if(r[f] === null) r[f] = NaN; }));
     Object.entries(c.closes || {}).forEach(([k, v]) => { window[k] = v; });
     Object.entries(c.closeDates || {}).forEach(([k, v]) => { window[k] = new Date(v); });
+    if(c.logRow) window.lastLogRow = c.logRow;
     return c;
   } catch(e){ return null; }
 }
