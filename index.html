@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792738077";
+const BUILD_ID = "1792738209";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8933,15 +8933,24 @@ function freeLabelY(pts, xRight, labelW, top, bottom, prefer, avoid){
     const a = pts[i-1], b = pts[i], k = (b.x - a.x) ? (x - a.x) / (b.x - a.x) : 0;
     return a.y + (b.y - a.y) * k;
   };
-  const clear = base => {
-    if((avoid || []).some(a => Math.abs(a - base) < 14)) return false;
-    for(let x = xRight - labelW; x <= xRight; x += 3){ const ly = lineYAt(x); if(ly !== null && ly >= base - 14 && ly <= base + 5) return false; }
-    return true;
+  // How much of the line runs through the label's box at this baseline (0 = clear); another label too close counts as blocked.
+  const overlap = base => {
+    if((avoid || []).some(a => Math.abs(a - base) < 14)) return Infinity;
+    let n = 0;
+    for(let x = xRight - labelW; x <= xRight; x += 3){ const ly = lineYAt(x); if(ly !== null && ly >= base - 14 && ly <= base + 5) n++; }
+    return n;
   };
+  // The first clear spot nearest the preferred one; on a chart too small for any, the spot the line crosses least.
+  let best = Math.min(Math.max(prefer, top), bottom), bestN = Infinity;
   for(let d = 0; d <= bottom - top; d += 3){
-    for(const y of [prefer + d, prefer - d]) if(y >= top && y <= bottom && clear(y)) return y;
+    for(const y of [prefer + d, prefer - d]){
+      if(y < top || y > bottom) continue;
+      const n = overlap(y);
+      if(n === 0) return y;
+      if(n < bestN){ best = y; bestN = n; }
+    }
   }
-  return Math.min(Math.max(prefer, top), bottom);
+  return best;
 }
 function chartLabelHalo(bg){ return `paint-order="stroke" stroke="${bg}" stroke-width="4" stroke-linejoin="round"`; }
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
