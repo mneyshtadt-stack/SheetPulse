@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792775545";
+const BUILD_ID = "1792775782";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8051,19 +8051,10 @@ async function syncGaugeToIntraday(split, totals){
   const usOpen = getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
   const rows = await fetchIntradayLogRows().catch(()=>[]);
   window.lastLogRow = rows.length ? rows[rows.length - 1] : null;   // the newest IntradayLog row (for the Total value tooltip)
-  // The USA close's USD/ILS: the log's reading at the USA closing time (16:55 New York rule), for the USA tooltip (22 Oct 2026).
+  // The USA and TASE closes (window.usCloseFx/usCloseUsd/usCloseTs, ilCloseIls/ilCloseTs) are set only by fetchIntradayLogRows()
+  // above, one rule each, the same values the headline was computed with (23 Oct 2026: a second copy of each rule here, with
+  // slightly different times, made the strip disagree with the headline after the TASE settle).
   {
-    // Until today's 23:55 settle has been logged, the USA close is the previous session's (same rule as TASE, 22 Oct 2026).
-    const usRef = Date.now() < getUsDayRangeMs().close + 55 * 60000 ? usPrevCloseMs() : getUsDayRangeMs().close;
-    const closeRd = rows.find(r => r.t >= usRef + 55 * 60000 && typeof r.fx === 'number');
-    if(closeRd) { window.usCloseFx = closeRd.fx; window.usCloseTs = new Date(closeRd.t); if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
-  }
-  // The TASE close: the log's Israel value at the settle time (18:30, the rule) of the last session, for the Israel tooltip (22 Oct 2026).
-  {
-    const todaySettle = taseSettleMs(getTaseDayRangeMs().close);
-    const ilSettle = Date.now() < todaySettle ? taseSettleMs(ilPrevCloseMs()) : todaySettle;
-    const ilCloseRd = rows.find(r => r.t >= ilSettle && typeof r.il === 'number');
-    if(ilCloseRd) { window.ilCloseIls = ilCloseRd.il; window.ilCloseTs = new Date(ilCloseRd.t); }
     // The Israel strip item was drawn before this close was known: redraw its figure from the settled close (22 Oct 2026).
     const ilStripEl = document.getElementById('gaugeIlVal');
     if(ilStripEl && typeof window.ilCloseIls === 'number' && window.ilCloseIls > 0){
@@ -8682,8 +8673,10 @@ async function fetchIntradayLogRows(){
     const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
     const labelIdx = nowHms < '10:00:00' && pastK.length >= 2 ? last - 1 : last;
     if (labelIdx >= 0) window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[labelIdx]]);
-    // The strip and headline close: the last completed session's settle, so TASE shows ₪0 while closed (23 Oct 2026).
-    if (last >= 0) { window.ilCloseIls = window.ilDaySettle[pastK[last]]; window.ilCloseTs = new Date(window.ilDaySettleT[pastK[last]]); }
+    // The strip and headline close: the latest settle, today's once its 18:30 reading exists (the same as syncGaugeToIntraday,
+    // so the first draw and the strip agree after 18:30), so TASE shows ₪0 while closed (23 Oct 2026).
+    const settledK = Object.keys(window.ilDaySettle).filter(k => k <= todayK).sort();
+    if (settledK.length) { const k = settledK[settledK.length - 1]; window.ilCloseIls = window.ilDaySettle[k]; window.ilCloseTs = new Date(window.ilDaySettleT[k]); }
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
@@ -9129,8 +9122,6 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // A broker's own header total stays as it is (renderPortfolioHeader), not the whole-market chart reading (22 Oct 2026).
     const brokerOn = typeof activeBroker === 'function' && !!activeBroker(window.lastRows || []);
     if(settled && !brokerOn) window.liveNow = settled.v;
-    // The USA close's rate: the log's USD/ILS at the same closing reading (the 23:55 rule), shown in the USA tooltip.
-    if(!isIl && settled && typeof settled.fx === 'number') window.usCloseFx = settled.fx;
   }
   if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close)
     log = [...log.slice(0, -1), {...log[log.length-1], v: window.liveNow}];
