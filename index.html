@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792737849";
+const BUILD_ID = "1792738077";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4362,7 +4362,7 @@ function renderMarketDetailHeader(marketKey){
     const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
     if (nowHms < '10:00:00' && pastK.length >= 2) {
       const val = window.ilDaySettle[pastK[pastK.length - 1]], prior = window.ilDaySettle[pastK[pastK.length - 2]];
-      seg = {...seg, value: val, gain: val - prior};
+      seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
     }
   }
   let usPrevOverride = null;
@@ -4374,7 +4374,7 @@ function renderMarketDetailHeader(marketKey){
       const past = Object.keys(window.usDayLast).filter(k => k < today).sort();
       if (past.length >= 2) {
         const val = window.usDayLast[past[past.length - 1]], prior = window.usDayLast[past[past.length - 2]];
-        seg = {...seg, value: val, gain: val - prior};
+        seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
         usPrevOverride = prior;
       }
     }
@@ -8666,10 +8666,13 @@ async function fetchIntradayLogRows(){
   {
     const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
-    // The last completed session's settle, before and after the open: the same close the chart and strip use (23 Oct 2026).
-    const idx = pastK.length - 1;
-    // The TASE close (18:30 settle) is set here too, so it exists before the first render and the snapshot save (23 Oct 2026).
-    if (idx >= 0) { window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[idx]]); window.ilCloseIls = window.ilDaySettle[pastK[idx]]; window.ilCloseTs = window.lastCloseILTs; }
+    const last = pastK.length - 1;
+    // The TASE window's "Prev. close" label: before 10:00 it still shows the last session, so its previous close is the session before it.
+    const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const labelIdx = nowHms < '10:00:00' && pastK.length >= 2 ? last - 1 : last;
+    if (labelIdx >= 0) window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[labelIdx]]);
+    // The strip and headline close: the last completed session's settle, so TASE shows ₪0 while closed (23 Oct 2026).
+    if (last >= 0) { window.ilCloseIls = window.ilDaySettle[pastK[last]]; window.ilCloseTs = new Date(window.ilDaySettleT[pastK[last]]); }
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
@@ -8919,6 +8922,26 @@ function chartLabelY(lineY, pts, xRight, labelW, top, bottom){
   if(above - 11 >= top && !hits(above)) return above;
   if(below <= bottom && !hits(below)) return below;
   return above - 11 >= top ? above : below;
+}
+// A label's baseline where the chart's line does not run through the label's box (checked across its width), starting at
+// `prefer` and stepping up and down from it; `avoid` holds other labels' baselines it must keep a line apart from (23 Oct 2026).
+function freeLabelY(pts, xRight, labelW, top, bottom, prefer, avoid){
+  const xs = pts.map(p => p.x);
+  const lineYAt = x => {
+    if(!pts.length || x < xs[0] || x > xs[xs.length-1]) return null;
+    let i = 1; while(i < pts.length - 1 && xs[i] < x) i++;
+    const a = pts[i-1], b = pts[i], k = (b.x - a.x) ? (x - a.x) / (b.x - a.x) : 0;
+    return a.y + (b.y - a.y) * k;
+  };
+  const clear = base => {
+    if((avoid || []).some(a => Math.abs(a - base) < 14)) return false;
+    for(let x = xRight - labelW; x <= xRight; x += 3){ const ly = lineYAt(x); if(ly !== null && ly >= base - 14 && ly <= base + 5) return false; }
+    return true;
+  };
+  for(let d = 0; d <= bottom - top; d += 3){
+    for(const y of [prefer + d, prefer - d]) if(y >= top && y <= bottom && clear(y)) return y;
+  }
+  return Math.min(Math.max(prefer, top), bottom);
 }
 function chartLabelHalo(bg){ return `paint-order="stroke" stroke="${bg}" stroke-width="4" stroke-linejoin="round"`; }
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
@@ -9176,23 +9199,17 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // Today's own session gets the same callout once its market has closed (e.g. TASE after 17:30) --
   // the line's end is then that day's final close, not a still-moving "now".
   const sessionClosed = !!sessionLabel || !marketOpen;
-  let prevCloseLabelY = chartLabelY(prevCloseY, points, w - padR, 11 + fmt(prevClose).length * 6.5 + 60, padT, h - padB - 2);
+  // Both labels sit at the right edge, each where the line does not run through it (23 Oct 2026): Prev. close beside
+  // its dotted line, Close beside the end point, a line apart from each other.
+  const labelTop = padT + 11, labelBottom = h - padB - 4;
+  const prevCloseLabelY = freeLabelY(points, w - padR, 11 + fmt(prevClose).length * 6.5 + 60, labelTop, labelBottom, prevCloseY - 8, []);
   let closeCalloutSvg = '';
   if(sessionClosed){
-    // Below the end dot by default. Both labels sit at the same right edge, so they always read in
-    // value order: a close below the previous close is listed under the "Prev. close" label, one
-    // above it over that label (a line apart), whichever side of its line that label went.
-    const lower = latest < prevClose, top = padT + 11, bottom = h - padB - 4;
-    // Beside the end point, on whichever side the line does not run through the label's width (23 Oct 2026).
-    let ty = chartLabelY(lastPoint.y, points, w - padR, 230, top, bottom);
-    if(lower ? ty < prevCloseLabelY + 15 : ty > prevCloseLabelY - 15) ty = lower ? prevCloseLabelY + 15 : prevCloseLabelY - 15;
-    // No room on that side: move both, keeping the order.
-    if(ty > bottom){ ty = bottom; prevCloseLabelY = ty - 15; }
-    if(ty < top){ ty = top; prevCloseLabelY = ty + 15; }
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
-    const hhmm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jerusalem'});
     const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
     const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
+    const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
+    const ty = freeLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [prevCloseLabelY]);
     closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${settledLabel}<tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
   }
 
