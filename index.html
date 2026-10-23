@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792738342";
+const BUILD_ID = "1792738558";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9939,7 +9939,6 @@ function renderPhoneHero(rows, totals){
 function snapSplit(rows){
   return window.snap && window.snap.rows === rows ? window.snap.split : splitByMarket(rows);
 }
-let cardClickTimer = null;   // pending "open Portfolio" from a single click on the Holdings card
 function render(rows, totals){
   window.lastRows = rows;
   window.lastTotals = totals;
@@ -9959,6 +9958,7 @@ function render(rows, totals){
   ];
   cards.forEach((c, i)=>{
     const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '');
+    if(c.label === 'Holdings'){ el.id = 'holdingsCard'; el.title = 'Open Market Universe'; }
     // The total value's popup lives inside its card and shows by CSS hover, only over the label and number (22 Oct 2026).
     const headTip = i === 0 && headlineEl ? `<div class="total-tip">${totalTipHtml()}</div>` : '';
     const headOpen = headTip ? '<div class="total-zone">' : '';
@@ -9967,11 +9967,10 @@ function render(rows, totals){
   });
   // Total value tooltip (22 Oct 2026): the exact calculation from the live values and the IntradayLog's B and D.
   cardsEl.title = 'View all holdings';
-  // One click opens Portfolio after a short wait; a double-click (the second click arrives before the wait ends) opens Market Universe instead (23 Oct 2026).
+  // The Holdings card opens Market Universe (one click or two), never Portfolio; the other cards open Portfolio (23 Oct 2026).
   cardsEl.onclick = (e) => {
-    clearTimeout(cardClickTimer);
-    if(e.detail >= 2){ renderUniverseTable(); document.getElementById('universeModal').classList.add('open'); refreshUniverseRows(); hideUniverseQuoteCard(); return; }
-    cardClickTimer = setTimeout(openPortfolioDetail, 250);
+    if(e.target.closest('#holdingsCard')){ renderUniverseTable(); document.getElementById('universeModal').classList.add('open'); refreshUniverseRows(); hideUniverseQuoteCard(); return; }
+    openPortfolioDetail();
   };
   if(headlineEl) headlineEl.onclick = () => openPortfolioDetail();
   renderPhoneHero(rows, totals);
@@ -10591,7 +10590,20 @@ function loadCache(){
 // Refresh button dead (it did once, when a saved snapshot crashed the treemap on load).
 document.getElementById('refreshBtn').addEventListener('click', refresh);
 // Surface unexpected errors in the status line instead of failing silently.
-const reportPageError = msg => { try{ setStatus('Something went wrong on this page (' + msg + ') — try Refresh; if it keeps happening, reload.', true); } catch(_){} };
+// Recovers by itself: an error triggers a refresh (at most once every 30 s, so a repeating error can't loop) instead
+// of asking the viewer to press Refresh (23 Oct 2026).
+let lastErrorRefreshAt = 0;
+const reportPageError = msg => {
+  try{
+    if(Date.now() - lastErrorRefreshAt > 30000){
+      lastErrorRefreshAt = Date.now();
+      setStatus('Something went wrong on this page (' + msg + '). Refreshing…', true);
+      setTimeout(refresh, 500);
+    } else {
+      setStatus('Something went wrong on this page (' + msg + '). If it keeps happening, reload.', true);
+    }
+  } catch(_){}
+};
 window.addEventListener('error', e => reportPageError(e.message || 'script error'));
 window.addEventListener('unhandledrejection', e => reportPageError((e.reason && e.reason.message) || 'unexpected error'));
 
