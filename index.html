@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792736556";
+const BUILD_ID = "1792736868";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3083,12 +3083,13 @@ function splitByMarket(rows){
   const isIL = r => ISRAELI_TICKERS.includes(r.name);
   const ilAll = rows.filter(isIL);
   const usAll = rows.filter(r=>!isIL(r));
+  const logNow = window.lastLogRow && typeof window.lastLogRow.il === 'number' && typeof window.lastLogRow.us === 'number' && rows.length === (window.lastRows || []).length ? window.lastLogRow : null;
   const il = ilAll.filter(r=>!isNaN(r.change));
   const us = usAll.filter(r=>!isNaN(r.change));
   // Same logged-close-first approach as computeTotals (see its comment) — a segment's gain/pct
   // prefer that market's own real recorded close over summing its holdings' live day-change%.
-  const calc = (arr, allArr, loggedPrevClose, ls, closeIls) => {
-    const allValue = allArr.reduce((a,r)=>a+r.value,0);
+  const calc = (arr, allArr, loggedPrevClose, ls, closeIls, nowValue) => {
+    const allValue = typeof nowValue === 'number' ? nowValue : allArr.reduce((a,r)=>a+r.value,0);
     let gain, pct;
     if(typeof closeIls === 'number'){
       // USA (22 Oct 2026): today's value (dollars × live rate) minus the closing value, so the day change follows the rate.
@@ -3120,8 +3121,10 @@ function splitByMarket(rows){
   const usdAllNow = usAll.filter(r=>!isNaN(r.valueUsd)).reduce((a,r)=>a+r.valueUsd,0);
   return {
     // Israel's day change is measured from its settled close (18:30), the same rule as USA's (22 Oct 2026).
-    il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il'), typeof window.ilCloseIls === 'number' && ilAll.length ? window.ilCloseIls : undefined),
-    us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'), typeof window.usCloseFx === 'number' ? (typeof window.usCloseUsd === 'number' ? window.usCloseUsd : usdAllNow) * window.usCloseFx : undefined)
+    // The same current values as the headline and Portfolio (computeTotals reads the latest IntradayLog row), so the
+    // strip's Israel + USA always add up to the Portfolio figure (23 Oct 2026).
+    il: calc(il, ilAll, window.lastCloseIL, lastSessionFor('il'), typeof window.ilCloseIls === 'number' && ilAll.length ? window.ilCloseIls : undefined, logNow && ilAll.length ? logNow.il : undefined),
+    us: calc(us, usAll, window.lastCloseUS, lastSessionFor('us'), typeof window.usCloseFx === 'number' ? (typeof window.usCloseUsd === 'number' ? window.usCloseUsd : usdAllNow) * window.usCloseFx : undefined, logNow && usAll.length ? logNow.us : undefined)
   };
 }
 
@@ -8149,7 +8152,7 @@ function usaTipHtml(){
   const ilsCol = isFinite(actualIls) && isFinite(closeIls) ? (actualIls >= closeIls ? '#1a7f37' : '#c62828') : 'inherit';
   return `<div><b>USA</b> = your US holdings in shekels.</div>`
     + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(usd) ? fmtUsd(usd) : '—'}</span> at USD/ILS <span style="color:${rateCol}; font-weight:700;">${typeof rate === 'number' ? rate.toFixed(4) : '—'}</span> = <span style="color:${ilsCol}; font-weight:700;">${isFinite(actualIls) ? ils(actualIls) : '—'}</span></div>`
-    + `<div style="margin-top:4px;">USA close, ${closeLbl}: ${isFinite(closeUsd) ? fmtUsd(closeUsd) : '—'} at USD/ILS ${hasClose ? closeRate.toFixed(4) : 'not recorded yet'} = ${isFinite(closeIls) ? ils(closeIls) : '—'}</div>`
+    + `<div style="margin-top:4px;">USA close, ${closeLbl}: <b>${isFinite(closeUsd) ? fmtUsd(closeUsd) : '—'}</b> at USD/ILS <b>${hasClose ? closeRate.toFixed(4) : 'not recorded yet'}</b> = <b>${isFinite(closeIls) ? ils(closeIls) : '—'}</b></div>`
     + `<div style="margin-top:4px; color:var(--muted);">The day change is the change since that close, from the rate and any US price moves.</div>`;
 }
 function attachUsTipPopup(el){
@@ -8665,7 +8668,8 @@ async function fetchIntradayLogRows(){
     const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
     const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
     const idx = nowHms < '10:00:00' && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
-    if (idx >= 0) window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[idx]]);
+    // The TASE close (18:30 settle) is set here too, so it exists before the first render and the snapshot save (23 Oct 2026).
+    if (idx >= 0) { window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[idx]]); window.ilCloseIls = window.ilDaySettle[pastK[idx]]; window.ilCloseTs = window.lastCloseILTs; }
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
