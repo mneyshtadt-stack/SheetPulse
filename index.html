@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792738209";
+const BUILD_ID = "1792738342";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8937,7 +8937,8 @@ function freeLabelY(pts, xRight, labelW, top, bottom, prefer, avoid){
   const overlap = base => {
     if((avoid || []).some(a => Math.abs(a - base) < 14)) return Infinity;
     let n = 0;
-    for(let x = xRight - labelW; x <= xRight; x += 3){ const ly = lineYAt(x); if(ly !== null && ly >= base - 14 && ly <= base + 5) n++; }
+    // Fine steps and a few pixels of margin, so a steep segment grazing the label's corner still counts.
+    for(let x = xRight - labelW - 4; x <= xRight + 4; x += 1.5){ const ly = lineYAt(x); if(ly !== null && ly >= base - 16 && ly <= base + 6) n++; }
     return n;
   };
   // The first clear spot nearest the preferred one; on a chart too small for any, the spot the line crosses least.
