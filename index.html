@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792793887";
+const BUILD_ID = "1792794243";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8556,7 +8556,7 @@ function nearestTradingDayOnOrBefore(y, m, d){
 // itself if it's a trading day, otherwise the most recent one) — shown next to a headline value
 // only while the relevant market is closed, so it's clear that number is frozen as of that day
 // rather than reflecting a still-moving live price.
-// One rule for the USA "last session" freeze (22 Oct 2026): until the USA market opens (16:30 Israel), the last session stays.
+// One rule for the USA "last session" freeze (22 Oct 2026): until the USA market opens (09:30 New York), the last session stays.
 // The USA previous close (dollars and label) for the current moment (22 Oct 2026): recomputed at each render, so it
 // switches from the 20 Oct to the 21 Oct reading when the USA opens (16:30), not only when the log loads.
 function refreshUsPrevFromLog(){
@@ -8566,7 +8566,9 @@ function refreshUsPrevFromLog(){
   if (idx >= 0) { window.lastCloseUSD = window.usdDayLast[pk[idx]]; window.lastCloseUSTs = new Date(window.usdDayLastT[pk[idx]]); }
 }
 function usLastSessionFreeze(){
-  return new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '16:30:00';
+  // Today's USA open, worked out from New York's 09:30 (24 Oct 2026): 16:30 Israel most of the year, but 15:30 in the weeks
+  // when Israel and the US change clocks on different dates (26-30 Oct 2026), so it is not a fixed Israel time.
+  return Date.now() < getUsDayRangeMs().open;
 }
 function currentSessionDateLabel(){
   // Until 07:00 Israel time the business day is still the previous one (22 Oct 2026): show the last session's date.
