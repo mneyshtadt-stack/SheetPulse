@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792741815";
+const BUILD_ID = "1792775545";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8060,8 +8060,9 @@ async function syncGaugeToIntraday(split, totals){
   }
   // The TASE close: the log's Israel value at the settle time (18:30, the rule) of the last session, for the Israel tooltip (22 Oct 2026).
   {
-    const ilRef = Date.now() < getTaseDayRangeMs().close + 60 * 60000 ? ilPrevCloseMs() : getTaseDayRangeMs().close;
-    const ilCloseRd = rows.find(r => r.t >= ilRef + 60 * 60000 && typeof r.il === 'number');
+    const todaySettle = taseSettleMs(getTaseDayRangeMs().close);
+    const ilSettle = Date.now() < todaySettle ? taseSettleMs(ilPrevCloseMs()) : todaySettle;
+    const ilCloseRd = rows.find(r => r.t >= ilSettle && typeof r.il === 'number');
     if(ilCloseRd) { window.ilCloseIls = ilCloseRd.il; window.ilCloseTs = new Date(ilCloseRd.t); }
     // The Israel strip item was drawn before this close was known: redraw its figure from the settled close (22 Oct 2026).
     const ilStripEl = document.getElementById('gaugeIlVal');
@@ -8523,6 +8524,12 @@ function getCombinedDayRangeMs(){
 // Same trading-hours math as above, but for an arbitrary calendar day rather than always "today" —
 // used to fall back to the last completed session's full chart when today has no logged data yet
 // (before the market opens) or none at all (weekends/holidays), instead of showing an empty chart.
+// TASE's closing value is the first logged reading at or after 18:30 Israel time on the session's day, Friday included
+// (it closes at 14:00 then): one rule for the logger's settle row, the strip, the popup and the chart (23 Oct 2026).
+function taseSettleMs(ms){
+  const [y, m, d] = new Date(ms).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'}).split('-').map(Number);
+  return zonedTimeToMs(y, m, d, 18, 30, 'Asia/Jerusalem');
+}
 function getTaseDayRangeForDate(y, m, d){
   const weekday = new Date(y, m-1, d).toLocaleDateString('en-US', {weekday:'short'});
   return weekday === 'Fri'
@@ -9017,7 +9024,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       if(fbRange.open >= dayRange.open) continue; // today's own range (or later) -- only look backward
       // USA's replayed session runs to its last logged reading of the Israel day (23:59), not only to the 23:00 close (22 Oct 2026).
       const ilDayOfFb = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
-      const fbSettle = window.liveMarket === 'il' ? raw.find(p => p.t >= fbRange.close + 60 * 60000 && ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)) : null;
+      const fbSettle = window.liveMarket === 'il' ? raw.find(p => p.t >= taseSettleMs(fbRange.close) && ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)) : null;
       const fbEnd = fbSettle ? fbSettle.t : window.liveMarket !== 'il' ? Math.max(fbRange.close, ...raw.filter(p => ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)).map(p => p.t)) : fbRange.close;
       const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbEnd);
       if(window.liveMarket !== undefined && fbLog.length) { window.settledAt = fbLog[fbLog.length - 1].t; }
@@ -9101,7 +9108,6 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const isIl = window.liveMarket === 'il';
     const closed = isIl ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
     const closeMs = (isIl ? getTaseDayRangeMs() : getUsDayRangeMs()).close;
-    const settleMin = isIl ? 60 : 55;   // TASE settles by 18:09, USA by 23:54 Israel time (last 6-7 days); see the note in SheetPulse.md
     // Searched in the unfiltered readings: the day's log above stops at the close, the settled reading comes after it.
     // Before today's USA close has happened, the last closing reading is the previous session's (22 Oct 2026).
     let closeRef = closeMs;
@@ -9113,7 +9119,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // USA's close is the last reading of its Israel day (the real end of day, 23:59), the same as the USA window (22 Oct 2026).
     const ilDayOf = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
     const settled = !closed ? null : isIl
-      ? raw.find(p => p.t >= closeRef + settleMin * 60000 && p.t <= Date.now())
+      ? raw.find(p => p.t >= taseSettleMs(closeRef) && p.t <= Date.now())
       : raw.filter(p => ilDayOf(p.t) === ilDayOf(closeRef) && typeof p.v === 'number').pop();
     // The close label shows the reading's time (TASE: 17:30 close, value settled at 18:30; USA: the last reading of the day).
     // The close label shows the real timestamp of the reading the closing value comes from (22 Oct 2026), e.g. 21/10 23:59:06.
