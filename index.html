@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792913852";
+const BUILD_ID = "1792950710";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9746,13 +9746,15 @@ async function renderHomeDay(rows, totals){
   }
   let range = getCombinedDayRangeMs(), prevClose = totals.totalValue - totals.dayGain, label = '';
   const open = getTaseStatus() || getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
-  let log = raw.filter(p => p.t >= range.open && p.t <= range.close);
+  // Saturday and Sunday rows are the rate only, never a session: the chart shows Friday's session then (25 Oct 2026).
+  let log = isWeekendIL(range.open) ? [] : raw.filter(p => p.t >= range.open && p.t <= range.close);
   if(log.length < 2 && !(open && log.length === 1)){
     const days = [...new Set(raw.map(p => { const d = new Date(p.t); return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate(); }))]
       .map(k => k.split('-').map(Number)).sort((a, b) => (b[0]-a[0]) || (b[1]-a[1]) || (b[2]-a[2]));
     for(const [y, m, d] of days){
       const r = getCombinedDayRangeForDate(y, m, d);
       if(r.open >= range.open) continue;
+      if(isWeekendIL(r.open)) continue;
       // The replayed session runs to its last logged reading of the day (23:59), as the Portfolio window does.
       const dayKeyOf = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
       const lEnd = Math.max(r.close, ...raw.filter(p => dayKeyOf(p.t) === dayKeyOf(r.open)).map(p => p.t));
