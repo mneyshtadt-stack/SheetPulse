@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793034398";
+const BUILD_ID = "1793036241";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7333,7 +7333,7 @@ function renderPayments(){
 const SHOPPING_CSV_URL = proxyUrl(PAYMENTS_SHEET_ID, 'Shopping');
 const SHOP_STAGE = {ordered: 1, paid: 1, shipped: 2, 'in transit': 3, 'out for delivery': 4, pickup: 5, delivered: 6, issue: 7, canceled: 8, lost: 8, refunded: 8};
 const SHOP_STATUS = {ordered: 'Ordered', paid: 'Ordered', shipped: 'On the way', 'in transit': 'On the way', 'out for delivery': 'Out for delivery',
-  pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded'};
+  pickup: 'Ready for pickup', delivered: 'Delivered', issue: 'Delivery issue', canceled: 'Canceled', lost: 'Lost', refunded: 'Refunded', deleted: 'Deleted'};
 const SHOP_FX_USD = {EUR: 1.08, GBP: 1.27};   // approximate, for the few European orders
 let shoppingOrders = null, shoppingEvents = [], shoppingStore = '', shoppingRange = 12, shoppingDeliv = '', shoppingQuery = '', shoppingStatus = '', shoppingYear = String(new Date().getFullYear());
 
@@ -7488,23 +7488,26 @@ function renderShopping(){
     const r = (usdIlsOn(ymd(o.first)) || {}).rate || window.lastFxQ1 || 3.7;
     return o.amount * r * (SHOP_FX_USD[o.cur] || 1);
   };
-  const all = shoppingOrders;
-  if(!all.length){ area.innerHTML = `<div class="pm-note">No orders yet — run updateShopping() in the Payments spreadsheet's Apps Script.</div>`; return; }
+  const allOrders = shoppingOrders;
+  if(!allOrders.length){ area.innerHTML = `<div class="pm-note">No orders yet — run updateShopping() in the Payments spreadsheet's Apps Script.</div>`; return; }
   // Amazon.com, .de, .fr, .co.uk and .it count as one store in the chips, the chart and By store; each
   // order still shows its own site.
   const prices = shopPricesGet();
-  all.forEach(o => {
+  allOrders.forEach(o => {
     const lp = prices[o.key]; if(!lp) return;
     const sp = o.sheetPrice;
     if(sp && sp.amount === lp.amount && sp.cur === lp.cur){ delete prices[o.key]; shopPricesSet(prices); return; }
     o.gross = lp.amount; o.cur = lp.cur; o.amount = o.status === 'canceled' ? 0 : Math.max(0, lp.amount - o.refund); o.priceLocal = true;
   });
-  all.forEach(o => { o.ils = ils(o); o.brand = /^Amazon/i.test(o.store) ? 'Amazon' : o.store; });
+  allOrders.forEach(o => { o.ils = ils(o); o.brand = /^Amazon/i.test(o.store) ? 'Amazon' : o.store; });
   // Statuses you set by hand (the email was deleted or never came): this device's marks win over the
   // emails until a "manual" row for the order is in the Shopping tab, which every device reads.
   const marks = shopMarksGet();
-  all.forEach(o => { if(o.baseStatus === undefined) o.baseStatus = o.status; const m = !o.markedInSheet && marks[o.key];
+  allOrders.forEach(o => { if(o.baseStatus === undefined) o.baseStatus = o.status; const m = !o.markedInSheet && marks[o.key];
     o.markLocal = m ? m.at : ''; o.status = m ? m.status : o.baseStatus; });
+  // An order you deleted (status "deleted", saved like any status) is left out of every list, count and total
+  // (26 Oct 2026); it stays in shoppingOrders so Undo can bring it back.
+  const all = allOrders.filter(o => o.status !== 'deleted');
   const notes = shopNotesGet();
   all.forEach(o => { const n = notes[o.key]; o.noteLocal = n !== undefined && n !== o.sheetNote; o.note = o.noteLocal ? n : o.sheetNote; });
 
@@ -7729,7 +7732,7 @@ function renderShopping(){
     } else {
       // Choosing: the four usual outcomes, the rest behind More.
       panel.innerHTML = `<div>${what}: <b>${statusTxt(o.status)}</b> ${o.markLocal || o.markedInSheet ? 'set by you' : 'by its emails, the last one ' + dayShort(o.last)}. Set the status:</div>
-        ${markBtns(o, (o.addedLocal ? '<button type="button" class="pay-btn text" data-act="delete">Delete this order</button>' : '') + '<button type="button" class="pay-btn text" data-act="close">Cancel</button>')}`;
+        ${markBtns(o, (o.addedLocal ? '<button type="button" class="pay-btn text" data-act="delete">Delete this order</button>' : '<button type="button" class="pay-btn text" data-act="deleted" style="color:var(--down-ink);">Delete order</button>') + '<button type="button" class="pay-btn text" data-act="close">Cancel</button>')}`;
     }
     panel.hidden = false;
     panel.scrollIntoView({block: 'nearest', behavior: 'smooth'});
