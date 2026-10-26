@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1792950710";
+const BUILD_ID = "1792996019";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4365,9 +4365,8 @@ function renderMarketDetailHeader(marketKey){
   // Until 07:00 Israel time the business day is still the previous one: show the last session (21 Oct) against the one before (20 Oct) (22 Oct 2026).
   if (marketKey === 'il' && window.ilDaySettle) {
     const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
-    const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
     const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
-    if (nowHms < '10:00:00' && pastK.length >= 2) {
+    if (taseLastSessionFreeze() && pastK.length >= 2) {
       const val = window.ilDaySettle[pastK[pastK.length - 1]], prior = window.ilDaySettle[pastK[pastK.length - 2]];
       seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
     }
@@ -4777,7 +4776,7 @@ function renderPortfolioHeader(){
   const split = snapSplit(rows);
   // Until the USA opens (16:30 Israel) the All view shows the last session against the one before, built from the log:
   // TASE's 18:30 settle + USA's last reading of the day (22 Oct 2026).
-  if (!broker && window.ilDaySettle && window.usDayLast && new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '10:00:00') {   // until TASE opens (22 Oct 2026)
+  if (!broker && window.ilDaySettle && window.usDayLast && taseLastSessionFreeze()) {   // until TASE opens (22 Oct 2026)
     const dk = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pk = Object.keys(window.ilDaySettle).filter(k => k < dk && window.usDayLast[k] !== undefined).sort();
     if (pk.length >= 2) {
@@ -8571,7 +8570,12 @@ function refreshUsPrevFromLog(){
 function usLastSessionFreeze(){
   // Today's USA open, worked out from New York's 09:30 (24 Oct 2026): 16:30 Israel most of the year, but 15:30 in the weeks
   // when Israel and the US change clocks on different dates (26-30 Oct 2026), so it is not a fixed Israel time.
-  return Date.now() < getUsDayRangeMs().open;
+  // All of Saturday and Sunday too: no session opens then (26 Oct 2026: on Sunday evening the window left Friday's session).
+  return isWeekendIL(Date.now()) || Date.now() < getUsDayRangeMs().open;
+}
+// The same for TASE: the last session stays until 10:00 on a weekday, and all weekend.
+function taseLastSessionFreeze(){
+  return isWeekendIL(Date.now()) || new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '10:00:00';
 }
 function currentSessionDateLabel(){
   // Until 07:00 Israel time the business day is still the previous one (22 Oct 2026): show the last session's date.
@@ -8605,10 +8609,9 @@ function marketPrevCloseReferenceLabel(dayRangeForDateFn, loggedTs){
 // The All view's previous close label (22 Oct 2026): once TASE opens (10:00), the last completed day's
 // USA reading time (21 Oct 23:59:06); before that, the shared label (which follows the USA freeze).
 function allPrevCloseLabel(){
-  const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
   const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
   const past = Object.keys(window.usdDayLastT || {}).filter(k => k < today).sort();
-  if (nowHms >= '10:00:00' && past.length) return formatPrevCloseLabel(new Date(window.usdDayLastT[past[past.length - 1]]));
+  if (!taseLastSessionFreeze() && past.length) return formatPrevCloseLabel(new Date(window.usdDayLastT[past[past.length - 1]]));
   return prevCloseReferenceLabel();
 }
 function prevCloseReferenceLabel(){
@@ -8685,8 +8688,7 @@ async function fetchIntradayLogRows(){
     const pastK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
     const last = pastK.length - 1;
     // The TASE window's "Prev. close" label: before 10:00 it still shows the last session, so its previous close is the session before it.
-    const nowHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
-    const labelIdx = nowHms < '10:00:00' && pastK.length >= 2 ? last - 1 : last;
+    const labelIdx = taseLastSessionFreeze() && pastK.length >= 2 ? last - 1 : last;
     if (labelIdx >= 0) window.lastCloseILTs = new Date(window.ilDaySettleT[pastK[labelIdx]]);
     // The strip and headline close: the latest settle, today's once its 18:30 reading exists (the same as syncGaugeToIntraday,
     // so the first draw and the strip agree after 18:30), so TASE shows ₪0 while closed (23 Oct 2026).
