@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793029413";
+const BUILD_ID = "1793034244";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4369,6 +4369,11 @@ function renderMarketDetailHeader(marketKey){
     if (taseLastSessionFreeze() && pastK.length >= 2) {
       const val = window.ilDaySettle[pastK[pastK.length - 1]], prior = window.ilDaySettle[pastK[pastK.length - 2]];
       seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
+    } else if (!taseLastSessionFreeze() && pastK.length) {
+      // Today's session, open or settled: always against the previous session's settle (26 Oct 2026). The strip measures
+      // from the latest settle (₪0 after 18:30); the window keeps showing today's session until TASE next opens.
+      const prior = window.ilDaySettle[pastK[pastK.length - 1]];
+      seg = {...seg, gain: seg.value - prior, pct: prior ? (seg.value - prior) / prior * 100 : 0};
     }
   }
   let usPrevOverride = null;
@@ -4783,6 +4788,16 @@ function renderPortfolioHeader(){
       const a = pk[pk.length - 1], b = pk[pk.length - 2];
       const v1 = window.ilDaySettle[a] + window.usDayLast[a], v0 = window.ilDaySettle[b] + window.usDayLast[b];
       totals = {...totals, totalValue: v1, dayGain: v1 - v0, dayGainPct: v0 ? (v1 - v0) / v0 * 100 : 0};
+    }
+  } else if (!broker && window.ilDaySettle && typeof window.ilCloseIls === 'number') {
+    // After today's TASE settle the headline measures TASE from today's settle (₪0); the window keeps today's session,
+    // so its TASE part is measured from the previous session's settle instead (26 Oct 2026).
+    const dk = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+    const pk = Object.keys(window.ilDaySettle).filter(k => k < dk).sort();
+    const prior = pk.length ? window.ilDaySettle[pk[pk.length - 1]] : null;
+    if (typeof prior === 'number' && prior !== window.ilCloseIls) {
+      const d = totals.dayGain + (window.ilCloseIls - prior), base = totals.totalValue - d;
+      totals = {...totals, dayGain: d, dayGainPct: base ? d / base * 100 : 0};
     }
   }
   window.liveNow = totals.totalValue;   // the Portfolio's live value, used by its chart's last point
