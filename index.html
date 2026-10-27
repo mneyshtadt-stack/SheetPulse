@@ -1622,7 +1622,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793080104";
+const BUILD_ID = "1793080582";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8152,6 +8152,13 @@ function usPrevCloseMs(){
 }
 // The USA tooltip as a small popup, so the actual values can be coloured: green when the actual shekel value is
 // above the closing value, red when below (22 Oct 2026). Replaces the plain title text.
+// A popup figure's colour against its close, compared at the precision shown: green above, red below, none when
+// equal (27 Oct 2026: an unchanged value stays bold in the normal text colour).
+function vsCloseColour(a, b, dp){
+  if(!isFinite(a) || !isFinite(b)) return 'inherit';
+  const d = Math.round(a * 10 ** dp) - Math.round(b * 10 ** dp);
+  return d > 0 ? '#1a7f37' : d < 0 ? '#c62828' : 'inherit';
+}
 function usaTipHtml(){
   const usd = window.snap && window.snap.split && window.snap.split.us ? window.snap.split.us.usdValue : NaN;
   const rate = window.lastFxRate, closeRate = window.usCloseFx;
@@ -8165,11 +8172,10 @@ function usaTipHtml(){
   // Coloured by the dollars: green when the actual USD is at or above the closing USD, red when below (22 Oct 2026).
   // Compared at the precision shown (cents, 4 decimals, whole shekels), so two equal-looking figures never differ in
   // colour (27 Oct 2026: $174,419.79 shown red against the same $174,419.79 close, a fraction of a cent apart).
-  const atLeast = (a, b, dp) => Math.round(a * 10 ** dp) >= Math.round(b * 10 ** dp);
-  const col = isFinite(usd) && isFinite(closeUsd) ? (atLeast(usd, closeUsd, 2) ? '#1a7f37' : '#c62828') : 'inherit';
+  const col = vsCloseColour(usd, closeUsd, 2);
   // The rate and the shekel value each have their own colour: vs the closing rate, and vs the closing shekels (22 Oct 2026).
-  const rateCol = typeof rate === 'number' && hasClose ? (atLeast(rate, closeRate, 4) ? '#1a7f37' : '#c62828') : 'inherit';
-  const ilsCol = isFinite(actualIls) && isFinite(closeIls) ? (atLeast(actualIls, closeIls, 0) ? '#1a7f37' : '#c62828') : 'inherit';
+  const rateCol = typeof rate === 'number' && hasClose ? vsCloseColour(rate, closeRate, 4) : 'inherit';
+  const ilsCol = vsCloseColour(actualIls, closeIls, 0);
   return `<div><b>USA</b> = your US holdings in shekels.</div>`
     + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(usd) ? fmtUsd(usd) : '—'}</span> at USD/ILS <span style="color:${rateCol}; font-weight:700;">${typeof rate === 'number' ? rate.toFixed(4) : '—'}</span> = <span style="color:${ilsCol}; font-weight:700;">${isFinite(actualIls) ? ils(actualIls) : '—'}</span></div>`
     + `<div style="margin-top:4px;">USA close, ${closeLbl}: <b>${isFinite(closeUsd) ? fmtUsd(closeUsd) : '—'}</b> at USD/ILS <b>${hasClose ? closeRate.toFixed(4) : 'not recorded yet'}</b> = <b>${isFinite(closeIls) ? ils(closeIls) : '—'}</b></div>`
@@ -8264,7 +8270,7 @@ function ilTipHtml(){
   const closeIls = window.ilCloseIls;
   const ils = n => '₪' + Math.round(n).toLocaleString('en-US');
   const hasClose = typeof closeIls === 'number' && isFinite(closeIls);
-  const col = isFinite(actual) && hasClose ? (actual >= closeIls ? '#1a7f37' : '#c62828') : 'inherit';
+  const col = hasClose ? vsCloseColour(actual, closeIls, 0) : 'inherit';
   const closeLbl = window.ilCloseTs ? formatPrevCloseLabel(window.ilCloseTs) : marketPrevCloseReferenceLabel(getTaseDayRangeForDate, window.lastCloseILTs);
   return `<div><b>Israel</b> = your TASE holdings in shekels (no conversion).</div>`
     + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(actual) ? ils(actual) : '—'}</span></div>`
