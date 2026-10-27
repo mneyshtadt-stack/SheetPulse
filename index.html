@@ -168,6 +168,9 @@
     transition:border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   }
   #diagBtn:hover{border-color:var(--accent); color:var(--ink); box-shadow:0 2px 6px rgba(26,35,50,0.08);}
+  #diagBtn{position:relative;} #diagBtn.has-issue::after{content:''; position:absolute; top:5px; right:5px; width:8px; height:8px; border-radius:50%; background:var(--down-ink);}
+  #diagRules{padding:12px 20px; overflow:auto;} #diagRules .vr{display:flex; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  #diagRules .vr b{min-width:16px;} #diagRules .vr.ok b{color:var(--up-ink);} #diagRules .vr.bad b{color:var(--down-ink);} #diagRules .vr small{display:block; color:var(--muted);}
   #digestBtn{
     font-family:var(--sans); font-size:12px; color:var(--accent); background:var(--panel);
     border:1px solid var(--accent); padding:7px 14px; cursor:pointer; white-space:nowrap; border-radius:6px; transition:background 0.15s ease, color 0.15s ease, transform 0.1s ease;
@@ -1165,9 +1168,11 @@
     <div id="diagTabs" role="tablist">
       <button type="button" class="diagTab active" role="tab" data-tab="checks">Checks</button>
       <button type="button" class="diagTab" role="tab" data-tab="trouble">Troubleshooting</button>
+      <button type="button" class="diagTab" role="tab" data-tab="rules">Value rules</button>
     </div>
     <div id="diagList"></div>
     <div id="diagTrouble" style="display:none;"></div>
+    <div id="diagRules" style="display:none;"></div>
     <div id="diagFooter">
       <span id="diagSummary"></span>
       <button id="diagRerun" type="button">Run again</button>
@@ -1623,7 +1628,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793080938";
+const BUILD_ID = "1793081389";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2304,7 +2309,9 @@ function showDiagTab(tab){
   document.getElementById('diagList').style.display = tab === 'checks' ? '' : 'none';
   document.getElementById('diagFooter').style.display = tab === 'checks' ? '' : 'none';
   document.getElementById('diagTrouble').style.display = tab === 'trouble' ? '' : 'none';
+  document.getElementById('diagRules').style.display = tab === 'rules' ? '' : 'none';
   if(tab === 'trouble') renderTroubleshooting();
+  if(tab === 'rules') renderValueChecks();
 }
 document.querySelectorAll('.diagTab').forEach(b => b.addEventListener('click', () => showDiagTab(b.dataset.tab)));
 
@@ -7981,6 +7988,65 @@ async function openNetWorthDetail(){
   await loadNetWorthYear(year);
 }
 
+// ---- Value-rule checks (VALUE_SOURCES.md part 4, 27 Oct 2026) ----
+// Read back what the page shows and test the rules that must always hold. Results go to Diagnostics -> Value rules,
+// and a red dot on the Diagnostics button marks a failure, so a broken rule shows up the moment it happens.
+const valueChecks = {page: [], windows: {}, at: null};
+const shownIls = t => { const m = String(t || '').match(/₪([\d,]+)/); return m ? Number(m[1].replace(/,/g, '')) : NaN; };
+const stripSigned = id => { const e = document.getElementById(id); if(!e) return NaN; const n = shownIls(e.textContent);
+  return e.classList.contains('flat') ? 0 : e.classList.contains('down') ? -n : n; };
+const mdDay = t => { const m = String(t || '').match(/([A-Z][a-z]{2}) (\d{1,2})/); return m ? new Date(`${m[1]} ${m[2]}, ${new Date().getFullYear()}`) : null; };
+function runValueChecks(){
+  const out = [];
+  const P = stripSigned('gaugePortfolioVal'), I = stripSigned('gaugeIlVal'), U = stripSigned('gaugeUsVal');
+  if([P, I, U].every(isFinite)) out.push({name: 'Strip: Portfolio = Israel + USA', ok: Math.abs(P - (I + U)) <= 1, detail: `₪${P} vs ₪${I} + ₪${U} = ₪${I + U}`});
+  const todayEl = document.querySelector('#cards .card-today .value');
+  if(todayEl && isFinite(P)){ const t = todayEl.textContent.trim(), n = shownIls(t), v = /^[-−]/.test(t) ? -n : n;
+    out.push({name: 'Today card = strip Portfolio', ok: Math.abs(v - P) <= 1, detail: `₪${v} vs ₪${P}`}); }
+  const dk = ms => new Date(ms).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+  const todayK = dk(Date.now());
+  if(window.ilCloseTs && window.ilDaySettle){ const want = Object.keys(window.ilDaySettle).filter(k => k <= todayK).sort().pop();
+    out.push({name: 'TASE close = latest 18:30 settle', ok: dk(window.ilCloseTs) === want, detail: `close ${dk(window.ilCloseTs)}, latest settle ${want}`}); }
+  if(window.usCloseTs && window.usdDayLast){ const dayOver = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) >= '23:59:00' && !isWeekendIL(Date.now());
+    const want = Object.keys(window.usdDayLast).filter(k => dayOver ? k <= todayK : k < todayK).sort().pop();
+    out.push({name: 'USA close = last reading of the latest finished day', ok: dk(window.usCloseTs) === want, detail: `close ${dk(window.usCloseTs)}, latest finished day ${want}`}); }
+  valueChecks.page = out; valueChecks.at = new Date();
+  updateValueCheckDot();
+}
+function recordWindowCheck(){
+  const modal = document.getElementById('marketDetailModal');
+  if(!modal || !modal.classList.contains('open') || chartRange !== '1D') return;
+  const title = document.getElementById('marketDetailTitle')?.textContent || 'Window';
+  const asOf = document.getElementById('mdDayChangeAsOf')?.textContent || '';
+  const chartPrev = [...document.querySelectorAll('#intradayChart svg text')].map(t => t.textContent).find(t => /^Prev\. close/.test(t));
+  if(!asOf || !chartPrev) return;
+  const res = [];
+  res.push({name: 'Header Prev. close = chart Prev. close', ok: shownIls(asOf) === shownIls(chartPrev), detail: `header ₪${shownIls(asOf)}, chart ₪${shownIls(chartPrev)}`});
+  const note = document.querySelector('#intradayChart .chart-head-note')?.textContent || '';
+  const session = /last session/.test(note) ? mdDay(note) : new Date(new Date().toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem'}));
+  const prevDay = mdDay(asOf.split('·').slice(1).join('·'));
+  if(session && prevDay) res.push({name: 'Prev. close is an earlier session', ok: prevDay < session,
+    detail: `Prev. close ${prevDay.toDateString().slice(4, 10)}, session shown ${session.toDateString().slice(4, 10)}`});
+  valueChecks.windows[title] = {res, at: new Date()};
+  updateValueCheckDot();
+}
+function updateValueCheckDot(){
+  const all = valueChecks.page.concat(...Object.values(valueChecks.windows).map(w => w.res));
+  const bad = all.filter(c => !c.ok);
+  document.getElementById('diagBtn')?.classList.toggle('has-issue', bad.length > 0);
+  if(bad.length) console.warn('SheetPulse value rules failing:', bad);
+  if(document.getElementById('diagRules')?.style.display === '') renderValueChecks();
+}
+function renderValueChecks(){
+  const box = document.getElementById('diagRules'); if(!box) return;
+  const row = c => `<div class="vr ${c.ok ? 'ok' : 'bad'}"><b>${c.ok ? '✓' : '✗'}</b><div>${c.name}<small>${c.detail}</small></div></div>`;
+  const hm = d => d ? d.toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit'}) : '—';
+  const wins = Object.entries(valueChecks.windows);
+  box.innerHTML = `<p style="font-size:13px; color:var(--muted); margin:0 0 6px;">The rules in VALUE_SOURCES.md, checked against what the page shows. Page checks run after every refresh (last ${hm(valueChecks.at)}); window checks each time you open a window.</p>`
+    + (valueChecks.page.length ? valueChecks.page.map(row).join('') : '<p style="font-size:13px;">Not checked yet: refresh the page.</p>')
+    + (wins.length ? wins.map(([t, w]) => `<h4 style="margin:12px 0 2px; font-size:13px;">${t} <span style="color:var(--muted); font-weight:400;">(${hm(w.at)})</span></h4>` + w.res.map(row).join('')).join('')
+      : '<p style="font-size:13px; color:var(--muted);">Open the Portfolio, TASE or USA window once to check it.</p>');
+}
 // A day change for display: up (green ▲ +), down (red ▼ −), or flat when it rounds to ₪0 and 0.00% (grey –, no sign,
 // 27 Oct 2026). fmtAbs formats the size without a sign.
 function dayChange(diff, pct, fmtAbs){
@@ -8122,6 +8188,7 @@ async function syncGaugeToIntraday(split, totals){
     const knownTimestamps = [ilPoint && ilPoint.t, usPoint && usPoint.t].filter(t => t != null);
     if(knownTimestamps.length) appendAsOfToCurrentValue(document.getElementById('gaugePortfolioSub'), totals.totalValue, Math.max(...knownTimestamps));
   }
+  runValueChecks();
 }
 
 // The day change is never computed here — it's read straight from whatever Tracker!Q2 already
@@ -8430,6 +8497,12 @@ function findPriorClose(y, m, d, market){
   if (market === 'us' && window.usDayLast) {
     const ks = Object.keys(window.usDayLast).filter(k => k < sessionKey).sort().reverse();
     if (ks.length) return window.usDayLast[ks[0]];
+  }
+  // TASE: the previous session's 18:30 settle from the log, the same close the window header uses (27 Oct 2026: the
+  // recorded-close table had taken in a weekend price change, so the replayed chart's Prev. close was ₪46 off the header).
+  if (market === 'il' && window.ilDaySettle) {
+    const ks = Object.keys(window.ilDaySettle).filter(k => k < sessionKey).sort().reverse();
+    if (ks.length) return window.ilDaySettle[ks[0]];
   }
   const keys = Object.keys(window.lastCloseByDate || {}).filter(k => k < sessionKey).sort().reverse();
   for(const k of keys){
@@ -9327,6 +9400,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
 
   (statusBadges||[]).forEach(sb => wireMarketStatusBadge(sb.id, sb.isOpen, sb.nextOpenMsFn, sb.nextCloseMsFn));
 
+  setTimeout(recordWindowCheck, 0);   // VALUE_SOURCES.md checks 3 and 4 for the window just drawn
   const svgEl = el.querySelector('svg');
   const overlay = el.querySelector('#intradayOverlay');
   const guideLine = el.querySelector('#intradayGuideLine');
