@@ -321,7 +321,7 @@
   .md-stat-tile-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
   .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--mono);}
   .md-stat-tile-sub{font-size:12px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
-  .md-stat-tile-sub.up{color:var(--up-ink);} .md-stat-tile-sub.down{color:var(--down-ink);}
+  .md-stat-tile-sub.up{color:var(--up-ink);} .md-stat-tile-sub.down{color:var(--down-ink);} .md-stat-tile-sub.flat, .md-stat-tile-val.flat{color:var(--muted);}
   @media (max-width:520px){
     .md-stat-tiles{grid-template-columns:1fr;}
     .md-stat-tiles.cols-4{grid-template-columns:repeat(2,1fr);}
@@ -836,7 +836,7 @@
   .card .bsplit{font-family:var(--mono); font-size:12px; margin-top:6px; display:flex; flex-wrap:wrap; gap:2px 8px;}
   .card .value{font-size:26px; line-height:1.1; font-family:var(--mono); font-weight:600; letter-spacing:-0.01em;}
   .card .sub{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:4px;}
-  .up{color:var(--up-ink);} .down{color:var(--down-ink);}
+  .up{color:var(--up-ink);} .down{color:var(--down-ink);} .flat{color:var(--muted);}
   #heroPanel{margin-bottom:28px;}
   /* Markets strip (replaced the gauge dial): market status, Israel / USA day change, USD/ILS --
      the same live-updating lines, each opening its window. */
@@ -897,6 +897,7 @@
   #gaugeInfo .gval{font-weight:700; font-size:13.5px; font-family:var(--mono);}
   #gaugeInfo .gval.up{color:var(--up-ink);}
   #gaugeInfo .gval.down{color:var(--down-ink);}
+  #gaugeInfo .gval.flat{color:var(--muted);}
   #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
   .market-icon{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; margin-right:6px; vertical-align:middle;}
   .market-icon.open{background:#fde8d3;} .market-icon.closed{background:#e3dff0;}
@@ -1622,7 +1623,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793080582";
+const BUILD_ID = "1793080938";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4424,8 +4425,8 @@ function renderMarketDetailHeader(marketKey){
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day change</div>
-        <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
-        <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
+        <div class="md-stat-tile-val ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeVal">${dayChange(seg.gain, seg.pct, fmt).sign}${fmt(seg.gain)}</div>
+        <div class="md-stat-tile-sub ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeSub">${dayChange(seg.gain, seg.pct, fmt).pctText}</div>
         <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
@@ -4443,8 +4444,8 @@ function renderMarketDetailHeader(marketKey){
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day change</div>
-        <div class="md-stat-tile-val ${seg.gain>=0?'up':'down'}" id="mdDayChangeVal">${seg.gain>=0?'+':'-'}${fmt(seg.gain)}</div>
-        <div class="md-stat-tile-sub ${seg.gain>=0?'up':'down'}" id="mdDayChangeSub">${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%</div>
+        <div class="md-stat-tile-val ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeVal">${dayChange(seg.gain, seg.pct, fmt).sign}${fmt(seg.gain)}</div>
+        <div class="md-stat-tile-sub ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeSub">${dayChange(seg.gain, seg.pct, fmt).pctText}</div>
         <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)}${typeof window.lastCloseFxRate === 'number' ? ` (at USD/ILS ${(marketKey === 'us' && typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate).toFixed(4)})` : ''} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
@@ -4846,8 +4847,8 @@ function renderPortfolioHeader(){
         ${pdWay ? `<div class="md-stat-tile-val ${pdWay.day>=0?'up':'down'}" id="mdDayChangeVal">${pdWay.day>=0?'+':'-'}${fmt(pdWay.day)}</div>
         <div class="md-stat-tile-sub ${pdWay.day>=0?'up':'down'}" id="mdDayChangeSub">${pdWay.pct>=0?'+':''}${pdWay.pct.toFixed(2)}% · ${broker}'s way</div>
         <div class="md-stat-tile-sub">Price moves at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)}); no currency effect, as ${broker} does</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">With today's USD/ILS move (SheetPulse): ${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</div>` : `<div class="md-stat-tile-val ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeVal">${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)}</div>
-        <div class="md-stat-tile-sub ${totals.dayGain>=0?'up':'down'}" id="mdDayChangeSub">${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">With today's USD/ILS move (SheetPulse): ${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</div>` : `<div class="md-stat-tile-val ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeVal">${dayChange(totals.dayGain, totals.dayGainPct, fmt).sign}${fmt(totals.dayGain)}</div>
+        <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
           : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${allPrevCloseLabel()}</div>`}`}
@@ -7980,6 +7981,13 @@ async function openNetWorthDetail(){
   await loadNetWorthYear(year);
 }
 
+// A day change for display: up (green ▲ +), down (red ▼ −), or flat when it rounds to ₪0 and 0.00% (grey –, no sign,
+// 27 Oct 2026). fmtAbs formats the size without a sign.
+function dayChange(diff, pct, fmtAbs){
+  if(Math.round(Math.abs(diff)) === 0 && Math.abs(pct) < 0.005) return {cls: 'flat', text: `– ${fmtAbs(0)} (0.00%)`, sign: '', pctText: '0.00%'};
+  const up = diff >= 0;
+  return {cls: up ? 'up' : 'down', text: `${up ? '▲' : '▼'} ${fmtAbs(Math.abs(diff))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`, sign: up ? '+' : '-', pctText: `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`};
+}
 // Open = sun, closed = moon (the market-status icons, 22 Oct 2026).
 const SUN_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="#e8934f"/><g stroke="#e8934f" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>';
 const MOON_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="#7d70ad"/></svg>';
@@ -8005,9 +8013,9 @@ function renderGauge(rows, totals){
       <span class="mitem" id="taseStatusLine" style="cursor:help;"><span class="market-icon ${taseOpen?'open':'closed'}">${taseOpen ? SUN_ICON_SVG : MOON_ICON_SVG}</span>TASE <b>${taseOpen?'open':'closed'}</b></span>
       <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-icon ${usOpen?'open':'closed'}">${usOpen ? SUN_ICON_SVG : MOON_ICON_SVG}</span>USA <b>${usOpen?'open':'closed'}</b></span>
       <span class="msep"></span>
-      <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${gaugeCls}" id="gaugePortfolioVal">${value>=0?'▲':'▼'} ${fmt(totals.dayGain)} (${value>=0?'+':''}${value.toFixed(2)}%)</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
-      <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${split.il.gain>=0?'up':'down'}" id="gaugeIlVal">${split.il.gain>=0?'▲':'▼'} ${fmt(split.il.gain)} (${split.il.pct>=0?'+':''}${split.il.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
-      <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${split.us.gain>=0?'up':'down'}" id="gaugeUsVal">${split.us.gain>=0?'▲':'▼'} ${fmt(split.us.gain)} (${split.us.pct>=0?'+':''}${split.us.pct.toFixed(2)}%)</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
+      <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${dayChange(totals.dayGain, value, fmt).cls}" id="gaugePortfolioVal">${dayChange(totals.dayGain, value, fmt).text}</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
+      <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${dayChange(split.il.gain, split.il.pct, fmt).cls}" id="gaugeIlVal">${dayChange(split.il.gain, split.il.pct, fmt).text}</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
+      <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${dayChange(split.us.gain, split.us.pct, fmt).cls}" id="gaugeUsVal">${dayChange(split.us.gain, split.us.pct, fmt).text}</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
       <span class="mitem mlink" id="fxDetailTrigger"><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
   `;
@@ -8059,9 +8067,9 @@ async function syncGaugeToIntraday(split, totals){
     if(!valEl || !subEl) return;
     const diff = latest - prevClose;
     const diffPct = prevClose ? diff/prevClose*100 : 0;
-    const cls = diff>=0 ? 'up' : 'down';
-    valEl.className = 'gval ' + cls;
-    valEl.textContent = `${diff>=0?'▲':'▼'} ${fmt(diff)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
+    const dc = dayChange(diff, diffPct, fmt);
+    valEl.className = 'gval ' + dc.cls;
+    valEl.textContent = dc.text;
     subEl.textContent = `Market Value: ${fmt(latest)}`;
   };
   const appendAsOfToCurrentValue = (subEl, currentValue, ts) => {
@@ -8080,8 +8088,9 @@ async function syncGaugeToIntraday(split, totals){
     const ilStripEl = document.getElementById('gaugeIlVal');
     if(ilStripEl && typeof window.ilCloseIls === 'number' && window.ilCloseIls > 0){
       const g = split.il.value - window.ilCloseIls;
-      ilStripEl.className = 'gval ' + (g >= 0 ? 'up' : 'down');
-      ilStripEl.textContent = `${g >= 0 ? '▲' : '▼'} ${fmt(g)} (${g >= 0 ? '+' : ''}${(g / window.ilCloseIls * 100).toFixed(2)}%)`;
+      const dc = dayChange(g, g / window.ilCloseIls * 100, fmt);
+      ilStripEl.className = 'gval ' + dc.cls;
+      ilStripEl.textContent = dc.text;
     }
   }
   const ilRaw = rows.map(r => ({t: r.t, v: r.il}));
@@ -9812,9 +9821,9 @@ async function renderHomeDay(rows, totals){
   // the headline show the same day change (the logger's last point can be a few minutes older, with its own rates).
   if(!label && open && log.length) log = log.concat([{t: Date.now(), v: totals.totalValue}]);
   const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
-  const cls = chg >= 0 ? 'up' : 'down', fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US'), dcNow = dayChange(chg, pct, fmt);
   const hm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  nowEl.innerHTML = `<span class="${cls}">${chg >= 0 ? '+' : '-'}${fmt(chg)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span>`
+  nowEl.innerHTML = `<span class="${dcNow.cls}">${dcNow.sign}${fmt(chg)} (${dcNow.pctText})</span>`
     + `<span class="hd-time">${label ? label + ' (last session)' : 'at ' + hm(last.t)}</span>`;
 
   const W = Math.max(el.clientWidth, 200), H = el.clientHeight || 150, padB = 16;
@@ -9978,9 +9987,9 @@ function renderPhoneHero(rows, totals){
   const el = document.getElementById('phoneHero');
   if(!el) return;
   const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
-  const cls = totals.dayGain >= 0 ? 'up' : 'down', sign = totals.dayGain >= 0 ? '+' : '-';
+  const dcHero = dayChange(totals.dayGain, totals.dayGainPct, fmt), cls = dcHero.cls, sign = dcHero.sign;
   el.innerHTML = `<div class="ph-label">Today, so far</div><div class="ph-num ${cls}" id="phoneHeroNum">${sign}${fmt(totals.dayGain)}</div>`
-    + `<div class="ph-sub ${cls}">${totals.dayGainPct >= 0 ? '+' : ''}${totals.dayGainPct.toFixed(2)}% since the last close · ${fmt(totals.totalValue)} in total</div>` + usSplitLine(rows) + brokerSplitHtml(rows);
+    + `<div class="ph-sub ${cls}">${dcHero.pctText} since the last close · ${fmt(totals.totalValue)} in total</div>` + usSplitLine(rows) + brokerSplitHtml(rows);
   el.onclick = () => openPortfolioDetail();
   if(phoneHeroShown || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   phoneHeroShown = true;
@@ -10008,7 +10017,7 @@ function render(rows, totals){
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
-    {label:"Today", value:(totals.dayGain>=0?"+":"-")+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${totals.dayGain>=0?'var(--up-ink)':'var(--down-ink)'};">${totals.dayGainPct.toFixed(2)}% vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${window.usCloseTs ? formatPrevCloseLabel(window.usCloseTs) : prevCloseReferenceLabel()}</div>${typeof window.usCloseFx === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">Previous close at USD/ILS ${window.usCloseFx.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
+    {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText} vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${window.usCloseTs ? formatPrevCloseLabel(window.usCloseTs) : prevCloseReferenceLabel()}</div>${typeof window.usCloseFx === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">Previous close at USD/ILS ${window.usCloseFx.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
     {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
