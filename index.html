@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793199092";
+const BUILD_ID = "1793204590";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1989,7 +1989,8 @@ const DIAG_CHECKS = [
     const hand = (window.lastRows || []).filter(x => pfIsUsdCostBroker(x) && x.brokerAvgCost > 0).map(x => x.name);
     const issues = [];
     if(!headerOk) issues.push('the header row is missing (the script puts it back on its next run)');
-    if(!isNaN(age) && age > 3 * 86400000) issues.push(`no new rows for ${diagDuration(age)} — check the updateDividends trigger (Executions page); new dividends may simply not exist yet`);
+    // 14 days: a quiet week with no new ex-dates is normal (all 51 tickers had none 15-28 Oct 2026)
+    if(!isNaN(age) && age > 14 * 86400000) issues.push(`no new rows for ${diagDuration(age)} — check the updateDividends trigger (Executions page); new dividends may simply not exist yet`);
     if(!av) issues.push('Alpha Vantage hasn\'t confirmed any payment date — run checkAlphaVantageKey() in Apps Script');
     const detail = `${data.length} dividends for ${tickers} tickers · Alpha Vantage confirmed ${av} payment date${av === 1 ? '' : 's'} (${avTickers} tickers), ${est} still estimated${manual ? `, ${manual} manual` : ''} (25 Alpha Vantage requests a day: the rest follow over the next days)`
       + (hand.length ? ` · ${hand.length} Psagot average${hand.length === 1 ? '' : 's'} still typed by hand (${hand.join(', ')}) — Portfolio → Dividends says when to clear ${hand.length === 1 ? 'it' : 'them'}` : '');
