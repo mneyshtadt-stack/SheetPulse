@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793198142";
+const BUILD_ID = "1793199092";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5341,7 +5341,7 @@ const NW_ASSET_ITEMS = [
   {key:'studyHarel', label:'Study Fund — Harel [80% Stocks 20% S&P 500]', group:'Study Funds', match: h => h.startsWith('Study fund Harel') || h.startsWith('Study fund Analyst')},
   {key:'studyMeitav', label:'Study Fund — Meitav [Stocks]', group:'Study Funds', match: h => h.startsWith('Study fund Meitav')},
   {key:'insurance', label:'Clal Manager Insurance', group:'Pension', match: h => h.startsWith('Manager Insurance') || h.startsWith("Managers'")},
-  {key:'pensionClal', label:'Pension Fund — Clal (S&P 500)', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
+  {key:'pensionClal', label:'Pension Fund — Clal [Stocks]', group:'Pension', match: h => h.startsWith('Pension Fund Clal')},
   // Harel's provident fund replaced Menora's pension fund (Oct 2026): one line, both columns added up.
   {key:'providentHarel', label:'Provident Fund — Harel [80% Stocks 20% S&P 500]', group:'Pension', match: h => h.startsWith('Provident Fund Harel') || h.startsWith('Pension Fund Menora')}
 ];
@@ -5746,7 +5746,7 @@ function renderNetWorth(nw, crossYearPrev){
   const pensionSeries = [
     {key:'total', label:'Total', color: NW_GROUP_COLORS['Pension'], bold:true, getValue: m => nwSum(m.assets, NW_PENSION_KEYS)},
     {key:'insurance', label:'Clal Manager Insurance', color:'#d9a441', getValue: m => nwSum(m.assets, ['insurance'])},
-    {key:'pensionClal', label:'Clal', sub:'S&P 500', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
+    {key:'pensionClal', label:'Clal', sub:'stocks', color:'#4fb0d9', getValue: m => nwSum(m.assets, ['pensionClal'])},
     {key:'providentHarel', label:'Harel provident', sub:'80% stocks, 20% S&P 500', color:'#7b4fd9', getValue: m => nwSum(m.assets, ['providentHarel'])}
   ];
   const pensionTrendOpts = {
