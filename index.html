@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793196102";
+const BUILD_ID = "1793196250";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5351,13 +5351,14 @@ const NW_LIABILITY_ITEMS = [
 ];
 // Management fees per account (28 Oct 2026), shown in the row's tooltip in the Net Worth table. They come from two
 // a "Fees" row in the year tab itself, below the months, each fee under its account's column: "0.5% D" = from deposits,
-// "0.2%" (or "0.2% B") = from the balance a year. parseNetWorthTable() reads them; a blank cell shows "not set".
+// "0.2%" (or "0.2% B") = from the balance a year. parseNetWorthTable() reads them; an account without fees has no tooltip.
 let NW_FEES = {};
 function nwFeeTooltip(label, key, value){
   const f = NW_FEES[key] || {}, pc = n => n.toFixed(2).replace(/\.?0+$/, '') + '%';
-  const acc = typeof f.acc === 'number' ? `${pc(f.acc)} of the balance a year (about ${nwFmt(value * f.acc / 100)} a year)` : 'not set';
-  const dep = typeof f.dep === 'number' ? `${pc(f.dep)} of each deposit` : 'not set';
-  return `<b>${label}</b><div style="margin-top:6px;">Management fee<br>From balance: ${acc}<br>From deposits: ${dep}</div>`;
+  const lines = [];   // only the fees the sheet has; an account without any gets no tooltip
+  if(typeof f.dep === 'number') lines.push(`From deposits: ${pc(f.dep)} of each deposit`);
+  if(typeof f.acc === 'number') lines.push(`From balance: ${pc(f.acc)} of the balance a year (about ${nwFmt(value * f.acc / 100)} a year)`);
+  return `<b>${label}</b><div style="margin-top:6px;">Management fee<br>${lines.join('<br>')}</div>`;
 }
 const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#12a08c', 'Liabilities':'#a32d2d'};
 // Display order and header text for the grouped Item/Value table in the Net Worth detail view.
@@ -5770,7 +5771,7 @@ function renderNetWorth(nw, crossYearPrev){
         <td class="num ${subtotal<0?'down':''}">${subtotal<0?'-':''}${fmt(Math.abs(subtotal))}</td>
       </tr>`;
     const groupRows = rows.map(r=>`
-      <tr class="nw-item-row"${r.isLiability ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
+      <tr class="nw-item-row"${r.isLiability || !NW_FEES[r.key] ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
         <td><div class="md-th-symbol">${r.label}</div></td>
         <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
       </tr>`).join('');
