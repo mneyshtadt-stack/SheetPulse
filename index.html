@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793207323";
+const BUILD_ID = "1793207737";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10069,7 +10069,7 @@ function usSplitLine(rows){
   const g = usdSplitGains(rows);
   if(!g) return '';
   const part = v => `<span class="${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : '-'}₪${Math.round(Math.abs(v)).toLocaleString('en-US')}</span>`;
-  return `<div class="ph-sub" style="margin-top:4px;">USA: share prices ${part(g.price)} · dollar ${part(g.dollar)} (USD/ILS ${window.lastCloseFxRate.toFixed(4)} → ${window.lastFxRate.toFixed(4)})</div>`;
+  return `<div class="ph-sub" style="margin-top:4px;">USA: share prices ${part(g.price)} · dollar ${part(g.dollar)} (USD/ILS ${g.prevRate.toFixed(4)} → ${window.lastFxRate.toFixed(4)})</div>`;
 }
 function brokerSplitHtml(rows){
   const names = brokerNames(rows);
@@ -10097,11 +10097,14 @@ function usaDayIls(r){
 }
 function usdSplitGains(rows){
   const usRows = rows.filter(r => !ISRAELI_TICKERS.includes(r.name) && isFinite(r.valueUsd) && isFinite(r.change));
-  const todayRate = window.lastFxRate, prevRate = window.lastCloseFxRate;
+  // From the USA close rate (the 23:59 reading, usCloseFx), as the USA day change is (28 Oct 2026).
+  const todayRate = window.lastFxRate, prevRate = typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate;
   if(!usRows.length || !usSessionStartedToday() || !(todayRate > 0) || !(prevRate > 0)) return null;
   const usdNow = usRows.reduce((a, r) => a + r.valueUsd, 0);
   const usdMove = usRows.reduce((a, r) => a + (r.valueUsd - r.valueUsd / (1 + r.change / 100)), 0);
-  return {price: usdMove * todayRate, dollar: (usdNow - usdMove) * (todayRate - prevRate)};
+  const price = usdMove * todayRate, usDay = splitByMarket(rows).us.gain;
+  // The dollar part is the rest of the strip's USA day change, so the two parts always add up to it.
+  return {price, dollar: isFinite(usDay) ? usDay - price : (usdNow - usdMove) * (todayRate - prevRate), prevRate};
 }
 function renderPhoneHero(rows, totals){
   const el = document.getElementById('phoneHero');
