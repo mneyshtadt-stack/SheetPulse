@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793082114";
+const BUILD_ID = "1793196102";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5349,6 +5349,16 @@ const NW_LIABILITY_ITEMS = [
   {key:'mortgage', label:'Mortgage', match: h => h === 'Mortgage'},
   {key:'loan', label:'Loan', match: h => h === 'Loan'}
 ];
+// Management fees per account (28 Oct 2026), shown in the row's tooltip in the Net Worth table. They come from two
+// a "Fees" row in the year tab itself, below the months, each fee under its account's column: "0.5% D" = from deposits,
+// "0.2%" (or "0.2% B") = from the balance a year. parseNetWorthTable() reads them; a blank cell shows "not set".
+let NW_FEES = {};
+function nwFeeTooltip(label, key, value){
+  const f = NW_FEES[key] || {}, pc = n => n.toFixed(2).replace(/\.?0+$/, '') + '%';
+  const acc = typeof f.acc === 'number' ? `${pc(f.acc)} of the balance a year (about ${nwFmt(value * f.acc / 100)} a year)` : 'not set';
+  const dep = typeof f.dep === 'number' ? `${pc(f.dep)} of each deposit` : 'not set';
+  return `<b>${label}</b><div style="margin-top:6px;">Management fee<br>From balance: ${acc}<br>From deposits: ${dep}</div>`;
+}
 const NW_GROUP_COLORS = {'Portfolio':'#4f8fd9', 'Study Funds':'#d1495b', 'Pension':'#12a08c', 'Liabilities':'#a32d2d'};
 // Display order and header text for the grouped Item/Value table in the Net Worth detail view.
 const NW_ITEM_GROUP_ORDER = ['Portfolio', 'Study Funds', 'Pension', 'Liabilities'];
@@ -5396,11 +5406,23 @@ function parseNetWorthTable(table){
   });
   const liabilityItems = NW_LIABILITY_ITEMS.map(it => ({...it, col: findCol(it.match)}));
 
-  const months = [];
+  const months = [], fees = {};
   for(let i=headerIdx+1;i<table.length;i++){
     const r = table[i];
     const month = (r[0] || '').trim();
     if(!month) continue;
+    if(/^fee/i.test(month)){   // a fee row (see NW_FEES), not a month
+      // Each fee is a number with an optional letter: "0.5% D" = from deposits, otherwise from the balance; a cell can
+      // hold both ("0.2% 1.5% D"). A row named "Fees deposits" makes a bare number a deposit fee.
+      const rowKind = /deposit/i.test(month) ? 'dep' : 'acc';
+      assetItems.forEach(it => it.cols.forEach(c => {
+        for(const m of String(r[c] ?? '').matchAll(/(\d+(?:\.\d+)?)\s*%?\s*([A-Za-z]?)/g)){
+          const kind = /d/i.test(m[2]) ? 'dep' : /[ab]/i.test(m[2]) ? 'acc' : rowKind;
+          (fees[it.key] = fees[it.key] || {})[kind] = Number(m[1]);
+        }
+      }));
+      continue;
+    }
     const hasData = assetItems.some(it => it.cols.some(c => r[c] !== undefined && String(r[c]).trim() !== ''));
     if(!hasData) continue;
     const assets = {}, liabilities = {};
@@ -5415,7 +5437,7 @@ function parseNetWorthTable(table){
     const liabilitiesTotal = liabilityItems.reduce((a,it)=>a + (isNaN(liabilities[it.key])?0:liabilities[it.key]), 0);
     months.push({month, assets, liabilities, assetsTotal, liabilitiesTotal, netWorth: assetsTotal - liabilitiesTotal});
   }
-  return {assetItems, liabilityItems, months};
+  return {assetItems, liabilityItems, months, fees};
 }
 
 function nwFmt(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
@@ -5733,7 +5755,7 @@ function renderNetWorth(nw, crossYearPrev){
   const pensionTrendHtml = pensionMonths.length>=1 ? buildNwMultiTrendChart(pensionTrendOpts) : '';
 
   const itemRows = [
-    ...nw.assetItems.map(it=>({label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
+    ...nw.assetItems.map(it=>({key:it.key, label:it.label, group:it.group, isLiability:false, value:latest.assets[it.key]})),
     ...nw.liabilityItems.map(it=>({label:it.label, group:'Liabilities', isLiability:true, value:latest.liabilities[it.key]}))
   ].filter(r=>!isNaN(r.value) && r.value !== 0);   // blank or 0: a closed account isn't listed
 
@@ -5748,7 +5770,7 @@ function renderNetWorth(nw, crossYearPrev){
         <td class="num ${subtotal<0?'down':''}">${subtotal<0?'-':''}${fmt(Math.abs(subtotal))}</td>
       </tr>`;
     const groupRows = rows.map(r=>`
-      <tr class="nw-item-row">
+      <tr class="nw-item-row"${r.isLiability ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
         <td><div class="md-th-symbol">${r.label}</div></td>
         <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
       </tr>`).join('');
@@ -5772,6 +5794,10 @@ function renderNetWorth(nw, crossYearPrev){
   wireNwMultiTrendChart(studyTrendOpts, crossYearPrev);
   wireNwMultiTrendChart(pensionTrendOpts, crossYearPrev);
   wireNetWorthGroupTooltips(nw, latest, totalForBar);
+  area.querySelectorAll('.nw-item-row[data-key]').forEach(tr => {
+    const it = nw.assetItems.find(i => i.key === tr.dataset.key);
+    if(it) attachHoverTooltip(tr, () => nwFeeTooltip(it.label, it.key, latest.assets[it.key]));
+  });
 }
 
 function buildNetWorthGroupTooltip(nw, latest, group, totalForBar){
@@ -5899,6 +5925,7 @@ async function loadNetWorthYear(year){
 
   try{
     const nw = await fetchNetWorthTable(url);
+    NW_FEES = nw.fees;
     if(!nw.months.length) throw new Error(`No monthly rows with data found in the${year?' '+year:''} sheet`);
 
     // January has no "previous month" within this year's own data — borrow December from the
