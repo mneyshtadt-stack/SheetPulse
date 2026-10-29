@@ -971,7 +971,7 @@
   #chartRangeBar, #universeRangeBar, #winlosePeriod{display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; border-radius:10px; background:var(--hover); margin:10px 0 4px; font-family:var(--sans);}
   #universeRangeBar{margin:0 0 0 auto;}
   #chartRangeBar{display:flex; width:fit-content; margin:14px 0 0 auto;}
-  #chartRangeBar button, #universeRangeBar button, #winlosePeriod button{background:transparent; border:0; border-radius:8px; min-height:36px; padding:0 13px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #chartRangeBar button, #universeRangeBar button, #winlosePeriod button{background:transparent; border:0; border-radius:8px; min-height:36px; padding:0 13px; white-space:nowrap; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; font-family:inherit;}
   #chartRangeBar button:hover, #universeRangeBar button:hover, #winlosePeriod button:hover{color:var(--ink);}
   #chartRangeBar button.active, #universeRangeBar button.active, #winlosePeriod button.active{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
   #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible, #winlosePeriod button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
@@ -1083,6 +1083,7 @@
   .wl-toolbar{display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:12px 0 10px;}
   .wl-toolbar #winlosePeriod{margin:0;}
   .wl-toolbar #winloseSearch{margin:0 0 0 auto;}
+  @media (max-width:600px){ .wl-toolbar #winloseSearch{margin:0; max-width:none;} }
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:var(--sans); font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
   .wlname{width:70px; flex-shrink:0; font-weight:600;}
@@ -1705,7 +1706,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793302951";
+const BUILD_ID = "1793303144";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
