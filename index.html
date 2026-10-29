@@ -1640,7 +1640,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793300655";
+const BUILD_ID = "1793301272";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5058,10 +5058,17 @@ function perfMonths(points, flows){
   });
   return out;
 }
+// One holding instead of the whole portfolio ('' = all; 29 Oct 2026): the same grid for that ticker, its purchases
+// and sales as money in and out, so a month is that holding's own return in ₪.
+let perfTicker = '';
 async function renderPerformanceTab(){
   const area = document.getElementById('mdPerformanceArea');
   if(!area) return;
-  const rows = portfolioRows();
+  const allRows = portfolioRows();
+  if(perfTicker && !allRows.some(r => r.name === perfTicker)) perfTicker = '';
+  const rows = perfTicker ? allRows.filter(r => r.name === perfTicker) : allRows;
+  const picker = `<div class="div-filter"><label>Show <select class="perf-tk" aria-label="Show one holding"><option value="">All holdings</option>${allRows.map(r => r.name).sort().map(t => `<option${t === perfTicker ? ' selected' : ''}>${escAttr(t)}</option>`).join('')}</select></label></div>`;
+  const wirePicker = () => { const sel = area.querySelector('.perf-tk'); if(sel) sel.addEventListener('change', e => { perfTicker = e.target.value; renderPerformanceTab(); }); };
   if(!area.innerHTML) area.innerHTML = '<div class="perf-note">Loading…</div>';
   let ph;
   try{ ph = await fetchPriceHistory(); }
@@ -5074,7 +5081,7 @@ async function renderPerformanceTab(){
   const live = rows.filter(r => !left.has(r.name)).reduce((a, r) => a + r.value, 0);
   if(live > 0) pts.push({t: today.getTime(), v: live});
   const months = perfMonths(pts, perfFlows(ph, rows, left)).filter(m => !isNaN(m.ret));
-  if(!months.length){ area.innerHTML = '<div class="perf-note">Not enough price history yet.</div>'; return; }
+  if(!months.length){ area.innerHTML = picker + `<div class="perf-note">${perfTicker && left.has(perfTicker) ? `No matching price history for ${escAttr(perfTicker)} (check its symbol in the History tab).` : 'Not enough price history yet.'}</div>`; wirePicker(); return; }
   const fmt = n => (n < 0 ? '-' : '+') + '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
   const val = n => '₪' + Math.round(n).toLocaleString('en-US');
   const pc = r => (r >= 0 ? '+' : '') + r.toFixed(1) + '%';
@@ -5100,10 +5107,11 @@ async function renderPerformanceTab(){
   const done = months.filter(m => !(m.y === nowY && m.m === nowM));
   const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
   const upN = done.filter(m => m.ret > 0).length;
-  area.innerHTML = `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''}</div>
+  area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''}</div>
     <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th>Year</th><th>Gain</th></tr></thead><tbody>${body}</tbody></table></div>
     <div class="perf-note">Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close); % = gain ÷ (start value + new money for the part of the month it was invested); a year chains its months, so a year's % follows the months' % even when its ₪ gain came mostly from a bigger portfolio. * = month so far. Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends (paid as cash) aren't included.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
   area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
+  wirePicker();
 }
 
 // ---- Dividends tab (Portfolio window) ----
