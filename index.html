@@ -920,11 +920,11 @@
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
   .price-warn{display:inline-flex; vertical-align:-3px; margin-left:6px; cursor:help;}
-  #chartRangeBar, #universeRangeBar{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:var(--sans);}
+  #chartRangeBar, #universeRangeBar, #winlosePeriod{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:var(--sans);}
   #universeRangeBar{margin:0 0 0 auto;}
-  #chartRangeBar button, #universeRangeBar button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
-  #chartRangeBar button:hover, #universeRangeBar button:hover{color:var(--ink); border-color:var(--line);}
-  #chartRangeBar button.active, #universeRangeBar button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
+  #chartRangeBar button, #universeRangeBar button, #winlosePeriod button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #chartRangeBar button:hover, #universeRangeBar button:hover, #winlosePeriod button:hover{color:var(--ink); border-color:var(--line);}
+  #chartRangeBar button.active, #universeRangeBar button.active, #winlosePeriod button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
   #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
   #universeChart{padding:10px 0 14px;}
   /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
@@ -1513,13 +1513,14 @@
 
   <section class="psec">
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
-      <h2 style="margin-bottom:0;">Winners &amp; losers — total return since purchase</h2>
+      <h2 style="margin-bottom:0;" id="winloseTitle">Winners &amp; losers — total return since purchase</h2>
       <span style="display:flex; gap:8px;">
         <button id="winloseAnalysisBtn">Analysis</button>
         <button id="aiAnalysisBtn" title="A written analysis of your portfolio by Google Gemini — only percentages are sent">AI analysis</button>
       </span>
     </div>
     <div id="winloseHeadline"></div>
+    <div id="winlosePeriod" role="group" aria-label="Winners &amp; losers period"></div>
     <input type="search" id="winloseSearch" placeholder="Find a ticker…" aria-label="Find a ticker in Winners &amp; losers" autocomplete="off">
     <div id="winloseNoMatch" style="display:none;"></div>
     <div id="winlose"></div>
@@ -1630,7 +1631,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793277825";
+const BUILD_ID = "1793284883";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10339,6 +10340,71 @@ function render(rows, totals){
   renderGroupBar('sectors', d => d.sector);
   renderGroupBar('roles', d => d.role);
 
+  wlSrc = rows;
+  renderWinLosePeriod();
+  renderWinLoseInsights(rows, totals);
+  renderContributionWaterfalls(rows);
+}
+
+// Winners & losers period (29 Oct 2026): total return since purchase (the default, value vs cost in ₪), today's
+// change, or the price change over 1W-1Y from PriceHistory closes (in the ticker's own currency; a holding bought
+// inside the period counts from its purchase date's close). The Analysis and the contribution charts stay on
+// since-purchase returns. The choice is remembered per device (localStorage pf_wlPeriod).
+const WL_PERIODS = [['buy', 'Since purchase', 'total return since purchase'], ['1D', 'Today', 'today'], ['1W', '1W', 'past week'],
+  ['1M', '1M', 'past month'], ['3M', '3M', 'past 3 months'], ['YTD', 'YTD', 'year to date'], ['1Y', '1Y', 'past year']];
+let wlSrc = null, wlPeriod = (() => { try{ return localStorage.getItem('pf_wlPeriod') || 'buy'; } catch(e){ return 'buy'; } })();
+function wlPeriodStart(p){
+  const d = new Date(); d.setHours(12, 0, 0, 0);
+  if(p === '1W') d.setDate(d.getDate() - 7);
+  else if(p === '1M') d.setMonth(d.getMonth() - 1);
+  else if(p === '3M') d.setMonth(d.getMonth() - 3);
+  else if(p === 'YTD') d.setMonth(0, 0);   // 31 Dec last year: the year's last close
+  else if(p === '1Y') d.setFullYear(d.getFullYear() - 1);
+  return d.getTime();
+}
+async function wlPeriodRows(rows, p){
+  if(p === 'buy') return rows;
+  if(p === '1D') return rows.map(r => ({...r, ret: r.change, wlDay: true}));
+  const ph = await fetchPriceHistory(), start = wlPeriodStart(p);
+  return rows.map(r => {
+    const col = ph.cols[r.name];
+    if(!col || !(r.price > 0)) return {...r, ret: NaN};
+    const last = col.findLast(v => !isNaN(v));
+    if(!(last > 0) || Math.abs(last / r.price - 1) > 0.3) return {...r, ret: NaN};   // another listing or unit (see buildDailyValueSeries)
+    const buy = r.buyDate ? new Date(r.buyDate).getTime() : NaN, bought = buy > start;
+    const from = bought ? buy : start;
+    // The last close on or before the start; for a purchase inside the period, its own day's close.
+    let i = -1;
+    for(let k = 0; k < ph.dates.length && ph.dates[k] <= from + 12 * 3600000; k++) if(col[k] > 0) i = k;
+    if(i < 0) return {...r, ret: NaN};
+    return {...r, ret: (r.price / col[i] - 1) * 100, wlFrom: {t: ph.dates[i], close: col[i], bought}};
+  });
+}
+async function renderWinLosePeriod(){
+  const bar = document.getElementById('winlosePeriod');
+  if(!WL_PERIODS.some(x => x[0] === wlPeriod)) wlPeriod = 'buy';
+  const meta = WL_PERIODS.find(x => x[0] === wlPeriod);
+  if(bar){
+    bar.innerHTML = WL_PERIODS.map(([k, t]) => `<button type="button" data-p="${k}" class="${k === wlPeriod ? 'active' : ''}" aria-pressed="${k === wlPeriod}">${t}</button>`).join('');
+    bar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      if(b.dataset.p === wlPeriod) return;
+      wlPeriod = b.dataset.p;
+      try{ localStorage.setItem('pf_wlPeriod', wlPeriod); } catch(e){}
+      renderWinLosePeriod();
+    }));
+  }
+  const title = document.getElementById('winloseTitle');
+  if(title) title.textContent = `Winners & losers — ${meta[2]}`;
+  if(!wlSrc) return;
+  const want = wlPeriod;
+  let rows;
+  try{ rows = await wlPeriodRows(wlSrc, want); }
+  catch(e){ rows = wlSrc.map(r => ({...r, ret: NaN})); }
+  if(want !== wlPeriod) return;   // another period was picked meanwhile
+  renderWinLoseList(rows);
+  renderWinLoseHeadline(rows, meta);
+}
+function renderWinLoseList(rows){
   const wlEl = document.getElementById('winlose');
   wlEl.innerHTML = '';
   const ranked = rows.filter(d => !isNaN(d.ret)).slice().sort((a,b)=>b.ret-a.ret);
@@ -10362,7 +10428,14 @@ function render(rows, totals){
     });
     row.dataset.ticker = d.name;
     wlRows.push({d, row, bar: row.querySelector('.wlbar')});
-    if(!isNaN(d.cost) && d.cost){
+    const pct = `<span class="${isUp?'up':'down'}">${isUp?'+':''}${d.ret.toFixed(2)}%</span>`;
+    const periodTip = d.wlDay ? `<b>${d.name}</b>Today's change: ${pct}`
+      : d.wlFrom ? `<b>${d.name}</b>${d.wlFrom.bought ? 'Bought' : 'Close'} ${new Date(d.wlFrom.t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}: ${d.wlFrom.close.toLocaleString('en-US', {maximumFractionDigits:2})}<br>Now: ${d.price.toLocaleString('en-US', {maximumFractionDigits:2})}<br>= ${pct}<div style="margin-top:6px; color:var(--muted); font-size:12px;">Price change in the ticker's own currency${d.wlFrom.bought ? ', from your purchase date' : ''}.</div>`
+      : null;
+    if(periodTip){
+      row.style.cursor = 'help';
+      attachHoverTooltip(row, () => periodTip);
+    } else if(!isNaN(d.cost) && d.cost){
       const gain = d.value - d.cost;
       const holdingPeriod = formatHoldingPeriod(d.buyDate);
       const tooltipHtml = `<b>${d.name}</b>`
@@ -10397,10 +10470,6 @@ function render(rows, totals){
   });
   scaleWinLoseBars(wlRows);
   filterWinLose();   // keep a search that was typed before this refresh
-
-  renderWinLoseHeadline(rows);
-  renderWinLoseInsights(rows, totals);
-  renderContributionWaterfalls(rows);
 }
 
 // Winners & losers: holdings unchecked in the list (e.g. one outlier like a +200% return) are left
@@ -10482,7 +10551,7 @@ function formatHoldingPeriod(buyDateStr){
 
 // The headline takeaway, always visible above the bar list — the detailed narrative
 // in #winloseInsights stays behind the "Analysis" toggle for whoever wants the full read.
-function renderWinLoseHeadline(rows){
+function renderWinLoseHeadline(rows, meta){
   const el = document.getElementById('winloseHeadline');
   if(!el) return;
   const withRet = rows.filter(r => !isNaN(r.ret));
@@ -10494,7 +10563,8 @@ function renderWinLoseHeadline(rows){
   const bigWinner = sorted[0];
   const bigLoser = sorted[sorted.length-1];
 
-  let html = `<b>${winners.length} of ${withRet.length}</b> holdings are profitable (${winRate.toFixed(1)}%)`;
+  let html = !meta || meta[0] === 'buy' ? `<b>${winners.length} of ${withRet.length}</b> holdings are profitable (${winRate.toFixed(1)}%)`
+    : `<b>${winners.length} of ${withRet.length}</b> holdings are up ${meta[0] === '1D' ? 'today' : meta[0] === 'YTD' ? 'this year' : 'over the ' + meta[2]} (${winRate.toFixed(1)}%)`;
   if(bigWinner && bigLoser && bigWinner !== bigLoser){
     html += ` — best: <b class="up">${bigWinner.name} ${bigWinner.ret>=0?'+':''}${bigWinner.ret.toFixed(2)}%</b>, worst: <b class="down">${bigLoser.name} ${bigLoser.ret.toFixed(2)}%</b>`;
   }
