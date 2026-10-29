@@ -1706,7 +1706,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793304397";
+const BUILD_ID = "1793304669";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5711,9 +5711,18 @@ function buildNetWorthTileTooltip(kind, nw, m){
     + `<div style="margin-top:4px; padding-top:4px; border-top:1px solid var(--line);">= <b>${pct.toFixed(1)}%</b></div>`;
 }
 
+// The trend charts are drawn at the window's real width (29 Oct 2026): a fixed 780-wide drawing shrunk to a phone-width
+// window made its 11 px month labels about 4 px.
+function nwChartWidth(){
+  const body = document.getElementById('marketDetailBody');
+  // Its inner width less 16 px of slack (a nested box), so the drawing is never shrunk, only stretched a little.
+  const cs = body ? getComputedStyle(body) : null;
+  const cw = body ? body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16 : 0;
+  return cw > 0 ? Math.max(300, Math.min(1100, cw)) : 780;
+}
 function buildNwTrendChart(opts){
   const {title, svgId, color, months, getValue, hasIncompleteHistory} = opts;
-  const w = 780, h = 150, pad = 30;
+  const w = nwChartWidth(), h = 150, pad = 30;
   const vals = months.map(getValue);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = (max - min) || 1;
@@ -5757,7 +5766,7 @@ function buildNwMultiTrendChart(opts){
   const {title, svgId, months, series, hasIncompleteHistory} = opts;
   const hidden = nwHiddenSeries[svgId] || new Set();
   const visible = series.filter(s => !hidden.has(s.key));
-  const w = 780, h = 170, pad = 30;
+  const w = nwChartWidth(), h = 170, pad = 30;
   const allVals = visible.flatMap(s => months.map(s.getValue));
   const min = Math.min(...allVals), max = Math.max(...allVals);
   const range = (max - min) || 1;
