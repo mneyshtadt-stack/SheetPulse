@@ -1013,6 +1013,15 @@
   #winloseNoMatch{font-family:var(--sans); font-size:12.5px; color:var(--muted); padding:8px 0;}
   #winloseHeadline b{font-weight:600;}
   #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
+  .perf-wrap{overflow-x:auto; margin-top:10px;}
+  .perf-table{border-collapse:separate; border-spacing:3px; font-family:var(--sans); font-size:12px; min-width:640px; width:100%;}
+  .perf-table th{color:var(--muted); font-weight:600; padding:2px 4px; text-align:center;}
+  .perf-table td{text-align:center; padding:7px 2px; border-radius:5px; font-variant-numeric:tabular-nums; cursor:help;}
+  .perf-table td.perf-y{font-weight:700; color:var(--ink); background:none; text-align:left; cursor:default;}
+  .perf-table td.perf-empty{background:none; cursor:default;}
+  .perf-table td.perf-tot{font-weight:700; outline:1px solid var(--line);}
+  .perf-sum{font-family:var(--sans); font-size:13px; margin-top:10px;}
+  .perf-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:8px;}
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:var(--sans); font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
   .wlname{width:70px; flex-shrink:0; font-weight:600;}
@@ -1631,7 +1640,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793284883";
+const BUILD_ID = "1793300655";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4895,10 +4904,12 @@ function renderPortfolioHeader(){
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
       <button type="button" class="md-tab" role="tab" data-tab="dividends">Dividends</button>
+      <button type="button" class="md-tab" role="tab" data-tab="performance">Performance</button>
     </div>
     <div id="marketDetailTableArea"></div>
     <div id="mdPremarketArea" style="display:none;"></div>
     <div id="mdDividendsArea" style="display:none; padding-top:12px;"></div>
+    <div id="mdPerformanceArea" style="display:none; padding-top:4px;"></div>
   `;
   body.querySelectorAll('.md-tab').forEach(b => b.addEventListener('click', () => {
     portfolioTab = b.dataset.tab;
@@ -5001,6 +5012,98 @@ function applyPortfolioTab(){
   if(divArea) divArea.style.display = portfolioTab === 'dividends' ? '' : 'none';
   if(portfolioTab === 'premarket') renderPremarketTab();
   if(portfolioTab === 'dividends') renderDividendsTab();
+  const perfArea = document.getElementById('mdPerformanceArea');
+  if(perfArea) perfArea.style.display = portfolioTab === 'performance' ? '' : 'none';
+  if(portfolioTab === 'performance') renderPerformanceTab();
+}
+
+// ---- Performance tab (Portfolio window, 29 Oct 2026) ----
+// Each month's return of the holdings shown (All or one broker): the daily value series the MAX chart uses
+// (buildDailyValueSeries: current share counts x each day's close, from each lot's Buy Date) plus today's live
+// value. Money in and out is each purchase or sale (a lot with negative shares) valued the way the series counts it
+// that day (shares x that day's close, in ₪), so it isn't counted as gain or loss:
+// return = (end - start - net new money) / (start + new money weighted by the part of the month it was in). A year is
+// its months chained. Holdings sold
+// before the Transactions tab starts and dividends (paid as cash) are not in it.
+function perfFlows(ph, rows, left){
+  const fx = ph.cols['USDILS'] || [];
+  return rows.filter(h => ph.cols[h.name] && !left.has(h.name)).flatMap(h => (h.lots || [h]).map(l => {
+    const ms = l.buyDate ? new Date(l.buyDate).getTime() : NaN, col = ph.cols[h.name];
+    if(isNaN(ms) || isNaN(l.shares)) return null;
+    const k0 = ph.dates.findIndex(t => t >= ms);   // the first day the series counts this lot
+    const k = k0 < 0 ? ph.dates.length - 1 : k0;   // bought after the last close (today): the latest prices
+    if(k < 0) return null;
+    let px = NaN, rate = NaN;
+    for(let i = k; i >= 0 && (isNaN(px) || isNaN(rate)); i--){ if(isNaN(px) && !isNaN(col[i])) px = col[i]; if(isNaN(rate) && !isNaN(fx[i])) rate = fx[i]; }
+    const v = ISRAELI_TICKERS.includes(h.name) ? l.shares * px / 100 : l.shares * px * rate;
+    return isNaN(v) ? null : {ms: k0 < 0 ? ms : ph.dates[k], v};
+  })).filter(Boolean);
+}
+function perfMonths(points, flows){
+  const lots = flows.map(f => ({ms: f.ms, cost: f.v}));
+  const mk = t => { const d = new Date(t); return d.getFullYear() * 100 + d.getMonth(); };
+  const last = new Map();
+  points.forEach(p => last.set(mk(p.t), p));   // points are oldest first: the month's last value wins
+  const keys = [...last.keys()].sort((a, b) => a - b), out = [];
+  keys.forEach((k, i) => {
+    const prev = i ? last.get(keys[i - 1]) : null, end = last.get(k);
+    const startV = prev ? prev.v : 0, from = prev ? prev.t : -Infinity;
+    const inMonth = lots.filter(b => b.ms > from && b.ms <= end.t), newMoney = inMonth.reduce((a, b) => a + b.cost, 0);
+    // Modified Dietz: money counts in the base for the part of the month it was invested (a sale on the 6th mostly
+    // still earned that month), so a big sale or purchase doesn't swing the % (Jan 2025 BRK.B sale).
+    const span = isFinite(from) ? end.t - from : 0;
+    const weighted = inMonth.reduce((a, b) => a + b.cost * (span > 0 ? (end.t - b.ms) / span : 1), 0);
+    const base = startV + weighted, gain = end.v - startV - newMoney;
+    out.push({y: Math.floor(k / 100), m: k % 100, startV, endV: end.v, newMoney, gain, ret: base > 0 ? gain / base * 100 : NaN});
+  });
+  return out;
+}
+async function renderPerformanceTab(){
+  const area = document.getElementById('mdPerformanceArea');
+  if(!area) return;
+  const rows = portfolioRows();
+  if(!area.innerHTML) area.innerHTML = '<div class="perf-note">Loading…</div>';
+  let ph;
+  try{ ph = await fetchPriceHistory(); }
+  catch(e){ area.innerHTML = `<div class="perf-note" style="color:var(--down-ink)">Could not load the price history (${e.message}).</div>`; return; }
+  if(portfolioTab !== 'performance') return;
+  const {points, missing, mismatched} = buildDailyValueSeries(ph, rows);
+  const left = new Set(missing.concat(mismatched));
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const pts = points.filter(p => new Date(p.t).toDateString() !== today.toDateString());
+  const live = rows.filter(r => !left.has(r.name)).reduce((a, r) => a + r.value, 0);
+  if(live > 0) pts.push({t: today.getTime(), v: live});
+  const months = perfMonths(pts, perfFlows(ph, rows, left)).filter(m => !isNaN(m.ret));
+  if(!months.length){ area.innerHTML = '<div class="perf-note">Not enough price history yet.</div>'; return; }
+  const fmt = n => (n < 0 ? '-' : '+') + '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const val = n => '₪' + Math.round(n).toLocaleString('en-US');
+  const pc = r => (r >= 0 ? '+' : '') + r.toFixed(1) + '%';
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const years = [...new Set(months.map(m => m.y))].sort((a, b) => b - a);
+  const nowY = today.getFullYear(), nowM = today.getMonth();
+  // Colour strength: full at ±5% for a month, ±15% for a year (tileColorFor is full at ±2.5).
+  const cell = (r, full) => `background:${tileColorFor(r * 2.5 / full)}; color:${tileTextColorFor(r * 2.5 / full)};`;
+  const yearOf = y => { const ms = months.filter(m => m.y === y);
+    return {ms, ret: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain: ms.reduce((a, m) => a + m.gain, 0), newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
+  const tips = {};
+  const body = years.map(y => {
+    const yr = yearOf(y);
+    tips['y' + y] = `<b>${y}${y === nowY ? ' so far' : ''}</b>Return ${pc(yr.ret)} (its months chained)<br>Gain ${fmt(yr.gain)}<br>Net new money ${fmt(yr.newMoney)}`;
+    return `<tr><td class="perf-y">${y}</td>` + MON.map((_, m) => {
+      const x = yr.ms.find(q => q.m === m);
+      if(!x) return '<td class="perf-empty"></td>';
+      const id = y + '-' + m, partial = y === nowY && m === nowM;
+      tips[id] = `<b>${MON[m]} ${y}${partial ? ' so far' : ''}</b>Start ${val(x.startV)}<br>${x.newMoney ? `${x.newMoney > 0 ? 'New money' : 'Sold'} ${val(Math.abs(x.newMoney))}<br>` : ''}End ${val(x.endV)}<br>Gain ${fmt(x.gain)} = <span class="${x.ret >= 0 ? 'up' : 'down'}">${pc(x.ret)}</span>`;
+      return `<td data-tip="${id}" style="${cell(x.ret, 5)}">${pc(x.ret)}${partial ? '*' : ''}</td>`;
+    }).join('') + `<td class="perf-tot" data-tip="y${y}" style="${cell(yr.ret, 15)}">${pc(yr.ret)}</td><td data-tip="y${y}" class="${yr.gain >= 0 ? 'up' : 'down'}" style="background:none; font-weight:600;">${fmt(yr.gain)}</td></tr>`;
+  }).join('');
+  const done = months.filter(m => !(m.y === nowY && m.m === nowM));
+  const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
+  const upN = done.filter(m => m.ret > 0).length;
+  area.innerHTML = `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''}</div>
+    <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th>Year</th><th>Gain</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="perf-note">Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close); % = gain ÷ (start value + new money for the part of the month it was invested); a year chains its months, so a year's % follows the months' % even when its ₪ gain came mostly from a bigger portfolio. * = month so far. Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends (paid as cash) aren't included.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
+  area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
 }
 
 // ---- Dividends tab (Portfolio window) ----
@@ -10414,8 +10517,8 @@ function renderWinLoseList(rows){
     const row = document.createElement('div'); row.className='wlrow';
     const isUp = d.ret >= 0;
     const barStyle = isUp
-      ? `left:50%; background:${colorFor(2.5)};`
-      : `right:50%; background:${colorFor(-2.5)};`;
+      ? `left:50%; background:${tileColorFor(2.5)};`
+      : `right:50%; background:${tileColorFor(-2.5)};`;
     row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'#3b6d11':'#a32d2d'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
     const check = row.querySelector('.wlcheck');
     check.checked = !wlExcluded().has(d.name);
