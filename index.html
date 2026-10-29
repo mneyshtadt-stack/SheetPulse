@@ -19,7 +19,7 @@
     --ink:#0e1a2b; --paper:#eef2f7; --panel:#ffffff; --line:#d9e1ea; --muted:#5b6b80;
     --up-1:#e3f5ea; --up-2:#b9e6cc; --up-3:#7fd0a3; --up-4:#33a86a; --up-5:#1f8a55;
     --down-1:#fde8e7; --down-2:#f9c3c1; --down-3:#f39491; --down-4:#e5534f; --down-5:#c0403d;
-    --flat:#d5dce5; --accent:#2a6fdb;
+    --flat:#d5dce5; --accent:#2563c9;
     /* The system's own UI font (Segoe UI Variable on Windows, SF Pro on Apple, Roboto on Android):
        nothing to download, and Windows no longer falls back to Arial for 'Helvetica Neue'. */
     --sans:system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
@@ -29,9 +29,9 @@
     --mono:ui-monospace,'Cascadia Mono','SF Mono',Consolas,Menlo,'Roboto Mono',monospace;
     /* Gain/loss TEXT (and lines) has its own tokens: the up/down 1-5 ramps are tile fills, and in
        dark mode a fill step dark enough to carry white text is too dark to read as text itself. */
-    --up-ink:#1f8a55; --down-ink:#c0403d;
+    --up-ink:#1a7a4b; --down-ink:#c0403d;
     --tile-ink-flat:#3d4757; --tile-ink-up:#155c39; --tile-ink-down:#8c2d2b;
-    --accent-hover:#1f5ac0; --on-accent:#fff; --hover:#eef3f9; --axis:#8a98ab; --warn:#d99a1e;
+    --accent-hover:#1d4fa8; --on-accent:#fff; --hover:#eef3f9; --axis:#8a98ab; --warn:#d99a1e; --warn-ink:#8a5a00;
     --shadow-modal:0 12px 40px rgba(14,26,43,0.28); --shadow-pop:0 3px 10px rgba(14,26,43,0.14);
     --tag-oracle-bg:#fbe9dc; --tag-oracle-ink:#9a4a12; --tag-putty-bg:#e3ecf6; --tag-putty-ink:#2b5480;
     /* Market Universe "+ Compare" lines: the dataviz reference categorical order (blue, orange, aqua,
@@ -52,7 +52,7 @@
       --flat:#2a3b55; --accent:#7cb4ff;
       --up-ink:#3fbf7f; --down-ink:#ef6461;
       --tile-ink-flat:#c6d1df; --tile-ink-up:#b8ecd0; --tile-ink-down:#f6c2c0;
-      --accent-hover:#a3cbff; --on-accent:#08213f; --hover:#1b2d47; --axis:#5d7290; --warn:#e0a83a;
+      --accent-hover:#a3cbff; --on-accent:#08213f; --hover:#1b2d47; --axis:#5d7290; --warn:#e0a83a; --warn-ink:#e0a83a;
       --shadow-modal:0 12px 40px rgba(0,0,0,0.55); --shadow-pop:0 3px 12px rgba(0,0,0,0.45);
       --tag-oracle-bg:#4a2e1a; --tag-oracle-ink:#f2c39d; --tag-putty-bg:#1f3349; --tag-putty-ink:#a9c8ec;
       --cmp-1:#3987e5; --cmp-2:#d95926; --cmp-3:#199e70; --cmp-4:#c98500; --cmp-5:#d55181;
@@ -265,7 +265,8 @@
   }
   #marketDetailHeader h3{font-size:20px; font-weight:400; margin:0 0 3px;}
   #marketDetailHeader p{margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);}
-  #marketDetailClose{background:none; border:none; font-size:28px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #marketDetailClose{background:none; border:none; font-size:28px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px; min-width:44px; min-height:44px; border-radius:10px;}
+  #marketDetailClose:hover{background:var(--hover); color:var(--ink);}
   #nwYearSwitcher{display:none; gap:6px; margin-top:10px;}
   #nwYearSwitcher.open{display:flex; flex-wrap:wrap;}
   .nw-year-btn{
@@ -323,9 +324,10 @@
   .pf-card-name b{font-size:15px; font-weight:700;}
   .pf-card-name small{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .pf-card-val{font-family:var(--mono); font-size:15px; font-weight:600; text-align:right; align-self:start;}
-  .pf-card-k{font-size:12px; color:var(--muted);}
-  .pf-card-k span{font-family:var(--mono); font-size:13px; font-weight:600; margin-left:4px;}
-  .pf-card-r{text-align:right;}
+  .pf-card-k{display:flex; flex-direction:column; gap:1px; min-width:0;}
+  .pf-card-k small{font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);}
+  .pf-card-k span{font-family:var(--mono); font-size:13px; font-weight:600; white-space:nowrap;}
+  .pf-card-r{text-align:right; align-items:flex-end;}
   .pf-card.open .pf-card-head{background:var(--hover); border-radius:8px;}
   .pf-card-more{padding:4px 0 12px;}
   .pf-card-scroll{overflow-x:auto;}
@@ -416,7 +418,7 @@
   /* Pulse Check: verdict badge in the Market Universe table, and the one-ticker panel above it. */
   .pulse-badge{display:inline-block; font-family:var(--sans); font-size:12px; font-weight:600; padding:2px 8px; border-radius:4px; white-space:nowrap; border:1px solid var(--line); color:var(--muted);}
   .pulse-badge.deeper{color:var(--accent); border-color:var(--accent);}
-  .pulse-badge.watch{color:var(--warn); border-color:var(--warn);}
+  .pulse-badge.watch{color:var(--warn-ink); border-color:var(--warn);}
   .pulse-badge.fails{color:var(--down-ink); border-color:var(--down-ink);}
   .pulse-vs{display:inline-block; margin-left:6px; font-family:var(--sans); font-size:12px; color:var(--muted); white-space:nowrap;}
   .pulse-none{color:var(--muted);}
@@ -519,7 +521,7 @@
   .div-manual-title{font-weight:600; margin-bottom:6px; color:var(--ink);}
   .div-manual-row{display:flex; gap:10px; align-items:baseline; padding:5px 0; border-top:1px solid var(--line);}
   .div-manual-row:first-of-type{border-top:none;}
-  .div-manual-tag{flex:0 0 auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:4px; border:1px solid var(--warn); color:var(--warn); white-space:nowrap;}
+  .div-manual-tag{flex:0 0 auto; font-size:11px; font-weight:700; padding:1px 7px; border-radius:4px; border:1px solid var(--warn); color:var(--warn-ink); white-space:nowrap;}
   .div-manual-row.ok .div-manual-tag{border-color:var(--up-ink); color:var(--up-ink);}
   .div-manual-row.done .div-manual-tag{border-color:var(--up-ink); color:var(--on-accent); background:var(--up-ink);}
   .div-manual.all-done{border-left-color:var(--up-ink);}
@@ -552,7 +554,7 @@
   .pay-view-btn:not(.on):hover{color:var(--ink);}
   .pay-badge{font-size:12px; font-weight:600; border-radius:999px; padding:1px 7px; background:var(--paper); color:var(--muted); font-variant-numeric:tabular-nums;}
   .pay-badge.warn{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--tile-ink-flat);}
-  .pay-badge.bad{background:var(--down-1); color:var(--down-5);}
+  .pay-badge.bad{background:var(--down-1); color:var(--tile-ink-down);}
   /* Actions (change something) look different from filters: squarer, with an icon; one solid per screen. */
   .pay-btn{font-family:var(--sans); font-size:13px; font-weight:550; min-height:40px; padding:0 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; gap:7px;}
   .pay-btn svg{width:15px; height:15px; flex:none;}
@@ -568,10 +570,10 @@
   .ct-badge{width:40px; height:40px; border-radius:10px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; letter-spacing:.02em; flex:none;}
   .ct-row{display:flex; gap:14px; align-items:flex-start; min-width:0;}
   /* Contracts → Timeline (design canvas "SheetPulse Contracts and Receipts", option A) */
-  .pay-seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--panel);}
-  .pay-seg button{font-family:var(--sans); font-size:13px; border:0; background:transparent; color:var(--tile-ink-flat); padding:0 14px; min-height:40px; cursor:pointer;}
-  .pay-seg button + button{border-left:1px solid var(--line);}
-  .pay-seg button.on{background:color-mix(in srgb, var(--accent) 13%, var(--panel)); color:var(--accent-hover); font-weight:600;}
+  /* Timeline / List: the same segmented control as every other choice (29 Oct 2026 review). */
+  .pay-seg{display:inline-flex; gap:2px; padding:3px; border-radius:10px; background:var(--hover);}
+  .pay-seg button{font-family:var(--sans); font-size:13px; font-weight:500; border:0; border-radius:8px; background:transparent; color:var(--muted); padding:0 14px; min-height:36px; cursor:pointer;}
+  .pay-seg button.on{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
   .ct-tl{overflow-x:auto;}
   .ct-tl-in{min-width:680px;}
   .ct-tl-head, .ct-tl-row{display:grid; grid-template-columns:230px minmax(0, 1fr); align-items:center; border-bottom:1px solid var(--line);}
@@ -610,7 +612,7 @@
   .rc-ask{color:var(--muted) !important; font-weight:600;}
   .sheet-ok{color:var(--up-ink); font-weight:600;}
   .pay-confirm-btns[hidden]{display:none;}
-  .rc-flag{font-size:12px; color:var(--warn); font-weight:550;}
+  .rc-flag{font-size:12px; color:var(--warn-ink); font-weight:550;}
   .rc-kind.ask{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--ink);}
   /* Receipts → Shelf (option B): kept forever, a "say what these were for" tray, then cards. */
   .rc-tray{background:var(--panel); border-radius:12px; padding:16px 20px; box-shadow:inset 0 0 0 1.5px var(--warn); margin:0 0 16px; font-family:var(--sans);}
@@ -734,7 +736,7 @@
   .pay-card-label{font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
   .pay-card.miss .pay-card-label{color:var(--down-ink);}
   .pay-card.due .pay-card-label{color:var(--accent);}
-  .pay-card.wait .pay-card-label{color:var(--warn);}
+  .pay-card.wait .pay-card-label{color:var(--warn-ink);}
   .pay-card-label.ok{color:var(--up-ink);}
   .pay-card-val{font-size:20px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
   .pay-card-sub{font-size:13px; color:var(--muted); line-height:1.5;}
@@ -763,23 +765,23 @@
   .pay-name-in small{display:block; font-size:12px; color:var(--muted);}
   .pay-name-in small i{font-style:normal;}
   .pay-cell{min-width:52px; height:38px; border-radius:6px; text-align:center; vertical-align:middle; font-variant-numeric:tabular-nums; cursor:help; line-height:1.15;}
-  .pay-cell.paid{background:var(--up-1); color:var(--up-5);}
-  .pay-cell.late{background:var(--up-1); color:var(--warn); box-shadow:inset 0 0 0 2px var(--warn);}
+  .pay-cell.paid{background:var(--up-1); color:var(--tile-ink-up);}
+  .pay-cell.late{background:var(--up-1); color:var(--warn-ink); box-shadow:inset 0 0 0 2px var(--warn);}
   .pay-cell.due{color:var(--ink); box-shadow:inset 0 0 0 2px var(--accent); font-weight:600;}
-  .pay-cell.missing{background:var(--down-1); color:var(--down-5); font-weight:600;}
-  .pay-cell.awaiting{color:var(--warn); box-shadow:inset 0 0 0 2px var(--warn); font-weight:600;}
+  .pay-cell.missing{background:var(--down-1); color:var(--tile-ink-down); font-weight:600;}
+  .pay-cell.awaiting{color:var(--warn-ink); box-shadow:inset 0 0 0 2px var(--warn); font-weight:600;}
   .pay-cell.expected{color:var(--muted); box-shadow:inset 0 0 0 1px var(--line);}
   .pay-cell.off{color:var(--line); cursor:default;}
   .pay-cell.missing, .pay-cell.confirmed{cursor:pointer;}
-  .pay-cell.confirmed{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1.5px var(--up-4);}
+  .pay-cell.confirmed{background:var(--up-1); color:var(--tile-ink-up); box-shadow:inset 0 0 0 1.5px var(--up-4);}
   .pay-confirm{margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--hover); font-size:13px; color:var(--ink); line-height:1.5; display:flex; flex-direction:column; gap:8px;}
   .pay-confirm[hidden]{display:none;}
   .pay-confirm-btns{display:flex; flex-wrap:wrap; gap:6px;}
   .pay-confirm-row{font-size:13px; color:var(--muted);}
   .pay-confirm-row code{display:block; margin:6px 0; padding:6px 8px; border-radius:6px; background:var(--panel); color:var(--ink); font-family:var(--mono); font-size:12px; overflow-x:auto; white-space:nowrap;}
   .pay-copied{color:var(--up-ink); font-size:12px;}
-  .pay-pill.wait{color:var(--warn); box-shadow:inset 0 0 0 1px var(--warn);}
-  .pay-pill.bad{background:var(--down-1); color:var(--down-5);}
+  .pay-pill.wait{color:var(--warn-ink); box-shadow:inset 0 0 0 1px var(--warn);}
+  .pay-pill.bad{background:var(--down-1); color:var(--tile-ink-down);}
   .pay-pill.muted{background:var(--hover); color:var(--muted);}
   .shop-card-link{font:inherit; color:var(--ink); text-align:left; cursor:pointer; border:0; width:100%; transition:box-shadow 0.15s ease, transform 0.1s ease;}
   .shop-card-link:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
@@ -800,7 +802,7 @@
   .shop-pill-btn .pay-pill{transition:box-shadow 0.15s ease;}
   .shop-pill-btn:hover .pay-pill, .shop-pill-btn:focus-visible .pay-pill{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .shop-pill-btn .pay-pill::after{content:' ▾'; font-size:11px; opacity:.6;}
-  .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
+  .pay-pill.mark{background:var(--up-1); color:var(--tile-ink-up); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
   .pay-key i{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-2px;}
   /* Categories, last 12 months */
@@ -814,7 +816,7 @@
   .pay-cat-num small.down{color:var(--down-ink);} .pay-cat-num small.up{color:var(--up-ink);}
   /* All bills */
   .pay-pill{display:inline-block; font-size:12px; padding:2px 10px; border-radius:999px; white-space:nowrap;}
-  .pay-pill.paid{background:var(--up-1); color:var(--up-5);}
+  .pay-pill.paid{background:var(--up-1); color:var(--tile-ink-up);}
   .pay-pill.due{background:var(--hover); color:var(--accent);}
   .pay-list{margin-top:4px;}
   .pay-cards-list{display:none;}
@@ -1016,7 +1018,14 @@
     #chartRangeBar, #winlosePeriod{flex-wrap:nowrap; max-width:100%; overflow-x:auto;}   /* one row; scrolls if it can't fit */
     .md-tabs{overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none;}
     .md-tab{flex:none; white-space:nowrap; font-size:13px; margin-right:16px;}
-    #marketDetailSearch, .perf-tk, .div-tk{min-height:44px; box-sizing:border-box;}   /* finger-sized search and pickers */
+    #marketDetailSearch, #marketDetailCard select, #marketDetailCard input[type=search], #marketDetailCard input[type=text]{min-height:44px; box-sizing:border-box;}   /* finger-sized search and pickers */
+    .nw-series-toggle{min-height:44px;}
+    .pay-chip, .pay-leg{min-height:44px;}
+    #universeClose, #universeRefresh, #universeMaximize{min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center;}
+    #universeSearch{min-height:44px; box-sizing:border-box;}
+    #pfSignOutLink{display:inline-flex; align-items:center; min-height:44px;}
+    #digestBtn, #aiDailyBtn, #winloseAnalysisBtn, #aiAnalysisBtn{min-height:44px;}
+    .legend-arrow{min-width:44px; min-height:44px;}
   }
   #universeChart{padding:10px 0 14px;}
   /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
@@ -1745,7 +1754,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793306920";
+const BUILD_ID = "1793307477";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4253,8 +4262,8 @@ function pfCardHtml(r){
     <button type="button" class="pf-card-head" aria-expanded="false">
       <span class="pf-card-name"><b>${escAttr(r.name)}</b><small>${escAttr(TICKER_NAME_MAP[r.name] || '')}</small></span>
       <span class="pf-card-val">${ils(r.value)}</span>
-      <span class="pf-card-k">Today ${day}</span>
-      <span class="pf-card-k pf-card-r">Total ${gain}</span>
+      <span class="pf-card-k"><small>Today</small>${day}</span>
+      <span class="pf-card-k pf-card-r"><small>Total gain</small>${gain}</span>
     </button>
     <div class="pf-card-more" hidden></div>
   </div>`;
@@ -4266,7 +4275,7 @@ function wirePfCards(area, rows){
     if(!more.innerHTML){
       const r = rows.find(x => x.name === card.dataset.ticker);
       if(!r) return;
-      more.innerHTML = `<div class="pf-card-scroll"><table class="md-holdings-table md-pf-table pf-card-table"><thead><tr><th class="expand-col"></th>${PF_COLS.map(c => `<th class="${c.key === 'name' ? '' : 'num'}">${c.label}</th>`).join('')}</tr></thead><tbody>${pfHoldingRowsHtml(r)}</tbody></table></div>`;
+      more.innerHTML = `<div class="pf-card-scroll"><table class="md-holdings-table md-pf-table pf-card-table"><tbody>${pfHoldingRowsHtml(r)}</tbody></table></div>`;
       more.querySelectorAll('tr[data-ticker-detail]').forEach(tr => { tr.style.display = 'table-row'; });
       more.querySelectorAll('.pf-expand-btn').forEach(b => b.remove());
       wirePfGainTips(more);
@@ -4773,8 +4782,20 @@ function tileColorFor(c){
 function tileTextColorFor(c){
   if(isNaN(c)) return "var(--tile-ink-flat)";
   const a = Math.min(Math.abs(c)/2.5,1);
-  if(a < 0.5) return c >= 0 ? "var(--tile-ink-up)" : "var(--tile-ink-down)";
-  return "#ffffff";
+  return bestInkOn(`--${c >= 0 ? 'up' : 'down'}-${Math.min(Math.floor(a*4),4) + 1}`, c >= 0 ? 'up' : 'down');
+}
+// Text on a gain/loss fill (treemap tiles, Performance cells): whichever of the tile ink, white or a deep ink reads best
+// on that fill in the current theme (29 Oct 2026: white on the brighter greens and reds measured about 2-3:1).
+function bestInkOn(fillVar, side){
+  const css = getComputedStyle(document.documentElement);
+  const lum = hex => { const m = String(hex).trim().match(/^#?([0-9a-f]{6})$/i); if(!m) return null;
+    return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+      .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
+  const bg = lum(css.getPropertyValue(fillVar));
+  if(bg === null) return '#ffffff';
+  const inks = [css.getPropertyValue(`--tile-ink-${side}`).trim(), '#ffffff', side === 'up' ? '#08251a' : '#3b0d0c'];
+  const ratio = ink => { const l = lum(ink); return l === null ? 0 : (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05); };
+  return inks.reduce((best, ink) => ratio(ink) > ratio(best) ? ink : best);
 }
 
 function closeMarketDetail(){
@@ -5237,7 +5258,7 @@ async function renderPerformanceTab(){
   const cell = r => {
     const a = Math.abs(r), k = a < 1 ? 1 : a < 2.5 ? 2 : a < 5 ? 3 : a < 10 ? 4 : 5, side = r >= 0 ? 'up' : 'down';
     if(a < 0.05) return 'background:var(--flat); color:var(--tile-ink-flat);';
-    return `background:var(--${side}-${k}); color:${k >= 4 ? '#fff' : `var(--tile-ink-${side})`};`;
+    return `background:var(--${side}-${k}); color:${bestInkOn(`--${side}-${k}`, side)};`;
   };
   const yearOf = y => { const ms = months.filter(m => m.y === y);
     return {ms, ret: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain: ms.reduce((a, m) => a + m.gain, 0), newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
@@ -6495,7 +6516,10 @@ function contractsSoonCount(list){
   const now = Date.now(), hidden = new Set(ctHiddenGet());
   return list.filter(k => !hidden.has(ctKey(k)) && !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now)).length;
 }
-let contractsLayout = (() => { try{ return localStorage.getItem('sp_ctLayout') || 'timeline'; } catch(_){ return 'timeline'; } })();
+// On a phone the timeline's track has almost no room beside the contract names, so the list is the default there
+// (29 Oct 2026); a choice you make with the Timeline / List switch is still remembered.
+let contractsLayout = (() => { const dflt = window.matchMedia && window.matchMedia('(max-width:600px)').matches ? 'list' : 'timeline';
+  try{ return localStorage.getItem('sp_ctLayout') || dflt; } catch(_){ return dflt; } })();
 const CT_TYPE_LOOK = {Insurance: ['INS', 'var(--accent)'], Warranty: ['WAR', 'var(--up-4)'], 'Utility plan': ['UTL', 'var(--warn)'], Subscription: ['SUB', 'var(--cmp-5)'], Investment: ['INV', 'var(--muted)'], Loan: ['LN', 'var(--down-4)'], 'Service plan': ['SRV', 'var(--cmp-3)']};
 function renderContracts(area){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
