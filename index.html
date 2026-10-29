@@ -1640,7 +1640,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793301272";
+const BUILD_ID = "1793301566";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -9218,6 +9218,15 @@ function chartLabelY(lineY, pts, xRight, labelW, top, bottom){
 }
 // A label's baseline where the chart's line does not run through the label's box (checked across its width), starting at
 // `prefer` and stepping up and down from it; `avoid` holds other labels' baselines it must keep a line apart from (23 Oct 2026).
+// Right-edge labels read in value order (owner's rule, 29 Oct 2026): a lower value's label is never above a higher one's.
+// Like freeLabelY, but only between the labels already placed ({y, v}) of higher values (above) and lower ones (below).
+function orderedLabelY(pts, xRight, labelW, top, bottom, prefer, placed, value){
+  let lo = top, hi = bottom;
+  placed.forEach(p => { if(p.v > value) lo = Math.max(lo, p.y + 14); else if(p.v < value) hi = Math.min(hi, p.y - 14); });
+  // shortcut: with no room between them, keep the order and accept touching the next label; upgrade if it shows up often.
+  if(lo > hi) return Math.min(lo, bottom);
+  return freeLabelY(pts, xRight, labelW, lo, hi, prefer, placed.map(p => p.y));
+}
 function freeLabelY(pts, xRight, labelW, top, bottom, prefer, avoid){
   const xs = pts.map(p => p.x);
   const lineYAt = x => {
@@ -9518,8 +9527,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
     const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
-    const ty = freeLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [prevCloseLabelY]);
-    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${settledLabel}<tspan font-weight="700" fill="var(--ink)">${fmt(latest)}</tspan></text>`;
+    const ty = orderedLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [{y: prevCloseLabelY, v: prevClose}], latest);
+    closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${settledLabel}<tspan font-weight="700" fill="${latest < prevClose ? 'var(--down-ink)' : latest > prevClose ? 'var(--up-ink)' : 'var(--ink)'}">${fmt(latest)}</tspan></text>`;   // red below Prev. close, green above (29 Oct 2026)
   }
 
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
@@ -9922,8 +9931,8 @@ async function renderRangeChart(ctx, range){
   const labelTop = padT + 11, labelBottom = h - padB - 4;
   const prevCloseWhen = vsPrevClose && ctx.prevCloseTs instanceof Date ? ` ${formatPrevCloseLabel(ctx.prevCloseTs)}:` : '';   // e.g. "Oct 28, 23:59:08:" (USD/ILS)
   const startLabelY = freeLabelY(points, w - padR, 11 + (fmt(startV) + prevCloseWhen).length * 6.5 + 60, labelTop, labelBottom, startY - 8, []);
-  const usedLabelY = [startLabelY];
-  const boiLabelYs = range === '1D' ? boiMarks.map(b => { const y = freeLabelY(points, w - padR, 150, labelTop, labelBottom, yFor(b.v) - 8, usedLabelY); usedLabelY.push(y); return y; }) : [];
+  const usedLabels = [{y: startLabelY, v: startV}];
+  const boiLabelYs = range === '1D' ? boiMarks.map(b => { const y = orderedLabelY(points, w - padR, 150, labelTop, labelBottom, yFor(b.v) - 8, usedLabels, b.v); usedLabels.push({y, v: b.v}); return y; }) : [];
 
   el.innerHTML = `
     <div style="font-family:var(--sans); font-size:13px; margin-bottom:4px;">
