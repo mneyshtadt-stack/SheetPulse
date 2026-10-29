@@ -30,6 +30,10 @@
     /* Gain/loss TEXT (and lines) has its own tokens: the up/down 1-5 ramps are tile fills, and in
        dark mode a fill step dark enough to carry white text is too dark to read as text itself. */
     --up-ink:#1a7a4b; --down-ink:#c0403d;
+    /* Text on each fill step (29 Oct 2026): the tile ink where it reads >= 4.5:1, else white or a deep ink -- set per theme,
+       so tiles and Performance cells switch with the theme without being drawn again. */
+    --up-ink-1:#155c39; --up-ink-2:#155c39; --up-ink-3:#08251a; --up-ink-4:#08251a; --up-ink-5:#ffffff;
+    --down-ink-1:#8c2d2b; --down-ink-2:#8c2d2b; --down-ink-3:#3b0d0c; --down-ink-4:#3b0d0c; --down-ink-5:#ffffff;
     --tile-ink-flat:#3d4757; --tile-ink-up:#155c39; --tile-ink-down:#8c2d2b;
     --accent-hover:#1d4fa8; --on-accent:#fff; --hover:#eef3f9; --axis:#8a98ab; --warn:#d99a1e; --warn-ink:#8a5a00;
     --shadow-modal:0 12px 40px rgba(14,26,43,0.28); --shadow-pop:0 3px 10px rgba(14,26,43,0.14);
@@ -51,6 +55,8 @@
       --down-1:#3a1d24; --down-2:#57262b; --down-3:#7a3033; --down-4:#a13d3d; --down-5:#c24b48;
       --flat:#2a3b55; --accent:#7cb4ff;
       --up-ink:#3fbf7f; --down-ink:#ef6461;
+      --up-ink-1:#b8ecd0; --up-ink-2:#b8ecd0; --up-ink-3:#b8ecd0; --up-ink-4:#ffffff; --up-ink-5:#08251a;
+      --down-ink-1:#f6c2c0; --down-ink-2:#f6c2c0; --down-ink-3:#f6c2c0; --down-ink-4:#ffffff; --down-ink-5:#ffffff;
       --tile-ink-flat:#c6d1df; --tile-ink-up:#b8ecd0; --tile-ink-down:#f6c2c0;
       --accent-hover:#a3cbff; --on-accent:#08213f; --hover:#1b2d47; --axis:#5d7290; --warn:#e0a83a; --warn-ink:#e0a83a;
       --shadow-modal:0 12px 40px rgba(0,0,0,0.55); --shadow-pop:0 3px 12px rgba(0,0,0,0.45);
@@ -1757,7 +1763,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793308853";
+const BUILD_ID = "1793309129";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4785,20 +4791,7 @@ function tileColorFor(c){
 function tileTextColorFor(c){
   if(isNaN(c)) return "var(--tile-ink-flat)";
   const a = Math.min(Math.abs(c)/2.5,1);
-  return bestInkOn(`--${c >= 0 ? 'up' : 'down'}-${Math.min(Math.floor(a*4),4) + 1}`, c >= 0 ? 'up' : 'down');
-}
-// Text on a gain/loss fill (treemap tiles, Performance cells): whichever of the tile ink, white or a deep ink reads best
-// on that fill in the current theme (29 Oct 2026: white on the brighter greens and reds measured about 2-3:1).
-function bestInkOn(fillVar, side){
-  const css = getComputedStyle(document.documentElement);
-  const lum = hex => { const m = String(hex).trim().match(/^#?([0-9a-f]{6})$/i); if(!m) return null;
-    return [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
-      .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0); };
-  const bg = lum(css.getPropertyValue(fillVar));
-  if(bg === null) return '#ffffff';
-  const inks = [css.getPropertyValue(`--tile-ink-${side}`).trim(), '#ffffff', side === 'up' ? '#08251a' : '#3b0d0c'];
-  const ratio = ink => { const l = lum(ink); return l === null ? 0 : (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05); };
-  return inks.reduce((best, ink) => ratio(ink) > ratio(best) ? ink : best);
+  return `var(--${c >= 0 ? 'up' : 'down'}-ink-${Math.min(Math.floor(a*4),4) + 1})`;   // the step's own text colour, per theme
 }
 
 function closeMarketDetail(){
@@ -5261,7 +5254,7 @@ async function renderPerformanceTab(){
   const cell = r => {
     const a = Math.abs(r), k = a < 1 ? 1 : a < 2.5 ? 2 : a < 5 ? 3 : a < 10 ? 4 : 5, side = r >= 0 ? 'up' : 'down';
     if(a < 0.05) return 'background:var(--flat); color:var(--tile-ink-flat);';
-    return `background:var(--${side}-${k}); color:${bestInkOn(`--${side}-${k}`, side)};`;
+    return `background:var(--${side}-${k}); color:var(--${side}-ink-${k});`;
   };
   const yearOf = y => { const ms = months.filter(m => m.y === y);
     return {ms, ret: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain: ms.reduce((a, m) => a + m.gain, 0), newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
@@ -11319,8 +11312,8 @@ window.addEventListener('resize', () => {
     refreshOpenMarketDetailIfNeeded();
   }, 250);
 });
-// The OS switching light/dark while the page is open (29 Oct 2026): tile and grid text colours are picked for the theme
-// when drawn (bestInkOn), so draw again, the same way as after a resize.
+// The OS switching light/dark while the page is open (29 Oct 2026): draw again, the same way as after a resize, so any
+// colour a chart computed for the old theme is redone (tile and grid text already follow the theme through CSS variables).
 if(window.matchMedia){
   const themeMq = window.matchMedia('(prefers-color-scheme: dark)');
   const onTheme = () => { if(window.lastRows && window.lastTotals) render(window.lastRows, window.lastTotals); refreshOpenMarketDetailIfNeeded(); };
