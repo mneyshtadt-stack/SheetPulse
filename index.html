@@ -17,7 +17,7 @@
     /* Slate palette (the "v1c" redesign, Oct 2026): cool light surfaces, one blue accent, green/red
        for gains and losses. Dark mode below is the same palette's night version. */
     --ink:#0e1a2b; --paper:#eef2f7; --panel:#ffffff; --line:#d9e1ea; --muted:#5b6b80;
-    --up-1:#e3f5ea; --up-2:#b9e6cc; --up-3:#7fd0a3; --up-4:#33a86a; --up-5:#1f8a55;
+    --up-1:#e3f5ea; --up-2:#b9e6cc; --up-3:#7fd0a3; --up-4:#33a86a; --up-5:#1a7a4b;
     --down-1:#fde8e7; --down-2:#f9c3c1; --down-3:#f39491; --down-4:#e5534f; --down-5:#c0403d;
     --flat:#d5dce5; --accent:#2563c9;
     /* The system's own UI font (Segoe UI Variable on Windows, SF Pro on Apple, Roboto on Android):
@@ -1159,8 +1159,8 @@
   #winloseInsights .wli-caveat{color:var(--muted); font-size:12px; margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
   .info-icon{
     display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
-    background:var(--line); color:var(--muted); font-size:11px; font-weight:700; font-family:var(--sans);
-    cursor:help; flex-shrink:0;
+    background:var(--panel); border:1px solid var(--line); box-sizing:border-box; color:var(--ink); font-size:11px; font-weight:700; font-family:var(--sans);
+    cursor:help; flex-shrink:0;   /* outlined like the (i) badges, readable in both themes (29 Oct 2026) */
   }
   .info-icon:hover{background:var(--accent); color:var(--on-accent);}
   .waterfall-bar-label{font-family:var(--sans);}
@@ -1754,7 +1754,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793307477";
+const BUILD_ID = "1793307642";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
