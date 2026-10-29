@@ -83,8 +83,8 @@
      image as the home-screen icon and the GitHub repo, so the name lives inside the logo. */
   .brand-logo{display:block; width:46px; height:46px; flex-shrink:0; border-radius:8px;}
   .brand-logo-lock{width:140px; height:140px; margin:0 auto 6px;}
-  .brand-title{display:flex; align-items:center; gap:10px; font-size:24px; font-weight:600;}
-  @media (max-width:600px){ .brand-logo{width:38px; height:38px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:21px; gap:9px;}
+  .brand-title{display:flex; align-items:center; gap:10px; font-size:28px; font-weight:600;}
+  @media (max-width:600px){ .brand-logo{width:38px; height:38px;} .brand-logo-lock{width:124px; height:124px;} .brand-title{font-size:20px; gap:9px;}
     /* One row of buttons that scrolls sideways instead of stacking (keeps the header short). */
     header .btnrow{flex-wrap:nowrap; overflow-x:auto; width:100%; padding-bottom:2px; scrollbar-width:none;}
     header .btnrow::-webkit-scrollbar{display:none;}
@@ -100,6 +100,11 @@
   #refreshBtn:disabled{opacity:0.6; cursor:default; transform:none;}
   #refreshBtn svg{width:12px; height:12px;}
   #status{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:6px; min-height:14px;}
+  /* The four status lines under the logo read as one quiet line (29 Oct 2026 redesign): refreshed · status ·
+     account · build, separated by dots, wrapping on a phone. */
+  .hdr-status{display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; margin-top:4px;}
+  .hdr-status > div{margin:0; min-height:0;}
+  .hdr-status #buildInfo{opacity:0.8;}
   #status.err{color:var(--down-ink);}
   .btnrow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
   /* Header (design canvas "SheetPulse header buttons", option 2 with option 5's icons, Oct 2026): two groups
@@ -107,15 +112,15 @@
      interval; Diagnostics as an icon. */
   /* "Meitav app ₪605,358 −₪1,448 today · US holdings at the Bank of Israel rate…" under the big number. */
   .bw-pill{display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; margin:8px 0 4px; padding:6px 12px;
-    border:1px solid var(--line); border-radius:999px; background:var(--panel); font-family:var(--sans); font-size:12.5px; color:var(--muted); max-width:100%;}
+    border:1px solid var(--line); border-radius:999px; background:var(--panel); font-family:var(--sans); font-size:13px; color:var(--muted); max-width:100%;}
   .bw-label{font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--accent);}
-  .bw-pill b{font-family:var(--mono); font-size:14px; font-weight:600; color:var(--ink);}
-  .bw-day{font-family:var(--mono); font-size:12.5px;}
+  .bw-pill b{font-family:var(--mono); font-size:15px; font-weight:600; color:var(--ink);}
+  .bw-day{font-family:var(--mono); font-size:13px;}
   .bw-day.up{color:var(--up-ink);} .bw-day.down{color:var(--down-ink);}
-  .bw-src{font-size:11.5px;}
+  .bw-src{font-size:12px;}
   @media (max-width:600px){ .bw-pill{border-radius:12px;} }
   .hdr-seg{display:flex; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:3px; gap:2px;}
-  .hdr-seg button{font-family:var(--sans); font-size:12.5px; color:var(--ink); background:transparent; border:0; border-radius:6px;
+  .hdr-seg button{font-family:var(--sans); font-size:13px; color:var(--ink); background:transparent; border:0; border-radius:6px;
     padding:7px 12px; display:flex; align-items:center; gap:7px; cursor:pointer; white-space:nowrap; transition:background 0.15s ease, color 0.15s ease;}
   /* Market Universe and Net Worth: separate buttons, not a joined group (Payments | Shopping stay joined). */
   .hdr-seg.sep{background:transparent; border:0; padding:0; gap:8px;}
@@ -200,7 +205,7 @@
   }
   .ai-panel .ai-ask input:focus{outline:none; border-color:var(--accent);}
   .ai-panel .ai-ask button{
-    font-family:inherit; font-size:12.5px; color:var(--on-accent); background:var(--accent); border:1px solid var(--accent);
+    font-family:inherit; font-size:13px; color:var(--on-accent); background:var(--accent); border:1px solid var(--accent);
     border-radius:6px; padding:8px 16px; cursor:pointer;
   }
   .ai-panel .ai-ask button:disabled{opacity:0.55; cursor:default;}
@@ -213,7 +218,7 @@
   }
   .ai-panel .ai-chip:hover{border-color:var(--accent); background:var(--panel);}
   .ai-panel .ai-chip:disabled{opacity:0.55; cursor:default;}
-  .ai-result h4{font-size:13.5px; margin:14px 0 4px; color:var(--ink);}
+  .ai-result h4{font-size:13px; margin:14px 0 4px; color:var(--ink);}
   .ai-result h4:first-child{margin-top:0;}
   .ai-result p{margin:0 0 8px;}
   .ai-result ul{margin:0 0 8px; padding-left:20px;}
@@ -258,9 +263,9 @@
     display:flex; justify-content:space-between; align-items:flex-start; padding:16px 24px 12px;
     border-bottom:1px solid var(--line); flex-shrink:0;
   }
-  #marketDetailHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
+  #marketDetailHeader h3{font-size:20px; font-weight:400; margin:0 0 3px;}
   #marketDetailHeader p{margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);}
-  #marketDetailClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #marketDetailClose{background:none; border:none; font-size:28px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
   #nwYearSwitcher{display:none; gap:6px; margin-top:10px;}
   #nwYearSwitcher.open{display:flex; flex-wrap:wrap;}
   .nw-year-btn{
@@ -274,29 +279,33 @@
   #mdBrokerFilter{display:none; margin:4px 16px 0 auto; align-items:center; gap:8px; font-family:var(--sans);}
   #mdBrokerFilter.open{display:flex;}
   #mdBrokerFilter .bf-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
-  #mdBrokerFilter .bf-seg{display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden;}
+  #mdBrokerFilter .bf-seg{display:inline-flex; gap:2px; padding:3px; border-radius:10px; background:var(--hover);}
   #mdBrokerFilter button{
-    font-family:inherit; font-size:12.5px; color:var(--muted); background:var(--paper); border:none;
-    border-left:1px solid var(--line); padding:6px 12px; cursor:pointer;
+    font-family:inherit; font-size:13px; font-weight:500; color:var(--muted); background:transparent; border:none;
+    border-radius:8px; min-height:36px; padding:0 14px; cursor:pointer;
   }
-  #mdBrokerFilter button:first-child{border-left:none;}
   #mdBrokerFilter button:hover{color:var(--ink);}
-  #mdBrokerFilter button.active{background:var(--accent); color:var(--on-accent); font-weight:600;}
+  #mdBrokerFilter button.active{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
+  #mdBrokerFilter button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
   .md-broker-note{font-size:12px; color:var(--muted); margin:4px 0 0;}
+  .nw-fee-chip{display:inline-block; margin-left:8px; padding:1px 7px; border-radius:999px; background:var(--hover); color:var(--muted); font:600 11px/18px var(--sans); vertical-align:1px; white-space:nowrap;}
+  /* Help: an (i) badge after the text instead of a dotted underline (29 Oct 2026 redesign); hover or focus shows the card. */
+  .has-help[style*="cursor:help"]::after{content:'i'; display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-left:6px; border:1px solid var(--line); border-radius:50%; font:700 11px/1 var(--sans); color:var(--muted); vertical-align:1px; background:var(--panel);}
+  .has-help[style*="cursor:help"]:hover::after{color:var(--accent); border-color:var(--accent);}
   @media (max-width:600px){ #mdBrokerFilter .bf-label{display:none;} #mdBrokerFilter{margin-right:8px;} #mdBrokerFilter button{padding:6px 9px;} }
   #marketDetailBody{padding:14px 24px 18px; font-family:var(--sans); overflow:auto; flex:1; min-height:0;}
   .md-headline{font-size:32px; font-weight:600; color:var(--ink); margin-bottom:2px; font-family:var(--mono); letter-spacing:-0.01em;}
   .md-headline-change{font-size:15px; font-weight:600;}
-  .md-headline-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
-  .md-stat-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:14px;}
+  .md-headline-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:8px;}
+  .md-stat-row{display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); font-size:15px;}
   .md-stat-row:last-of-type{border-bottom:none;}
   .md-stat-label{color:var(--muted);}
   .md-stat-val{font-weight:600;}
   .md-chart-section-title{margin:18px 0 10px; padding-top:16px; border-top:1px solid var(--line); font-size:13px; font-weight:600; color:var(--ink); font-family:var(--sans); text-transform:uppercase; letter-spacing:0.03em;}
-  .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:var(--sans); font-size:12.5px;}
+  .md-holdings-table{width:100%; border-collapse:separate; border-spacing:0; margin-top:18px; font-family:var(--sans); font-size:13px;}
   .md-holdings-table thead th{
     position:sticky; top:0; background:var(--paper); z-index:var(--z-sticky);
-    text-align:left; padding:6px 8px 10px; font-size:11.5px; color:var(--muted); text-transform:uppercase;
+    text-align:left; padding:6px 8px 10px; font-size:12px; color:var(--muted); text-transform:uppercase;
     letter-spacing:0.02em; border-bottom:2px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
   }
   .md-holdings-table thead th:hover{color:var(--accent);}
@@ -306,13 +315,20 @@
   .md-holdings-table tbody tr:last-child td{border-bottom:none;}
   .md-holdings-table tbody tr:not(.pf-detail-row):hover td{background:var(--hover);}
   .md-holdings-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  /* Narrow windows (29 Oct 2026 redesign): the holdings table scrolls inside its own box with the ticker column pinned,
+     so every column (and each purchase's price, quantity and cost) stays readable without the page scrolling sideways. */
+  @media (max-width:700px){
+    #marketDetailTableArea{overflow-x:auto;}
+    .md-pf-table{min-width:640px;}
+    .md-pf-table tr > :nth-child(2){position:sticky; left:0; z-index:1; background:var(--paper); box-shadow:inset -1px 0 0 var(--line);}
+  }
   .md-th-symbol{font-weight:700; color:var(--ink);}
   .md-th-sub{
     color:var(--muted); font-size:12px; max-width:150px; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; margin-top:1px;
   }
   .md-th-pct{font-size:12px; margin-top:1px;}
-  .nw-group-row td{background:var(--panel); font-weight:700; text-transform:uppercase; font-size:11.5px; letter-spacing:0.03em; padding-top:13px; padding-bottom:13px;}
+  .nw-group-row td{background:var(--panel); font-weight:700; text-transform:uppercase; font-size:12px; letter-spacing:0.03em; padding-top:13px; padding-bottom:13px;}
   .nw-group-row td:first-child{color:var(--ink); border-left:3px solid var(--group-color, var(--accent)); padding-left:11px;}
   .nw-group-row td.num:not(.down){color:var(--ink);}
   .nw-group-row .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:7px; vertical-align:middle;}
@@ -321,8 +337,8 @@
   .md-stat-tiles{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); margin:12px 0 14px;}
   .md-stat-tiles.cols-4{grid-template-columns:repeat(4,1fr);}
   .md-stat-tile{background:var(--panel); padding:9px 14px;}
-  .md-stat-tile-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
-  .md-stat-tile-val{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--mono);}
+  .md-stat-tile-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; margin-bottom:4px;}
+  .md-stat-tile-val{font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--mono);}
   .md-stat-tile-sub{font-size:12px; color:var(--muted); margin-top:2px; font-variant-numeric:tabular-nums;}
   .md-stat-tile-sub.up{color:var(--up-ink);} .md-stat-tile-sub.down{color:var(--down-ink);} .md-stat-tile-sub.flat, .md-stat-tile-val.flat{color:var(--muted);}
   @media (max-width:520px){
@@ -346,14 +362,14 @@
     font-size:12px; color:var(--muted); margin:1px 0 14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .md-tc-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px 16px; font-family:var(--sans);}
-  .md-tc-item-label{font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
+  .md-tc-item-label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.02em; margin-bottom:3px;}
   .md-tc-item-val{font-size:13px; font-weight:600; font-variant-numeric:tabular-nums;}
   .md-tc-item-sub{font-size:12px; margin-top:1px; font-variant-numeric:tabular-nums;}
   /* A wide holdings table scrolls on its own; the window's header, tiles and chart stay put (27 Oct 2026). */
   #marketDetailTableArea{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .md-pf-table th.expand-col, .md-pf-table td.expand-col{width:24px; padding-left:12px; padding-right:0;}
   .pf-expand-btn{
-    background:none; border:none; cursor:pointer; font-size:14px; color:var(--muted); padding:2px 4px; line-height:1;
+    background:none; border:none; cursor:pointer; font-size:15px; color:var(--muted); padding:2px 4px; line-height:1;
     display:inline-block; transition:transform 0.15s ease;
   }
   .pf-expand-btn:hover{color:var(--accent);}
@@ -365,7 +381,7 @@
   }
   .pf-detail-grid .md-tc-item-val{font-weight:400;}
   /* Expanded holding: one row per purchase, in the holding row's own columns. */
-  .md-pf-table tr.pf-lot-head td{background:var(--paper); font-size:12.5px; font-weight:600; color:var(--ink); padding-top:10px; padding-bottom:8px; border-bottom:1px solid var(--line);}
+  .md-pf-table tr.pf-lot-head td{background:var(--paper); font-size:13px; font-weight:600; color:var(--ink); padding-top:10px; padding-bottom:8px; border-bottom:1px solid var(--line);}
   .md-pf-table tr.pf-lot-row td{background:var(--paper); font-size:13px;}
   .md-pf-table tr.pf-lot-row .pf-lot-date{color:var(--ink);}
   .md-pf-table tr.pf-lot-sale td{color:var(--muted);}
@@ -375,14 +391,14 @@
   .md-pf-table .pf-usd{font-size:12px; color:var(--muted); margin-top:1px; white-space:nowrap;}
   .md-pf-table .pf-usd.up{color:var(--up-ink);} .md-pf-table .pf-usd.down{color:var(--down-ink);}
   .md-pf-table .pf-gain-pd{font-size:12px; color:var(--muted); margin-top:5px; white-space:nowrap;}
-  .md-pf-table .pf-gain-pd-val{font-size:12.5px; white-space:nowrap;}
+  .md-pf-table .pf-gain-pd-val{font-size:13px; white-space:nowrap;}
   #universeHolding:empty{display:none;}
   /* Pulse Check: verdict badge in the Market Universe table, and the one-ticker panel above it. */
-  .pulse-badge{display:inline-block; font-family:var(--sans); font-size:11.5px; font-weight:600; padding:2px 8px; border-radius:4px; white-space:nowrap; border:1px solid var(--line); color:var(--muted);}
+  .pulse-badge{display:inline-block; font-family:var(--sans); font-size:12px; font-weight:600; padding:2px 8px; border-radius:4px; white-space:nowrap; border:1px solid var(--line); color:var(--muted);}
   .pulse-badge.deeper{color:var(--accent); border-color:var(--accent);}
   .pulse-badge.watch{color:var(--warn); border-color:var(--warn);}
   .pulse-badge.fails{color:var(--down-ink); border-color:var(--down-ink);}
-  .pulse-vs{display:inline-block; margin-left:6px; font-family:var(--sans); font-size:11.5px; color:var(--muted); white-space:nowrap;}
+  .pulse-vs{display:inline-block; margin-left:6px; font-family:var(--sans); font-size:12px; color:var(--muted); white-space:nowrap;}
   .pulse-none{color:var(--muted);}
   #universeTable th[data-key="pulse"], #universeTable td[data-col="pulse"]{width:170px;}
   #universePulse:empty{display:none;}
@@ -399,14 +415,14 @@
   .pulse-meaning{margin-top:8px; padding-top:6px; border-top:1px solid var(--line); font-size:12px; line-height:1.5; color:var(--muted); max-width:420px;}
   .pulse-meaning .pm-k{color:var(--ink); font-weight:600;}
   .pulse-foot{margin-top:8px; font-size:12px; color:var(--muted);}
-  .pulse-tip{max-width:380px; font-size:12.5px; line-height:1.55;}
+  .pulse-tip{max-width:380px; font-size:13px; line-height:1.55;}
   #universeHolding{margin:4px 0 18px;}
   #universeHolding .uh-title{font-family:var(--sans); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-top:6px;}
   #universeHolding .uh-table{margin-top:6px;}
   #universeHolding .uh-table thead th{cursor:default;}
   /* Each Transactions-tab line for the holding, under the summary (see applyTransactionLots). */
-  .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:var(--sans); font-size:12.5px;}
-  .pf-detail-row .pf-lots th{font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
+  .pf-detail-row .pf-lots{width:auto; min-width:min(560px, 100%); margin-top:16px; border-collapse:collapse; font-family:var(--sans); font-size:13px;}
+  .pf-detail-row .pf-lots th{font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); text-align:left; padding:0 14px 6px 0; border-bottom:1px solid var(--line);}
   .pf-detail-row .pf-lots td{background:none; padding:6px 14px 6px 0; border-bottom:1px solid var(--line); color:var(--ink);}
   .pf-detail-row .pf-lots tr:last-child td{border-bottom:none;}
   .pf-detail-row .pf-lots .num{text-align:right;}
@@ -420,7 +436,7 @@
   #universeCard.maximized{width:100%; height:100%; max-height:100%;}
   #universeModal.maximized-open{padding:0;}
   #universeHeader{display:flex; justify-content:space-between; align-items:flex-start; padding:20px 24px 14px; border-bottom:1px solid var(--line);}
-  #universeHeader h3{font-size:22px; font-weight:400; margin:0 0 3px;}
+  #universeHeader h3{font-size:20px; font-weight:400; margin:0 0 3px;}
   #universeHeader p{margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);}
   #universeHeaderBtns{display:flex; align-items:center; gap:4px; flex-shrink:0;}
   #universeSearchWrap{padding:14px 24px 0; display:flex; align-items:center; flex-wrap:wrap; gap:14px;}
@@ -441,7 +457,7 @@
   }
   #universeQuoteCard.show{display:flex; opacity:1;}
   #universeQuoteCard .uq-row{display:flex; align-items:baseline; gap:12px;}
-  #universeQuoteCard .uq-price{font-size:26px; font-weight:600; color:var(--ink);}
+  #universeQuoteCard .uq-price{font-size:28px; font-weight:600; color:var(--ink);}
   #universeQuoteCard .uq-ccy{font-size:12px; color:var(--muted); margin-left:3px;}
   #universeQuoteCard .uq-pct{font-size:13px; font-weight:600; padding:4px 9px; border-radius:6px;}
   #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--up-ink);}
@@ -449,7 +465,7 @@
   #universeQuoteCard .uq-today{font-size:13px; color:var(--muted);}
   #universeQuoteCard .uq-today.up{color:var(--up-ink);}
   #universeQuoteCard .uq-today.down{color:var(--down-ink);}
-  #universeQuoteCard .uq-loading{font-size:12.5px; color:var(--muted);}
+  #universeQuoteCard .uq-loading{font-size:13px; color:var(--muted);}
   /* Pre-market / after-hours quote beside the regular one, laid out like Google Finance's own:
      price, a round arrow badge and the change on top; the session and its time underneath. */
   #universeQuoteCard .uq-row{flex-wrap:wrap; row-gap:8px;}
@@ -469,8 +485,8 @@
   /* Portfolio window: Holdings | Pre-Market tabs under the chart */
   .md-tabs{display:flex; gap:2px; margin-top:18px; border-bottom:1px solid var(--line);}
   .md-tab{
-    font-family:var(--sans); font-size:13px; color:var(--muted); background:none; border:none;
-    border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px 8px; cursor:pointer;
+    font-family:var(--sans); font-size:15px; color:var(--muted); background:none; border:none;
+    border-bottom:2px solid transparent; margin-bottom:-1px; padding:11px 2px 10px; margin-right:22px; cursor:pointer; min-height:44px;
   }
   .md-tab:hover{color:var(--ink);}
   .md-tab.active{color:var(--ink); font-weight:600; border-bottom-color:var(--accent);}
@@ -479,7 +495,7 @@
   .div-legend{display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; font-family:var(--sans); font-size:12px; color:var(--ink); margin:4px 0 6px;}
   .div-legend i{display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
   .div-legend-note{color:var(--muted); margin-left:auto;}
-  .div-manual{margin:14px 0 4px; padding:10px 14px; border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; background:var(--panel); font-family:var(--sans); font-size:12.5px; line-height:1.5;}
+  .div-manual{margin:14px 0 4px; padding:10px 14px; border:1px solid var(--line); border-left:3px solid var(--warn); border-radius:6px; background:var(--panel); font-family:var(--sans); font-size:13px; line-height:1.5;}
   .div-manual-title{font-weight:600; margin-bottom:6px; color:var(--ink);}
   .div-manual-row{display:flex; gap:10px; align-items:baseline; padding:5px 0; border-top:1px solid var(--line);}
   .div-manual-row:first-of-type{border-top:none;}
@@ -487,14 +503,14 @@
   .div-manual-row.ok .div-manual-tag{border-color:var(--up-ink); color:var(--up-ink);}
   .div-manual-row.done .div-manual-tag{border-color:var(--up-ink); color:var(--on-accent); background:var(--up-ink);}
   .div-manual.all-done{border-left-color:var(--up-ink);}
-  .div-manual-row .div-clear{margin-left:auto; flex:0 0 auto; min-height:32px; padding:0 12px; font-size:12.5px;}
-  .div-dismiss{margin-left:auto; flex:0 0 auto; font-family:inherit; font-size:11.5px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:5px; padding:2px 8px; cursor:pointer;}
+  .div-manual-row .div-clear{margin-left:auto; flex:0 0 auto; min-height:32px; padding:0 12px; font-size:13px;}
+  .div-dismiss{margin-left:auto; flex:0 0 auto; font-family:inherit; font-size:12px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:5px; padding:2px 8px; cursor:pointer;}
   .div-dismiss:hover{color:var(--ink); border-color:var(--accent);}
   .div-table{margin-top:14px;}
   .div-filter{display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-top:16px; font-size:13px;}
   .div-filter select{font:inherit; min-height:34px; padding:0 8px; border:1px solid var(--line); border-radius:8px; background:var(--panel); color:var(--ink); margin-left:6px;}
   #premarketTreemap{position:relative; width:100%;}
-  .pm-note{font-size:12.5px; color:var(--muted); padding:18px 0; line-height:1.5;}
+  .pm-note{font-size:13px; color:var(--muted); padding:18px 0; line-height:1.5;}
   /* Payments window (design canvas "SheetPulse Payments tab", Oct 2026): status cards, bill check grid,
      chart + categories side by side, bill list (cards on phones). */
   .pay-top{display:flex; justify-content:flex-end; align-items:flex-end; flex-wrap:wrap; gap:8px 16px; margin-bottom:16px; border-bottom:1px solid var(--line);}
@@ -502,15 +518,15 @@
   /* Bills | Contracts */
   /* Bills | Contracts | Receipts: tabs with a live badge (design canvas "SheetPulse Payments views", option B) */
   .pay-view{display:flex; flex-wrap:wrap; gap:4px 24px; margin-right:auto;}
-  .pay-view-btn{font-family:var(--sans); font-size:14px; font-weight:550; color:var(--muted); background:none; border:0; padding:0 2px 10px; min-height:44px; display:inline-flex; align-items:center; gap:7px; cursor:pointer;}
+  .pay-view-btn{font-family:var(--sans); font-size:15px; font-weight:550; color:var(--muted); background:none; border:0; padding:0 2px 10px; min-height:44px; display:inline-flex; align-items:center; gap:7px; cursor:pointer;}
   .pay-view-btn svg{width:16px; height:16px; flex:none;}
   .pay-view-btn.on{color:var(--ink); font-weight:650; box-shadow:inset 0 -2.5px 0 var(--accent);}
   .pay-view-btn:not(.on):hover{color:var(--ink);}
-  .pay-badge{font-size:11.5px; font-weight:600; border-radius:999px; padding:1px 7px; background:var(--paper); color:var(--muted); font-variant-numeric:tabular-nums;}
+  .pay-badge{font-size:12px; font-weight:600; border-radius:999px; padding:1px 7px; background:var(--paper); color:var(--muted); font-variant-numeric:tabular-nums;}
   .pay-badge.warn{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--tile-ink-flat);}
   .pay-badge.bad{background:var(--down-1); color:var(--down-5);}
   /* Actions (change something) look different from filters: squarer, with an icon; one solid per screen. */
-  .pay-btn{font-family:var(--sans); font-size:13.5px; font-weight:550; min-height:40px; padding:0 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; gap:7px;}
+  .pay-btn{font-family:var(--sans); font-size:13px; font-weight:550; min-height:40px; padding:0 14px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center; gap:7px;}
   .pay-btn svg{width:15px; height:15px; flex:none;}
   .pay-btn.primary{background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600;}
   .pay-btn.primary:hover{background:var(--accent-hover); border-color:var(--accent-hover);}
@@ -536,7 +552,7 @@
   .ct-tl-namecell .ct-hide{opacity:.55;}
   .ct-tl-row:hover .ct-hide, .ct-hide:focus-visible{opacity:1;}
   .ct-tl-name{display:flex; flex-direction:column; gap:2px; padding-right:14px; min-width:0;}
-  .ct-tl-name b{font-size:14px; font-weight:650; color:var(--ink);}
+  .ct-tl-name b{font-size:15px; font-weight:650; color:var(--ink);}
   .ct-tl-name small{font-size:12px; color:var(--muted);}
   .ct-tl-track{position:relative; height:58px;}
   .ct-tl-name{padding:8px 0;}
@@ -544,7 +560,7 @@
   .ct-tl-year{position:absolute; top:5px; font-size:12px; color:var(--muted); font-family:var(--mono); padding-left:4px;}
   .ct-tl-grid{position:absolute; top:0; bottom:0; width:1px; background:var(--line);}
   .ct-tl-today{position:absolute; top:0; bottom:0; width:2px; background:var(--accent);}
-  .ct-tl-bar{position:absolute; top:17px; height:24px; border-radius:6px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; color:var(--ink);}
+  .ct-tl-bar{position:absolute; top:17px; height:24px; border-radius:6px; box-sizing:border-box; padding:0 8px; display:flex; align-items:center; font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; color:var(--ink);}
   .ct-tl-bar.fixed{background:color-mix(in srgb, var(--accent) 24%, var(--panel));}
   .ct-tl-bar.soon{background:color-mix(in srgb, var(--warn) 38%, var(--panel));}
   .ct-tl-bar.open{background:var(--paper); border:1.5px dashed var(--axis);}
@@ -557,7 +573,7 @@
   .rc-kind{font-size:11px; font-weight:650; border-radius:999px; padding:1px 8px; margin-left:8px; vertical-align:1px;}
   .rc-kind.product{background:color-mix(in srgb, var(--accent) 14%, var(--panel)); color:var(--accent-hover);}
   .rc-kind.transport{background:color-mix(in srgb, var(--cmp-3) 18%, var(--panel)); color:var(--ink);}
-  .rc-groups{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13.5px;}
+  .rc-groups{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px;}
   .rc-groups label{display:inline-flex; align-items:center; gap:6px; min-height:34px; cursor:pointer;}
   .rc-groups input{width:16px; height:16px; accent-color:var(--accent); margin:0;}
   .rc-groups .n{color:var(--muted);}
@@ -571,10 +587,10 @@
   /* Receipts → Shelf (option B): kept forever, a "say what these were for" tray, then cards. */
   .rc-tray{background:var(--panel); border-radius:12px; padding:16px 20px; box-shadow:inset 0 0 0 1.5px var(--warn); margin:0 0 16px; font-family:var(--sans);}
   .rc-tray-head{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 16px; margin-bottom:8px;}
-  .rc-tray-head h3{margin:0; font-size:16px; font-weight:650; color:var(--ink);}
+  .rc-tray-head h3{margin:0; font-size:15px; font-weight:650; color:var(--ink);}
   .rc-tray-row{display:grid; grid-template-columns:220px minmax(0, 1fr) 120px; gap:14px; align-items:center; padding:6px 0;}
-  .rc-tray-row input{min-height:40px; border:1px solid var(--line); border-radius:8px; padding:0 12px; font:inherit; font-size:14px; color:var(--ink); background:var(--panel); width:100%; box-sizing:border-box;}
-  .rc-tray-row .rc-amt{text-align:right; font-size:14px;}
+  .rc-tray-row input{min-height:40px; border:1px solid var(--line); border-radius:8px; padding:0 12px; font:inherit; font-size:15px; color:var(--ink); background:var(--panel); width:100%; box-sizing:border-box;}
+  .rc-tray-row .rc-amt{text-align:right; font-size:15px;}
   .rc-bar{display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; margin:0 0 12px;}
   .rc-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; font-family:var(--sans);}
   .rc-card{background:var(--panel); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:7px; min-height:150px; box-sizing:border-box; min-width:0;}
@@ -582,9 +598,9 @@
   .rc-card-top{display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px; color:var(--muted); font-family:var(--mono);}
   .rc-card .rc-kind{margin:0; font-family:var(--sans);}
   .rc-card b{font-size:15px; font-weight:650; line-height:1.3; color:var(--ink);}
-  .rc-card small{font-size:12.5px; color:var(--muted);}
+  .rc-card small{font-size:13px; color:var(--muted);}
   .rc-card-foot{margin-top:auto; display:flex; justify-content:space-between; align-items:center;}
-  .rc-amt{font-size:17px; font-weight:700; font-family:var(--mono); color:var(--ink); font-variant-numeric:tabular-nums;}
+  .rc-amt{font-size:15px; font-weight:700; font-family:var(--mono); color:var(--ink); font-variant-numeric:tabular-nums;}
   .rc-slot{grid-column:1 / -1;}
   .rc-slot:empty{display:none;}
   @media (max-width:600px){ .rc-tray-row{grid-template-columns:minmax(0, 1fr) auto;} .rc-tray-row input{grid-column:1 / -1; grid-row:2;} }
@@ -603,23 +619,23 @@
   .rc-tile:disabled{cursor:default;}
   .rc-tile-box{width:100%; height:58px; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; background:var(--paper); color:var(--accent-hover); box-sizing:border-box;}
   .rc-tile-box b{font-size:13px;}
-  .rc-tile-box span{font-size:10px; font-family:var(--mono); white-space:nowrap;}
+  .rc-tile-box span{font-size:11px; font-family:var(--mono); white-space:nowrap;}
   .rc-tile.l1 .rc-tile-box{background:color-mix(in srgb, var(--accent) 22%, var(--panel));}
   .rc-tile.l2 .rc-tile-box{background:color-mix(in srgb, var(--accent) 62%, var(--panel)); color:var(--on-accent);}
   .rc-tile.l3 .rc-tile-box{background:var(--accent-hover); color:var(--on-accent);}
   .rc-tile:not(:disabled):hover .rc-tile-box{box-shadow:0 0 0 2px var(--accent);}
-  .rc-tile-m{font-size:11.5px; color:var(--muted);}
+  .rc-tile-m{font-size:12px; color:var(--muted);}
   .rc-bigs{margin:0 0 14px; font-family:var(--sans);}
   .rc-bigs-h{display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; color:var(--muted); margin-bottom:8px; min-height:32px;}
   .rc-big-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;}
   .rc-big{text-align:left; border:0; border-radius:12px; padding:12px 14px; background:var(--panel); display:flex; flex-direction:column; gap:4px; cursor:pointer; font-family:var(--sans); color:var(--ink); min-width:0;}
   .rc-big.sel{box-shadow:inset 0 0 0 2px var(--accent);}
   .rc-big:hover{background:var(--hover);}
-  .rc-big-top{display:flex; justify-content:space-between; gap:8px; font-size:14px;}
+  .rc-big-top{display:flex; justify-content:space-between; gap:8px; font-size:15px;}
   .rc-big-top b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:650;}
   .rc-big-top .rc-mono{font-weight:700; flex:none;}
   .rc-big small{font-size:12px; color:var(--muted);}
-  .rc-cover{margin-top:4px; font-size:11.5px; font-weight:600; border-radius:7px; padding:4px 8px; align-self:stretch;}
+  .rc-cover{margin-top:4px; font-size:12px; font-weight:600; border-radius:7px; padding:4px 8px; align-self:stretch;}
   .rc-cover.on{background:color-mix(in srgb, var(--up-4) 16%, var(--panel)); color:var(--up-ink);}
   .rc-cover.off{background:var(--paper); color:var(--muted);}
   .rc-cover.add{background:var(--paper); color:var(--accent-hover);}
@@ -636,20 +652,20 @@
   .rc-row.skip{opacity:.6;}
   .rc-row-d{font-size:13px; color:var(--muted); font-family:var(--mono);}
   .rc-row-main{display:flex; flex-direction:column; gap:1px; min-width:0;}
-  .rc-row-main b{font-size:14px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rc-row-main b{font-size:15px; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .rc-row-main small{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .rc-row .rc-kind{margin:0;}
-  .rc-row-a{text-align:right; font-size:14px; font-weight:700;}
+  .rc-row-a{text-align:right; font-size:15px; font-weight:700;}
   .rc-panel{background:var(--panel); border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:12px; position:sticky; top:8px; max-height:calc(100vh - 140px); overflow:auto; box-sizing:border-box;}
   .rc-p-top{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted);}
   .rc-p-top .rc-kind{margin:0;}
   .rc-panel h3{margin:0; font-size:20px; font-weight:700; color:var(--ink); line-height:1.25;}
-  .rc-p-amt{font-size:26px; font-weight:700; color:var(--ink);}
+  .rc-p-amt{font-size:28px; font-weight:700; color:var(--ink);}
   .rc-p-amt small{font-size:13px; color:var(--muted); font-weight:500;}
-  .rc-p-warn{font-size:12.5px; background:color-mix(in srgb, var(--warn) 20%, var(--panel)); border-radius:8px; padding:7px 10px; color:var(--ink);}
-  .rc-panel section{margin:0; border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:4px; align-items:flex-start; font-size:13.5px;}
+  .rc-p-warn{font-size:13px; background:color-mix(in srgb, var(--warn) 20%, var(--panel)); border-radius:8px; padding:7px 10px; color:var(--ink);}
+  .rc-panel section{margin:0; border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:4px; align-items:flex-start; font-size:13px;}
   .rc-panel section > .rc-cover{align-self:stretch;}
-  .rc-panel h4{margin:0 0 2px; font-size:12.5px; font-weight:650; color:var(--muted);}
+  .rc-panel h4{margin:0 0 2px; font-size:13px; font-weight:650; color:var(--muted);}
   .rc-panel section .pay-btn.text{padding:0; min-height:30px;}
   .rc-wslot, .rc-editslot{align-self:stretch;}
   .rc-wslot:empty, .rc-editslot:empty{display:none;}
@@ -664,19 +680,19 @@
   .ct-item:first-child{border-top:0;}
   .ct-item.ended{opacity:.6;}
   .ct-main{display:flex; flex-direction:column; gap:3px; min-width:0;}
-  .ct-main b{font-size:14px; color:var(--ink); font-weight:600;}
+  .ct-main b{font-size:15px; color:var(--ink); font-weight:600;}
   .ct-main small{font-size:12px; color:var(--muted);}
-  .ct-covers{font-size:12.5px; color:var(--ink);}
-  .ct-when{font-size:12.5px; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .ct-covers{font-size:13px; color:var(--ink);}
+  .ct-when{font-size:13px; color:var(--ink); font-variant-numeric:tabular-nums;}
   .ct-cost{display:flex; flex-direction:column; align-items:flex-end; gap:4px; font-variant-numeric:tabular-nums; white-space:nowrap;}
-  .ct-cost b{font-size:13.5px; color:var(--ink);}
+  .ct-cost b{font-size:13px; color:var(--ink);}
   .ct-bar{height:4px; border-radius:2px; background:var(--line); margin-top:6px; max-width:180px; overflow:hidden;}
   .ct-bar i{display:block; height:100%; background:var(--accent);}
   @media (max-width:600px){ .ct-item{grid-template-columns:minmax(0, 1fr) auto;} .ct-when{grid-column:1 / -1; grid-row:2;} }
   .pay-sub{font-size:11px; color:var(--muted);}
   .pay-dot{display:inline-block; flex:none; width:10px; height:10px; border-radius:3px; margin-right:8px; vertical-align:-1px;}
   .pay-chips{display:flex; flex-wrap:wrap; gap:6px;}
-  .pay-chip{font-family:var(--sans); font-size:12.5px; min-height:32px; padding:0 12px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center;}
+  .pay-chip{font-family:var(--sans); font-size:13px; min-height:32px; padding:0 12px; border-radius:999px; border:1px solid var(--line); background:var(--panel); color:var(--ink); cursor:pointer; display:inline-flex; align-items:center;}
   .pay-chip i{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:6px;}
   /* A chosen filter is tinted, never solid, so it can't be mistaken for an action. */
   .pay-chip.on{border-color:color-mix(in srgb, var(--accent) 45%, var(--panel)); background:color-mix(in srgb, var(--accent) 13%, var(--panel)); color:var(--accent-hover); font-weight:600;}
@@ -687,16 +703,16 @@
   .pay-card.miss{box-shadow:inset 0 0 0 1.5px var(--down-4);}
   .pay-card.due{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .pay-card.wait{box-shadow:inset 0 0 0 1.5px var(--warn);}
-  .pay-card-label{font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
+  .pay-card-label{font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
   .pay-card.miss .pay-card-label{color:var(--down-ink);}
   .pay-card.due .pay-card-label{color:var(--accent);}
   .pay-card.wait .pay-card-label{color:var(--warn);}
   .pay-card-label.ok{color:var(--up-ink);}
-  .pay-card-val{font-size:19px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
-  .pay-card-sub{font-size:12.5px; color:var(--muted); line-height:1.5;}
+  .pay-card-val{font-size:20px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
+  .pay-card-sub{font-size:13px; color:var(--muted); line-height:1.5;}
   .pay-panel{background:var(--panel); border-radius:12px; padding:20px; margin:16px 0 0; font-family:var(--sans); min-width:0;}
   .pay-panel-head{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 20px; margin-bottom:12px;}
-  .pay-panel h3{margin:0; font-size:16px; font-weight:600; color:var(--ink);}
+  .pay-panel h3{margin:0; font-size:15px; font-weight:600; color:var(--ink);}
   .pay-panel-note{font-size:12px; color:var(--muted);}
   .pay-row{display:flex; flex-wrap:wrap; gap:0 16px;}
   .pay-legs{display:flex; flex-wrap:wrap; gap:4px 6px;}
@@ -716,7 +732,7 @@
   .pay-grid th.pay-name{font-weight:500; padding-right:10px; white-space:nowrap;}
   .pay-name-in{display:flex; align-items:center;}
   .pay-name-in b{display:block; font-weight:500; font-size:13px; color:var(--ink);}
-  .pay-name-in small{display:block; font-size:11.5px; color:var(--muted);}
+  .pay-name-in small{display:block; font-size:12px; color:var(--muted);}
   .pay-name-in small i{font-style:normal;}
   .pay-cell{min-width:52px; height:38px; border-radius:6px; text-align:center; vertical-align:middle; font-variant-numeric:tabular-nums; cursor:help; line-height:1.15;}
   .pay-cell.paid{background:var(--up-1); color:var(--up-5);}
@@ -731,8 +747,8 @@
   .pay-confirm{margin-top:12px; padding:12px 14px; border-radius:10px; background:var(--hover); font-size:13px; color:var(--ink); line-height:1.5; display:flex; flex-direction:column; gap:8px;}
   .pay-confirm[hidden]{display:none;}
   .pay-confirm-btns{display:flex; flex-wrap:wrap; gap:6px;}
-  .pay-confirm-row{font-size:12.5px; color:var(--muted);}
-  .pay-confirm-row code{display:block; margin:6px 0; padding:6px 8px; border-radius:6px; background:var(--panel); color:var(--ink); font-family:var(--mono); font-size:11.5px; overflow-x:auto; white-space:nowrap;}
+  .pay-confirm-row{font-size:13px; color:var(--muted);}
+  .pay-confirm-row code{display:block; margin:6px 0; padding:6px 8px; border-radius:6px; background:var(--panel); color:var(--ink); font-family:var(--mono); font-size:12px; overflow-x:auto; white-space:nowrap;}
   .pay-copied{color:var(--up-ink); font-size:12px;}
   .pay-pill.wait{color:var(--warn); box-shadow:inset 0 0 0 1px var(--warn);}
   .pay-pill.bad{background:var(--down-1); color:var(--down-5);}
@@ -749,12 +765,13 @@
   .shop-search{font:inherit; font-size:13px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); width:300px; max-width:100%; box-sizing:border-box;}
   .shop-search:focus{border-color:var(--accent); outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);}
   .shop-note{font-size:12px; font-weight:400; color:var(--ink); background:var(--hover); border-radius:6px; padding:2px 8px; margin-top:4px; display:inline-block;}
-  .shop-note-btn{display:block; margin-top:3px; padding:0; border:0; background:none; font:inherit; font-size:11.5px; font-weight:500; color:var(--accent); cursor:pointer;}
+  /* Note / price buttons sit with their order, left-aligned and side by side, not centred under it (29 Oct 2026 redesign). */
+  .shop-note-btn{display:inline-flex; align-self:flex-start; text-align:left; margin:4px 16px 0 0; padding:0; min-height:24px; align-items:center; border:0; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--accent); cursor:pointer;}
   .shop-note-btn:hover{text-decoration:underline;}
   .shop-pill-btn{border:0; background:none; padding:0; margin:0; font:inherit; cursor:pointer; border-radius:999px;}
   .shop-pill-btn .pay-pill{transition:box-shadow 0.15s ease;}
   .shop-pill-btn:hover .pay-pill, .shop-pill-btn:focus-visible .pay-pill{box-shadow:inset 0 0 0 1.5px var(--accent);}
-  .shop-pill-btn .pay-pill::after{content:' ▾'; font-size:9px; opacity:.6;}
+  .shop-pill-btn .pay-pill::after{content:' ▾'; font-size:11px; opacity:.6;}
   .pay-pill.mark{background:var(--up-1); color:var(--up-5); box-shadow:inset 0 0 0 1px var(--up-4);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
   .pay-key i{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-2px;}
@@ -762,13 +779,13 @@
   .pay-cat-item{display:flex; align-items:center; gap:4px; padding:10px 0; border-top:1px solid var(--line);}
   .pay-panel-head + .pay-cat-item{border-top:none;}
   .pay-cat-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
-  .pay-cat-main b{font-size:13.5px; font-weight:500; color:var(--ink);}
+  .pay-cat-main b{font-size:13px; font-weight:500; color:var(--ink);}
   .pay-cat-main small, .pay-cat-num small{font-size:12px; color:var(--muted);}
   .pay-cat-num{display:flex; flex-direction:column; align-items:flex-end; gap:2px; font-variant-numeric:tabular-nums;}
-  .pay-cat-num b{font-size:14px; font-weight:600; color:var(--ink);}
+  .pay-cat-num b{font-size:15px; font-weight:600; color:var(--ink);}
   .pay-cat-num small.down{color:var(--down-ink);} .pay-cat-num small.up{color:var(--up-ink);}
   /* All bills */
-  .pay-pill{display:inline-block; font-size:11.5px; padding:2px 10px; border-radius:999px; white-space:nowrap;}
+  .pay-pill{display:inline-block; font-size:12px; padding:2px 10px; border-radius:999px; white-space:nowrap;}
   .pay-pill.paid{background:var(--up-1); color:var(--up-5);}
   .pay-pill.due{background:var(--hover); color:var(--accent);}
   .pay-list{margin-top:4px;}
@@ -779,13 +796,13 @@
     .pay-panel{padding:14px;}
     .pay-list{display:none;}
     .pay-cards-list{display:block;}
-    .pay-cell{min-width:40px; height:34px; font-size:10.5px;}
+    .pay-cell{min-width:40px; height:34px; font-size:11px;}
     /* Cards as on the phone design: problems full width, the money cards two by two; "Paid this month" goes. */
     .pay-cards{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;}
     .pay-card{padding:13px 14px;}
     .pay-card.miss, .pay-card.wait{grid-column:1 / -1;}
     .pay-card.pay-card-paid{display:none;}
-    .pay-card-val{font-size:17px;}
+    .pay-card-val{font-size:15px;}
     .pay-card-sub{font-size:12px;}
     .pay-panel-note.pay-hint{display:none;}
     .pay-grid th.pay-name{white-space:normal; padding-right:4px;}
@@ -803,8 +820,8 @@
   }
   #marketDetailSearch:focus{outline:none; border-color:var(--accent);}
   #universeClose, #universeMaximize, #universeRefresh{background:none; border:none; color:var(--muted); cursor:pointer; padding:2px 6px; line-height:1;}
-  #universeClose{font-size:26px;}
-  #universeMaximize{font-size:16px;}
+  #universeClose{font-size:28px;}
+  #universeMaximize{font-size:15px;}
   #universeRefresh svg{width:17px; height:17px; display:block;}
   #universeRefresh.spinning svg{animation:universeSpin 0.9s linear infinite;}
   @keyframes universeSpin{to{transform:rotate(360deg);}}
@@ -813,7 +830,7 @@
   #universeTable{width:100%; border-collapse:collapse; font-family:var(--sans); font-size:13px; table-layout:fixed;}
   #universeTable thead th{
     position:sticky; top:0; background:var(--paper); text-align:left; padding:10px 12px; cursor:pointer;
-    font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
+    font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.03em; border-bottom:2px solid var(--line);
     white-space:normal; user-select:none; vertical-align:bottom;
   }
   #universeTable thead th:hover{color:var(--accent);}
@@ -839,7 +856,7 @@
   .cards:hover .card{border-color:color-mix(in srgb, var(--accent) 45%, var(--line));}
   .card .label{font-family:var(--sans); font-size:11px; color:var(--muted); letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px;}
   .card .bsplit{font-family:var(--mono); font-size:12px; margin-top:6px; display:flex; flex-wrap:wrap; gap:2px 8px;}
-  .card .value{font-size:26px; line-height:1.1; font-family:var(--mono); font-weight:600; letter-spacing:-0.01em;}
+  .card .value{font-size:28px; line-height:1.1; font-family:var(--mono); font-weight:600; letter-spacing:-0.01em;}
   .card .sub{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:4px;}
   .up{color:var(--up-ink);} .down{color:var(--down-ink);} .flat{color:var(--muted);}
   #heroPanel{margin-bottom:28px;}
@@ -853,6 +870,35 @@
   .mstrip .msep{width:1px; align-self:stretch; background:var(--line);}
   /* "Market Value: ..." repeats the tiles; kept in the DOM (the live sync still writes it) but hidden here. */
   .mstrip #gaugePortfolioSub, .mstrip #gaugeIlSub, .mstrip #gaugeUsSub{display:none;}
+  /* Strip as four equal cells (29 Oct 2026 redesign): Portfolio · Israel · USA · USD/ILS, each a small label over its
+     figure, with TASE / USA open-closed above their own cells. Same elements and ids as before; only the layout. */
+  #gaugePanel{padding:12px 8px;}
+  #gaugeInfo.mstrip{display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0; align-items:start;}
+  .mstrip .msep{display:none;}
+  .mstrip #taseStatusLine{grid-column:2; grid-row:1;} .mstrip #usStatusLine{grid-column:3; grid-row:1;}
+  .mstrip #taseStatusLine, .mstrip #usStatusLine{padding:0 16px; font-size:12px; color:var(--muted); line-height:1.4;}
+  .mstrip #taseStatusLine .market-icon, .mstrip #usStatusLine .market-icon{width:16px; height:16px; margin-right:4px;}
+  .mstrip #taseStatusLine .market-icon svg, .mstrip #usStatusLine .market-icon svg{width:11px; height:11px;}
+  .mstrip #portfolioDetailTrigger{grid-column:1;} .mstrip #ilDetailTrigger{grid-column:2;} .mstrip #usDetailTrigger{grid-column:3;} .mstrip #fxDetailTrigger{grid-column:4;}
+  .mstrip .mlink{grid-row:2; margin:0; padding:6px 16px; border-radius:8px; display:flex; flex-direction:column; gap:1px; white-space:normal;}
+  .mstrip .mlink + .mlink{box-shadow:inset 1px 0 0 var(--line);}
+  .mstrip .mlink .glabel, .mstrip .mlink .glabel-strong{font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);}
+  #gaugeInfo.mstrip .mlink .gval{font-family:var(--mono); font-size:15px; font-weight:600;}   /* beats #gaugeInfo .gval's 13 px */
+  .mstrip #gaugeFxRate{font-family:var(--mono); font-size:15px;}
+  .mstrip .mlink .gval{white-space:nowrap;}
+  .mstrip #gaugeFxRate .gval{white-space:normal;}   /* rate, arrow, % and change: may take two lines in a narrow cell */
+  /* USD/ILS: the rate on its line, its time and the Bank of Israel rate as small lines under it. */
+  .mstrip #gaugeFxRate .gval-sub{display:block; margin:0; font-family:var(--sans); font-size:12px; font-weight:400; color:var(--muted);}
+  @media (max-width:600px){
+    #gaugeInfo.mstrip{grid-template-columns:repeat(2, minmax(0, 1fr)); row-gap:6px;}
+    .mstrip #taseStatusLine{grid-column:1; grid-row:1;} .mstrip #usStatusLine{grid-column:2; grid-row:1;}
+    .mstrip #portfolioDetailTrigger{grid-column:1; grid-row:2;} .mstrip #ilDetailTrigger{grid-column:2; grid-row:2;}
+    .mstrip #usDetailTrigger{grid-column:1; grid-row:3;} .mstrip #fxDetailTrigger{grid-column:2; grid-row:3;}
+    .mstrip .mlink:nth-of-type(even){box-shadow:none;}
+    .mstrip .mlink{padding:6px 10px;} .mstrip #taseStatusLine, .mstrip #usStatusLine{padding:0 10px;}
+    #gaugeInfo.mstrip .mlink .gval, .mstrip #gaugeFxRate{font-size:13px;}
+    .mstrip #gaugeFxRate .gval-sub[title]{display:none;}   /* the Bank of Israel rate: in the USD/ILS card and window */   /* portfolio and USA: the left column */
+  }
   /* Home "Portfolio today" chart next to the market / broker allocation bars (v1c phase 4). */
   .home-row{display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:12px; margin-top:12px; align-items:stretch;}
   .home-day{cursor:pointer;}
@@ -885,7 +931,7 @@
     #phoneHero .bsplit{font-family:var(--mono); font-size:12px; margin-top:4px; display:flex; flex-wrap:wrap; gap:2px 8px;}
     .card.card-today{display:none;}
     .cards{grid-template-columns:repeat(2,1fr);}
-    .cards .card:last-child{grid-column:1 / -1;}   /* Holdings full width, no empty half-row */
+    .cards .card:last-child{grid-column:auto;}   /* Total gain and Holdings side by side (Today is the phone hero) */
     #buildInfo{display:none;}                      /* desktop and Diagnostics still show the build */
     .mstrip .msep{display:none;}
     .mstrip .mitem{white-space:normal;}
@@ -899,7 +945,7 @@
     font-family:var(--sans);
     font-weight:700; color:var(--ink); letter-spacing:0.01em;
   }
-  #gaugeInfo .gval{font-weight:700; font-size:13.5px; font-family:var(--mono);}
+  #gaugeInfo .gval{font-weight:700; font-size:13px; font-family:var(--mono);}
   #gaugeInfo .gval.up{color:var(--up-ink);}
   #gaugeInfo .gval.down{color:var(--down-ink);}
   #gaugeInfo .gval.flat{color:var(--muted);}
@@ -920,15 +966,24 @@
   .swatch{width:9px;height:9px;display:inline-block;}
   #intradayChart{margin-top:10px;}
   .price-warn{display:inline-flex; vertical-align:-3px; margin-left:6px; cursor:help;}
-  #chartRangeBar, #universeRangeBar, #winlosePeriod{display:flex; flex-wrap:wrap; gap:4px; margin:10px 0 4px; font-family:var(--sans);}
+  /* One segmented control for every range / period / broker choice (29 Oct 2026 redesign): a tinted track, the
+     chosen option a raised white pill; 36 px tall, 44 px on a phone. */
+  #chartRangeBar, #universeRangeBar, #winlosePeriod{display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; border-radius:10px; background:var(--hover); margin:10px 0 4px; font-family:var(--sans);}
   #universeRangeBar{margin:0 0 0 auto;}
-  #chartRangeBar button, #universeRangeBar button, #winlosePeriod button{background:none; border:1px solid transparent; border-radius:6px; padding:4px 11px; font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit;}
-  #chartRangeBar button:hover, #universeRangeBar button:hover, #winlosePeriod button:hover{color:var(--ink); border-color:var(--line);}
-  #chartRangeBar button.active, #universeRangeBar button.active, #winlosePeriod button.active{background:var(--panel); border-color:var(--line); color:var(--ink); font-weight:700;}
-  #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  #chartRangeBar{display:flex; width:fit-content; margin:14px 0 0 auto;}
+  #chartRangeBar button, #universeRangeBar button, #winlosePeriod button{background:transparent; border:0; border-radius:8px; min-height:36px; padding:0 13px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #chartRangeBar button:hover, #universeRangeBar button:hover, #winlosePeriod button:hover{color:var(--ink);}
+  #chartRangeBar button.active, #universeRangeBar button.active, #winlosePeriod button.active{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
+  #chartRangeBar button:focus-visible, #universeRangeBar button:focus-visible, #winlosePeriod button:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+  @media (max-width:600px){
+    #chartRangeBar button, #universeRangeBar button, #winlosePeriod button, #mdBrokerFilter button{min-height:44px; padding:0 8px;}
+    #chartRangeBar, #winlosePeriod{flex-wrap:nowrap; max-width:100%; overflow-x:auto;}   /* one row; scrolls if it can't fit */
+    .md-tabs{overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none;}
+    .md-tab{flex:none; white-space:nowrap; font-size:13px; margin-right:16px;}
+  }
   #universeChart{padding:10px 0 14px;}
   /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
-  #universeCompareBar{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-top:10px; font-family:var(--sans); font-size:12.5px;}
+  #universeCompareBar{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-top:10px; font-family:var(--sans); font-size:13px;}
   .uc-chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:14px; padding:3px 6px 3px 10px; background:var(--panel); color:var(--ink); font-weight:600;}
   .uc-chip:not(:has(.uc-x)){padding-right:10px;}
   .uc-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:0;}
@@ -937,11 +992,11 @@
   .uc-x:hover{color:var(--ink);}
   .uc-add{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;}
   .uc-add-btn{
-    font-family:inherit; font-size:12.5px; color:var(--accent); background:none; border:1px dashed var(--accent);
+    font-family:inherit; font-size:13px; color:var(--accent); background:none; border:1px dashed var(--accent);
     border-radius:14px; padding:4px 12px; cursor:pointer; font-weight:600;
   }
   .uc-add-btn:hover{background:var(--panel);}
-  .uc-input{font-family:inherit; font-size:12.5px; color:var(--ink); background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:4px 12px; width:170px; outline:none;}
+  .uc-input{font-family:inherit; font-size:13px; color:var(--ink); background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:4px 12px; width:170px; outline:none;}
   .uc-msg{font-size:12px; color:var(--down-ink);}
   .uc-full{font-size:12px; color:var(--muted);}
   .uc-summary{display:flex; flex-wrap:wrap; gap:4px 16px; font-family:var(--sans); font-size:13px; margin-bottom:4px;}
@@ -952,8 +1007,8 @@
   .tm-panel{margin-top:8px;}
   /* Home sections as panels (v1c phase 5): same surface, border and radius as the tiles above. */
   section.psec{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:16px 0 0; min-width:0;}
-  section.psec h2{font-size:15px; font-weight:600; color:var(--ink); letter-spacing:0;}
-  section.psec-note{border-left:3px solid var(--accent); padding:14px 18px; font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);}
+  section.psec h2{font-size:20px; font-weight:700; color:var(--ink); letter-spacing:-0.005em;}
+  section.psec-note{border-left:3px solid var(--accent); padding:14px 18px; font-family:var(--sans); font-size:13px; line-height:1.7; color:var(--ink);}
   @media (max-width:600px){ section.psec{padding:14px 12px; border-radius:8px;} }
   .hp-label{font-family:var(--sans); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:2px 2px 8px;}
   #treemap{position:relative; width:100%; height:420px;}
@@ -1006,22 +1061,28 @@
   .spct{width:56px; text-align:right; color:var(--muted); flex-shrink:0; padding-left:10px;}
   #winloseHeadline{font-family:var(--sans); font-size:13px; color:var(--ink); margin:2px 0 12px;}
   #winloseSearch{
-    display:block; width:100%; max-width:260px; margin:0 0 10px; padding:7px 11px; border:1px solid var(--line); background:var(--panel);
-    font-family:var(--sans); font-size:13px; color:var(--ink); border-radius:6px;
+    display:block; width:100%; max-width:240px; min-height:42px; box-sizing:border-box; margin:0 0 10px; padding:0 12px; border:1px solid var(--line); background:var(--panel);
+    font-family:var(--sans); font-size:13px; color:var(--ink); border-radius:10px;
   }
   #winloseSearch:focus{outline:none; border-color:var(--accent);}
-  #winloseNoMatch{font-family:var(--sans); font-size:12.5px; color:var(--muted); padding:8px 0;}
+  #winloseNoMatch{font-family:var(--sans); font-size:13px; color:var(--muted); padding:8px 0;}
   #winloseHeadline b{font-weight:600;}
   #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
   .perf-wrap{overflow-x:auto; margin-top:10px;}
   .perf-table{border-collapse:separate; border-spacing:3px; font-family:var(--sans); font-size:12px; min-width:640px; width:100%;}
   .perf-table th{color:var(--muted); font-weight:600; padding:2px 4px; text-align:center;}
-  .perf-table td{text-align:center; padding:7px 2px; border-radius:5px; font-variant-numeric:tabular-nums; cursor:help;}
+  .perf-table td{text-align:center; padding:8px 2px; border-radius:6px; font-family:var(--mono); font-weight:600; font-variant-numeric:tabular-nums; cursor:help;}
   .perf-table td.perf-y{font-weight:700; color:var(--ink); background:none; text-align:left; cursor:default;}
   .perf-table td.perf-empty{background:none; cursor:default;}
-  .perf-table td.perf-tot{font-weight:700; outline:1px solid var(--line);}
+  .perf-table td.perf-tot{font-weight:700; font-family:var(--mono); text-align:left; padding-left:10px; min-width:84px;}
+  .perf-bar{display:block; height:5px; margin-top:5px; border-radius:3px; background:var(--flat); overflow:hidden;}
+  .perf-bar i{display:block; height:100%; border-radius:3px;}
   .perf-sum{font-family:var(--sans); font-size:13px; margin-top:10px;}
   .perf-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:8px;}
+  /* Period and search on one row (29 Oct 2026 redesign). */
+  .wl-toolbar{display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:12px 0 10px;}
+  .wl-toolbar #winlosePeriod{margin:0;}
+  .wl-toolbar #winloseSearch{margin:0 0 0 auto;}
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:var(--sans); font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
   .wlname{width:70px; flex-shrink:0; font-weight:600;}
@@ -1034,7 +1095,7 @@
   #winloseScaleNote{font-family:var(--sans); font-size:12px; color:var(--muted); margin:8px 0 0;}
   #winloseScaleNote a{color:var(--accent);}
   /* Status lines and footnotes the chart renderers write (loading, errors, "% change since …"). */
-  .chart-msg{font-family:var(--sans); font-size:12.5px; color:var(--muted); padding:20px 0;}
+  .chart-msg{font-family:var(--sans); font-size:13px; color:var(--muted); padding:20px 0;}
   .chart-msg.err{color:var(--down-ink);}
   .chart-foot{font-family:var(--sans); font-size:12px; color:var(--muted); margin-top:2px;}
   .chart-head-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin-bottom:4px;}
@@ -1042,7 +1103,7 @@
   .chart-note{font-family:var(--sans); font-size:12px; color:var(--muted); margin:-8px 0 14px; line-height:1.5;}
   #winloseInsights{
     display:none; margin-top:16px; padding:14px 18px; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--accent);
-    font-family:var(--sans); font-size:12.5px; line-height:1.7; color:var(--ink);
+    font-family:var(--sans); font-size:13px; line-height:1.7; color:var(--ink);
   }
   #winloseInsights.open{display:block;}
   #winloseInsights .wli-title{font-weight:600; margin-bottom:6px; display:block;}
@@ -1067,7 +1128,7 @@
   body.pf-unlocked #lockScreen{display:none;}
   #lockCard{width:min(320px, 100%); text-align:center;}
   #lockCard h1{font-size:28px; font-weight:400; margin:0 0 4px; justify-content:center;}
-  #lockCard p{font-family:var(--sans); font-size:12.5px; color:var(--muted); margin:0 0 20px;}
+  #lockCard p{font-family:var(--sans); font-size:13px; color:var(--muted); margin:0 0 20px;}
   #googleSignInBtn{display:flex; justify-content:center; margin-bottom:4px;}
   #lockError{
     font-family:var(--sans); font-size:12px; color:var(--down-ink); margin-top:12px; min-height:16px;
@@ -1084,11 +1145,11 @@
     box-shadow:var(--shadow-modal); font-family:var(--sans);
   }
   #diagHeader{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 20px 12px; border-bottom:1px solid var(--line);}
-  #diagHeader h3{font-family:var(--serif); font-size:21px; font-weight:400; margin:0 0 3px;}
+  #diagHeader h3{font-family:var(--serif); font-size:20px; font-weight:400; margin:0 0 3px;}
   #diagHeader p{margin:0; font-size:12px; color:var(--muted);}
-  #diagClose{background:none; border:none; font-size:26px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
+  #diagClose{background:none; border:none; font-size:28px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px;}
   #diagList{overflow-y:auto; padding:6px 20px;}
-  .diagRow{display:grid; grid-template-columns:18px 1fr auto; gap:4px 10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .diagRow{display:grid; grid-template-columns:18px 1fr auto; gap:4px 10px; padding:10px 0; border-bottom:1px solid var(--line); font-size:13px;}
   .diagRow:last-child{border-bottom:none;}
   .diagDot{width:10px; height:10px; border-radius:50%; margin-top:3px; background:var(--flat);}
   .diagRow.ok .diagDot{background:var(--up-4);}
@@ -1115,7 +1176,7 @@
   #diagFooter button:disabled{opacity:0.5; cursor:default;}
   #diagTabs{display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--line);}
   .diagTab{
-    font-family:var(--sans); font-size:12.5px; color:var(--muted); background:none; border:none;
+    font-family:var(--sans); font-size:13px; color:var(--muted); background:none; border:none;
     border-bottom:2px solid transparent; margin-bottom:-1px; padding:10px 12px 8px; cursor:pointer;
   }
   .diagTab:hover{color:var(--ink);}
@@ -1126,13 +1187,13 @@
     padding:10px 0 9px; border-bottom:1px solid var(--line);
   }
   .tsBar input, .tsBar select{
-    font-family:var(--sans); font-size:12.5px; color:var(--ink); background:var(--panel);
+    font-family:var(--sans); font-size:13px; color:var(--ink); background:var(--panel);
     border:1px solid var(--line); border-radius:6px; padding:7px 10px;
   }
   .tsBar input{flex:1 1 200px; min-width:0;}
   .tsBar select{flex:0 1 230px; min-width:0; cursor:pointer;}
   .tsBar input:focus, .tsBar select:focus{outline:none; border-color:var(--accent);}
-  .tsEmpty{padding:18px 0; font-size:12.5px; color:var(--muted);}
+  .tsEmpty{padding:18px 0; font-size:13px; color:var(--muted);}
   .tsGroup.tsFlash h4{animation:tsFlash 1.2s ease;}
   @keyframes tsFlash{0%,40%{color:var(--accent);}100%{color:var(--ink);}}
   .tsGroup h4{margin:16px 0 2px; font-size:13px; color:var(--ink);}
@@ -1141,7 +1202,7 @@
   .tsWhere.putty{background:var(--tag-putty-bg); color:var(--tag-putty-ink);}
   .tsIntro{margin:0 0 4px; font-size:12px; color:var(--muted); line-height:1.45;}
   .tsCmd{margin-top:10px;}
-  .tsCmdHead{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; color:var(--ink);}
+  .tsCmdHead{display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:13px; color:var(--ink);}
   .tsCmdNote{font-size:12px; color:var(--muted); margin:2px 0 0; line-height:1.4;}
   .tsCmd pre{
     margin:5px 0 0; padding:8px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px;
@@ -1161,7 +1222,7 @@
   <div id="lockCard">
     <h1><img src="icon-512.png" alt="SheetPulse" class="brand-logo brand-logo-lock"></h1>
     <p>Sign in with Google to continue</p>
-    <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--panel); color:var(--ink); font-family:var(--sans); font-size:14px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
+    <button id="webauthnLoginBtn" type="button" style="display:none; width:100%; margin-bottom:14px; padding:11px 16px; border-radius:8px; border:1px solid var(--accent); background:var(--panel); color:var(--ink); font-family:var(--sans); font-size:15px; font-weight:600; cursor:pointer;">Unlock with Face ID / Fingerprint</button>
     <div id="googleSignInBtn"></div>
     <div id="lockError"></div>
     <a href="#" id="lockDiagLink">Connection diagnostics</a>
@@ -1416,10 +1477,12 @@
   <header>
     <div>
       <h1 class="brand-title"><img src="icon-512.png" alt="" class="brand-logo">SheetPulse</h1>
-      <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
-      <div id="status"></div>
-      <div class="meta" id="accountLine"></div>
-      <div class="meta" id="buildInfo"></div>
+      <div class="hdr-status">
+        <div class="meta" id="asOf">Snapshot — press refresh to pull the latest from your sheet</div>
+        <div id="status"></div>
+        <div class="meta" id="accountLine"></div>
+        <div class="meta" id="buildInfo"></div>
+      </div>
     </div>
     <div class="btnrow">
       <div class="hdr-seg sep" role="group" aria-label="Investments">
@@ -1529,8 +1592,10 @@
       </span>
     </div>
     <div id="winloseHeadline"></div>
-    <div id="winlosePeriod" role="group" aria-label="Winners &amp; losers period"></div>
-    <input type="search" id="winloseSearch" placeholder="Find a ticker…" aria-label="Find a ticker in Winners &amp; losers" autocomplete="off">
+    <div class="wl-toolbar">
+      <div id="winlosePeriod" role="group" aria-label="Winners &amp; losers period"></div>
+      <input type="search" id="winloseSearch" placeholder="Find a ticker…" aria-label="Find a ticker in Winners &amp; losers" autocomplete="off">
+    </div>
     <div id="winloseNoMatch" style="display:none;"></div>
     <div id="winlose"></div>
     <div id="winloseScaleNote"></div>
@@ -1640,7 +1705,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793301566";
+const BUILD_ID = "1793302951";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3571,13 +3636,13 @@ async function renderUniverseCompareChart(row, range, height){
   const yGrid = Array.from({length: 5}, (_, i) => {
     const v = yMin + (yMax - yMin) * i / 4, y = yFor(v);
     return `<line x1="${padL}" x2="${w - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>${pctStr(v)}</text>`;
+      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${pctStr(v)}</text>`;
   }).join('');
   const longRange = ['1Y', '5Y', 'MAX'].includes(range);
   const label = t => new Date(t).toLocaleDateString('en-US', longRange ? {month: 'short', year: 'numeric'} : {month: 'short', day: 'numeric'});
   const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
   const ticks = [...new Set(Array.from({length: n}, (_, k) => Math.round(k * (dates.length - 1) / (n - 1))))];
-  const xLabels = ticks.map((i, k) => `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" font-size="10" fill="var(--muted)" text-anchor="${k === 0 ? 'start' : k === ticks.length - 1 ? 'end' : 'middle'}" ${font}>${label(dates[i])}</text>`).join('');
+  const xLabels = ticks.map((i, k) => `<text x="${xFor(i).toFixed(1)}" y="${h - 6}" font-size="11" fill="var(--muted)" text-anchor="${k === 0 ? 'start' : k === ticks.length - 1 ? 'end' : 'middle'}" ${font}>${label(dates[i])}</text>`).join('');
   const lines = series.slice().reverse().map(s => {   // main ticker drawn last, on top
     let d = '', pen = false;
     s.pct.forEach((v, i) => { if(isNaN(v)){ pen = false; return; } d += (pen ? 'L' : 'M') + xFor(i).toFixed(1) + ',' + yFor(v).toFixed(1) + ' '; pen = true; });
@@ -4413,10 +4478,10 @@ function renderMarketDetailHeader(marketKey){
   }
   window.liveNow = seg.value;   // the market's live value, used by its chart's last point
   window.liveMarket = marketKey;
-  const title = marketKey === 'il' ? 'Israeli (TASE) holdings' : 'USA holdings';
+  const title = marketKey === 'il' ? 'Israel · TASE' : 'USA';
 
   document.getElementById('marketDetailTitle').textContent = title;
-  document.getElementById('marketDetailSubtitle').textContent = 'Holdings summary';
+  document.getElementById('marketDetailSubtitle').textContent = marketKey === 'il' ? 'Tel Aviv holdings, in shekels' : 'US holdings, in shekels and dollars';
   hideBrokerFilter();
   hideNwYearSwitcher();
 
@@ -4479,7 +4544,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
           ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
           : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
+        <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
           ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} · ${dayChangeAsOf}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
@@ -4492,7 +4557,7 @@ function renderMarketDetailHeader(marketKey){
     </div>
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     ${statsHtml}
-    ${(marketKey === 'il' || marketKey === 'us') ? '<div id="intradayChart"></div><div id="chartRangeBar"></div>' : ''}
+    ${(marketKey === 'il' || marketKey === 'us') ? '<div id="chartRangeBar"></div><div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
   if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
@@ -4604,8 +4669,8 @@ async function renderFxDetailHeader(){
       ${change !== null ? `<span class="md-headline-change" style="color:${color};">${change>=0?'▲':'▼'} ${change>=0?'+':''}${change.toFixed(4)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%)</span>` : ''}
     </div>
     <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) + (prevCloseTs ? ` (${formatPrevCloseLabel(prevCloseTs)})` : '') : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
-    <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
+    <div id="intradayChart"></div>
   `;
   const {y, m, d} = todayInZone('Asia/Jerusalem');
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
@@ -4831,7 +4896,7 @@ function renderPortfolioHeader(){
   window.liveMarket = null;             // the whole portfolio (not one market): its chart closes at the day's last reading (22 Oct 2026)
 
   document.getElementById('marketDetailTitle').textContent = 'Portfolio';
-  document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : 'All holdings';
+  document.getElementById('marketDetailSubtitle').textContent = broker ? `${broker} holdings · ${rows.length} of ${allRows.length}` : `All holdings · ${rows.length} positions`;
   hideNwYearSwitcher();
   renderBrokerFilter(allRows, broker);
 
@@ -4877,7 +4942,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
-          : `<div class="md-stat-tile-sub" id="mdDayChangeAsOf" style="cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
+          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -4890,13 +4955,13 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
           ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
           : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
-        <div class="md-stat-tile-sub" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help; border-bottom:1px dotted var(--muted); display:inline-block;' : ''}">${yesterdayUsdTotal !== null
+        <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help;' : ''}">${yesterdayUsdTotal !== null
           ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')} · ${allPrevCloseLabel()}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>
-    <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
+    <div id="intradayChart"></div>
     ${broker ? `<p class="md-broker-note">1D and 5D: the intraday log records the whole portfolio, so ${broker}'s line is its share of each market (TASE, USA) applied to it, counted SheetPulse's way (live USD/ILS).</p>` : ''}
     ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: US holdings valued at the Bank of Israel representative rate published before today${meitavBoiRate() ? ` (${meitavBoiRate().rate.toFixed(4)}, ${boiDay(meitavBoiRate().date)})` : ''}, cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
     ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
@@ -5088,8 +5153,13 @@ async function renderPerformanceTab(){
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const years = [...new Set(months.map(m => m.y))].sort((a, b) => b - a);
   const nowY = today.getFullYear(), nowM = today.getMonth();
-  // Colour strength: full at ±5% for a month, ±15% for a year (tileColorFor is full at ±2.5).
-  const cell = (r, full) => `background:${tileColorFor(r * 2.5 / full)}; color:${tileTextColorFor(r * 2.5 / full)};`;
+  // Shade by size in five steps (29 Oct 2026 redesign): under 1%, 2.5%, 5%, 10%, and above; under 0.05% is flat. The two
+  // strongest steps carry white text, the lighter ones the tile ink, so a -0.1% month no longer shouts like a -20% one.
+  const cell = r => {
+    const a = Math.abs(r), k = a < 1 ? 1 : a < 2.5 ? 2 : a < 5 ? 3 : a < 10 ? 4 : 5, side = r >= 0 ? 'up' : 'down';
+    if(a < 0.05) return 'background:var(--flat); color:var(--tile-ink-flat);';
+    return `background:var(--${side}-${k}); color:${k >= 4 ? '#fff' : `var(--tile-ink-${side})`};`;
+  };
   const yearOf = y => { const ms = months.filter(m => m.y === y);
     return {ms, ret: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain: ms.reduce((a, m) => a + m.gain, 0), newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
   const tips = {};
@@ -5101,16 +5171,19 @@ async function renderPerformanceTab(){
       if(!x) return '<td class="perf-empty"></td>';
       const id = y + '-' + m, partial = y === nowY && m === nowM;
       tips[id] = `<b>${MON[m]} ${y}${partial ? ' so far' : ''}</b>Start ${val(x.startV)}<br>${x.newMoney ? `${x.newMoney > 0 ? 'New money' : 'Sold'} ${val(Math.abs(x.newMoney))}<br>` : ''}End ${val(x.endV)}<br>Gain ${fmt(x.gain)} = <span class="${x.ret >= 0 ? 'up' : 'down'}">${pc(x.ret)}</span>`;
-      return `<td data-tip="${id}" style="${cell(x.ret, 5)}">${pc(x.ret)}${partial ? '*' : ''}</td>`;
-    }).join('') + `<td class="perf-tot" data-tip="y${y}" style="${cell(yr.ret, 15)}">${pc(yr.ret)}</td><td data-tip="y${y}" class="${yr.gain >= 0 ? 'up' : 'down'}" style="background:none; font-weight:600;">${fmt(yr.gain)}</td></tr>`;
+      return `<td data-tip="${id}" style="${cell(x.ret)}">${pc(x.ret)}${partial ? '*' : ''}</td>`;
+    }).join('') + `<td class="perf-tot ${yr.ret >= 0 ? 'up' : 'down'}" data-tip="y${y}">${pc(yr.ret)}<span class="perf-bar"><i style="width:${Math.min(100, Math.abs(yr.ret)).toFixed(0)}%; background:var(--${yr.ret >= 0 ? 'up' : 'down'}-4);"></i></span></td><td data-tip="y${y}" class="${yr.gain >= 0 ? 'up' : 'down'}" style="background:none; font-weight:600;">${fmt(yr.gain)}</td></tr>`;
   }).join('');
   const done = months.filter(m => !(m.y === nowY && m.m === nowM));
   const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
   const upN = done.filter(m => m.ret > 0).length;
-  area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''}</div>
+  area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''} <span class="has-help perf-how" style="cursor:help; color:var(--muted);">How it's calculated</span></div>
     <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th>Year</th><th>Gain</th></tr></thead><tbody>${body}</tbody></table></div>
-    <div class="perf-note">Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close); % = gain ÷ (start value + new money for the part of the month it was invested); a year chains its months, so a year's % follows the months' % even when its ₪ gain came mostly from a bigger portfolio. * = month so far. Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends (paid as cash) aren't included.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
+    <div class="perf-note">* = month so far.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
   area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
+  // The method lives in the (i) card, not a paragraph under the grid (29 Oct 2026 redesign).
+  const how = area.querySelector('.perf-how');
+  if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A year chains its months, so its % follows the months' % even when its ₪ gain came mostly from a bigger portfolio.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
   wirePicker();
 }
 
@@ -5238,7 +5311,7 @@ function renderDividendsTab(){
   let grid = '';
   for(let v = 0; v <= top; v += step){
     grid += `<line x1="${padL}" x2="${w - padR}" y1="${yOf(v).toFixed(1)}" y2="${yOf(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">$${v}</text>`;
+      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">$${v}</text>`;
   }
   const every = Math.ceil(months.length / 12);
   let bars = '', labels = '', hits = '';
@@ -5254,7 +5327,7 @@ function renderDividendsTab(){
       base += v;
     });
     if((i % every === 0 && months.length - 1 - i >= every) || i === months.length - 1)
-      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${monthLabel(m.k)}</text>`;
+      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${monthLabel(m.k)}</text>`;
     hits += `<rect class="div-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
 
@@ -5379,9 +5452,9 @@ function drawPremarketTreemap(area){
     const tc = tileTextColorFor(pct);
     let inner = '';
     if(w > 26 && h > 16){
-      inner += `<div class="t-name" style="color:${tc}; font-size:${Math.min(13, Math.max(9, w/6))}px">${d.name}</div>`;
-      if(w > 64 && h > 32) inner += `<div style="color:${tc}; font-size:${Math.min(10, Math.max(7, w/11))}px; white-space:nowrap;">${up?'+':''}${pct.toFixed(2)}% (${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)})</div>`;
-      if(w > 72 && h > 44) inner += `<div style="color:${tc}; opacity:0.85; font-size:${Math.min(10, Math.max(7, w/9))}px; white-space:nowrap;">$${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>`;
+      inner += `<div class="t-name" style="color:${tc}; font-size:${Math.min(13, Math.max(11, w/6))}px">${d.name}</div>`;
+      if(w > 84 && h > 40) inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">${up?'+':''}${pct.toFixed(2)}% (${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)})</div>`;
+      if(w > 96 && h > 58) inner += `<div style="color:${tc}; opacity:0.85; font-size:11px; white-space:nowrap;">$${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>`;
     }
     tile.innerHTML = inner;
     const tName = TICKER_NAME_MAP[d.name];
@@ -5472,6 +5545,12 @@ const NW_LIABILITY_ITEMS = [
 // a "Fees" row in the year tab itself, below the months, each fee under its account's column: "0.5% D" = from deposits,
 // "0.2%" (or "0.2% B") = from the balance a year. parseNetWorthTable() reads them; an account without fees has no tooltip.
 let NW_FEES = {};
+// The fee as a small chip beside the account name (29 Oct 2026 redesign), so it's visible without hovering.
+function nwFeeChip(f){
+  const pc = n => n.toFixed(2).replace(/\.?0+$/, '') + '%';
+  const t = [typeof f.dep === 'number' ? pc(f.dep) + ' dep.' : '', typeof f.acc === 'number' ? pc(f.acc) + ' bal.' : ''].filter(Boolean).join(' · ');
+  return t ? `<span class="nw-fee-chip">fee ${t}</span>` : '';
+}
 function nwFeeTooltip(label, key, value){
   const f = NW_FEES[key] || {}, pc = n => n.toFixed(2).replace(/\.?0+$/, '') + '%';
   const lines = [];   // only the fees the sheet has; an account without any gets no tooltip
@@ -5573,7 +5652,7 @@ function nwChangeLine(value, refValue, refLabel, opts){
   if(isNaN(changePct)) return '';
   const cls = change>=0 ? 'up' : 'down';
   const arrow = change>=0 ? '▲' : '▼';
-  const size = opts.big ? 'font-size:12.5px; font-weight:700;' : 'font-size:12px;';
+  const size = opts.big ? 'font-size:13px; font-weight:700;' : 'font-size:12px;';
   return `<div style="${size} margin:2px 0 0;" class="${cls}">${arrow} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs ${refLabel}</div>`;
 }
 
@@ -5652,7 +5731,7 @@ function buildNwTrendChart(opts){
     <circle class="nw-trend-hit" data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" style="cursor:help;"/>
     <circle data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}" style="pointer-events:none;"/>
   `).join('');
-  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
+  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
   return `
     <div class="chart-title">${title}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
@@ -5696,7 +5775,7 @@ function buildNwMultiTrendChart(opts){
   const hits = visible.length ? months.map((m,i)=>
     `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
   ).join('') : `<text x="${w/2}" y="${(h-pad)/2+4}" font-size="12" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">All lines hidden — click a legend item to show it</text>`;
-  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="10" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
+  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
   const legend = series.map(s=>{
     const off = hidden.has(s.key);
     return `<span class="nw-series-toggle${off?' off':''}" data-series="${s.key}" role="button" tabindex="0" aria-pressed="${!off}" title="Click to ${off?'show':'hide'} ${s.label}"><span class="nw-sw" style="--sw:${s.color};"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`;
@@ -5891,7 +5970,7 @@ function renderNetWorth(nw, crossYearPrev){
       </tr>`;
     const groupRows = rows.map(r=>`
       <tr class="nw-item-row"${r.isLiability || !NW_FEES[r.key] ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
-        <td><div class="md-th-symbol">${r.label}</div></td>
+        <td><div class="md-th-symbol">${r.label}${!r.isLiability && NW_FEES[r.key] ? nwFeeChip(NW_FEES[r.key]) : ''}</div></td>
         <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
       </tr>`).join('');
     return groupHeader + groupRows;
@@ -6020,7 +6099,7 @@ async function loadNetWorthYear(year){
   const url = year ? netWorthUrlForYear(year) : null;
 
   document.getElementById('marketDetailTitle').textContent = 'Net Worth';
-  document.getElementById('marketDetailSubtitle').textContent = 'Full financial picture';
+  document.getElementById('marketDetailSubtitle').textContent = 'Assets, liabilities and pension by month';
   hideBrokerFilter();
   document.getElementById('marketDetailCard').classList.add('wide');
   renderNwYearSwitcher(year, years);
@@ -6436,7 +6515,7 @@ function renderContracts(area){
       <div class="pay-panel-head"><h3>Contracts</h3><input type="search" class="shop-search ct-search" placeholder="Search name, provider, reference, notes, amount" aria-label="Search contracts" value="${esc(contractsQuery)}">
         <div class="pay-chips"><button type="button" class="pay-chip${contractsType ? '' : ' on'}" data-ctype="" aria-pressed="${!contractsType}">All<span class="n">${all.length}</span></button>${types.map(t => `<button type="button" class="pay-chip${contractsType === t ? ' on' : ''}" data-ctype="${esc(t)}" aria-pressed="${contractsType === t}">${esc(t)}<span class="n">${all.filter(k => k.type === t).length}</span></button>`).join('')}${hiddenList.length ? `<button type="button" class="pay-chip${showingHidden ? ' on' : ''}" data-ctype="__hidden" aria-pressed="${showingHidden}">Hidden<span class="n">${hiddenList.length}</span></button>` : ''}</div></div>
       <div id="ctAdd" class="pay-confirm" hidden></div>
-      ${showingHidden ? `<div class="pay-sub" style="font-size:12.5px; margin-bottom:6px;">Hidden on this device. To hide one on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>` : ''}
+      ${showingHidden ? `<div class="pay-sub" style="font-size:13px; margin-bottom:6px;">Hidden on this device. To hide one on every device, set its Type to <b>Hidden</b> in the Contracts tab.</div>` : ''}
       ${shown.length && contractsLayout === 'timeline' && !showingHidden ? timeline(shown) : shown.length ? `<div class="ct-list">${shown.map(k => `<div class="ct-item${k.state === 'ended' ? ' ended' : ''}">
         <div class="ct-row">${(lk => `<span class="ct-badge" style="background:color-mix(in srgb, ${lk[1]} 16%, var(--panel)); color:var(--ink);" aria-hidden="true">${lk[0]}</span>`)(CT_TYPE_LOOK[k.type] || [esc(k.type.slice(0, 3).toUpperCase()), 'var(--muted)'])}<div class="ct-main"><b>${esc(k.name)}</b><small>${esc(k.provider)}${k.provider && k.type ? ' · ' : ''}${esc(k.type)}${k.ref ? ' · ' + esc(k.ref) : ''}</small>
           ${k.covers ? `<div class="ct-covers">${esc(k.covers)}</div>` : ''}${k.notes ? `<div class="shop-note" dir="auto">${esc(k.notes)}</div>` : ''}${noteBtn(k)}${k.link ? `<a class="pay-sub" href="${esc(k.link)}" target="_blank" rel="noopener">${/mail\.google\./.test(k.link) ? 'Open the email' : 'Open the document'}</a>` : ''}</div></div>
@@ -6760,8 +6839,8 @@ function renderReceipts(area){
     </section>
     ${big.length ? `<section class="rc-bigs"><div class="rc-bigs-h"><span>Big buys · ₪1,000 and up, every year</span>${big.length > 4 ? `<button type="button" class="pay-btn text rc-big-all">${receiptsBigAll ? 'Show fewer' : 'Show all ' + big.length}</button>` : ''}</div><div class="rc-big-grid">${big.slice(0, receiptsBigAll ? big.length : 4).map(bigCard).join('')}</div></section>` : ''}
     ${looks ? `<div class="rc-looks"><span class="rc-looks-h">Needs a look</span>${looks}${receiptsKind ? '<button type="button" class="pay-btn text" data-rkind="">Show all</button>' : ''}</div>` : ''}
-    ${tray.length ? `<section class="rc-tray"><div class="rc-tray-head"><h3>Say what these were for · ${tray.length} of ${ask.length}</h3><span class="pay-sub" style="font-size:12.5px;">Type and press Enter; the next one comes up</span></div>
-      ${tray.map(x => `<div class="rc-tray-row"><span class="ct-main"><b style="font-size:13.5px;">${esc(x.from)}</b><small dir="auto">${day(x.ms)}${x.subject ? ' · ' + esc(x.subject) : ''}</small></span>
+    ${tray.length ? `<section class="rc-tray"><div class="rc-tray-head"><h3>Say what these were for · ${tray.length} of ${ask.length}</h3><span class="pay-sub" style="font-size:13px;">Type and press Enter; the next one comes up</span></div>
+      ${tray.map(x => `<div class="rc-tray-row"><span class="ct-main"><b style="font-size:13px;">${esc(x.from)}</b><small dir="auto">${day(x.ms)}${x.subject ? ' · ' + esc(x.subject) : ''}</small></span>
         <label><span class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden;">What was ${esc(x.from)} on ${day(x.ms)} for</span><input type="text" class="rc-tray-in" data-rid="${esc(x.id)}" placeholder="what you bought or the service" autocomplete="off"></label>
         <span class="rc-amt">${x.amount > 0 ? money(x.amount, x.cur) : '—'}</span></div>`).join('')}</section>` : ''}
     <div class="rc-split">
@@ -7007,7 +7086,7 @@ function renderReceipts(area){
 async function openPaymentsDetail(){
   document.getElementById('marketDetailTitle').textContent = 'Payments';
   document.getElementById('marketDetailTitle').textContent = 'Bills & Contracts';
-  document.getElementById('marketDetailSubtitle').textContent = 'What you pay again and again, and what you signed for it';
+  document.getElementById('marketDetailSubtitle').textContent = 'Recurring bills and the contracts behind them';
   hideBrokerFilter();
   hideNwYearSwitcher();
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -7301,7 +7380,7 @@ function renderPayments(){
   let grid = '', bars = '', labels = '', hits = '';
   for(let v = 0; v <= top; v += step)
     grid += `<line x1="${padL}" x2="${w - padR}" y1="${yOf(v).toFixed(1)}" y2="${yOf(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>₪${v.toLocaleString('en-US')}</text>`;
+      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>₪${v.toLocaleString('en-US')}</text>`;
   const every = Math.max(Math.ceil(months.length / 12), Math.ceil(46 / slot));
   byMonth.forEach((m, i) => {
     const x = padL + slot * i + (slot - bw) / 2;
@@ -7311,7 +7390,7 @@ function renderPayments(){
       bars += `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y0 - y1 - gap).toFixed(1)}" rx="3" fill="${colorOf(cat)}"${m.k > thisM || m.ps.every(p => p.charge > now) && m.ps.length ? ' opacity="0.45"' : ''}/>`;
       base += v; });
     if((i % every === 0 && months.length - 1 - i >= every) || i === months.length - 1)
-      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
+      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="11" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
     hits += `<rect class="pay-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
   box.innerHTML = chartHidden.size >= cats.length
@@ -7607,7 +7686,7 @@ function buildShopOrders(input){
 
 async function openShoppingDetail(){
   document.getElementById('marketDetailTitle').textContent = 'Purchases';
-  document.getElementById('marketDetailSubtitle').textContent = 'What you bought once: on its way, kept for good, and what it all cost';
+  document.getElementById('marketDetailSubtitle').textContent = 'Orders, receipts and spending';
   hideBrokerFilter();
   hideNwYearSwitcher();
   document.getElementById('marketDetailCard').classList.add('wide');
@@ -7825,7 +7904,7 @@ function renderShopping(){
   let grid = '', bars = '', labels = '', hits = '';
   for(let v = 0; v <= topV; v += step)
     grid += `<line x1="${padL}" x2="${w - padR}" y1="${yOf(v).toFixed(1)}" y2="${yOf(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>₪${v.toLocaleString('en-US')}</text>`;
+      + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>₪${v.toLocaleString('en-US')}</text>`;
   const every = Math.max(Math.ceil(months.length / 12), Math.ceil(46 / slot));
   byMonth.forEach((m, i) => {
     const x = padL + slot * i + (slot - bw) / 2;
@@ -7835,7 +7914,7 @@ function renderShopping(){
       bars += `<rect x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, y0 - y1 - gap).toFixed(1)}" rx="2" fill="${colorOf(g)}"/>`;
       base += v; });
     if((i % every === 0 && months.length - 1 - i >= every) || i === months.length - 1)
-      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="10" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
+      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="11" fill="${m.k === thisM ? 'var(--accent)' : 'var(--muted)'}" text-anchor="middle" ${font}>${monthLabel(m.k)}</text>`;
     hits += `<rect class="shop-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
   if(box) box.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block;">${grid}${bars}${labels}${hits}</svg>`;
@@ -9464,7 +9543,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const v = yMin + (yMax-yMin) * (i/yTicks);
     const y = yFor(v);
     return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
+      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
   }).join('');
 
   // Middle ticks land on round clock marks every 90 minutes (10:00, 11:30, 13:00, ...) rather than
@@ -9503,7 +9582,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
     const label = (isFirst || isLast) ? `${timeLabel} ${dateStr}` : timeLabel;
     const anchor = isFirst ? 'start' : (isLast ? 'end' : 'middle');
-    return `<text class="intradayXLabel" data-x="${x.toFixed(1)}" x="${x.toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="${anchor}" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${label}</text>`;
+    return `<text class="intradayXLabel" data-x="${x.toFixed(1)}" x="${x.toFixed(1)}" y="${h-6}" font-size="11" fill="var(--muted)" text-anchor="${anchor}" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${label}</text>`;
   }).join('');
 
   const prevCloseY = yFor(prevClose);
@@ -9549,7 +9628,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // without requiring the mouse to already be there.
     fxMarkerSvg = `
       <circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="6" fill="var(--accent)" stroke="var(--paper)" stroke-width="2"/>
-      <text x="${pt.x.toFixed(1)}" y="${(pt.y-11).toFixed(1)}" font-size="10" font-weight="700" fill="var(--accent)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">FX</text>`;
+      <text x="${pt.x.toFixed(1)}" y="${(pt.y-11).toFixed(1)}" font-size="11" font-weight="700" fill="var(--accent)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">FX</text>`;
   }
 
   el.innerHTML = `
@@ -9897,7 +9976,7 @@ async function renderRangeChart(ctx, range){
   const yGrid = Array.from({length:5}, (_,i)=>{
     const v = yMin + (yMax-yMin)*(i/4), y = yFor(v);
     return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${font}>${fmt(v)}</text>`;
+      + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${fmt(v)}</text>`;
   }).join('');
 
   const longRange = ['1Y','5Y','MAX'].includes(range);
@@ -9913,11 +9992,11 @@ async function renderRangeChart(ctx, range){
   }
   const xLabels = timeAxis
     ? roundTicksInZone(tA, tB, 'Asia/Jerusalem', (w - padL - padR) > 900 ? 60 : 120).map(ms =>
-        `<text x="${xAt(ms).toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="middle" ${font}>${tickLabel(ms)}</text>`).join('')
+        `<text x="${xAt(ms).toFixed(1)}" y="${h-6}" font-size="11" fill="var(--muted)" text-anchor="middle" ${font}>${tickLabel(ms)}</text>`).join('')
     : tickIdx.map((i,k) => {
     const anchor = intraday5D ? 'start' : (k === 0 ? 'start' : (k === tickIdx.length-1 ? 'end' : 'middle'));
     const sep = intraday5D && i > 0 ? `<line x1="${xFor(i).toFixed(1)}" x2="${xFor(i).toFixed(1)}" y1="${padT}" y2="${h-padB}" stroke="var(--line)" stroke-width="1"/>` : '';
-    return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="10" fill="var(--muted)" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
+    return `${sep}<text x="${xFor(i).toFixed(1)}" y="${h-6}" font-size="11" fill="var(--muted)" text-anchor="${anchor}" ${font}>${tickLabel(pts[i].t)}</text>`;
   }).join('');
 
   const diff = total.gain, diffPct = total.pct;
@@ -10092,7 +10171,7 @@ async function renderHomeDay(rows, totals){
     + `<circle cx="${x(last.t)}" cy="${y(last.v)}" r="3.5" fill="${col}"/>`
     + `<text x="0" y="${H-2}" font-size="11" fill="var(--muted)">${hm(range.open)}</text>`
     + `<text x="${W}" y="${H-2}" font-size="11" fill="var(--muted)" text-anchor="end">${hm(range.close)}</text>`
-    + `<text x="${W}" y="${chartLabelY(y(prevClose) + 4, log.map(p => ({x: x(p.t), y: y(p.v)})), W, 60, 12, H - padB).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--panel)')}>prev. close</text></svg>`;
+    + `<text x="${W}" y="${chartLabelY(y(prevClose) + 4, log.map(p => ({x: x(p.t), y: y(p.v)})), W, 60, 12, H - padB).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--panel)')}>prev. close</text></svg>`;
 }
 // Home allocation panel: market (TASE / USA) and broker shares of the portfolio, with today's % each.
 function renderHomeAlloc(rows){
@@ -10271,7 +10350,7 @@ function render(rows, totals){
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
-    {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText} vs previous close</span><div style="margin-top:3px; color:var(--muted); font-weight:400;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${window.usCloseTs ? (window.ilCloseTs ? `TASE ${formatPrevCloseLabel(window.ilCloseTs)} + USA ` : '') + formatPrevCloseLabel(window.usCloseTs) : prevCloseReferenceLabel()}</div>${typeof window.usCloseFx === 'number' ? `<div style="margin-top:1px; color:var(--muted); font-weight:400;">Previous close at USD/ILS ${window.usCloseFx.toFixed(4)}</div>` : ''}`, cls: totals.dayGain>=0?"up":"down"},
+    {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</span> <span id="todayPrevClose" class="has-help" style="cursor:help; color:var(--muted); font-weight:400;">vs ${fmt(totals.totalValue - totals.dayGain)}</span>`, cls: totals.dayGain>=0?"up":"down"},
     {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
@@ -10286,6 +10365,10 @@ function render(rows, totals){
   });
   // Total value tooltip (22 Oct 2026): the exact calculation from the live values and the IntradayLog's B and D.
   cardsEl.title = 'View all holdings';
+  const prevHelp = document.getElementById('todayPrevClose');
+  if(prevHelp) attachHoverTooltip(prevHelp, () => `<b>Previous close ${fmt(totals.totalValue - totals.dayGain)}</b>`
+    + (window.usCloseTs ? (window.ilCloseTs ? `TASE ${formatPrevCloseLabel(window.ilCloseTs)}<br>` : '') + `USA ${formatPrevCloseLabel(window.usCloseTs)}` : prevCloseReferenceLabel())
+    + (typeof window.usCloseFx === 'number' ? `<br>at USD/ILS ${window.usCloseFx.toFixed(4)}` : ''));
   // The Holdings card opens Market Universe (one click or two), never Portfolio; the other cards open Portfolio (23 Oct 2026).
   cardsEl.onclick = (e) => {
     if(e.target.closest('#holdingsCard')){ renderUniverseTable(); document.getElementById('universeModal').classList.add('open'); refreshUniverseRows(); hideUniverseQuoteCard(); return; }
@@ -10341,7 +10424,7 @@ function render(rows, totals){
     const tName = TICKER_NAME_MAP[n.data.name];
     // The logo sits just left of the ticker, centered with it as one line (like a broker's list), so
     // it never covers the name. Only when that line fits the tile -- otherwise the tooltip shows it.
-    const nameFont = Math.min(13, Math.max(9, w/6));
+    const nameFont = Math.min(13, Math.max(11, w/6));   // 11 px floor (29 Oct 2026)
     const logoSize = Math.round(Math.max(14, Math.min(22, nameFont * 1.7)));
     const nameLineW = logoSize + 5 + n.data.name.length * nameFont * 0.68;   // rough bold-caps width
     const tileFitsBadge = !!n.data.logoUrl && w > 26 && h > logoSize + 4 && nameLineW <= w - 8;
@@ -10378,20 +10461,20 @@ function render(rows, totals){
     div.addEventListener('click', (e)=> showTapCard(tooltipHtml, e));
     const tc = textColorFor(n.data.change);
     let inner = '';
-    if(w>26 && h>16){
+    if(w>34 && h>18){
       const logo = tileFitsBadge
         ? `<img class="tile-logo" src="${n.data.logoUrl}" alt="" onerror="this.remove()" style="width:${logoSize}px; height:${logoSize}px;">`
         : '';
       inner += `<div class="t-name" style="color:${tc}; font-size:${nameFont}px">${logo}<span>${n.data.name}</span></div>`;
-      if(w>64 && h>32 && !isNaN(n.data.change)){
+      if(w>84 && h>40 && !isNaN(n.data.change)){
         const dayGainAmt = n.data.value - n.data.value/(1+n.data.change/100);
-        inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
+        inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
       }
-      if(n.data.noPrice && w>64 && h>32){
-        inner += `<div style="color:${tc}; font-size:${Math.min(10,Math.max(7,w/11))}px; white-space:nowrap;">no live price</div>`;
+      if(n.data.noPrice && w>84 && h>40){
+        inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">no live price</div>`;
       }
-      if(w>72 && h>44){
-        inner += `<div style="color:${tc}; opacity:0.85; font-size:${Math.min(10,Math.max(7,w/9))}px; white-space:nowrap;">${fmtShort(n.data.value)}</div>`;
+      if(w>96 && h>58){
+        inner += `<div style="color:${tc}; opacity:0.85; font-size:11px; white-space:nowrap;">${fmtShort(n.data.value)}</div>`;
       }
     }
     div.innerHTML = inner;
@@ -10536,7 +10619,7 @@ function renderWinLoseList(rows){
     const barStyle = isUp
       ? `left:50%; background:${tileColorFor(2.5)};`
       : `right:50%; background:${tileColorFor(-2.5)};`;
-    row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'#3b6d11':'#a32d2d'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+    row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
     const check = row.querySelector('.wlcheck');
     check.checked = !wlExcluded().has(d.name);
     check.addEventListener('click', e => e.stopPropagation());
