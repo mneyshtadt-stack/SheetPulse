@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793241648";
+const BUILD_ID = "1793241799";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4574,6 +4574,7 @@ async function renderFxDetailHeader(){
   // The USA closing rate (the 23:59 log reading, usCloseFx) first, as the strip's USD/ILS line uses (VALUE_SOURCES.md,
   // 29 Oct 2026: PriceHistory's last close was two days old, 3.0240 against the strip's 3.1183).
   let prevClose = typeof window.usCloseFx === 'number' && window.usCloseFx > 0 ? window.usCloseFx : undefined;
+  const prevCloseTs = prevClose > 0 && window.usCloseTs instanceof Date ? window.usCloseTs : null;   // shown beside it
   if(!(prevClose > 0)) try{
     const ph = await fetchPriceHistory();
     const col = ph.cols['USDILS'] || [];
@@ -4592,13 +4593,13 @@ async function renderFxDetailHeader(){
       <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
       ${change !== null ? `<span class="md-headline-change" style="color:${color};">${change>=0?'▲':'▼'} ${change>=0?'+':''}${change.toFixed(4)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%)</span>` : ''}
     </div>
-    <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
+    <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) + (prevCloseTs ? ` (${formatPrevCloseLabel(prevCloseTs)})` : '') : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
     <div id="intradayChart"></div>
     <div id="chartRangeBar"></div>
   `;
   const {y, m, d} = todayInZone('Asia/Jerusalem');
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
-    fetchIntradayRaw: fetchIntradayFxRaw, prevClose,
+    fetchIntradayRaw: fetchIntradayFxRaw, prevClose, prevCloseTs,
     dayStart: zonedTimeToMs(y, m, d, 10, 0, 'Asia/Jerusalem'), dayEnd: zonedTimeToMs(y, m, d, 23, 10, 'Asia/Jerusalem'),
     intradayNote: 'Live rate logged about every 5 minutes (IntradayLog), from 10:00 to 23:10; compared with the previous close.',
     note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
@@ -9801,7 +9802,8 @@ async function renderRangeChart(ctx, range){
   // Each reference label beside its own dotted line, where the chart's line does not run through it (freeLabelY,
   // 26 Oct 2026); the Bank of Israel labels also keep a line apart from Prev. close and from each other.
   const labelTop = padT + 11, labelBottom = h - padB - 4;
-  const startLabelY = freeLabelY(points, w - padR, 11 + fmt(startV).length * 6.5 + 60, labelTop, labelBottom, startY - 8, []);
+  const prevCloseWhen = vsPrevClose && ctx.prevCloseTs instanceof Date ? ` ${formatPrevCloseLabel(ctx.prevCloseTs)}:` : '';   // e.g. "Oct 28, 23:59:08:" (USD/ILS)
+  const startLabelY = freeLabelY(points, w - padR, 11 + (fmt(startV) + prevCloseWhen).length * 6.5 + 60, labelTop, labelBottom, startY - 8, []);
   const usedLabelY = [startLabelY];
   const boiLabelYs = range === '1D' ? boiMarks.map(b => { const y = freeLabelY(points, w - padR, 150, labelTop, labelBottom, yFor(b.v) - 8, usedLabelY); usedLabelY.push(y); return y; }) : [];
 
@@ -9815,7 +9817,7 @@ async function renderRangeChart(ctx, range){
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
       <line x1="${padL}" x2="${w-padR}" y1="${startY.toFixed(1)}" y2="${startY.toFixed(1)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="2,3"/>
-      <text x="${w-padR}" y="${startLabelY.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} ${font}>${vsPrevClose ? 'Prev. close' : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
+      <text x="${w-padR}" y="${startLabelY.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} ${font}>${vsPrevClose ? 'Prev. close' + prevCloseWhen : 'Start'} <tspan font-weight="700" fill="var(--ink)">${fmt(startV)}</tspan></text>
       <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2"/>
       ${boiMarks.map((b, i) => { const bx = b.t !== undefined ? xAt(b.t) : xFor(b.i), by = yFor(b.v);
         return `<rect x="${(bx-4.5).toFixed(1)}" y="${(by-4.5).toFixed(1)}" width="9" height="9" transform="rotate(45 ${bx.toFixed(1)} ${by.toFixed(1)})" fill="var(--accent)" stroke="var(--panel)" stroke-width="1.5"><title>Bank of Israel rate ${b.v.toFixed(4)} (${boiDay(b.date)})</title></rect>`
