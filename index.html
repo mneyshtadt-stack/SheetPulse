@@ -315,6 +315,26 @@
   .md-holdings-table tbody tr:last-child td{border-bottom:none;}
   .md-holdings-table tbody tr:not(.pf-detail-row):hover td{background:var(--hover);}
   .md-holdings-table td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  /* Holding cards (phones only, 29 Oct 2026). */
+  .pf-cards{display:none;}
+  .pf-card{border-bottom:1px solid var(--line);}
+  .pf-card-head{display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:4px 12px; width:100%; padding:12px 2px; min-height:44px; background:none; border:0; text-align:left; font:inherit; color:var(--ink); cursor:pointer;}
+  .pf-card-name{display:flex; flex-direction:column; min-width:0;}
+  .pf-card-name b{font-size:15px; font-weight:700;}
+  .pf-card-name small{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .pf-card-val{font-family:var(--mono); font-size:15px; font-weight:600; text-align:right; align-self:start;}
+  .pf-card-k{font-size:12px; color:var(--muted);}
+  .pf-card-k span{font-family:var(--mono); font-size:13px; font-weight:600; margin-left:4px;}
+  .pf-card-r{text-align:right;}
+  .pf-card.open .pf-card-head{background:var(--hover); border-radius:8px;}
+  .pf-card-more{padding:4px 0 12px;}
+  .pf-card-scroll{overflow-x:auto;}
+  .pf-card-table{min-width:640px; margin-top:6px;}
+  .pf-card-table tr.pf-row{display:none;}   /* the card already shows the holding's line; only its purchases here */
+  @media (max-width:600px){
+    #marketDetailTableArea > .md-pf-table{display:none;}
+    .pf-cards{display:block; margin-top:12px;}
+  }
   /* Narrow windows (29 Oct 2026 redesign): the holdings table scrolls inside its own box with the ticker column pinned,
      so every column (and each purchase's price, quantity and cost) stays readable without the page scrolling sideways. */
   @media (max-width:700px){
@@ -996,6 +1016,7 @@
     #chartRangeBar, #winlosePeriod{flex-wrap:nowrap; max-width:100%; overflow-x:auto;}   /* one row; scrolls if it can't fit */
     .md-tabs{overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none;}
     .md-tab{flex:none; white-space:nowrap; font-size:13px; margin-right:16px;}
+    #marketDetailSearch, .perf-tk, .div-tk{min-height:44px; box-sizing:border-box;}   /* finger-sized search and pickers */
   }
   #universeChart{padding:10px 0 14px;}
   /* Market Universe "+ Compare": the compared tickers as chips above the chart. */
@@ -1724,7 +1745,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793306533";
+const BUILD_ID = "1793306920";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4219,6 +4240,43 @@ function pfUsdDayHtml(r, part){
   return `<div class="pf-gain-pd">${pfPlatforms(r).join(' / ')}</div>`
     + `<div class="pf-gain-pd-val ${usd >= 0 ? 'up' : 'down'}">${usd >= 0 ? '+' : '-'}$${Math.abs(usd).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>`;
 }
+// Phones (29 Oct 2026): each holding as a card instead of the 8-column table -- ticker and value, then today's change and
+// the total gain. Tapping a card opens the same row and purchases the table shows (built on first tap, in a small table of
+// its own that scrolls sideways), so nothing is lost. The table stays the layout above 600 px.
+function pfCardHtml(r){
+  const ils = n => (n < 0 ? '−' : '') + '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  const signed = n => (n >= 0 ? '+' : '') + ils(n);
+  const pct = n => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+  const day = !isNaN(r.dayGain) ? `<span class="${r.dayGain >= 0 ? 'up' : 'down'}">${signed(r.dayGain)}${!isNaN(r.change) ? ` (${pct(r.change)})` : ''}</span>` : '<span>n/a</span>';
+  const gain = !isNaN(r.totalGain) ? `<span class="${r.totalGain >= 0 ? 'up' : 'down'}">${signed(r.totalGain)}${!isNaN(r.ret) ? ` (${pct(r.ret)})` : ''}</span>` : '<span>—</span>';
+  return `<div class="pf-card" data-ticker="${escAttr(r.name)}">
+    <button type="button" class="pf-card-head" aria-expanded="false">
+      <span class="pf-card-name"><b>${escAttr(r.name)}</b><small>${escAttr(TICKER_NAME_MAP[r.name] || '')}</small></span>
+      <span class="pf-card-val">${ils(r.value)}</span>
+      <span class="pf-card-k">Today ${day}</span>
+      <span class="pf-card-k pf-card-r">Total ${gain}</span>
+    </button>
+    <div class="pf-card-more" hidden></div>
+  </div>`;
+}
+function wirePfCards(area, rows){
+  if(!area) return;
+  area.querySelectorAll('.pf-card-head').forEach(btn => btn.addEventListener('click', () => {
+    const card = btn.closest('.pf-card'), more = card.querySelector('.pf-card-more');
+    if(!more.innerHTML){
+      const r = rows.find(x => x.name === card.dataset.ticker);
+      if(!r) return;
+      more.innerHTML = `<div class="pf-card-scroll"><table class="md-holdings-table md-pf-table pf-card-table"><thead><tr><th class="expand-col"></th>${PF_COLS.map(c => `<th class="${c.key === 'name' ? '' : 'num'}">${c.label}</th>`).join('')}</tr></thead><tbody>${pfHoldingRowsHtml(r)}</tbody></table></div>`;
+      more.querySelectorAll('tr[data-ticker-detail]').forEach(tr => { tr.style.display = 'table-row'; });
+      more.querySelectorAll('.pf-expand-btn').forEach(b => b.remove());
+      wirePfGainTips(more);
+    }
+    const open = more.hidden;
+    more.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    card.classList.toggle('open', open);
+  }));
+}
 function pfHoldingRowsHtml(r){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
@@ -4291,9 +4349,11 @@ function renderPortfolioTable(enriched){
   sorted.forEach(r=>{ html += pfHoldingRowsHtml(r); });
 
   html += `</tbody></table>`;
+  html += `<div class="pf-cards">${sorted.map(pfCardHtml).join('')}</div>`;
 
   document.getElementById('marketDetailTableArea').innerHTML = html;
   wirePfGainTips(document.getElementById('marketDetailTableArea'));
+  wirePfCards(document.getElementById('marketDetailTableArea'), sorted);
   // The purchase-date line needs PriceHistory's USD/ILS rates -- draw again once they've arrived.
   if(pfNeedsUsdIls(sorted)) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && marketDetailState.marketKey === 'all' && document.getElementById('marketDetailModal').classList.contains('open')) renderMarketDetailTable();
@@ -4311,7 +4371,7 @@ function renderPortfolioTable(enriched){
   document.querySelectorAll('.pf-expand-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const ticker = btn.closest('tr').dataset.ticker;
-      const detailRows = [...document.querySelectorAll(`.md-pf-table tr[data-ticker-detail="${String(ticker).replace(/["\\]/g, '\\$&')}"]`)];
+      const detailRows = [...document.querySelectorAll(`.md-pf-table:not(.pf-card-table) tr[data-ticker-detail="${String(ticker).replace(/["\\]/g, '\\$&')}"]`)];
       if(!detailRows.length) return;
       const detailRow = detailRows[detailRows.length - 1];   // the last one, for the scroll below
       const isOpen = detailRows[0].style.display !== 'none';
@@ -5321,7 +5381,7 @@ function renderDividendsTab(){
     return {k, list, per, total: sum(list)};
   });
   const stackOrder = [...new Set(pays.map(p => p.broker))].sort((a, b) => brokers.indexOf(a) - brokers.indexOf(b));
-  const w = Math.max(320, area.clientWidth || 760), h = 210, padL = 48, padR = 8, padT = 10, padB = 24;
+  const w = Math.max(280, area.clientWidth || 760), h = 210, padL = 48, padR = 8, padT = 10, padB = 24;
   const max = Math.max(...byMonth.map(m => m.total), 1);
   const step = max > 200 ? 100 : max > 100 ? 50 : max > 40 ? 20 : max > 20 ? 10 : 5;
   const top = Math.ceil(max / step) * step;
@@ -5332,7 +5392,8 @@ function renderDividendsTab(){
     grid += `<line x1="${padL}" x2="${w - padR}" y1="${yOf(v).toFixed(1)}" y2="${yOf(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
       + `<text x="${padL - 6}" y="${(yOf(v) + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">$${v}</text>`;
   }
-  const every = Math.ceil(months.length / 12);
+  // As many month labels as fit, about 48 px each ("Dec 23" at 11 px), at most 12 (29 Oct 2026: on a phone 12 overlapped).
+  const every = Math.ceil(months.length / Math.max(2, Math.min(12, Math.floor((w - padL - padR) / 48))));
   let bars = '', labels = '', hits = '';
   byMonth.forEach((m, i) => {
     const x = padL + slot * i + (slot - bw) / 2;
@@ -5346,7 +5407,7 @@ function renderDividendsTab(){
       base += v;
     });
     if((i % every === 0 && months.length - 1 - i >= every) || i === months.length - 1)
-      labels += `<text x="${(padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${monthLabel(m.k)}</text>`;
+      labels += `<text x="${(i === months.length - 1 ? w - padR : padL + slot * i + slot / 2).toFixed(1)}" y="${h - 6}" font-size="11" fill="var(--muted)" text-anchor="${i === months.length - 1 ? 'end' : 'middle'}" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${monthLabel(m.k)}</text>`;
     hits += `<rect class="div-hit" data-i="${i}" x="${(padL + slot * i).toFixed(1)}" y="${padT}" width="${slot.toFixed(1)}" height="${h - padT - padB}" fill="transparent"/>`;
   });
 
