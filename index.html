@@ -1630,7 +1630,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793207737";
+const BUILD_ID = "1793241648";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4571,8 +4571,10 @@ async function renderFxDetailHeader(){
   // Previous close: PriceHistory's last USD/ILS close before today -- the same data as the longer
   // ranges, and the reference Google Finance uses. The sheet's own Q2 change is only a fallback;
   // it can lag well behind the live rate.
-  let prevClose;
-  try{
+  // The USA closing rate (the 23:59 log reading, usCloseFx) first, as the strip's USD/ILS line uses (VALUE_SOURCES.md,
+  // 29 Oct 2026: PriceHistory's last close was two days old, 3.0240 against the strip's 3.1183).
+  let prevClose = typeof window.usCloseFx === 'number' && window.usCloseFx > 0 ? window.usCloseFx : undefined;
+  if(!(prevClose > 0)) try{
     const ph = await fetchPriceHistory();
     const col = ph.cols['USDILS'] || [];
     const todayNoon = new Date(); todayNoon.setHours(12,0,0,0);
