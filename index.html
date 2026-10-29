@@ -518,6 +518,14 @@
   /* Bills | Contracts */
   /* Bills | Contracts | Receipts: tabs with a live badge (design canvas "SheetPulse Payments views", option B) */
   .pay-view{display:flex; flex-wrap:wrap; gap:4px 24px; margin-right:auto;}
+  /* Bills / Purchases range (6-24 months, All): the segmented control, not pills (29 Oct 2026 redesign). */
+  .pay-chips.seg{display:inline-flex; flex-wrap:nowrap; gap:2px; padding:3px; border-radius:10px; background:var(--hover);}
+  .pay-chips.seg .pay-chip{border:0; border-radius:8px; background:transparent; color:var(--muted); min-height:36px; padding:0 13px; font-weight:500; white-space:nowrap;}
+  .pay-chips.seg .pay-chip.on{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
+  /* Purchases orders: the note / price buttons on one row under the order, not one per line. */
+  .pay-bill.shop-row .pay-cat-main{display:block;}
+  .pay-bill.shop-row .pay-cat-main > b, .pay-bill.shop-row .pay-cat-main > small, .pay-bill.shop-row .pay-cat-main > .shop-note{display:block;}
+  .pay-bill.shop-row .pay-cat-main > small{margin-top:2px;}
   .pay-view-btn{font-family:var(--sans); font-size:15px; font-weight:550; color:var(--muted); background:none; border:0; padding:0 2px 10px; min-height:44px; display:inline-flex; align-items:center; gap:7px; cursor:pointer;}
   .pay-view-btn svg{width:16px; height:16px; flex:none;}
   .pay-view-btn.on{color:var(--ink); font-weight:650; box-shadow:inset 0 -2.5px 0 var(--accent);}
@@ -802,6 +810,14 @@
     .pay-card{padding:13px 14px;}
     .pay-card.miss, .pay-card.wait{grid-column:1 / -1;}
     .pay-card.pay-card-paid{display:none;}
+    .pay-card.shop-card-link{grid-column:1 / -1;}   /* Waiting for pickup / On the way: full width, not squeezed */
+    .pay-view{flex-wrap:nowrap; overflow-x:auto; gap:18px; scrollbar-width:none;}
+    .pay-view-btn{flex:none; white-space:nowrap; font-size:13px;}
+    .pay-chips.seg .pay-chip{min-height:44px; padding:0 12px;}
+    .shop-note-btn{min-height:44px; margin-top:0;}
+    .shop-pill-btn{min-height:44px; display:inline-flex; align-items:center;}
+    .rc-groups label{min-height:44px; display:inline-flex; align-items:center; gap:6px;}   /* Receipts filters: finger-sized */
+    .pay-btn.text, .rc-panel section .pay-btn.text{min-height:44px;}
     .pay-card-val{font-size:15px;}
     .pay-card-sub{font-size:12px;}
     .pay-panel-note.pay-hint{display:none;}
@@ -1706,7 +1722,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793304669";
+const BUILD_ID = "1793306337";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7357,7 +7373,7 @@ function renderPayments(){
       </div>`).join('')}</div>
     </section>` : '';
   area.innerHTML = `
-    <div class="pay-top">${payViewSwitch()}<div class="pay-chips" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
+    <div class="pay-top">${payViewSwitch()}<div class="pay-chips seg" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
     ${cards}
     ${check}
     <div class="pay-row">
@@ -7864,7 +7880,7 @@ function renderShopping(){
   if(shoppingPage > pages) shoppingPage = pages;
   if(shoppingPage < 1) shoppingPage = 1;
   const pageStart = (shoppingPage - 1) * shoppingPerPage;
-  const rangeChips = `<div class="pay-chips" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}" aria-pressed="${shoppingRange === n}">${t}</button>`).join('')}</div>`;
+  const rangeChips = `<div class="pay-chips seg" role="group" aria-label="Range">${[[12, '12 months'], [24, '24 months'], [0, 'All']].map(([n, t]) => `<button type="button" class="pay-chip shop-range${shoppingRange === n ? ' on' : ''}" data-n="${n}" aria-pressed="${shoppingRange === n}">${t}</button>`).join('')}</div>`;
   const spending = shoppingView === 'spending';
   area.innerHTML = `
     <div class="pay-top">${shopViewSwitch()}${rangeChips}</div>
