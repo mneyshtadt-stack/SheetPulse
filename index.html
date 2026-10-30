@@ -1826,7 +1826,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793332560";
+const BUILD_ID = "1793333050";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10956,15 +10956,18 @@ function wlExcluded(){
 function saveWlExcluded(set){
   try{ localStorage.setItem(WL_EXCLUDED_KEY, JSON.stringify([...set])); } catch(e){}
 }
-// Outliers (29 Oct 2026 review): a move more than 3x the median one (GDX at +167% among moves of 5-30%) is left out of the
-// scale automatically, its bar drawn full with a break, unless you tick it back in (pf_wlForceIn).
+// Outliers (29 Oct 2026 review): a move more than twice the next biggest one (GDX at +167% when the next is +33%) is left
+// out of the scale automatically, its bar drawn full with a break, unless you tick it back in (pf_wlForceIn). Checked from
+// the top, so two far-out moves can both go; "3x the median" flagged seven ordinary ones.
 const WL_FORCE_IN_KEY = 'pf_wlForceIn';
 function wlForceIn(){ try{ return new Set(JSON.parse(localStorage.getItem(WL_FORCE_IN_KEY) || '[]')); } catch(e){ return new Set(); } }
 function saveWlForceIn(set){ try{ localStorage.setItem(WL_FORCE_IN_KEY, JSON.stringify([...set])); } catch(e){} }
 function wlOutliers(wlRows){
-  const a = wlRows.map(r => Math.abs(r.d.ret)).sort((x, y) => x - y);
-  const med = a.length ? a[Math.floor(a.length / 2)] : 0;
-  return new Set(med > 0 ? wlRows.filter(r => Math.abs(r.d.ret) > 3 * med).map(r => r.d.name) : []);
+  const byAbs = wlRows.slice().sort((x, y) => Math.abs(y.d.ret) - Math.abs(x.d.ret)), out = new Set();
+  for(let i = 0; i < byAbs.length - 1 && i < 3; i++){
+    if(Math.abs(byAbs[i].d.ret) > 2 * Math.abs(byAbs[i + 1].d.ret) && Math.abs(byAbs[i].d.ret) >= 20) out.add(byAbs[i].d.name); else break;
+  }
+  return out;
 }
 function scaleWinLoseBars(wlRows){
   const userOff = wlExcluded(), forceIn = wlForceIn(), outliers = wlOutliers(wlRows);
@@ -10983,7 +10986,7 @@ function scaleWinLoseBars(wlRows){
   const auto = wlRows.filter(r => outliers.has(r.d.name) && !forceIn.has(r.d.name) && !userOff.has(r.d.name)).map(r => r.d.name);
   const offNames = wlRows.filter(r => userOff.has(r.d.name)).map(r => r.d.name);
   const parts = [];
-  if(auto.length) parts.push(`${auto.join(', ')} ${auto.length === 1 ? 'is' : 'are'} beyond the scale (more than 3× the typical move) <a href="#" class="wl-incl">Include ${auto.length === 1 ? auto[0] : 'them'}</a>`);
+  if(auto.length) parts.push(`${auto.join(', ')} ${auto.length === 1 ? 'is' : 'are'} beyond the scale (more than twice the next biggest move) <a href="#" class="wl-incl">Include ${auto.length === 1 ? auto[0] : 'them'}</a>`);
   if(offNames.length) parts.push(`Left out by you: ${offNames.join(', ')} <a href="#" class="wl-reset">Include all</a>`);
   note.innerHTML = parts.length ? parts.join(' · ') : 'Untick a holding to leave it out of the bar scale.';
   const incl = note.querySelector('.wl-incl');
