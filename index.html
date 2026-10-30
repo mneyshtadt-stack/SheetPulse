@@ -1304,6 +1304,12 @@
   #headlineCard:empty{min-height:82px;} #gaugePanel:empty{min-height:112px;} #cards:empty{min-height:124px;} #homeAlloc:empty{min-height:196px;}
   @media (max-width:600px){ #phoneHero:empty{min-height:148px;} #gaugePanel:empty{min-height:180px;} #cards:empty{min-height:101px;} }
   .chart-loading{opacity:0.45; transition:opacity 0.15s ease; pointer-events:none;}
+  .m-info{display:none;}
+  @media (max-width:600px){
+    .m-info{display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin:-4px 0 -4px 6px; padding:0; border:1px solid var(--line); border-radius:50%;
+      background:var(--panel); color:var(--accent); font:700 12px/1 var(--sans); text-transform:none; letter-spacing:0; cursor:pointer; vertical-align:middle; position:relative;}
+    .m-info::after{content:''; position:absolute; inset:-11px;}   /* a 44 px tap area around the 22 px circle */
+  }
   .pf-compact tr.pf-row .pf-gain-pd, .pf-compact tr.pf-row .pf-gain-pd-val, .pf-compact tr.pf-row .pf-usd{display:none;}
   .pf-tools{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
   .pf-detail-toggle{display:inline-flex; align-items:center; gap:8px; min-height:44px; font-size:13px; color:var(--muted); cursor:pointer;}
@@ -1826,7 +1832,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793333050";
+const BUILD_ID = "1793333365";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5899,7 +5905,7 @@ function nwChartWidth(){
 function nwShort(v){ const a = Math.abs(v); return (v < 0 ? '−' : '') + '₪' + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e3 ? Math.round(a / 1e3) + 'k' : Math.round(a)); }
 function nwAxisSvg(min, max, h, pad, w, padL){
   const range = (max - min) || 1, yFor = v => h - pad - ((v - min) / range) * (h - 2 * pad);
-  return niceTicks(min, max, 2).map(v => `<line x1="${padL}" x2="${w - 70}" y1="${yFor(v).toFixed(1)}" y2="${yFor(v).toFixed(1)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>`
+  return niceTicks(min, max, 3).map(v => `<line x1="${padL}" x2="${w - 70}" y1="${yFor(v).toFixed(1)}" y2="${yFor(v).toFixed(1)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>`
     + `<text x="${padL - 8}" y="${(yFor(v) + 4).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${nwShort(v)}</text>`).join('');
 }
 function nwEndLabelSvg(p, v, color){
@@ -8523,9 +8529,9 @@ function renderGauge(rows, totals){
       <span class="mitem" id="usStatusLine" style="cursor:help;"><span class="market-icon ${usOpen?'open':'closed'}">${usOpen ? SUN_ICON_SVG : MOON_ICON_SVG}</span>USA <b>${usOpen?'open':'closed'}</b></span>
       <span class="msep"></span>
       <span class="mitem mlink" id="portfolioDetailTrigger"><span class="glabel"><span class="glabel-strong">Portfolio</span></span> <span class="gval ${dayChange(totals.dayGain, value, fmt).cls}" id="gaugePortfolioVal">${dayChange(totals.dayGain, value, fmt).text}</span> <span class="gval-sub" id="gaugePortfolioSub">Market Value: ${fmt(totals.totalValue)}</span></span>
-      <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel</span> <span class="gval ${dayChange(split.il.gain, split.il.pct, fmt).cls}" id="gaugeIlVal">${dayChange(split.il.gain, split.il.pct, fmt).text}</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
-      <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA</span> <span class="gval ${dayChange(split.us.gain, split.us.pct, fmt).cls}" id="gaugeUsVal">${dayChange(split.us.gain, split.us.pct, fmt).text}</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
-      <span class="mitem mlink" id="fxDetailTrigger"><span class="glabel">USD/ILS</span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
+      <span class="mitem mlink" id="ilDetailTrigger"><span class="glabel">Israel<button type="button" class="m-info" data-mtip="il" aria-label="Israel close details">i</button></span> <span class="gval ${dayChange(split.il.gain, split.il.pct, fmt).cls}" id="gaugeIlVal">${dayChange(split.il.gain, split.il.pct, fmt).text}</span> <span class="gval-sub" id="gaugeIlSub">Market Value: ${fmt(split.il.value)}</span></span>
+      <span class="mitem mlink" id="usDetailTrigger"><span class="glabel">USA<button type="button" class="m-info" data-mtip="us" aria-label="USA close details">i</button></span> <span class="gval ${dayChange(split.us.gain, split.us.pct, fmt).cls}" id="gaugeUsVal">${dayChange(split.us.gain, split.us.pct, fmt).text}</span> <span class="gval-sub" id="gaugeUsSub">Market Value: ${fmt(split.us.value)}</span></span>
+      <span class="mitem mlink" id="fxDetailTrigger"><span class="glabel">USD/ILS<button type="button" class="m-info" data-mtip="fx" aria-label="USD/ILS rate details">i</button></span> <span id="gaugeFxRate">${window.lastFxRate ? formatFxLine(window.lastFxRate) : '<span class="gval-sub">unavailable</span>'}</span></span>
     </div>
   `;
   document.getElementById('fxDetailTrigger').addEventListener('click', ()=> openFxDetail());
@@ -8533,6 +8539,11 @@ function renderGauge(rows, totals){
   document.getElementById('ilDetailTrigger').addEventListener('click', ()=> openMarketDetail('il'));
   document.getElementById('usDetailTrigger').addEventListener('click', ()=> openMarketDetail('us'));
   attachUsTipPopup(document.getElementById('usDetailTrigger'));
+  // Phones have no hover (29 Oct 2026): an (i) in each cell opens the same card, and it stays until the next tap elsewhere.
+  panel.querySelectorAll('.m-info').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();   // the cell itself opens its window
+    showPinnedCard({il: ilTipHtml, us: usaTipHtml, fx: fxTipHtml}[b.dataset.mtip](), b);
+  }));
   attachHoverTip(document.getElementById('ilDetailTrigger'), ilTipHtml);
   attachHoverTip(document.getElementById('fxDetailTrigger'), fxTipHtml);
   if(!taseOpen) attachHoverTooltip(document.getElementById('taseStatusLine'), () => formatNextOpen(getNextTaseOpenMs()));
@@ -9563,11 +9574,15 @@ function chartLoading(el, msgHtml){
 }
 // Round axis values (29 Oct 2026 review): about `count` ticks on a 1-2-5 step inside [lo, hi], e.g. 662,000 / 664,000 / 666,000.
 function niceTicks(lo, hi, count){
-  const span = (hi - lo) || 1, raw = span / Math.max(1, count);
-  const mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= raw) || 10 * mag;
-  const out = [];
-  for(let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
-  return out;
+  const span = (hi - lo) || 1, mag = Math.pow(10, Math.floor(Math.log10(span / Math.max(1, count))));
+  const ticksFor = step => { const out = []; for(let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10)); return out; };
+  // The 1-2-2.5-5 step whose tick count is closest to `count` (at least two ticks when possible).
+  let best = null;
+  for(const m of [0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20]){
+    const t = ticksFor(m * mag), score = Math.abs(t.length - count) + (t.length < 2 ? 10 : 0);
+    if(!best || score < best.score) best = {t, score};
+  }
+  return best.t;
 }
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
@@ -9787,7 +9802,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // The open/close endpoint labels carry a date suffix ("23:00 Sep 18") and so are noticeably
   // wider than a plain mid-tick ("21:00") — they need a bigger exclusion zone or a neighboring
   // mid-tick's text collides with them even though the tick marks themselves are well spaced.
-  const minTickGapPx = 38, endpointGapPx = 75;
+  const minTickGapPx = 38, endpointGapPx = 104;   // the dated end labels ("10:00 Oct 29") are ~75 px wide
   // Denser candidates (every 45 min instead of 90) in the final stretch before close, so long
   // sessions (like the combined Portfolio chart, which starts all the way back at TASE's open)
   // get a clearer reference point near the end instead of a big unlabeled gap right before it.
@@ -10321,6 +10336,20 @@ async function renderRangeChart(ctx, range){
 
 // A tap (touch screens have no hover): the tile's card next to the finger, hidden after 3 seconds.
 let tapCardTimer = 0;
+// A card that stays open under a button (phones): closes on the next tap anywhere else, on scroll, or on a second tap.
+let pinnedCardFor = null;
+function showPinnedCard(html, anchor){
+  const tt = document.getElementById('customTooltip');
+  if(pinnedCardFor === anchor && tt.style.display === 'block'){ tt.style.display = 'none'; pinnedCardFor = null; return; }
+  clearTimeout(tapCardTimer);
+  tt.innerHTML = html; tt.style.display = 'block'; pinnedCardFor = anchor;
+  const r = anchor.getBoundingClientRect(), w = tt.offsetWidth, h = tt.offsetHeight;
+  tt.style.left = Math.max(8, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 8)) + 'px';
+  tt.style.top = (r.bottom + 8 + h < innerHeight ? r.bottom + 8 : Math.max(8, r.top - h - 8)) + 'px';
+  const close = ev => { if(ev && ev.target && anchor.contains(ev.target)) return; tt.style.display = 'none'; pinnedCardFor = null;
+    document.removeEventListener('pointerdown', close, true); window.removeEventListener('scroll', close, true); };
+  setTimeout(() => { document.addEventListener('pointerdown', close, true); window.addEventListener('scroll', close, true); }, 0);
+}
 function showTapCard(html, e){
   if(!(e.pointerType === 'touch' || matchMedia('(hover: none)').matches)) return;   // mouse users have hover
   const tt = document.getElementById('customTooltip');
