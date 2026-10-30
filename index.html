@@ -955,9 +955,9 @@
   .hd-head .hp-label{margin-bottom:4px;}
   .hd-now{font-family:var(--mono); font-size:13px; font-weight:600;}
   .hd-now .hd-time{color:var(--muted); font-weight:400; margin-left:6px;}
-  #headlineCard .total-zone{position:relative; display:inline-block; max-width:100%;}   /* hover area = label and number only (22 Oct 2026) */
-  #headlineCard .total-tip{display:none; position:absolute; left:0; top:100%; margin-top:6px; z-index:50; width:340px; max-width:85vw; padding:8px 10px; border-radius:6px; background:var(--paper,#fff); color:var(--ink,#111); border:1px solid var(--line,#ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; text-align:left; font-weight:400; cursor:default;}
-  #headlineCard .total-zone:hover .total-tip{display:block;}
+  .card-total .total-zone{position:relative; display:inline-block; max-width:100%;}   /* hover area = label and number only (22 Oct 2026) */
+  .card-total .total-tip{display:none; position:absolute; left:0; top:100%; margin-top:6px; z-index:50; width:340px; max-width:85vw; padding:8px 10px; border-radius:6px; background:var(--paper,#fff); color:var(--ink,#111); border:1px solid var(--line,#ccc); box-shadow:0 4px 14px rgba(0,0,0,.18); font-size:12px; line-height:1.4; text-align:left; font-weight:400; cursor:default;}
+  .card-total .total-zone:hover .total-tip{display:block;}
   #homeDay{height:150px; position:relative; overflow:hidden; min-width:0;}
   #homeDay svg{display:block; width:100%; height:100%; overflow:hidden; max-width:100%;}
   #homeDay .chart-msg{padding:50px 8px; text-align:center; color:var(--muted); font-size:13px;}
@@ -1305,7 +1305,7 @@
   /* Strip cells: straight dividers, not rounded half-frames. */
   .mstrip .mlink{border-radius:0;}
   /* Reserve the home blocks' heights while their data loads, so nothing below jumps when they fill in (layout shift was 0.31). */
-  #headlineCard:empty{min-height:82px;} #gaugePanel:empty{min-height:112px;} #cards:empty{min-height:124px;} #homeAlloc:empty{min-height:196px;}
+  #gaugePanel:empty{min-height:112px;} #cards:empty{min-height:124px;} #homeAlloc:empty{min-height:196px;}
   @media (max-width:600px){ #phoneHero:empty{min-height:148px;} #gaugePanel:empty{min-height:180px;} #cards:empty{min-height:101px;} }
   .chart-loading{opacity:0.45; transition:opacity 0.15s ease; pointer-events:none;}
   .m-info{display:none;}
@@ -1348,13 +1348,37 @@
     .hdr-seg:not(.sep){background:transparent; border:0; padding:0; gap:8px;}
     .hdr-seg:not(.sep) button, .hdr-seg:not(.sep) button:first-child, .hdr-seg:not(.sep) button + button{background:var(--panel); border:1px solid var(--line); border-radius:10px;}
     /* Home: the big "Today" hero already gives the total, so no separate Total value card. */
-    #headlineCard{display:none;}
+    .card.card-total{display:none;}
     /* The strip's Portfolio cell stays on phones (30 Oct 2026): it is how you open the Portfolio window. 2 x 2: Portfolio | Israel,
        USA | USD/ILS (the earlier phone rules place them). Undone 31 Oct 2026: the Today card covers it. */
     #cards{margin-top:12px;}
     /* The hero's sentences in the sans; only the figure stays monospace. */
     #phoneHero .ph-sub, #phoneHero .bsplit{font-family:var(--sans); font-variant-numeric:tabular-nums;}
     .md-tab, .diagTab, .pay-view-btn{font-size:13px; margin-right:16px; flex:none; white-space:nowrap;}
+  }
+  /* 31 Oct 2026 review fixes. */
+  .pf-expand-btn{position:relative;} .pf-expand-btn::after{content:''; position:absolute; inset:-10px -12px;}   /* bigger hit area */
+  .mstrip .mlink.m-flat .gval-sub{display:block; margin:0; font-size:12px;}
+  .perf-table td.perf-y, .perf-table thead th:first-child{position:sticky; left:0; z-index:1; background:var(--paper);}
+  .md-tabs .md-tab:last-child{margin-right:0;}
+  @media (max-width:600px){
+    .pay-badge .pb-words{display:none;}
+    .pay-view{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:0; overflow:visible;}
+    .pay-view .pay-view-btn{margin:0; justify-content:center;}
+    /* Chip rows scroll on one line, faded at the right edge, instead of wrapping into orphans. */
+    .pay-chips:not(.seg):not(:has(select)){flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-right:24px;
+      -webkit-mask-image:linear-gradient(90deg, #000 calc(100% - 28px), transparent); mask-image:linear-gradient(90deg, #000 calc(100% - 28px), transparent);}
+    .pay-chips:not(.seg):not(:has(select)) .pay-chip{flex:none;}
+    .rc-groups{display:flex; flex-wrap:wrap; gap:0 16px;}
+    .shop-note-btn.ct-note-btn{padding:0 12px;}
+    /* Bills grid: whole month columns, never cut through a cell. */
+    .pay-grid-wrap{scroll-snap-type:x mandatory;} .pay-grid-wrap th:not(:first-child){scroll-snap-align:end;}
+    /* Market Universe: ticker, Pulse Check and name; the rest is in the row's card and tooltips. */
+    #universeTable{display:table; table-layout:fixed; width:100%;}
+    #universeTable th[data-key="ticker"], #universeTable td.ticker{width:62px;}
+    #universeTable th[data-key="pulse"], #universeTable td[data-col="pulse"]{width:112px;}
+    #universeTable th[data-key="name"], #universeTable td[data-col="name"]{width:auto;}
+    #universeTable th:nth-child(n+4), #universeTable td:nth-child(n+4){display:none;}
   }
 </style>
 </head>
@@ -1669,7 +1693,6 @@
 
   <div id="phoneHero" title="View all holdings"></div>
   <div id="heroPanel">
-    <div class="cards headline-card" id="headlineCard"></div>
     <div id="gaugePanel"></div>
     <div class="cards" id="cards"></div>
   </div>
@@ -1852,7 +1875,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793397677";
+const BUILD_ID = "1793398444";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5144,7 +5167,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
-          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>${pfIlAdj ? `<div class="md-stat-tile-sub">Includes TASE's move today (${pfIlAdj >= 0 ? '+' : '−'}${fmt(pfIlAdj)}). The home page counts TASE from today's 18:30 close, so it shows ${totals.dayGain - pfIlAdj >= 0 ? '+' : '−'}${fmt(totals.dayGain - pfIlAdj)}.</div>` : ''}`}`}
+          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>${pfIlAdj ? `<div class="md-stat-tile-sub">Home shows ${totals.dayGain - pfIlAdj >= 0 ? '+' : '−'}${fmt(totals.dayGain - pfIlAdj)}: it starts TASE from today's close, so it leaves out TASE's day (${pfIlAdj >= 0 ? '+' : '−'}${fmt(pfIlAdj)}).</div>` : ''}`}`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -5387,6 +5410,7 @@ async function renderPerformanceTab(opts){
     <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th>Year</th><th>Gain</th></tr></thead><tbody>${body}</tbody></table></div>
     <div class="perf-note">* = month so far.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
   area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
+  const pw = area.querySelector('.perf-wrap'); if(pw) pw.scrollLeft = pw.scrollWidth;   // Year and Gain first in view (31 Oct 2026)
   // The method lives in the (i) card, not a paragraph under the grid (29 Oct 2026 redesign).
   const how = area.querySelector('.perf-how');
   if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A year chains its months, so its % follows the months' % even when its ₪ gain came mostly from a bigger portfolio.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
@@ -5940,8 +5964,11 @@ function nwAxisSvg(min, max, h, pad, w, padL){
 function nwEndLabelSvg(p, v, color){
   return p && isFinite(v) ? `<text x="${(p.x + 8).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" font-size="12" font-weight="700" fill="var(--ink)" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${nwShort(v)}</text>` : '';
 }
+// Every month while there are 30 px for one, else every 2nd or 3rd, counted back from the latest so it always shows (31 Oct 2026:
+// at phone width "AprMayJun" ran together).
+function nwLabelEvery(stepX){ return Math.max(1, Math.ceil(30 / Math.max(stepX, 1))); }
 function buildNwTrendChart(opts){
-  const {title, svgId, color, months, getValue, hasIncompleteHistory} = opts;
+  const {title, svgId, color, months, getValue, hasIncompleteHistory, foot} = opts;
   const w = nwChartWidth(), h = 150, pad = 30, padL = 60, padR = 70;   // room for the axis values and the last value (29 Oct 2026)
   const vals = months.map(getValue);
   const min = Math.min(...vals), max = Math.max(...vals);
@@ -5961,7 +5988,8 @@ function buildNwTrendChart(opts){
     <circle class="nw-trend-hit" data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" style="cursor:help;"/>
     <circle data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}" style="pointer-events:none;"/>
   `).join('');
-  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('')
+  const every = nwLabelEvery(stepX);
+  const labels = points.filter((p, i) => (points.length - 1 - i) % every === 0).map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('')
     + nwAxisSvg(min, max, h, pad, w, padL) + nwEndLabelSvg(points[points.length-1], vals[vals.length-1], color);
   return `
     <div class="chart-title">${title}</div>
@@ -5971,6 +5999,7 @@ function buildNwTrendChart(opts){
       ${dots}
       ${labels}
     </svg>
+    ${foot ? `<div class="chart-foot">${foot}</div>` : ''}
     ${hasIncompleteHistory ? `<div class="chart-foot">Some accounts weren't tracked yet in earlier months, so early points may understate the real total at the time.</div>` : ''}
   `;
 }
@@ -6006,7 +6035,8 @@ function buildNwMultiTrendChart(opts){
   const hits = visible.length ? months.map((m,i)=>
     `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
   ).join('') : `<text x="${w/2}" y="${(h-pad)/2+4}" font-size="12" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">All lines hidden — click a legend item to show it</text>`;
-  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('')
+  const every = nwLabelEvery(months.length > 1 ? xFor(1) - xFor(0) : 99);
+  const labels = months.map((m,i)=>(months.length - 1 - i) % every ? '' : `<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('')
     + (visible.length ? nwAxisSvg(min, max, h, pad, w, padL) : '')
     + (visible.find(s => s.bold) ? (b => nwEndLabelSvg({x: xFor(months.length - 1), y: yFor(b.getValue(months[months.length - 1]))}, b.getValue(months[months.length - 1]), b.color))(visible.find(s => s.bold)) : '');
   const legend = series.map(s=>{
@@ -6159,7 +6189,8 @@ function renderNetWorth(nw, crossYearPrev){
   const portfolioTrendHtml = nw.months.length>=1
     ? buildNwTrendChart({
         title: 'Portfolio Trend', svgId: 'nwPortfolioTrendSvg', color: NW_GROUP_COLORS['Portfolio'], months: nw.months,
-        getValue: m => nwSum(m.assets, NW_PORTFOLIO_KEYS), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_PORTFOLIO_KEYS)
+        getValue: m => nwSum(m.assets, NW_PORTFOLIO_KEYS), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_PORTFOLIO_KEYS),
+        foot: `The Net Worth sheet's Securities line, entered once a month, so it differs from the live total on the home page.`
       })
     : '';
   // Total + each individual fund together as one multi-line chart, not separate ones.
@@ -6558,13 +6589,16 @@ function wireSearch(area, sel, set, rerender){
 }
 // Every word must appear somewhere in the text (commas ignored, so 1,076 matches 1076).
 const searchMatch = (q, text) => { const ws = q.trim().toLowerCase().replace(/,/g, '').split(/\s+/).filter(Boolean); const t = String(text).toLowerCase().replace(/,/g, ''); return ws.every(w => t.includes(w)); };
+// "15 to describe" -> 15 plus the words, which phones hide (31 Oct 2026); the full text stays as the badge's title.
+const payBadgeHtml = b => { const m = /^(\d+)(.*)$/.exec(b.t);
+  return `<span class="pay-badge ${b.c}" title="${b.t}">${m ? `${m[1]}<span class="pb-words">${m[2]}</span>` : b.t}</span>`; };
 function payViewSwitch(){
   // Bills = each payment; Contracts = the agreement behind it, when it has terms that matter.
   const tips = {bills: 'Bills = each payment: electricity, water, arnona, TV, and routine charges like Netflix (add those with + Add a routine bill).',
     contracts: 'Contracts = the agreement behind a payment, when it has terms that matter: insurance, warranties, plans with a discount or an end date, quotes.'};
   return `<div class="pay-view" role="tablist" aria-label="Bills and Contracts">${[['bills', 'Bills'], ['contracts', 'Contracts']].map(([v, t]) => {
     const b = payTabBadge(v);
-    return `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}" title="${tips[v]}">${PAY_ICONS[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
+    return `<button type="button" role="tab" class="pay-view-btn${paymentsView === v ? ' on' : ''}" aria-selected="${paymentsView === v}" data-view="${v}" title="${tips[v]}">${PAY_ICONS[v]}${t}${b ? payBadgeHtml(b) : ''}</button>`;
   }).join('')}</div>`;
 }
 // Purchases: Orders | Receipts | Spending (data-win="shop" tells the click handler which window).
@@ -6573,7 +6607,7 @@ function shopViewSwitch(){
   const icons = {orders: PAY_ICONS.box, receipts: PAY_ICONS.receipts, spending: PAY_ICONS.chart};
   return `<div class="pay-view" role="tablist" aria-label="Purchases">${[['orders', 'Orders'], ['receipts', 'Receipts'], ['spending', 'Spending']].map(([v, t]) => {
     const b = v === 'orders' ? shopOrdersBadge : v === 'receipts' ? payTabBadge('receipts') : null;
-    return `<button type="button" role="tab" class="pay-view-btn${shoppingView === v ? ' on' : ''}" aria-selected="${shoppingView === v}" data-win="shop" data-view="${v}">${icons[v]}${t}${b ? `<span class="pay-badge ${b.c}">${b.t}</span>` : ''}</button>`;
+    return `<button type="button" role="tab" class="pay-view-btn${shoppingView === v ? ' on' : ''}" aria-selected="${shoppingView === v}" data-win="shop" data-view="${v}">${icons[v]}${t}${b ? payBadgeHtml(b) : ''}</button>`;
   }).join('')}</div>`;
 }
 function refreshPayTabs(){
@@ -7500,9 +7534,9 @@ function renderPayments(){
       ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
             <div class="pay-card-val">${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}</div>
             <div class="pay-card-sub">Expected in ${monthName(thisM)}; not in Gmail yet.</div></div>` : ''}
-      <div class="pay-card${st.due.length ? ' due' : ''}"><div class="pay-card-label">Bill in, not charged yet${st.due.length ? ' · ' + st.due.length : ''}</div>
-        <div class="pay-card-val">${st.due.length ? fmt2(sum(st.due)) : '—'}</div>
-        <div class="pay-card-sub">${st.due.length ? st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ') : 'Nothing waiting to be charged.'}</div></div>
+      ${st.due.length ? `<div class="pay-card due"><div class="pay-card-label">Bill in, not charged yet · ${st.due.length}</div>
+        <div class="pay-card-val">${fmt2(sum(st.due))}</div>
+        <div class="pay-card-sub">${st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ')}</div></div>` : ''}
       <div class="pay-card pay-card-paid"><div class="pay-card-label ok">Paid this month</div>
         <div class="pay-card-val">${fmt2(sum(paidNow))}</div>
         <div class="pay-card-sub">${paidNow.length ? paidNow.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3).map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') + (paidNow.length > 3 ? ` · and ${paidNow.length - 3} more` : '') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs ${monthLabel(thisM - 1)}` : ''}</div></div>
@@ -8659,6 +8693,10 @@ async function syncGaugeToIntraday(split, totals){
   } else if(usPoint){
     appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t);
   }
+  [['ilDetailTrigger', 'gaugeIlVal', taseOpen], ['usDetailTrigger', 'gaugeUsVal', usOpen]].forEach(([cell, val, open]) => {
+    const c = document.getElementById(cell), v = document.getElementById(val);
+    if(c && v) c.classList.toggle('m-flat', !open && /₪0 \(/.test(v.textContent));
+  });
 
   if(taseOpen || usOpen){
     // At least one side is live — refresh the combined figure the same snappy way, using
@@ -9530,7 +9568,7 @@ function intradayChartHeight(el, hasNoteLine){
   // current height (which is still short while the chart itself is being drawn). A note line above
   // the chart takes ~20px; 6 = margin under the axis.
   const visible = window.innerHeight * 0.97 - (header ? header.offsetHeight : 0);
-  return Math.max(190, Math.min(440, Math.floor(visible - offset - (hasNoteLine ? 20 : 0) - 6)));
+  return Math.max(190, Math.min(body.querySelector('.md-tabs') ? 320 : 440, Math.floor(visible - offset - (hasNoteLine ? 20 : 0) - 6)));   // Portfolio: tabs in view (31 Oct 2026)
 }
 // Chart reference-line labels (Prev. close, Start, Close, Bank of Israel): above their line unless
 // the chart's own line runs through that spot (checked along the label's width), then below it.
@@ -10646,9 +10684,7 @@ function render(rows, totals){
   renderGauge(rows, totals);
   const fmt = n => "₪" + n.toLocaleString('en-US',{maximumFractionDigits:0});
   const cardsEl = document.getElementById('cards');
-  // Order on the home screen: the headline (Total value) first, then the markets strip, then the other tiles.
-  const headlineEl = document.getElementById('headlineCard');
-  if(headlineEl) headlineEl.innerHTML = '';
+  // Home in two rows (31 Oct 2026): the markets strip, then Total value | Today | Total gain | Holdings.
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
@@ -10657,13 +10693,13 @@ function render(rows, totals){
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
   cards.forEach((c, i)=>{
-    const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '');
+    const el = document.createElement('div'); el.className = 'card' + (c.cls ? ' card-'+c.cls : '') + (c.label === 'Today' ? ' card-today' : '') + (i === 0 ? ' card-total' : '');
     if(c.label === 'Holdings'){ el.id = 'holdingsCard'; el.title = 'Open Market Universe'; }
     // The total value's popup lives inside its card and shows by CSS hover, only over the label and number (22 Oct 2026).
-    const headTip = i === 0 && headlineEl ? `<div class="total-tip">${totalTipHtml()}</div>` : '';
+    const headTip = i === 0 ? `<div class="total-tip">${totalTipHtml()}</div>` : '';
     const headOpen = headTip ? '<div class="total-zone">' : '';
     el.innerHTML = `${headOpen}<div class="label">${c.label}</div><div class="value ${c.cls||''}">${c.value}</div>${headTip}${headOpen ? '</div>' : ''}${c.sub?`<div class="sub">${c.sub}</div>`:''}${c.label === 'Today' ? brokerSplitHtml(rows) : ''}`;
-    (i === 0 && headlineEl ? headlineEl : cardsEl).appendChild(el);
+    cardsEl.appendChild(el);
   });
   // Total value tooltip (22 Oct 2026): the exact calculation from the live values and the IntradayLog's B and D.
   cardsEl.title = 'View all holdings';
@@ -10676,7 +10712,6 @@ function render(rows, totals){
     if(e.target.closest('#holdingsCard')){ renderUniverseTable(); document.getElementById('universeModal').classList.add('open'); refreshUniverseRows(); hideUniverseQuoteCard(); return; }
     openPortfolioDetail();
   };
-  if(headlineEl) headlineEl.onclick = () => openPortfolioDetail();
   renderPhoneHero(rows, totals);
   renderHomeAlloc(rows);
   renderHomeDay(rows, totals);
@@ -11266,7 +11301,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .attr('x', b=>x(b.label)+x.bandwidth()/2)
     .attr('y', b=> y(Math.max(b.start,b.end)) - 5)
     .attr('text-anchor','middle')
-    .attr('font-size','10px')
+    .attr('font-size','11px')
     .attr('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .attr('fill','var(--ink)')
     .text(b => (b.value>=0?'+':'')+b.value.toFixed(2)+'%');
@@ -11277,7 +11312,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .selectAll('text')
     .attr('transform','rotate(-35)')
     .style('text-anchor','end')
-    .style('font-size','10px')
+    .style('font-size','11px')
     .style('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .style('fill','var(--muted)');
 
@@ -11285,7 +11320,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     .call(d3.axisLeft(y).ticks(5).tickFormat(d=>d.toFixed(2)+'%').tickSize(0))
     .call(sel => sel.select('.domain').remove())
     .selectAll('text')
-    .style('font-size','10px')
+    .style('font-size','11px')
     .style('font-family',"system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif")
     .style('fill','var(--muted)');
 }
@@ -12262,6 +12297,10 @@ function renderUniverseTable(){
         pulseCell.style.cursor = 'help';
         attachHoverTooltip(pulseCell, () => `<div class="pulse-tip">${pulseCardHtml(r.ticker, pulse)}</div>`);
       }
+      // Tap a row: its live card (31 Oct 2026; before, only a heatmap double-click reached it). Not on the sort headers.
+      const held = (window.lastRows || []).find(h => h.name === r.ticker);
+      if(held){ tr.style.cursor = 'pointer'; tr.addEventListener('click', () => {
+        openUniverseForTicker(held); document.getElementById('universeCard').scrollTo({top: 0, behavior: 'smooth'}); }); }
       const nameCell = tr.querySelector('td[data-col="name"]');
       if(nameCell && r.overview){
         nameCell.style.cursor = 'help';
