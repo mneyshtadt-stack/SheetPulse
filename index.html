@@ -1310,6 +1310,14 @@
       background:var(--panel); color:var(--accent); font:700 12px/1 var(--sans); text-transform:none; letter-spacing:0; cursor:pointer; vertical-align:middle; position:relative;}
     .m-info::after{content:''; position:absolute; inset:-11px;}   /* a 44 px tap area around the 22 px circle */
     .wl-more, #diagFooter button{min-height:44px;}
+    /* Market Universe on a phone: the whole sheet scrolls (search, quote, chart, holding, grid, table), instead of a fixed
+       top block that left a sliver for the rest (30 Oct 2026). */
+    #universeCard{overflow-y:auto;}
+    #universeTableWrap{overflow:visible; flex:none; padding:0 16px 20px;}
+    #universeSearchWrap{padding:12px 16px 0;}
+    #universeTable{display:block; max-width:100%; overflow-x:auto;}   /* the wide table scrolls sideways in its own box */
+    #universeCard{overflow-x:hidden;}
+    #universeHolding .uh-table{display:block; max-width:100%; overflow-x:auto;}
     #winloseScaleNote a{display:inline-flex; align-items:center; min-height:44px;}
   }
   .pf-compact tr.pf-row .pf-gain-pd, .pf-compact tr.pf-row .pf-gain-pd-val, .pf-compact tr.pf-row .pf-usd{display:none;}
@@ -1840,7 +1848,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793334182";
+const BUILD_ID = "1793334308";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
