@@ -1834,7 +1834,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793333548";
+const BUILD_ID = "1793333809";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3877,6 +3877,7 @@ const PF_COLS = [
 
 const IL_SPLIT_PALETTE = ['var(--cmp-2)', 'var(--cmp-1)'];   // orange / blue: a colorblind-checked pair
 
+// TASE quotes are in agorot; the card shows the price in shekels, the agorot in its title (30 Oct 2026).
 function renderIlTickerCards(enriched){
   const fmt = n => "₪" + Math.round(Math.abs(n)).toLocaleString('en-US');
   const totalValue = enriched.reduce((a,r)=>a+r.value,0) || 1;
@@ -3897,7 +3898,7 @@ function renderIlTickerCards(enriched){
       <div class="md-ticker-card">
         <div class="md-tc-head">
           <span class="md-tc-symbol">${r.name}</span>
-          <span class="md-tc-price"><b>${!isNaN(r.price)?r.price.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</b></span>
+          <span class="md-tc-price"${!isNaN(r.price) ? ` title="${r.price.toLocaleString('en-US',{maximumFractionDigits:2})} agorot"` : ''}><b>${!isNaN(r.price)?'₪'+(r.price/100).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):'—'}</b></span>
         </div>
         <div class="md-tc-name" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
         <div class="md-tc-grid">
