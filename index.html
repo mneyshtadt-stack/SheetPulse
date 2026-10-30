@@ -1398,6 +1398,12 @@
   function pfSetAccountLine(payload, opts){
     const el = document.getElementById('accountLine');
     if(!el) return;
+    // A Windows Hello / biometric session carries no photo (30 Oct 2026): use the photo this device kept from its last Google
+    // sign-in for the same account, so the avatar shows either way.
+    try{
+      if(payload.picture && payload.email) localStorage.setItem('pf_avatar', JSON.stringify({email: payload.email, picture: payload.picture}));
+      else if(payload.email){ const k = JSON.parse(localStorage.getItem('pf_avatar') || 'null'); if(k && k.email === payload.email && /^https:\/\//.test(k.picture)) payload = {...payload, picture: k.picture}; }
+    } catch(e){}
     const avatar = payload.picture
       ? `<img src="${payload.picture}" alt="Signed in as ${payload.email}" title="Signed in as ${payload.email}" referrerpolicy="no-referrer" onerror="this.remove()" style="width:22px; height:22px; border-radius:50%; vertical-align:-6px; margin-right:8px;">`
       : '';
@@ -1834,7 +1840,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793333809";
+const BUILD_ID = "1793334182";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3519,7 +3525,11 @@ function renderUniverseHolding(row){
     <table class="md-holdings-table md-pf-table uh-table">
       <thead><tr><th class="expand-col"></th>${head}</tr></thead>
       <tbody>${pfHoldingRowsHtml(r).replace(/ style="display:none;"/g, '')}</tbody>
-    </table>`;
+    </table>
+    <div class="uh-title" style="margin-top:18px;">Performance by month</div>
+    <div class="uh-perf"></div>`;
+  // The holding's own monthly and yearly returns, the same grid as Portfolio → Performance (30 Oct 2026).
+  renderPerformanceTab({area: el.querySelector('.uh-perf'), row});
   el.querySelectorAll('.pf-expand-btn').forEach(b => b.remove());   // always open here
   el.querySelectorAll('tr.pf-row').forEach(tr => tr.removeAttribute('title'));
   el.querySelectorAll('td.pf-avg').forEach(c => { c.style.cursor = 'help'; attachHoverTooltip(c, () => avgCostExplainHtml(r)); });
@@ -5306,19 +5316,23 @@ function perfMonths(points, flows){
 // One holding instead of the whole portfolio ('' = all; 29 Oct 2026): the same grid for that ticker, its purchases
 // and sales as money in and out, so a month is that holding's own return in ₪.
 let perfTicker = '';
-async function renderPerformanceTab(){
-  const area = document.getElementById('mdPerformanceArea');
+// opts (30 Oct 2026): {area, row} draws one holding's grid somewhere else (Market Universe, opened from the heatmap),
+// without the "Show" picker; with no opts it is the Portfolio window's tab.
+async function renderPerformanceTab(opts){
+  const embedded = !!(opts && opts.area);
+  const area = embedded ? opts.area : document.getElementById('mdPerformanceArea');
   if(!area) return;
-  const allRows = portfolioRows();
-  if(perfTicker && !allRows.some(r => r.name === perfTicker)) perfTicker = '';
-  const rows = perfTicker ? allRows.filter(r => r.name === perfTicker) : allRows;
-  const picker = `<div class="div-filter"><label>Show <select class="perf-tk" aria-label="Show one holding"><option value="">All holdings</option>${allRows.map(r => r.name).sort().map(t => `<option${t === perfTicker ? ' selected' : ''}>${escAttr(t)}</option>`).join('')}</select></label></div>`;
+  const allRows = embedded ? [opts.row] : portfolioRows();
+  if(!embedded && perfTicker && !allRows.some(r => r.name === perfTicker)) perfTicker = '';
+  const rows = embedded ? allRows : perfTicker ? allRows.filter(r => r.name === perfTicker) : allRows;
+  const picker = embedded ? '' : `<div class="div-filter"><label>Show <select class="perf-tk" aria-label="Show one holding"><option value="">All holdings</option>${allRows.map(r => r.name).sort().map(t => `<option${t === perfTicker ? ' selected' : ''}>${escAttr(t)}</option>`).join('')}</select></label></div>`;
   const wirePicker = () => { const sel = area.querySelector('.perf-tk'); if(sel) sel.addEventListener('change', e => { perfTicker = e.target.value; renderPerformanceTab(); }); };
   if(!area.innerHTML) area.innerHTML = '<div class="perf-note">Loading…</div>';
   let ph;
   try{ ph = await fetchPriceHistory(); }
   catch(e){ area.innerHTML = `<div class="perf-note" style="color:var(--down-ink)">Could not load the price history (${e.message}).</div>`; return; }
-  if(portfolioTab !== 'performance') return;
+  if(!embedded && portfolioTab !== 'performance') return;
+  if(embedded && !area.isConnected) return;
   const {points, missing, mismatched} = buildDailyValueSeries(ph, rows);
   const left = new Set(missing.concat(mismatched));
   const today = new Date(); today.setHours(12, 0, 0, 0);
