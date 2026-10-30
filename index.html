@@ -488,8 +488,8 @@
   #universeQuoteCard .uq-price{font-size:28px; font-weight:600; color:var(--ink);}
   #universeQuoteCard .uq-ccy{font-size:12px; color:var(--muted); margin-left:3px;}
   #universeQuoteCard .uq-pct{font-size:13px; font-weight:600; padding:4px 9px; border-radius:6px;}
-  #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--up-ink);}
-  #universeQuoteCard .uq-pct.down{background:var(--down-1); color:var(--down-ink);}
+  #universeQuoteCard .uq-pct.up{background:var(--up-1); color:var(--tile-ink-up);}   /* the tile ink reads >= 4.5:1 on the tint */
+  #universeQuoteCard .uq-pct.down{background:var(--down-1); color:var(--tile-ink-down);}
   #universeQuoteCard .uq-today{font-size:13px; color:var(--muted);}
   #universeQuoteCard .uq-today.up{color:var(--up-ink);}
   #universeQuoteCard .uq-today.down{color:var(--down-ink);}
@@ -1849,7 +1849,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793334443";
+const BUILD_ID = "1793334617";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
