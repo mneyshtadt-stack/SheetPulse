@@ -1358,7 +1358,7 @@
   }
   /* 31 Oct 2026 review fixes. */
   .pf-expand-btn{position:relative;} .pf-expand-btn::after{content:''; position:absolute; inset:-10px -12px;}   /* bigger hit area */
-  .mstrip .mlink.m-flat .gval-sub{display:block; margin:0; font-size:12px;}
+  .mstrip .mlink.m-flat #gaugeIlSub, .mstrip .mlink.m-flat #gaugeUsSub{display:block; margin:0; font-size:12px;}   /* ids: beat the strip's hide rule */
   .perf-table td.perf-y, .perf-table thead th:first-child{position:sticky; left:0; z-index:1; background:var(--paper);}
   .md-tabs .md-tab:last-child{margin-right:0;}
   @media (max-width:600px){
@@ -1371,8 +1371,6 @@
     .pay-chips:not(.seg):not(:has(select)) .pay-chip{flex:none;}
     .rc-groups{display:flex; flex-wrap:wrap; gap:0 16px;}
     .shop-note-btn.ct-note-btn{padding:0 12px;}
-    /* Bills grid: whole month columns, never cut through a cell. */
-    .pay-grid-wrap{scroll-snap-type:x mandatory;} .pay-grid-wrap th:not(:first-child){scroll-snap-align:end;}
     /* Market Universe: ticker, Pulse Check and name; the rest is in the row's card and tooltips. */
     #universeTable{display:table; table-layout:fixed; width:100%;}
     #universeTable th[data-key="ticker"], #universeTable td.ticker{width:62px;}
@@ -1875,7 +1873,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793398444";
+const BUILD_ID = "1793398739";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7737,7 +7735,12 @@ function renderPayments(){
   // (29 Oct 2026 review); the months to come are a swipe away.
   const gw = area.querySelector('.pay-panel .pay-grid-wrap');
   if(gw){ const now = gw.querySelector('th.pay-now');
-    gw.scrollLeft = now ? Math.max(0, now.offsetLeft + now.offsetWidth - gw.clientWidth + 8) : gw.scrollWidth; }
+    const want = now ? Math.max(0, now.offsetLeft + now.offsetWidth - gw.clientWidth + 8) : gw.scrollWidth;
+    // Then back to the start of a whole month, so no cell is cut behind the pinned names (31 Oct 2026).
+    const ths = [...gw.querySelectorAll('thead th')], pin = ths[0] ? ths[0].offsetWidth : 0;
+    // The first month start that still leaves this month whole; a part-month only ever shows on the right, among the months ahead.
+    const need = now ? now.offsetLeft + now.offsetWidth - gw.clientWidth : want, starts = ths.slice(1).map(th => th.offsetLeft - pin).filter(x => x >= need - 1);
+    gw.scrollLeft = starts.length ? Math.max(0, Math.min(...starts)) : want; }
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
     const s = status.payees[Number(td.dataset.p)], k = Number(td.dataset.k), c = s.months[k];
