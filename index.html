@@ -786,7 +786,7 @@
   .pay-confirm-row{font-size:13px; color:var(--muted);}
   .pay-confirm-row code{display:block; margin:6px 0; padding:6px 8px; border-radius:6px; background:var(--panel); color:var(--ink); font-family:var(--mono); font-size:12px; overflow-x:auto; white-space:nowrap;}
   .pay-copied{color:var(--up-ink); font-size:12px;}
-  .pay-pill.wait{color:var(--warn-ink); box-shadow:inset 0 0 0 1px var(--warn);}
+  .pay-pill.wait{background:color-mix(in srgb, var(--warn) 18%, var(--panel)); color:var(--warn-ink);}   /* filled, like every status (29 Oct 2026) */
   .pay-pill.bad{background:var(--down-1); color:var(--tile-ink-down);}
   .pay-pill.muted{background:var(--hover); color:var(--muted);}
   .shop-card-link{font:inherit; color:var(--ink); text-align:left; cursor:pointer; border:0; width:100%; transition:box-shadow 0.15s ease, transform 0.1s ease;}
@@ -800,7 +800,7 @@
   .shop-status{font:inherit; font-size:13px; min-height:32px; padding:0 10px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); cursor:pointer;}
   .shop-search{font:inherit; font-size:13px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--ink); width:300px; max-width:100%; box-sizing:border-box;}
   .shop-search:focus{border-color:var(--accent); outline:none; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);}
-  .shop-note{font-size:12px; font-weight:400; color:var(--ink); background:var(--hover); border-radius:6px; padding:2px 8px; margin-top:4px; display:inline-block;}
+  .shop-note{font-size:13px; font-weight:400; color:var(--ink); margin-top:3px; display:block;}   /* plain text, not a box that looks like an input (29 Oct 2026) */
   /* Note / price buttons sit with their order, left-aligned and side by side, not centred under it (29 Oct 2026 redesign). */
   .shop-note-btn{display:inline-flex; align-self:flex-start; text-align:left; margin:4px 16px 0 0; padding:0; min-height:24px; align-items:center; border:0; background:none; font:inherit; font-size:12px; font-weight:600; color:var(--accent); cursor:pointer;}
   .shop-note-btn:hover{text-decoration:underline;}
@@ -808,7 +808,7 @@
   .shop-pill-btn .pay-pill{transition:box-shadow 0.15s ease;}
   .shop-pill-btn:hover .pay-pill, .shop-pill-btn:focus-visible .pay-pill{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .shop-pill-btn .pay-pill::after{content:' ▾'; font-size:11px; opacity:.6;}
-  .pay-pill.mark{background:var(--up-1); color:var(--tile-ink-up); box-shadow:inset 0 0 0 1px var(--up-4);}
+  .pay-pill.mark{background:var(--up-1); color:var(--tile-ink-up);}
   .pay-key{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:12px; color:var(--muted); margin-top:10px;}
   .pay-key i{display:inline-block; width:13px; height:13px; border-radius:4px; margin-right:6px; vertical-align:-2px;}
   /* Categories, last 12 months */
@@ -823,7 +823,7 @@
   /* All bills */
   .pay-pill{display:inline-block; font-size:12px; padding:2px 10px; border-radius:999px; white-space:nowrap;}
   .pay-pill.paid{background:var(--up-1); color:var(--tile-ink-up);}
-  .pay-pill.due{background:var(--hover); color:var(--accent);}
+  .pay-pill.due{background:color-mix(in srgb, var(--accent) 14%, var(--panel)); color:var(--accent-hover);}
   .pay-list{margin-top:4px;}
   .pay-cards-list{display:none;}
   .pay-bill{display:flex; align-items:center; gap:4px; padding:10px 0; border-top:1px solid var(--line);}
@@ -1064,6 +1064,11 @@
   section.psec{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin:16px 0 0; min-width:0;}
   section.psec h2{font-size:20px; font-weight:700; color:var(--ink); letter-spacing:-0.005em;}
   section.psec-note{border-left:3px solid var(--accent); padding:14px 18px; font-family:var(--sans); font-size:13px; line-height:1.7; color:var(--ink);}
+  .wf-head{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px 16px; margin-bottom:10px;}
+  #wfSwitch{display:inline-flex; gap:2px; padding:3px; border-radius:10px; background:var(--hover); font-family:var(--sans);}
+  #wfSwitch button{background:transparent; border:0; border-radius:8px; min-height:36px; padding:0 13px; font-size:13px; font-weight:500; color:var(--muted); cursor:pointer; font-family:inherit;}
+  #wfSwitch button.active{background:var(--panel); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(14,26,43,0.14);}
+  @media (max-width:600px){ #wfSwitch button{min-height:44px;} }
   @media (max-width:600px){ section.psec{padding:14px 12px; border-radius:8px;} }
   .hp-label{font-family:var(--sans); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--muted); margin:2px 2px 8px;}
   #treemap{position:relative; width:100%; height:420px;}
@@ -1122,7 +1127,11 @@
   #winloseSearch:focus{outline:none; border-color:var(--accent);}
   #winloseNoMatch{font-family:var(--sans); font-size:13px; color:var(--muted); padding:8px 0;}
   #winloseHeadline b{font-weight:600;}
-  #winlose{max-height:340px; overflow-y:auto; padding-right:6px; border:1px solid var(--line); padding:10px 12px;}
+  #winlose{border:1px solid var(--line); border-radius:12px; padding:10px 12px;}
+  #winlose:not(.wl-all) .wlrow.wl-mid:not(.wl-found){display:none;}
+  .wl-more{display:flex; align-items:center; justify-content:center; width:100%; min-height:40px; margin:6px 0; border:1px dashed var(--line); border-radius:8px; background:none; color:var(--accent); font:600 13px var(--sans); cursor:pointer;}
+  .wl-more:hover{background:var(--hover);}
+  .wlrow.wl-beyond .wlbar{background-image:linear-gradient(90deg, transparent calc(100% - 14px), var(--panel) calc(100% - 14px), var(--panel) calc(100% - 10px), transparent calc(100% - 10px));}
   .perf-wrap{overflow-x:auto; margin-top:10px;}
   .perf-table{border-collapse:separate; border-spacing:3px; font-family:var(--sans); font-size:12px; min-width:640px; width:100%;}
   .perf-table th{color:var(--muted); font-weight:600; padding:2px 4px; text-align:center;}
@@ -1142,7 +1151,7 @@
   .wlrow{display:flex; align-items:center; margin-bottom:8px; font-family:var(--sans); font-size:12px;}
   .wlrow:last-child{margin-bottom:0;}
   .wlname{width:70px; flex-shrink:0; font-weight:600;}
-  .wltrack{flex:1; height:16px; position:relative; background:var(--line);}
+  .wltrack{flex:1; height:14px; position:relative; background:var(--hover); border-radius:4px; overflow:hidden;}
   .wlbar{position:absolute; top:0; height:100%;}
   .wlval{width:70px; flex-shrink:0; text-align:right; padding-left:8px;}
   .wlcheck{margin:0 8px 0 0; flex-shrink:0; accent-color:var(--accent); cursor:pointer;}
@@ -1270,6 +1279,63 @@
     border:1px solid var(--line); border-radius:5px; padding:3px 9px; cursor:pointer; white-space:nowrap; flex-shrink:0;
   }
   .tsCopy:hover{border-color:var(--accent);}
+
+  /* ===== Fix-all review (29 Oct 2026): one window shell, one tab style, phone sheets, home on phones ===== */
+  /* One window shell: every window has the same corners, header spacing, title and close button. */
+  #marketDetailCard, #universeCard, #diagCard{border-radius:16px;}
+  #marketDetailHeader, #universeHeader, #diagHeader{padding:18px 24px 14px;}
+  #marketDetailHeader h3, #universeHeader h3, #diagHeader h3{font-family:var(--sans); font-size:20px; font-weight:600; letter-spacing:-0.005em;}
+  #universeClose, #diagClose{background:none; border:none; font-size:28px; line-height:1; color:var(--muted); cursor:pointer; padding:0 4px; min-width:44px; min-height:44px; border-radius:10px;}
+  #universeRefresh, #universeMaximize{min-width:44px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:10px;}
+  #universeClose:hover, #diagClose:hover, #universeRefresh:hover, #universeMaximize:hover{background:var(--hover); color:var(--ink);}
+  #diagCard{width:min(820px, 96vw);}
+  /* One tab style: underline tabs everywhere (window tabs, Bills / Purchases views, Diagnostics). */
+  .md-tab, .diagTab, .pay-view-btn{font-family:var(--sans); font-size:15px; font-weight:500; color:var(--muted); background:none; border:0; border-bottom:2px solid transparent; box-shadow:none; padding:11px 2px 10px; margin:0 22px -1px 0; min-height:44px; cursor:pointer;}
+  .md-tab:hover, .diagTab:hover, .pay-view-btn:hover{color:var(--ink);}
+  .md-tab.active, .diagTab.active, .pay-view-btn.on{color:var(--ink); font-weight:600; border-bottom-color:var(--accent); box-shadow:none;}
+  #diagTabs{gap:0; padding:0 24px;}
+  .pay-view{gap:0;}
+  /* Bars that scroll sideways: no visible scrollbar (they still swipe and the arrows still work). */
+  #sectorsBar, #rolesBar, #sectors, #roles{scrollbar-width:none;}
+  #sectorsBar::-webkit-scrollbar, #rolesBar::-webkit-scrollbar, #sectors::-webkit-scrollbar, #roles::-webkit-scrollbar{display:none;}
+  /* Strip cells: straight dividers, not rounded half-frames. */
+  .mstrip .mlink{border-radius:0;}
+  /* Reserve the home blocks' heights while their data loads, so nothing below jumps when they fill in (layout shift was 0.31). */
+  #headlineCard:empty{min-height:82px;} #gaugePanel:empty{min-height:112px;} #cards:empty{min-height:124px;} #homeAlloc:empty{min-height:196px;}
+  @media (max-width:600px){ #phoneHero:empty{min-height:148px;} #gaugePanel:empty{min-height:180px;} #cards:empty{min-height:101px;} }
+  .chart-loading{opacity:0.45; transition:opacity 0.15s ease; pointer-events:none;}
+  .pf-compact tr.pf-row .pf-gain-pd, .pf-compact tr.pf-row .pf-gain-pd-val, .pf-compact tr.pf-row .pf-usd{display:none;}
+  .pf-tools{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
+  .pf-detail-toggle{display:inline-flex; align-items:center; gap:8px; min-height:44px; font-size:13px; color:var(--muted); cursor:pointer;}
+  .md-pf-table:not(.pf-card-table) thead th{position:sticky; top:-14px; z-index:2; background:var(--paper);}
+  .pay-legs-fold{display:contents;}
+  .pay-legs-fold > summary{display:none;}
+  @media (max-width:600px){
+    .pay-legs-fold{display:block; width:100%;}
+    .pay-legs-fold > summary{display:flex; align-items:center; min-height:44px; cursor:pointer; font-size:13px; font-weight:600; color:var(--accent);}
+  }
+  /* The build stamp lives in Diagnostics, not the header. */
+  .hdr-status #buildInfo{display:none;}
+  @media (max-width:600px){
+    /* Windows are full-screen sheets on a phone, the tab row stays at the top while you scroll. */
+    #marketDetailModal, #universeModal, #diagModal{padding:0; align-items:stretch;}
+    #marketDetailCard, #universeCard, #diagCard{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0;}
+    #marketDetailHeader, #universeHeader, #diagHeader{padding:14px 16px 10px;}
+    #marketDetailBody{padding:12px 16px 18px;}
+    #marketDetailBody .md-tabs{position:sticky; top:-12px; z-index:3; background:var(--paper);}
+    /* Header: the four views as an even 2 x 2 grid of separate buttons. */
+    .hdr-seg:not(.sep){background:transparent; border:0; padding:0; gap:8px;}
+    .hdr-seg:not(.sep) button, .hdr-seg:not(.sep) button:first-child, .hdr-seg:not(.sep) button + button{background:var(--panel); border:1px solid var(--line); border-radius:10px;}
+    /* Home: no repeats. The big "Today" hero already gives the total and the portfolio's day change. */
+    #headlineCard{display:none;}
+    .mstrip #portfolioDetailTrigger{display:none;}
+    .mstrip #ilDetailTrigger{grid-column:1; grid-row:2;} .mstrip #usDetailTrigger{grid-column:2; grid-row:2; box-shadow:inset 1px 0 0 var(--line);}
+    .mstrip #fxDetailTrigger{grid-column:1 / -1; grid-row:3; box-shadow:inset 0 1px 0 var(--line); padding-top:10px;}
+    #cards{margin-top:12px;}
+    /* The hero's sentences in the sans; only the figure stays monospace. */
+    #phoneHero .ph-sub, #phoneHero .bsplit{font-family:var(--sans); font-variant-numeric:tabular-nums;}
+    .md-tab, .diagTab, .pay-view-btn{font-size:13px; margin-right:16px; flex:none; white-space:nowrap;}
+  }
 </style>
 </head>
 <body>
@@ -1303,6 +1369,7 @@
     <div id="diagRules" style="display:none;"></div>
     <div id="diagFooter">
       <span id="diagSummary"></span>
+      <span id="diagBuild" class="meta" style="flex-basis:100%; order:9;"></span>
       <button id="diagRerun" type="button">Run again</button>
       <button id="diagCopy" type="button">Copy report</button>
     </div>
@@ -1677,26 +1744,22 @@
     </div>
   </section>
 
-  <section class="psec psec-note">
-    <div>
-      <b>Historical Contribution</b> looks backward — based on money originally invested, it measures which holdings generated your profits over time.<br>
-      <b>Current Weighted Contribution</b> looks at today — based on current market value, it measures which holdings currently have the biggest influence on your portfolio's performance.<br>
-      <span style="color:var(--muted);">Analogy: Historical = "who scored the goals during the season?" Current weighted = "who's on the field influencing the game right now?"</span>
+  <section class="psec">
+    <div class="wf-head">
+      <h2 style="display:inline-flex; align-items:center; gap:7px; margin:0;">Contribution to total return
+        <span id="whyDiffersIcon" class="info-icon" title="">?</span>
+      </h2>
+      <div id="wfSwitch" role="group" aria-label="Weighting"><button type="button" data-wf="cost" class="active" aria-pressed="true">Cost-weighted</button><button type="button" data-wf="current" aria-pressed="false">Today-weighted</button></div>
     </div>
-  </section>
-
-  <section class="psec">
-    <h2>Historical contribution to total return — cost-weighted</h2>
-    <p class="chart-note" id="waterfallCostNote">Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return.</p>
-    <div id="waterfallCost"></div>
-  </section>
-
-  <section class="psec">
-    <h2 style="display:inline-flex; align-items:center; gap:7px;">Current weighted contribution to total return %
-      <span id="whyDiffersIcon" class="info-icon" title="">?</span>
-    </h2>
-    <p class="chart-note">Each bar is a holding's own total return %, weighted by how large it is in the portfolio today — this reflects today's sizing, not your original cost, so it won't sum to the same total as the chart above.</p>
-    <div id="waterfallCurrent"></div>
+    <!-- One chart with a switch (29 Oct 2026 review), instead of two lookalike charts and an analogy box. -->
+    <div class="wf-view" data-wf="cost">
+      <p class="chart-note" id="waterfallCostNote">Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return.</p>
+      <div id="waterfallCost"></div>
+    </div>
+    <div class="wf-view" data-wf="current" hidden>
+      <p class="chart-note">Each bar is a holding's own total return %, weighted by how large it is in the portfolio today — this reflects today's sizing, not your original cost, so it won't sum to the same total as the chart above.</p>
+      <div id="waterfallCurrent"></div>
+    </div>
   </section>
 
   <footer>
@@ -1763,7 +1826,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793309129";
+const BUILD_ID = "1793332560";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1773,6 +1836,9 @@ const BUILD_ID = "1793309129";
 // pushed exactly what was tested, letting you visually confirm it by comparing the two tabs.
 (function showBuildAndContentInfo(){
   const el = document.getElementById('buildInfo');
+  // The build stamp is shown in Diagnostics, not the header (29 Oct 2026 review): mirror whatever is written here.
+  const diagBuild = document.getElementById('diagBuild');
+  if(el && diagBuild) new MutationObserver(() => { diagBuild.textContent = el.textContent; }).observe(el, {childList: true, characterData: true, subtree: true});
 
   function formatBuildLabel(id){
     if(!/^\d+$/.test(id)) return 'local (not yet deployed)';
@@ -4302,7 +4368,7 @@ function pfHoldingRowsHtml(r){
   const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
   const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
   const priceStr = !isNaN(r.price)
-    ? `<span class="${vsCostCls}" title="${!isNaN(r.avgCost)?'vs. avg cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+    ? `<span title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
     : '—';
   const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
   const holdingPeriod = formatHoldingPeriod(r.buyDate);
@@ -4329,6 +4395,7 @@ function pfHoldingRowsHtml(r){
 ${lotRowsHtml}`;
 }
 
+function pfBrokerDetails(){ try{ return localStorage.getItem('pf_brokerDetails') === '1'; } catch(e){ return false; } }
 function renderPortfolioTable(enriched){
   const fmt2 = n => "₪" + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   // "Total Cost (ILS)" from the sheet is always in ILS, regardless of the ticker's own
@@ -4351,9 +4418,13 @@ function renderPortfolioTable(enriched){
     return (av - bv) * sortDir;
   });
 
-  let html = `<div id="marketDetailSearchWrap"><input type="text" id="marketDetailSearch" placeholder="Search ticker…" value="${escAttr(marketDetailState.filter)}"></div>`;
+  // One line per holding by default (29 Oct 2026 review): the broker sub-lines (Psagot's $ figures, Meitav's purchase-date
+  // rate) behind a "Broker details" switch, remembered per device. A broker's own view always shows them -- they are its point.
+  const showBrokerLines = !!activeBroker(window.lastRows || []) || pfBrokerDetails();
+  let html = `<div id="marketDetailSearchWrap" class="pf-tools"><input type="text" id="marketDetailSearch" placeholder="Search ticker…" value="${escAttr(marketDetailState.filter)}">`
+    + (activeBroker(window.lastRows || []) ? '' : `<label class="pf-detail-toggle"><input type="checkbox" id="pfBrokerDetails"${pfBrokerDetails() ? ' checked' : ''}> Broker details</label>`) + `</div>`;
   html += `
-    <table class="md-holdings-table md-pf-table">
+    <table class="md-holdings-table md-pf-table${showBrokerLines ? '' : ' pf-compact'}">
       <thead><tr>
         <th class="expand-col"></th>
         ${PF_COLS.map(c=>`<th class="${c.key==='name'?'':'num'} ${sortKey===c.key?'sorted':''}" data-key="${c.key}">${c.label}${sortKey===c.key?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')}
@@ -4372,6 +4443,8 @@ function renderPortfolioTable(enriched){
   document.getElementById('marketDetailTableArea').innerHTML = html;
   wirePfGainTips(document.getElementById('marketDetailTableArea'));
   wirePfCards(document.getElementById('marketDetailTableArea'), sorted);
+  const bdt = document.getElementById('pfBrokerDetails');
+  if(bdt) bdt.addEventListener('change', () => { try{ localStorage.setItem('pf_brokerDetails', bdt.checked ? '1' : '0'); } catch(e){} renderMarketDetailTable(); });
   // The purchase-date line needs PriceHistory's USD/ILS rates -- draw again once they've arrived.
   if(pfNeedsUsdIls(sorted)) ensureUsdIlsHistory().then(() => {
     if(usdIlsHistory && marketDetailState.marketKey === 'all' && document.getElementById('marketDetailModal').classList.contains('open')) renderMarketDetailTable();
@@ -4967,6 +5040,7 @@ function renderPortfolioHeader(){
   // Until the USA opens (16:30 Israel) the All view shows the last session against the one before, built from the log:
   // TASE's 18:30 settle + USA's last reading of the day (22 Oct 2026).
   let ilPrevTs = window.ilCloseTs;   // the TASE close the day change is measured from, for the Prev. close label (28 Oct 2026)
+  let pfIlAdj = 0;   // TASE's move today that this window counts and the home page doesn't (after the 18:30 settle)
   if (!broker && window.ilDaySettle && window.usDayLast && taseLastSessionFreeze()) {   // until TASE opens (22 Oct 2026)
     const dk = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pk = Object.keys(window.ilDaySettle).filter(k => k < dk && window.usDayLast[k] !== undefined).sort();
@@ -4983,6 +5057,7 @@ function renderPortfolioHeader(){
     const pk = Object.keys(window.ilDaySettle).filter(k => k < dk).sort();
     const prior = pk.length ? window.ilDaySettle[pk[pk.length - 1]] : null;
     if (typeof prior === 'number' && prior !== window.ilCloseIls) {
+      pfIlAdj = window.ilCloseIls - prior;
       const d = totals.dayGain + (window.ilCloseIls - prior), base = totals.totalValue - d;
       totals = {...totals, dayGain: d, dayGainPct: base ? d / base * 100 : 0};
       if (window.ilDaySettleT && window.ilDaySettleT[pk[pk.length - 1]]) ilPrevTs = new Date(window.ilDaySettleT[pk[pk.length - 1]]);
@@ -5038,7 +5113,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
-          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
+          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>${pfIlAdj ? `<div class="md-stat-tile-sub">Includes TASE's move today (${pfIlAdj >= 0 ? '+' : '−'}${fmt(pfIlAdj)}). The home page counts TASE from today's 18:30 close, so it shows ${totals.dayGain - pfIlAdj >= 0 ? '+' : '−'}${fmt(totals.dayGain - pfIlAdj)}.</div>` : ''}`}`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -5511,7 +5586,10 @@ function drawPremarketTreemap(area){
   });
 
   if(!items.length){
-    area.innerHTML = `<div class="pm-note">No pre-market or after-hours trades to show right now.
+    // Lead with when the next session starts (29 Oct 2026 review): pre-market opens 5.5 hours before the US open (04:00 New York).
+    const pmNext = new Date(getNextUsOpenMs() - 5.5 * 3600000);
+    const pmWhen = pmNext.toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false});
+    area.innerHTML = `<div class="pm-note"><b style="color:var(--ink);">Next pre-market: ${pmWhen} (Israel time).</b> No pre-market or after-hours trades right now.
       <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance (Yahoo Finance as backup) via ExtendedHours.gs every 5 minutes.</div></div>`;
     return;
   }
@@ -5817,15 +5895,25 @@ function nwChartWidth(){
   const cw = body ? body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 16 : 0;
   return cw > 0 ? Math.max(300, Math.min(1100, cw)) : 780;
 }
+// Net Worth trend axes (29 Oct 2026 review): three round values on the left, the latest value at the line's end.
+function nwShort(v){ const a = Math.abs(v); return (v < 0 ? '−' : '') + '₪' + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e3 ? Math.round(a / 1e3) + 'k' : Math.round(a)); }
+function nwAxisSvg(min, max, h, pad, w, padL){
+  const range = (max - min) || 1, yFor = v => h - pad - ((v - min) / range) * (h - 2 * pad);
+  return niceTicks(min, max, 2).map(v => `<line x1="${padL}" x2="${w - 70}" y1="${yFor(v).toFixed(1)}" y2="${yFor(v).toFixed(1)}" stroke="var(--line)" stroke-width="1" opacity="0.6"/>`
+    + `<text x="${padL - 8}" y="${(yFor(v) + 4).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${nwShort(v)}</text>`).join('');
+}
+function nwEndLabelSvg(p, v, color){
+  return p && isFinite(v) ? `<text x="${(p.x + 8).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" font-size="12" font-weight="700" fill="var(--ink)" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif">${nwShort(v)}</text>` : '';
+}
 function buildNwTrendChart(opts){
   const {title, svgId, color, months, getValue, hasIncompleteHistory} = opts;
-  const w = nwChartWidth(), h = 150, pad = 30;
+  const w = nwChartWidth(), h = 150, pad = 30, padL = 60, padR = 70;   // room for the axis values and the last value (29 Oct 2026)
   const vals = months.map(getValue);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = (max - min) || 1;
-  const stepX = months.length>1 ? (w - 2*pad)/(months.length-1) : 0;
+  const stepX = months.length>1 ? (w - padL - padR)/(months.length-1) : 0;
   const points = months.map((m,i)=>({
-    x: pad + i*stepX,
+    x: padL + i*stepX,
     y: h - pad - ((getValue(m) - min)/range)*(h - 2*pad),
     m,
     idx: i
@@ -5838,7 +5926,8 @@ function buildNwTrendChart(opts){
     <circle class="nw-trend-hit" data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="transparent" style="cursor:help;"/>
     <circle data-idx="${p.idx}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}" style="pointer-events:none;"/>
   `).join('');
-  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('');
+  const labels = points.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${p.m.month.slice(0,3)}</text>`).join('')
+    + nwAxisSvg(min, max, h, pad, w, padL) + nwEndLabelSvg(points[points.length-1], vals[vals.length-1], color);
   return `
     <div class="chart-title">${title}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
@@ -5863,12 +5952,12 @@ function buildNwMultiTrendChart(opts){
   const {title, svgId, months, series, hasIncompleteHistory} = opts;
   const hidden = nwHiddenSeries[svgId] || new Set();
   const visible = series.filter(s => !hidden.has(s.key));
-  const w = nwChartWidth(), h = 170, pad = 30;
+  const w = nwChartWidth(), h = 170, pad = 30, padL = 60, padR = 70;
   const allVals = visible.flatMap(s => months.map(s.getValue));
   const min = Math.min(...allVals), max = Math.max(...allVals);
   const range = (max - min) || 1;
-  const stepX = months.length>1 ? (w - 2*pad)/(months.length-1) : 0;
-  const xFor = i => pad + i*stepX;
+  const stepX = months.length>1 ? (w - padL - padR)/(months.length-1) : 0;
+  const xFor = i => padL + i*stepX;
   const yFor = v => h - pad - ((v - min)/range)*(h - 2*pad);
 
   const seriesSvg = visible.map(s=>{
@@ -5882,7 +5971,9 @@ function buildNwMultiTrendChart(opts){
   const hits = visible.length ? months.map((m,i)=>
     `<rect class="nw-trend-hit" data-idx="${i}" x="${(xFor(i)-hitWidth/2).toFixed(1)}" y="0" width="${hitWidth.toFixed(1)}" height="${(h-pad).toFixed(1)}" fill="transparent" style="cursor:help;"/>`
   ).join('') : `<text x="${w/2}" y="${(h-pad)/2+4}" font-size="12" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">All lines hidden — click a legend item to show it</text>`;
-  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('');
+  const labels = months.map((m,i)=>`<text x="${xFor(i).toFixed(1)}" y="${h-8}" font-size="11" fill="var(--muted)" text-anchor="middle" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${m.month.slice(0,3)}</text>`).join('')
+    + (visible.length ? nwAxisSvg(min, max, h, pad, w, padL) : '')
+    + (visible.find(s => s.bold) ? (b => nwEndLabelSvg({x: xFor(months.length - 1), y: yFor(b.getValue(months[months.length - 1]))}, b.getValue(months[months.length - 1]), b.color))(visible.find(s => s.bold)) : '');
   const legend = series.map(s=>{
     const off = hidden.has(s.key);
     return `<span class="nw-series-toggle${off?' off':''}" data-series="${s.key}" role="button" tabindex="0" aria-pressed="${!off}" title="Click to ${off?'show':'hide'} ${s.label}"><span class="nw-sw" style="--sw:${s.color};"></span>${s.label}${s.sub?` [${s.sub}]`:''}</span>`;
@@ -7379,7 +7470,7 @@ function renderPayments(){
         <div class="pay-card-sub">${st.due.length ? st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ') : 'Nothing waiting to be charged.'}</div></div>
       <div class="pay-card pay-card-paid"><div class="pay-card-label ok">Paid this month</div>
         <div class="pay-card-val">${fmt2(sum(paidNow))}</div>
-        <div class="pay-card-sub">${paidNow.length ? paidNow.map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs ${monthLabel(thisM - 1)}` : ''}</div></div>
+        <div class="pay-card-sub">${paidNow.length ? paidNow.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3).map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') + (paidNow.length > 3 ? ` · and ${paidNow.length - 3} more` : '') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs ${monthLabel(thisM - 1)}` : ''}</div></div>
       <div class="pay-card"><div class="pay-card-label">Last 12 months</div>
         <div class="pay-card-val">${fmt(last12)}</div>
         <div class="pay-card-sub">${fmt(last12 / 12)} a month on average${isNaN(vs12) ? '' : ` · ${vs12 >= 0 ? '+' : '−'}${Math.abs(vs12).toFixed(0)}% vs the year before`}</div></div>
@@ -7392,7 +7483,8 @@ function renderPayments(){
   const check = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Bill check</h3>
-        <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></div>
+        <details class="pay-legs-fold"${window.matchMedia && window.matchMedia('(max-width:600px)').matches ? '' : ' open'}><summary>Bills shown · ${status.payees.length - checkHidden.size} of ${status.payees.length}</summary>
+        <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></details></div>
       <div class="pay-panel-note pay-hint" style="margin:-4px 0 8px;">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period · click a bill above to hide or show its row</div>
       <div class="pay-grid-wrap"><table class="pay-grid">
         <thead><tr><th></th>${gridMonths.map(k => `<th class="${k === thisM ? 'pay-now' : ''}">${monthLabel(k)}</th>`).join('')}</tr></thead>
@@ -7572,7 +7664,11 @@ function renderPayments(){
   area.querySelector('.pay-add-routine').addEventListener('click', () => openRoutine(null));
   area.querySelectorAll('.pay-routine-row-edit').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); const r = routines.find(x => x.payee.toLowerCase() === b.dataset.payee.toLowerCase()); if(r) openRoutine(r); }));
   area.querySelectorAll('.pay-routine-edit').forEach(b => b.addEventListener('click', () => { const r = routines[+b.dataset.i]; if(r) openRoutine(r); }));
-  const gw = area.querySelector('.pay-panel .pay-grid-wrap'); if(gw) gw.scrollLeft = gw.scrollWidth;
+  // Open on this month at the right edge with the months before it (what was paid), not on the empty months ahead
+  // (29 Oct 2026 review); the months to come are a swipe away.
+  const gw = area.querySelector('.pay-panel .pay-grid-wrap');
+  if(gw){ const now = gw.querySelector('th.pay-now');
+    gw.scrollLeft = now ? Math.max(0, now.offsetLeft + now.offsetWidth - gw.clientWidth + 8) : gw.scrollWidth; }
   const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
     const s = status.payees[Number(td.dataset.p)], k = Number(td.dataset.k), c = s.months[k];
@@ -7886,7 +7982,7 @@ function renderShopping(){
         <div class="pay-card-sub">${pickup.length ? pickup.slice(0, 4).map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') + (pickup.length > 4 ? `<br>and ${pickup.length - 4} more` : '') : 'No package is waiting at a pickup point.'}</div></button>
       <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
         <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'Nothing on the way'}</div>
-        <div class="pay-card-sub">${moving.length ? moving.slice(0, 4).map(o => `${esc(o.store)}: ${esc(SHOP_STATUS[o.status])}`).join(' · ') + (moving.length > 4 ? ' · …' : '') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
+        <div class="pay-card-sub">${moving.length ? Object.entries(moving.reduce((m, o) => (m[o.brand || o.store] = (m[o.brand || o.store] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]).map(([st, n]) => `${n} ${esc(st)}`).join(' · ') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
     </div>`;
   const moneyCards = `
     <div class="pay-cards">
@@ -9044,9 +9140,10 @@ function currentSessionDateLabel(){
 function headlineAsOfHtml(isClosed){
   return isClosed ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· as of ${currentSessionDateLabel()}</span>` : '';
 }
-function formatPrevCloseLabel(d){
-  // The real timestamp of the closing reading, e.g. "Oct 20, 23:59:16" (22 Oct 2026).
-  return d.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+function formatPrevCloseLabel(d, withSeconds){
+  // The closing reading's time, e.g. "Oct 20, 23:59" -- to the minute on screen (29 Oct 2026 review); the (i) cards pass
+  // withSeconds for the exact reading, "Oct 20, 23:59:16".
+  return d.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', ...(withSeconds ? {second:'2-digit'} : {}), hour12:false});
 }
 // loggedTs (window.lastCloseILTs/USTs, IntradayLog's close rows) is the real timestamp the Apps
 // Script trigger actually stamped when it captured that close — used whenever it's available,
@@ -9093,10 +9190,18 @@ function parseSheetTimestamp(tsStr){
 // One row per tick of the single IntradayLog sheet, carrying both segments' values together (see
 // logIntradayValue in IntradayLogging.gs) — replaces two independently-timed IL/US logs that used
 // to need merging by nearest-timestamp carry-forward.
+// The log's text, kept for a minute (29 Oct 2026 review): switching 1D / 5D or tabs fetched it again each time (1.8-2.3 s).
+// A full refresh clears it (doRefresh), and the logger writes a row only every 5 minutes.
+let intradayLogTextCache = null;
 async function fetchIntradayLogRows(){
-  const res = await fetchViaProxy(INTRADAY_LOG_CSV_URL);
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const text = await res.text();
+  let text;
+  if(intradayLogTextCache && Date.now() - intradayLogTextCache.t < 60000) text = intradayLogTextCache.text;
+  else {
+    const res = await fetchViaProxy(INTRADAY_LOG_CSV_URL);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    text = await res.text();
+    intradayLogTextCache = {t: Date.now(), text};
+  }
   const table = Papa.parse(text, {skipEmptyLines:true}).data;
   // IntradayLog now keeps a 2-day rolling window (today + the last actual trading day), not just
   // today, so the USA-only chart's "show the last completed session" fallback has real data to
@@ -9449,11 +9554,26 @@ function chartLabelHalo(bg){ return `paint-order="stroke" stroke="${bg}" stroke-
 // older load finish later and draw over the newer chart (or wire tooltips to elements already gone: "Cannot read
 // properties of null (reading 'addEventListener')").
 let chartRenderSeq = 0;
+// While a chart reloads (range switch, refresh), keep the one on screen, dimmed, instead of swapping it for "Loading…"
+// (29 Oct 2026 review); the first draw still shows the message. The dimming goes as soon as anything new is drawn.
+function chartLoading(el, msgHtml){
+  if(!el.querySelector('svg')){ el.innerHTML = msgHtml; return; }
+  el.classList.add('chart-loading');
+  new MutationObserver((m, o) => { el.classList.remove('chart-loading'); o.disconnect(); }).observe(el, {childList: true});
+}
+// Round axis values (29 Oct 2026 review): about `count` ticks on a 1-2-5 step inside [lo, hi], e.g. 662,000 / 664,000 / 666,000.
+function niceTicks(lo, hi, count){
+  const span = (hi - lo) || 1, raw = span / Math.max(1, count);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= raw) || 10 * mag;
+  const out = [];
+  for(let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
 async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
   const el = document.getElementById('intradayChart');
   if(!el) return;
   const seq = ++chartRenderSeq;
-  el.innerHTML = `<div class="chart-msg">Loading today's chart…</div>`;
+  chartLoading(el, `<div class="chart-msg">Loading today's chart…</div>`);
   let raw;
   try{
     raw = await fetchRawFn();
@@ -9619,8 +9739,14 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const brokerOn = typeof activeBroker === 'function' && !!activeBroker(window.lastRows || []);
     if(settled && !brokerOn) window.liveNow = settled.v;
   }
-  if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close)
+  // After the session (USA / Portfolio), "now" keeps moving with the rate while the log stopped at the close: the line stays
+  // as logged and "now" is its own dot at the end, instead of a vertical jump on the last segment (29 Oct 2026 review). The
+  // values and labels are unchanged; TASE's settle (liveNow) still replaces its last reading as before.
+  let lineLog = null;
+  if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close){
+    if(Date.now() > dayRange.close && window.liveMarket !== 'il' && Math.abs(window.liveNow - log[log.length-1].v) >= 1) lineLog = log;
     log = [...log.slice(0, -1), {...log[log.length-1], v: window.liveNow}];
+  }
 
   // Size the viewBox to the container's real width rather than a fixed 900 — on narrow (mobile)
   // widths a fixed 900:300 viewBox no longer matches the CSS box's aspect ratio, and the browser's
@@ -9644,13 +9770,12 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   const isUp = latest >= prevClose;
   const lineColor = isUp ? 'var(--up-ink)' : 'var(--down-ink)';
 
-  const points = log.map(p=>({x: xFor(p.t), y: yFor(p.v)}));
+  const points = (lineLog || log).map(p=>({x: xFor(p.t), y: yFor(p.v)}));
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
 
   const fmt = n => "₪" + Math.round(n).toLocaleString('en-US');
-  const yTicks = 4;
-  const yGridLines = Array.from({length: yTicks+1}, (_,i)=>{
-    const v = yMin + (yMax-yMin) * (i/yTicks);
+  const yTickVals = niceTicks(yMin, yMax, 4);
+  const yGridLines = yTickVals.map(v=>{
     const y = yFor(v);
     return `<line x1="${padL}" x2="${w-padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
       + `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${fmt(v)}</text>`;
@@ -9666,9 +9791,11 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // Denser candidates (every 45 min instead of 90) in the final stretch before close, so long
   // sessions (like the combined Portfolio chart, which starts all the way back at TASE's open)
   // get a clearer reference point near the end instead of a big unlabeled gap right before it.
-  const nearEndWindowMs = 150*60*1000;
-  const denseEndTicks = roundTicksInZone(t0, t1, 'Asia/Jerusalem', 45).filter(ms => ms >= t1 - nearEndWindowMs);
-  const tickCandidates = [...new Set([...roundTicksInZone(t0, t1, 'Asia/Jerusalem', 90), ...denseEndTicks])].sort((a,b)=>a-b);
+  // Even steps (29 Oct 2026 review): whole hours, every 1, 2 or 3 hours, whichever leaves room for the labels -- not
+  // 90-minute marks with denser 45-minute ones near the close (12:00, 13:30 … 20:15, 21:00).
+  const pxPerHour = (w - padL - padR) / Math.max(tRange / 3600000, 1);
+  const stepMin = [60, 120, 180, 240].find(m => pxPerHour * m / 60 >= minTickGapPx + 8) || 240;
+  const tickCandidates = roundTicksInZone(t0, t1, 'Asia/Jerusalem', stepMin);
   let lastTickX = xFor(t0);
   const midTicks = [];
   for(const ms of tickCandidates){
@@ -9696,7 +9823,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   }).join('');
 
   const prevCloseY = yFor(prevClose);
-  const lastPoint = points[points.length-1];
+  const lastPoint = lineLog ? {x: xFor(log[log.length-1].t), y: yFor(latest)} : points[points.length-1];   // the "now" dot
 
   // A replayed past session's own actual closing value isn't shown anywhere else on this view (the
   // header tiles above show today's own live-current figure, which can genuinely differ from that
@@ -9713,7 +9840,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   let closeCalloutSvg = '';
   if(sessionClosed){
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
-    const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+    const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false});   // to the minute (29 Oct 2026)
     const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
     const ty = orderedLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [{y: prevCloseLabelY, v: prevClose}], latest);
@@ -9723,7 +9850,8 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   const statusBadgesSvg = (statusBadges||[]).map((sb,i)=>marketStatusBadgeSvg(padL + i*130, 14, sb.id, sb.label, sb.isOpen)).join('');
   // Each reading's move since the one before. The first point has none: its change from the previous
   // close happened overnight (with the FX move), not inside this chart.
-  const moves = log.map((p, i) => i === 0 ? NaN : p.v - log[i-1].v);
+  const moveLog = lineLog || log;
+  const moves = moveLog.map((p, i) => i === 0 ? NaN : p.v - moveLog[i-1].v);
   const movesSvg = bandH ? moveBarsSvg(moves, points.map(p => p.x), h - axisH - bandH + 8, h - axisH - 3) : '';
 
   // Marks whichever point ended up first on screen with the FX move baked into that chart's own
@@ -9968,7 +10096,7 @@ async function renderRangeChart(ctx, range){
   if(!el) return;
   const currentRange = () => ctx.currentRange ? ctx.currentRange() : chartRange;
   const msgHtml = (text, color) => `<div class="chart-msg" style="color:${color||'var(--muted)'};">${text}</div>`;
-  el.innerHTML = msgHtml('Loading chart…');
+  chartLoading(el, msgHtml('Loading chart…'));
   const intraday5D = range === '5D' && !ctx.priceColumn;
   const seq = el.id === 'intradayChart' ? ++chartRenderSeq : null;   // only the latest window chart load may draw
   let pts, note = '';
@@ -10263,8 +10391,13 @@ async function renderHomeDay(rows, totals){
   const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
   const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US'), dcNow = dayChange(chg, pct, fmt);
   const hm = t => new Date(t).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  // After today's session the line ends at the USA close while the headline keeps following the live rate, so the two can
+  // differ: say which is which, and give the headline's figure too (29 Oct 2026 review).
+  const dcLive = dayChange(totals.dayGain, totals.dayGainPct, fmt);
+  const afterClose = !label && !open && Math.abs(totals.dayGain - chg) >= 1;
   nowEl.innerHTML = `<span class="${dcNow.cls}">${dcNow.sign}${fmt(chg)} (${dcNow.pctText})</span>`
-    + `<span class="hd-time">${label ? label + ' (last session)' : 'at ' + hm(last.t)}</span>`;
+    + `<span class="hd-time">${label ? label + ' (last session)' : (afterClose ? 'at the USA close ' : 'at ') + hm(last.t)}</span>`
+    + (afterClose ? `<span class="hd-time">· now <span class="${dcLive.cls}">${dcLive.sign}${fmt(totals.dayGain)}</span></span>` : '');
 
   const W = Math.max(el.clientWidth, 200), H = el.clientHeight || 150, padB = 16;
   const x = d3.scaleLinear().domain([range.open, range.close]).range([0, W]);
@@ -10477,7 +10610,7 @@ function render(rows, totals){
   cardsEl.title = 'View all holdings';
   const prevHelp = document.getElementById('todayPrevClose');
   if(prevHelp) attachHoverTooltip(prevHelp, () => `<b>Previous close ${fmt(totals.totalValue - totals.dayGain)}</b>`
-    + (window.usCloseTs ? (window.ilCloseTs ? `TASE ${formatPrevCloseLabel(window.ilCloseTs)}<br>` : '') + `USA ${formatPrevCloseLabel(window.usCloseTs)}` : prevCloseReferenceLabel())
+    + (window.usCloseTs ? (window.ilCloseTs ? `TASE ${formatPrevCloseLabel(window.ilCloseTs, true)}<br>` : '') + `USA ${formatPrevCloseLabel(window.usCloseTs, true)}` : prevCloseReferenceLabel())
     + (typeof window.usCloseFx === 'number' ? `<br>at USD/ILS ${window.usCloseFx.toFixed(4)}` : ''));
   // The Holdings card opens Market Universe (one click or two), never Portfolio; the other cards open Portfolio (23 Oct 2026).
   cardsEl.onclick = (e) => {
@@ -10513,9 +10646,24 @@ function render(rows, totals){
   // area for the smaller holdings to be visible at all — they'd shrink to invisible slivers.
   // Scale the height up for narrow widths so small holdings keep roughly the same on-screen
   // area they'd get on a ~1100px-wide desktop, capped so it doesn't get absurdly tall.
-  const tmH = Math.min(1800, Math.max(480, Math.round(480 * 1100 / Math.max(tmW, 1))));
+  // Phones (29 Oct 2026 review): about one screen instead of 1,660 px, with the holdings under 1.5% of the portfolio folded
+  // into one "Other" tile (its card lists them). Desktop keeps every holding as its own tile.
+  const narrowTm = tmW < 600;
+  let tmData = rows.concat(noPriceTiles(rows));
+  if(narrowTm){
+    const tot = tmData.reduce((a, d) => a + d.value, 0) || 1;
+    const small = tmData.filter(d => d.value / tot < 0.015);
+    if(small.length > 1){
+      const priced = small.filter(d => !isNaN(d.change));
+      const dayAmt = priced.reduce((a, d) => a + (d.value - d.value / (1 + d.change / 100)), 0);
+      const pv = priced.reduce((a, d) => a + d.value, 0);
+      tmData = tmData.filter(d => d.value / tot >= 0.015).concat([{name: `Other ${small.length}`, value: small.reduce((a, d) => a + d.value, 0),
+        change: pv - dayAmt ? dayAmt / (pv - dayAmt) * 100 : NaN, ret: NaN, isOther: true, otherList: small}]);
+    }
+  }
+  const tmH = narrowTm ? Math.min(560, Math.max(420, Math.round(tmW * 1.5))) : Math.min(1800, Math.max(480, Math.round(480 * 1100 / Math.max(tmW, 1))));
   tmEl.style.height = tmH + 'px';
-  const root = d3.hierarchy({children: rows.concat(noPriceTiles(rows))}).sum(d => d.value).sort((a,b) => b.value - a.value);
+  const root = d3.hierarchy({children: tmData}).sum(d => d.value).sort((a,b) => b.value - a.value);
   d3.treemap().size([tmW, tmH]).paddingInner(2).paddingOuter(1)(root);
   root.leaves().forEach(n=>{
     const w = n.x1 - n.x0, h = n.y1 - n.y0;
@@ -10542,7 +10690,9 @@ function render(rows, totals){
       ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
       : '';
     const lastAtTxt = n.data.lastAt ? new Date(n.data.lastAt).toLocaleString('en-GB', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
-    const tooltipHtml = n.data.noPrice
+    const tooltipHtml = n.data.isOther
+      ? `<b>${n.data.otherList.length} smaller holdings</b>${fmt(n.data.value)} together, each under 1.5% of the portfolio<div style="margin-top:6px; max-width:280px; color:var(--muted); font-size:12px;">${n.data.otherList.slice().sort((a, b) => b.value - a.value).map(d => d.name).join(', ')}</div>`
+      : n.data.noPrice
       ? `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}`
         + `<div style="max-width:280px;">No live price from Google Finance right now. Shown in grey at ${n.data.basis === 'last' ? `its last value with a price, ${fmt(n.data.value)} (${lastAtTxt})` : n.data.basis === 'snapshot' ? `the built-in snapshot's value, ${fmt(n.data.value)}` : `its cost, ${fmt(n.data.value)}`}.</div>`
         + `<div style="margin-top:6px; color:var(--muted); font-size:12px; max-width:280px;">Back in color on the first refresh with a price.</div>`
@@ -10565,7 +10715,7 @@ function render(rows, totals){
     div.style.cursor = 'pointer';
     div.addEventListener('dblclick', ()=>{
       tt.style.display = 'none';
-      openUniverseForTicker(n.data);
+      if(!n.data.isOther) openUniverseForTicker(n.data);
     });
     // Touch screens have no hover: a tap shows the same card next to the finger for 3 seconds.
     div.addEventListener('click', (e)=> showTapCard(tooltipHtml, e));
@@ -10726,17 +10876,15 @@ function renderWinLoseList(rows){
   ranked.forEach(d=>{
     const row = document.createElement('div'); row.className='wlrow';
     const isUp = d.ret >= 0;
-    const barStyle = isUp
-      ? `left:50%; background:${tileColorFor(2.5)};`
-      : `right:50%; background:${tileColorFor(-2.5)};`;
+    // One-sided, ranked best to worst (29 Oct 2026 review): the old two-sided chart left half its width empty.
+    const barStyle = `left:0; background:${isUp ? 'var(--up-4)' : 'var(--down-4)'};`;
     row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
     const check = row.querySelector('.wlcheck');
-    check.checked = !wlExcluded().has(d.name);
     check.addEventListener('click', e => e.stopPropagation());
     check.addEventListener('change', () => {
-      const set = wlExcluded();
-      if(check.checked) set.delete(d.name); else set.add(d.name);
-      saveWlExcluded(set);
+      const set = wlExcluded(), f = wlForceIn();
+      if(check.checked){ set.delete(d.name); f.add(d.name); } else { set.add(d.name); f.delete(d.name); }
+      saveWlExcluded(set); saveWlForceIn(f);
       scaleWinLoseBars(wlRows);
     });
     row.dataset.ticker = d.name;
@@ -10781,9 +10929,22 @@ function renderWinLoseList(rows){
     }
     wlEl.appendChild(row);
   });
+  // Best five and worst five, with "Show all" between them (29 Oct 2026 review), instead of a 340 px box scrolling inside the page.
+  const many = wlRows.length > 12;
+  wlRows.forEach((r, i) => r.row.classList.toggle('wl-mid', many && i >= 5 && i < wlRows.length - 5));
+  if(many){
+    const more = document.createElement('button');
+    more.type = 'button'; more.className = 'wl-more';
+    const label = () => wlShowAll ? 'Show best and worst five' : `Show all ${wlRows.length}`;
+    more.textContent = label();
+    more.addEventListener('click', () => { wlShowAll = !wlShowAll; wlEl.classList.toggle('wl-all', wlShowAll); more.textContent = label(); });
+    wlRows[4].row.after(more);
+  }
+  wlEl.classList.toggle('wl-all', wlShowAll);
   scaleWinLoseBars(wlRows);
   filterWinLose();   // keep a search that was typed before this refresh
 }
+var wlShowAll = false;   // var: renderWinLoseList can run before this line (cached first draw)
 
 // Winners & losers: holdings unchecked in the list (e.g. one outlier like a +200% return) are left
 // out of the bar scale, so the rest are sized against the biggest checked return instead of being
@@ -10795,29 +10956,40 @@ function wlExcluded(){
 function saveWlExcluded(set){
   try{ localStorage.setItem(WL_EXCLUDED_KEY, JSON.stringify([...set])); } catch(e){}
 }
+// Outliers (29 Oct 2026 review): a move more than 3x the median one (GDX at +167% among moves of 5-30%) is left out of the
+// scale automatically, its bar drawn full with a break, unless you tick it back in (pf_wlForceIn).
+const WL_FORCE_IN_KEY = 'pf_wlForceIn';
+function wlForceIn(){ try{ return new Set(JSON.parse(localStorage.getItem(WL_FORCE_IN_KEY) || '[]')); } catch(e){ return new Set(); } }
+function saveWlForceIn(set){ try{ localStorage.setItem(WL_FORCE_IN_KEY, JSON.stringify([...set])); } catch(e){} }
+function wlOutliers(wlRows){
+  const a = wlRows.map(r => Math.abs(r.d.ret)).sort((x, y) => x - y);
+  const med = a.length ? a[Math.floor(a.length / 2)] : 0;
+  return new Set(med > 0 ? wlRows.filter(r => Math.abs(r.d.ret) > 3 * med).map(r => r.d.name) : []);
+}
 function scaleWinLoseBars(wlRows){
-  const excluded = wlExcluded();
-  const shown = wlRows.filter(r => !excluded.has(r.d.name));
+  const userOff = wlExcluded(), forceIn = wlForceIn(), outliers = wlOutliers(wlRows);
+  const isOff = name => userOff.has(name) || (outliers.has(name) && !forceIn.has(name));
+  const shown = wlRows.filter(r => !isOff(r.d.name));
   const maxAbsRet = Math.max(...shown.map(r => Math.abs(r.d.ret)), 1);
   wlRows.forEach(r => {
-    const off = excluded.has(r.d.name);
-    r.row.classList.toggle('wl-off', off);
-    r.bar.style.width = off ? '0' : (Math.abs(r.d.ret) / maxAbsRet * 50).toFixed(1) + '%';
+    const off = isOff(r.d.name);
+    r.row.classList.toggle('wl-off', off && userOff.has(r.d.name));
+    r.row.classList.toggle('wl-beyond', off && !userOff.has(r.d.name));
+    r.row.querySelector('.wlcheck').checked = !off;
+    r.bar.style.width = off ? (userOff.has(r.d.name) ? '0' : '100%') : (Math.abs(r.d.ret) / maxAbsRet * 100).toFixed(1) + '%';
   });
   const note = document.getElementById('winloseScaleNote');
   if(!note) return;
-  const offNames = wlRows.filter(r => excluded.has(r.d.name)).map(r => r.d.name);
-  if(!offNames.length){
-    note.innerHTML = 'Uncheck a holding to leave it out of the bar scale.';
-    return;
-  }
-  note.innerHTML = `Bar scale leaves out ${offNames.join(', ')} — the longest bar is now the biggest checked return. <a href="#" id="winloseScaleReset">Include all</a>`;
-  document.getElementById('winloseScaleReset').addEventListener('click', e => {
-    e.preventDefault();
-    saveWlExcluded(new Set());
-    wlRows.forEach(r => { r.row.querySelector('.wlcheck').checked = true; });
-    scaleWinLoseBars(wlRows);
-  });
+  const auto = wlRows.filter(r => outliers.has(r.d.name) && !forceIn.has(r.d.name) && !userOff.has(r.d.name)).map(r => r.d.name);
+  const offNames = wlRows.filter(r => userOff.has(r.d.name)).map(r => r.d.name);
+  const parts = [];
+  if(auto.length) parts.push(`${auto.join(', ')} ${auto.length === 1 ? 'is' : 'are'} beyond the scale (more than 3× the typical move) <a href="#" class="wl-incl">Include ${auto.length === 1 ? auto[0] : 'them'}</a>`);
+  if(offNames.length) parts.push(`Left out by you: ${offNames.join(', ')} <a href="#" class="wl-reset">Include all</a>`);
+  note.innerHTML = parts.length ? parts.join(' · ') : 'Untick a holding to leave it out of the bar scale.';
+  const incl = note.querySelector('.wl-incl');
+  if(incl) incl.addEventListener('click', e => { e.preventDefault(); const f = wlForceIn(); auto.forEach(n => f.add(n)); saveWlForceIn(f); scaleWinLoseBars(wlRows); });
+  const reset = note.querySelector('.wl-reset');
+  if(reset) reset.addEventListener('click', e => { e.preventDefault(); saveWlExcluded(new Set()); scaleWinLoseBars(wlRows); });
 }
 
 // Winners & losers search: shows only the bars whose ticker contains what's typed. It only hides
@@ -10830,6 +11002,7 @@ function filterWinLose(){
   document.querySelectorAll('#winlose .wlrow').forEach(row => {
     const hit = !q || String(row.dataset.ticker || '').toUpperCase().includes(q);
     row.style.display = hit ? '' : 'none';
+    row.classList.toggle('wl-found', !!q && hit);
     if(hit) shown++;
   });
   const none = document.getElementById('winloseNoMatch');
@@ -10839,6 +11012,12 @@ function filterWinLose(){
   }
 }
 document.getElementById('winloseSearch').addEventListener('input', filterWinLose);
+// Contribution chart switch (29 Oct 2026 review): one view at a time; drawn again on switching, since a hidden chart has no width.
+document.querySelectorAll('#wfSwitch button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#wfSwitch button').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+  document.querySelectorAll('.wf-view').forEach(v => { v.hidden = v.dataset.wf !== b.dataset.wf; });
+  if(typeof wlSrc !== 'undefined' && wlSrc) renderContributionWaterfalls(wlSrc);
+}));
 
 function fmtIls3(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
 function fmtIlsSmart(n){
@@ -11264,6 +11443,7 @@ function q2QuoteMs(text){
 async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true;
+  intradayLogTextCache = null;   // a refresh always reads the log afresh
   try{
     setStatus('Fetching latest from Google Sheet…', false);
     await loadLogFx();
@@ -11518,7 +11698,9 @@ async function renderFxSparkline(){
   }
 }
 
-const whyDiffersHtml = `<b>Why this total is usually higher than the cost-weighted one</b>`
+const whyDiffersHtml = `<b>Cost-weighted or today-weighted?</b>`
+  + `<div style="margin-bottom:8px;"><b>Cost-weighted</b> looks back: each holding's gain as a share of the money you put in. These add up to your total return.<br><b>Today-weighted</b> looks at now: each holding's return weighted by its size today, so it shows who drives the portfolio now.</div>`
+  + `<b>Why the today-weighted total is usually higher</b>`
   + `Winners grow into bigger positions <i>because</i> they performed well, so weighting by today's size gives your best performers extra influence — while shrunken losers count for less than what you actually put into them. The cost-weighted chart avoids this bias since it weights by what you originally invested, so it always matches your true realized return.`
   + `<div style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); color:var(--muted);">`
   + `Example: put ₪50 into A (now +100%, worth ₪100) and ₪50 into B (now 0%, worth ₪50).<br>`
