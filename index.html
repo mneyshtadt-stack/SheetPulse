@@ -340,7 +340,7 @@
   .pf-card-table{min-width:640px; margin-top:6px;}
   .pf-card-table tr.pf-row{display:none;}   /* the card already shows the holding's line; only its purchases here */
   @media (max-width:600px){
-    #marketDetailTableArea > .md-pf-table{display:none;}
+    #marketDetailTableArea > .md-pf-table, #marketDetailTableArea > .md-us-table{display:none;}
     .pf-cards{display:block; margin-top:12px;}
   }
   /* Narrow windows (29 Oct 2026 redesign): the holdings table scrolls inside its own box with the ticker column pinned,
@@ -1363,6 +1363,24 @@
   .md-tabs .md-tab:last-child{margin-right:0;}
   #diagModal small{font-size:11px;}
   .pay-row > .pay-chart-panel{align-self:flex-start;}
+  /* P1-4: a loading or empty chart keeps its space, so the tabs under it don't jump when it draws. */
+  #intradayChart > .chart-msg:only-child{min-height:240px; display:flex; align-items:center; justify-content:center; text-align:center;}
+  .legend-more{display:none;}
+  .tsCopy{min-height:28px;}
+  .shop-pill-btn{min-height:28px; display:inline-flex; align-items:center;}
+  .pay-cell.off{color:var(--muted);}   /* the "no bill due" dot was 1.2:1 */
+  @media (max-width:600px){
+    #intradayChart > .chart-msg:only-child{min-height:200px;}
+    .segbar .seg{min-width:0; flex-shrink:1;}
+    .segbar{overflow:hidden;}
+    .legend-scroll-wrap .legend-arrow{display:none;}
+    .legend-strip{flex-direction:column; overflow:visible; gap:0;}
+    .legend-strip .legend-row{white-space:normal; padding:10px 2px; min-height:44px; box-sizing:border-box; border:0; border-bottom:1px solid var(--line); border-radius:0; background:none;}
+    .legend-strip .legend-row .legend-val{margin-left:auto; text-align:right; white-space:nowrap;}
+    .legend-strip:not(.all) .legend-row:nth-child(n+7){display:none;}
+    .legend-more{display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; margin-top:6px; border:1px dashed var(--line); border-radius:8px; background:none; color:var(--accent); font:600 13px var(--sans); cursor:pointer;}
+    #diagModal input[type="search"], #diagModal input[type="text"], #diagModal select, .tsCopy{min-height:44px;}
+  }
   .md-chart-tools{display:flex; align-items:center; justify-content:space-between; gap:8px 16px; flex-wrap:wrap; margin-top:14px;}
   .md-chart-tools #chartRangeBar{margin:0 0 0 auto;}
   .usd-check{display:inline-flex; align-items:center; gap:8px; min-height:44px; font:500 13px var(--sans); color:var(--ink); cursor:pointer;}
@@ -1712,7 +1730,7 @@
     <div style="display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;">
       <div>
         <h2 style="margin-bottom:2px;">Your investments visualized</h2>
-        <p style="margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates today's performance.</p>
+        <p style="margin:0; font-family:var(--sans); font-size:12px; color:var(--muted);">Box size represents the asset's weight in your portfolio. Color indicates <span class="tm-when">today's</span> performance.</p>
       </div>
       <span style="display:flex; gap:8px;">
         <button id="digestBtn">Daily Brief</button>
@@ -1729,9 +1747,9 @@
       <div id="aiDailyResult" class="ai-result"></div>
     </div>
     <div class="legend" style="margin-top:16px;">
-      <span><span class="swatch" style="background:var(--down-4)"></span>Down today</span>
+      <span><span class="swatch" style="background:var(--down-4)"></span>Down <span class="tm-day">today</span></span>
       <span><span class="swatch" style="background:var(--flat)"></span>Flat / no data</span>
-      <span><span class="swatch" style="background:var(--up-4)"></span>Up today</span>
+      <span><span class="swatch" style="background:var(--up-4)"></span>Up <span class="tm-day">today</span></span>
     </div>
     <div class="tm-panel"><div id="treemap"></div></div>
     <div id="customTooltip"></div>
@@ -1747,6 +1765,7 @@
       <div class="legend-strip" id="sectors"></div>
       <button class="legend-arrow" data-target="sectors" data-dir="1">›</button>
     </div>
+    <button type="button" class="legend-more" data-target="sectors">Show all</button>
   </section>
 
   <section class="psec">
@@ -1759,6 +1778,7 @@
       <div class="legend-strip" id="roles"></div>
       <button class="legend-arrow" data-target="roles" data-dir="1">›</button>
     </div>
+    <button type="button" class="legend-more" data-target="roles">Show all</button>
   </section>
 
   <section class="psec">
@@ -1879,7 +1899,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793454111";
+const BUILD_ID = "1793454686";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4601,7 +4621,7 @@ function renderMarketDetailTable(){
 
   let html = `<div id="marketDetailSearchWrap"><input type="text" id="marketDetailSearch" placeholder="Search ticker…" value="${escAttr(marketDetailState.filter)}"></div>`;
   html += `
-    <table class="md-holdings-table">
+    <table class="md-holdings-table md-us-table">
       <thead><tr>
         ${MD_COLS.map(c=>`<th class="${c.key==='name'?'':'num'} ${sortKey===c.key?'sorted':''}" data-key="${c.key}">${c.label}${sortKey===c.key?(sortDir===1?' ▲':' ▼'):''}</th>`).join('')}
       </tr></thead>
@@ -4646,8 +4666,11 @@ function renderMarketDetailTable(){
   });
 
   html += `</tbody></table>`;
+  // Phones (31 Oct 2026): the same holding cards as the Portfolio window -- the table's Total gain and Value were off-screen.
+  html += `<div class="pf-cards">${sorted.map(pfCardHtml).join('')}</div>`;
 
   document.getElementById('marketDetailTableArea').innerHTML = html;
+  wirePfCards(document.getElementById('marketDetailTableArea'), sorted);
 
   wireMarketDetailSearch();
   document.querySelectorAll('.md-holdings-table thead th').forEach(th=>{
@@ -10761,6 +10784,10 @@ function render(rows, totals){
     openPortfolioDetail();
   };
   renderPhoneHero(rows, totals);
+  // Before any market opens today the tiles hold the last session's move (31 Oct 2026: "Down today" on a Saturday).
+  const tmLive = taseSessionStartedToday() || usSessionStartedToday();
+  document.querySelectorAll('.tm-day').forEach(e => { e.textContent = tmLive ? 'today' : 'in the last session'; });
+  document.querySelectorAll('.tm-when').forEach(e => { e.textContent = tmLive ? "today's" : "the last session's"; });
   renderHomeAlloc(rows);
   renderHomeDay(rows, totals);
   const warnEl = document.getElementById('totalValueWarn');
@@ -11893,6 +11920,11 @@ const roleInfoHtml = `<b>Role group breakdown</b>`
 wireInfoIcon('sectorInfoIcon', sectorInfoHtml);
 wireInfoIcon('roleInfoIcon', roleInfoHtml);
 
+document.querySelectorAll('.legend-more').forEach(btn => btn.addEventListener('click', () => {
+  const strip = document.getElementById(btn.dataset.target);
+  const all = strip.classList.toggle('all');
+  btn.textContent = all ? 'Show fewer' : 'Show all';
+}));
 document.querySelectorAll('.legend-arrow').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const strip = document.getElementById(btn.dataset.target);
