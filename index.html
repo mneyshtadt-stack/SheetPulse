@@ -1908,7 +1908,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793460596";
+const BUILD_ID = "1793461455";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2673,7 +2673,8 @@ document.addEventListener('keydown', e => {
         history.pushState({spWindow: id}, '', slug ? '#' + slug : location.href);
         // Focus moves into the window and comes back to what opened it (31 Oct 2026, screen readers and keyboards).
         returnFocus[id] = document.activeElement;
-        requestAnimationFrame(() => { const c = rec.target.querySelector('[aria-label="Close"], #diagClose'); if(c) c.focus({preventScroll: true}); });
+        const closeBtn = rec.target.querySelector('[aria-label="Close"], #diagClose');
+        if(closeBtn) closeBtn.focus({preventScroll: true});   // right away, not after the first heavy draw
       } else if(wasOpen && !isOpen){
         const back = returnFocus[id]; delete returnFocus[id];
         if(back && back.isConnected && back.focus) back.focus({preventScroll: true});
@@ -5861,6 +5862,13 @@ function openPortfolioDetail(){
 // of the numbers silently going stale until the user closes and reopens the window.
 function refreshOpenMarketDetailIfNeeded(){
   if(!document.getElementById('marketDetailModal').classList.contains('open')) return;
+  // The window keeps its place through a refresh (31 Oct 2026: every 5-minute refresh scrolled it back to the top). Set again
+  // once the redrawn chart and table have their height.
+  const mdBody = document.getElementById('marketDetailBody'), keepTop = mdBody.scrollTop;
+  if(keepTop > 0){
+    const restore = () => { if(mdBody.scrollTop < keepTop - 1) mdBody.scrollTop = keepTop; };
+    requestAnimationFrame(restore); setTimeout(restore, 400); setTimeout(restore, 1500);
+  }
   const key = marketDetailState.marketKey;
   if(key === 'il' || key === 'us'){
     const seg = renderMarketDetailHeader(key);
