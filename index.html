@@ -1899,7 +1899,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793455655";
+const BUILD_ID = "1793456017";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4885,13 +4885,12 @@ function populateIlFxTile(){
     return;
   }
   const {change, changePct} = getFxDayChange(rate);
-  const cls = change >= 0 ? 'up' : 'down';
-  const arrow = change >= 0 ? '▲' : '▼';
+  const mv = fxMove(change, changePct), cls = mv.cls;
   valEl.className = 'md-stat-tile-val ' + cls;
   valEl.textContent = rate.toFixed(4);
   if(subEl){
     subEl.className = 'md-stat-tile-sub ' + cls;
-    subEl.textContent = `${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})`;
+    subEl.textContent = `${mv.arrow} ${mv.pctText} (${mv.chgText})`;
   }
   const asOfEl = document.getElementById('ilsxTileAsOf');
   if(asOfEl) asOfEl.textContent = window.lastFxAsOf || '';
@@ -4933,11 +4932,12 @@ async function renderFxDetailHeader(){
   if(marketDetailState.marketKey !== 'fx') return;
   const change = (rate && prevClose > 0) ? rate - prevClose : null;
   const changePct = change !== null ? change / prevClose * 100 : 0;
-  const color = change !== null && change < 0 ? 'var(--down-ink)' : 'var(--up-ink)';
+  const mvH = change !== null ? fxMove(change, changePct) : null;
+  const color = mvH ? {up: 'var(--up-ink)', down: 'var(--down-ink)', flat: 'var(--muted)'}[mvH.cls] : 'var(--up-ink)';
   document.getElementById('marketDetailBody').innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
       <div class="md-headline">${rate ? rate.toFixed(4) : '—'}</div>
-      ${change !== null ? `<span class="md-headline-change" style="color:${color};">${change>=0?'▲':'▼'} ${change>=0?'+':''}${change.toFixed(4)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%)</span>` : ''}
+      ${change !== null ? `<span class="md-headline-change" style="color:${color};">${mvH.arrow} ${mvH.chgText} (${mvH.pctText})</span>` : ''}
     </div>
     <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) + (prevCloseTs ? ` (${formatPrevCloseLabel(prevCloseTs)})` : '') : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
     <div id="chartRangeBar"></div>
@@ -8961,14 +8961,19 @@ function usaTip(){
   const closeIls = typeof closeFx === 'number' && typeof window.snap?.split?.us?.usdValue === 'number' ? '₪' + Math.round(window.snap.split.us.usdValue * closeFx).toLocaleString('en-US') : '—';
   return `USA = your US holdings in shekels. Actual: ${usd} USD at USD/ILS ${today}. USA close, ${prevCloseReferenceLabel()}: ${usd} USD at USD/ILS ${fri} = ${closeIls}. The day change is the change since that close, from the rate and any US price moves.`.replace(/"/g, '&quot;');
 }
+// A USD/ILS move as "▲ +0.77% (+0.0239)"; no move is a grey "– 0.00% (0.0000)", like a ₪0 day (31 Oct 2026: "▲ +0.00%" in green).
+function fxMove(change, pct){
+  if(Math.abs(change) < 0.00005) return {cls: 'flat', arrow: '–', pctText: '0.00%', chgText: '0.0000'};
+  const up = change > 0;
+  return {cls: up ? 'up' : 'down', arrow: up ? '▲' : '▼', pctText: (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', chgText: (change >= 0 ? '+' : '') + change.toFixed(4)};
+}
 function formatFxLine(rate){
   const {change, changePct} = getFxDayChange(rate);
-  const cls = change >= 0 ? 'up' : 'down';
-  const arrow = change >= 0 ? '▲' : '▼';
+  const mv = fxMove(change, changePct), cls = mv.cls;
   const asOf = window.lastFxAsOf || 'Today';
   // The latest Bank of Israel representative rate (BOIRate tab) after the live one.
   const boi = boiRateLatest();
-  return `<span class="gval ${cls}">${rate.toFixed(4)} ${arrow} ${change>=0?'+':''}${changePct.toFixed(2)}% (${change>=0?'+':''}${change.toFixed(4)})</span> <span class="gval-sub">${asOf}</span>`
+  return `<span class="gval ${cls}">${rate.toFixed(4)} ${mv.arrow} ${mv.pctText} (${mv.chgText})</span> <span class="gval-sub">${asOf}</span>`
     + (boi ? ` <span class="gval-sub" title="Bank of Israel representative rate">· Bank of Israel <b style="color:var(--ink);">${boi.rate.toFixed(4)}</b>${boiChangeHtml()} (${boiDay(boi.date)})</span>` : '');
 }
 
