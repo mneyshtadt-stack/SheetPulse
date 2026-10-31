@@ -1373,6 +1373,8 @@
   body:has(#marketDetailModal.open, #universeModal.open, #diagModal.open){overflow:hidden;}
   #marketDetailBody, #universeCard, #diagModal .diagBody{overscroll-behavior:contain;}
   .shop-note-btn.ct-note-btn{padding-left:8px; padding-right:8px;}
+  .wlhit{display:inline-flex; align-items:center; flex:none; cursor:pointer;}
+  @media (max-width:600px){ .wlhit{width:44px; min-height:44px; justify-content:center; margin-left:-10px;} .wlhit .wlcheck{margin:0;} .wlrow{min-height:44px;} }   /* 44 px tap area round the 24 px box (31 Oct 2026) */
   /* Desktop's 24 px minimum for standalone links and boxes (31 Oct 2026). */
   #pfSignOutLink, a.pay-sub{display:inline-flex; align-items:center; min-height:24px;}
   .wlcheck{width:18px; height:18px;}   /* "Edit" was 21 px wide */   /* the "no bill due" dot was 1.2:1 */
@@ -1906,7 +1908,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793459699";
+const BUILD_ID = "1793460596";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10115,8 +10117,20 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
       <line id="intradayGuideLine" x1="0" x2="0" y1="${padT}" y2="${h-axisH-3}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="3,3" style="display:none;"/>
       <circle id="intradayHoverDot" r="4.5" fill="${lineColor}" stroke="var(--panel)" stroke-width="1.5" style="display:none;"/>
       <rect id="intradayOverlay" x="${padL}" y="0" width="${w-padL-padR}" height="${h}" fill="transparent"/>
+      ${fxMarkerIdx !== -1 ? `<circle class="fx-tap" cx="${points[fxMarkerIdx].x.toFixed(1)}" cy="${(points[fxMarkerIdx].y - 4).toFixed(1)}" r="18" fill="transparent" role="button" tabindex="0" aria-label="What FX means here" style="cursor:pointer;"/>` : ''}
     </svg>
   `;
+  // The FX dot explained by a tap or Enter too (31 Oct 2026: hover only, so phones could not read it).
+  const fxTap = el.querySelector('.fx-tap');
+  if(fxTap){
+    const fm = log[fxMarkerIdx].fxMarker, pct = (fm.newRate - fm.oldRate) / fm.oldRate * 100;
+    const fxHtml = `<b>FX: the dollar's overnight move</b>This opening point already includes the change in USD/ILS since the previous close, `
+      + `${fm.oldRate.toFixed(4)} → ${fm.newRate.toFixed(4)} (<span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span>), `
+      + `so part of the gap from Prev. close is the rate, not share prices.`;
+    const open = e => { e.stopPropagation(); e.preventDefault(); showPinnedCard(fxHtml, fxTap); };
+    fxTap.addEventListener('click', open);
+    fxTap.addEventListener('keydown', e => { if(e.key === 'Enter' || e.key === ' ') open(e); });
+  }
 
   (statusBadges||[]).forEach(sb => wireMarketStatusBadge(sb.id, sb.isOpen, sb.nextOpenMsFn, sb.nextCloseMsFn));
 
@@ -11158,8 +11172,9 @@ function renderWinLoseList(rows){
     const isUp = d.ret >= 0;
     // One-sided, ranked best to worst (29 Oct 2026 review): the old two-sided chart left half its width empty.
     const barStyle = `left:0; background:${isUp ? 'var(--up-4)' : 'var(--down-4)'};`;
-    row.innerHTML = `<input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+    row.innerHTML = `<label class="wlhit"><input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"></label><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
     const check = row.querySelector('.wlcheck');
+    row.querySelector('.wlhit').addEventListener('click', e => e.stopPropagation());   // the tap area toggles the box, not the row
     check.addEventListener('click', e => e.stopPropagation());
     check.addEventListener('change', () => {
       const set = wlExcluded(), f = wlForceIn();
