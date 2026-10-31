@@ -1368,6 +1368,9 @@
   .legend-more{display:none;}
   @media (min-width:601px){ .tsCopy{min-height:28px;} .shop-pill-btn{min-height:28px; display:inline-flex; align-items:center;} }   /* phones keep their 44 px rules */
   .pay-cell.off{color:var(--muted);}
+  /* The page behind an open window stays put (31 Oct 2026: it scrolled along, so closing a window could land elsewhere). */
+  body:has(#marketDetailModal.open, #universeModal.open, #diagModal.open){overflow:hidden;}
+  #marketDetailBody, #universeCard, #diagModal .diagBody{overscroll-behavior:contain;}
   .shop-note-btn.ct-note-btn{padding-left:8px; padding-right:8px;}   /* "Edit" was 21 px wide */   /* the "no bill due" dot was 1.2:1 */
   @media (max-width:600px){
     #intradayChart > .chart-msg:only-child{min-height:200px;}
@@ -1843,7 +1846,7 @@
   </footer>
 </div>
 
-<div id="marketDetailModal">
+<div id="marketDetailModal" role="dialog" aria-modal="true" aria-labelledby="marketDetailTitle">
   <div id="marketDetailCard">
     <div id="marketDetailHeader">
       <div>
@@ -1858,11 +1861,11 @@
   </div>
 </div>
 
-<div id="universeModal">
+<div id="universeModal" role="dialog" aria-modal="true" aria-labelledby="universeTitle">
   <div id="universeCard">
     <div id="universeHeader">
       <div>
-        <h3>Market Universe</h3>
+        <h3 id="universeTitle">Market Universe</h3>
         <p>Sector, category, and role notes for each holding — click a column header to sort.</p>
       </div>
       <div id="universeHeaderBtns">
@@ -1899,7 +1902,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793456017";
+const BUILD_ID = "1793456652";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2624,6 +2627,7 @@ document.addEventListener('keydown', e => {
     diagModal: () => closeDiagnostics(),
   };
   const stack = [];            // open windows that own a history entry, bottom to top
+  const returnFocus = {};
   const closedByBack = new Set();
   let ignoreNextPop = false;
 
@@ -2636,7 +2640,12 @@ document.addEventListener('keydown', e => {
       if(!wasOpen && isOpen){
         stack.push(id);
         history.pushState({spWindow: id}, '');
+        // Focus moves into the window and comes back to what opened it (31 Oct 2026, screen readers and keyboards).
+        returnFocus[id] = document.activeElement;
+        requestAnimationFrame(() => { const c = rec.target.querySelector('[aria-label="Close"], #diagClose'); if(c) c.focus({preventScroll: true}); });
       } else if(wasOpen && !isOpen){
+        const back = returnFocus[id]; delete returnFocus[id];
+        if(back && back.isConnected && back.focus) back.focus({preventScroll: true});
         const i = stack.lastIndexOf(id);
         if(i !== -1) stack.splice(i, 1);
         if(closedByBack.has(id)) closedByBack.delete(id);
@@ -10255,7 +10264,7 @@ async function renderRangeChart(ctx, range){
   chartLoading(el, msgHtml('Loading chart…'));
   const intraday5D = range === '5D' && !ctx.priceColumn;
   const seq = el.id === 'intradayChart' ? ++chartRenderSeq : null;   // only the latest window chart load may draw
-  let pts, note = '';
+  let pts, note = '', lastDayPrev = null, lastDayName = '';
   try{
     if(ctx.priceColumn && range === '1D'){
       // Today's intraday series (for USD/ILS: IntradayLog's live rate, about every 5 minutes), plus
@@ -10269,7 +10278,13 @@ async function renderRangeChart(ctx, range){
         // Weekend or before the first reading: the last day with readings, as the other windows show their last session (31 Oct 2026).
         const lastDay = new Date(Math.max(...raw.map(p => p.t))).toDateString();
         const day = raw.filter(p => new Date(p.t).toDateString() === lastDay);
-        if(day.length >= 2){ pts = day; lastDayNote = 'Showing the last day with readings — ' + new Date(day[0].t).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long', month: 'short', day: 'numeric'}); }
+        if(day.length >= 2){
+          pts = day; lastDayNote = 'Showing the last day with readings — ' + new Date(day[0].t).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long', month: 'short', day: 'numeric'});
+          // That day's own previous close: the last reading before it (as a replayed session compares with its own prior close).
+          const before = raw.filter(p => p.t < day[0].t);
+          if(before.length) lastDayPrev = before.reduce((a, p) => p.t > a.t ? p : a);
+          lastDayName = new Date(day[0].t).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long'});
+        }
       }
       if(pts.length < 2){
         if(currentRange() === range) el.innerHTML = msgHtml('Today\'s intraday chart starts with the logger\'s first reading (about 09:54), then fills in about every 5 minutes.');
@@ -10332,8 +10347,9 @@ async function renderRangeChart(ctx, range){
   const axisH = 26, bandH = ctx.priceColumn ? 0 : moveBandHeight(h), padB = axisH + bandH;
   // 1D compares against the previous close (like every other "today" figure), longer ranges
   // against the range's own first point.
-  const vsPrevClose = range === '1D' && typeof ctx.prevClose === 'number' && ctx.prevClose > 0;
-  const startV = vsPrevClose ? ctx.prevClose : pts[0].v, endV = pts[pts.length-1].v;
+  const prev1D = lastDayPrev ? lastDayPrev.v : ctx.prevClose, prev1DTs = lastDayPrev ? new Date(lastDayPrev.t) : ctx.prevCloseTs;
+  const vsPrevClose = range === '1D' && typeof prev1D === 'number' && prev1D > 0;
+  const startV = vsPrevClose ? prev1D : pts[0].v, endV = pts[pts.length-1].v;
   // USD/ILS: the Bank of Israel representative rates (BOIRate tab) as highlighted points -- on 1D
   // today's rate at its ~15:30 publication, on longer ranges one per day next to Google's close.
   const boiMarks = ctx.priceColumn === 'USDILS' ? boiChartMarks(pts, range) : [];
@@ -10371,7 +10387,8 @@ async function renderRangeChart(ctx, range){
   const movesSvg = bandH ? moveBarsSvg(moves, points.map(p => p.x), h - axisH - bandH + 8, h - axisH - 3) : '';
   const total = changeVsStart(pts[pts.length-1]);
   const isUp = total.gain >= 0;
-  const lineColor = isUp ? 'var(--up-ink)' : 'var(--down-ink)';
+  const flatMove = fmt(Math.abs(total.gain)) === fmt(0);   // "– 0.0000", not a green ▲ (31 Oct 2026)
+  const lineColor = flatMove ? 'var(--muted)' : isUp ? 'var(--up-ink)' : 'var(--down-ink)';
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
   const font = `font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"`;
 
@@ -10404,20 +10421,20 @@ async function renderRangeChart(ctx, range){
   const diff = total.gain, diffPct = total.pct;
   const rangeLabel = range === 'MAX'
     ? 'since ' + new Date(pts[0].t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
-    : CHART_RANGE_LABELS[range];
+    : range === '1D' && lastDayName ? 'on ' + lastDayName : CHART_RANGE_LABELS[range];
   const startY = yFor(startV);
   const last = points[points.length-1];
   // Each reference label beside its own dotted line, where the chart's line does not run through it (freeLabelY,
   // 26 Oct 2026); the Bank of Israel labels also keep a line apart from Prev. close and from each other.
   const labelTop = padT + 11, labelBottom = h - padB - 4;
-  const prevCloseWhen = vsPrevClose && ctx.prevCloseTs instanceof Date ? ` ${formatPrevCloseLabel(ctx.prevCloseTs)}:` : '';   // e.g. "Oct 28, 23:59:08:" (USD/ILS)
+  const prevCloseWhen = vsPrevClose && prev1DTs instanceof Date ? ` ${formatPrevCloseLabel(prev1DTs)}:` : '';   // e.g. "Oct 28, 23:59:08:" (USD/ILS)
   const startLabelY = freeLabelY(points, w - padR, 11 + (fmt(startV) + prevCloseWhen).length * 6.5 + 60, labelTop, labelBottom, startY - 8, []);
   const usedLabels = [{y: startLabelY, v: startV}];
   const boiLabelYs = range === '1D' ? boiMarks.map(b => { const y = orderedLabelY(points, w - padR, 150, labelTop, labelBottom, yFor(b.v) - 8, usedLabels, b.v); usedLabels.push({y, v: b.v}); return y; }) : [];
 
   el.innerHTML = `
     <div style="font-family:var(--sans); font-size:13px; margin-bottom:4px;">
-      <span style="color:${lineColor}; font-weight:700;">${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)</span>
+      <span style="color:${lineColor}; font-weight:700;">${flatMove ? `– ${fmt(0)} (0.00%)` : `${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`}</span>
       <span style="color:var(--muted);"> ${rangeLabel}</span>
       ${boiMarks.length ? `<span style="color:var(--muted);"> · <span style="color:var(--accent);">◆</span> Bank of Israel rate</span>` : ''}
       ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases</span>` : ''}
