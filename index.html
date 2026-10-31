@@ -1368,6 +1368,7 @@
   .legend-more{display:none;}
   @media (min-width:601px){ .tsCopy{min-height:28px;} .shop-pill-btn{min-height:28px; display:inline-flex; align-items:center;} }   /* phones keep their 44 px rules */
   .pay-cell.off{color:var(--muted);}
+  #gaugeInfo .mlink:focus-visible, #phoneHero:focus-visible, #cards .card:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
   /* The page behind an open window stays put (31 Oct 2026: it scrolled along, so closing a window could land elsewhere). */
   body:has(#marketDetailModal.open, #universeModal.open, #diagModal.open){overflow:hidden;}
   #marketDetailBody, #universeCard, #diagModal .diagBody{overscroll-behavior:contain;}
@@ -1902,7 +1903,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793456652";
+const BUILD_ID = "1793457072";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2604,6 +2605,10 @@ document.getElementById('lockDiagLink').addEventListener('click', e => { e.preve
 document.getElementById('diagClose').addEventListener('click', closeDiagnostics);
 document.getElementById('diagRerun').addEventListener('click', runDiagnostics);
 document.getElementById('diagModal').addEventListener('click', e => { if(e.target.id === 'diagModal') closeDiagnostics(); });
+// Enter or Space on a strip cell / card / the Today card works like a tap.
+document.addEventListener('keydown', e => {
+  if((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('#gaugeInfo .mlink, #phoneHero, #cards .card')){ e.preventDefault(); e.target.click(); }
+});
 // Esc closes the topmost open window: Diagnostics, then Market Universe (it opens over the
 // Portfolio / chart window), then the Portfolio / chart window.
 document.addEventListener('keydown', e => {
@@ -4775,7 +4780,38 @@ function renderMarketDetailHeader(marketKey){
   // USA follows the TASE logic (22 Oct 2026): the chart's closing value comes from the settle reading (23:55 Israel),
   // set in renderIntradayChart; until then the live value. No header override.
 
-  const statsHtml = marketKey === 'il' ? `
+  // "Market values in USD" ticked (31 Oct 2026): the whole window in dollars -- headline, day change against the previous close's
+  // dollar value, total gain over the purchases' dollar cost -- and the shekel figures in the third tile for reference.
+  const inUsd = marketKey === 'us' && usaUsd && todayUsd !== null;
+  const fmtUsd = n => '$' + Math.round(Math.abs(n)).toLocaleString('en-US');
+  let usdStatsHtml = '';
+  if(inUsd){
+    const dcU = usdChange !== null ? dayChange(usdChange, usdChangePct, fmtUsd) : null, dcI = dayChange(seg.gain, seg.pct, fmt);
+    const costUsd = seg.tickers.reduce((a, r) => a + (r.lots || []).reduce((b, l) => b + (isFinite(l.costNative) ? l.costNative : 0), 0), 0);
+    const gainUsd = costUsd > 0 ? todayUsd - costUsd : NaN, gainPct = costUsd > 0 ? gainUsd / costUsd * 100 : NaN;
+    usdStatsHtml = `
+    <div class="md-stat-tiles">
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Day change</div>
+        <div class="md-stat-tile-val ${dcU ? dcU.cls : ''}" id="mdDayChangeVal">${dcU ? dcU.sign + fmtUsd(usdChange) : '—'}</div>
+        <div class="md-stat-tile-sub ${dcU ? dcU.cls : ''}" id="mdDayChangeSub">${dcU ? dcU.pctText : ''}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">${typeof window.lastCloseUSD === 'number' ? `Prev. close ${fmtUsd(window.lastCloseUSD)} · ${dayChangeAsOf}` : ''}</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Total gain</div>
+        <div class="md-stat-tile-val ${gainUsd >= 0 ? 'up' : 'down'}" id="mdTotalGainVal">${isFinite(gainUsd) ? (gainUsd >= 0 ? '+' : '-') + fmtUsd(gainUsd) : '—'}</div>
+        <div class="md-stat-tile-sub ${gainUsd >= 0 ? 'up' : 'down'}" id="mdTotalGainSub">${isFinite(gainPct) ? `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}% on ${fmtUsd(costUsd)} invested` : ''}</div>
+      </div>
+      <div class="md-stat-tile">
+        <div class="md-stat-tile-label">Market value (₪)</div>
+        <div class="md-stat-tile-val">${fmt(seg.value)}</div>
+        <div class="md-stat-tile-sub ${dcI.cls}">${dcI.text} vs previous close</div>
+        <div class="md-stat-tile-sub">Prev. close ${fmt(prevCloseVal)}${typeof window.usCloseFx === 'number' ? ` (at USD/ILS ${window.usCloseFx.toFixed(4)})` : ''}</div>
+      </div>
+    </div>`;
+  }
+  if(marketKey === 'us') document.getElementById('marketDetailSubtitle').textContent = inUsd ? 'US holdings, in dollars (no exchange-rate effect)' : 'US holdings, in shekels and dollars';
+  const statsHtml = usdStatsHtml ? usdStatsHtml : marketKey === 'il' ? `
     <div class="md-stat-tiles">
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Day change</div>
@@ -4821,16 +4857,16 @@ function renderMarketDetailHeader(marketKey){
 
   body.innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
-      <div class="md-headline" id="mdHeadlineVal">${fmt(seg.value)}</div>
+      <div class="md-headline" id="mdHeadlineVal">${inUsd ? fmtUsd(todayUsd) : fmt(seg.value)}</div>
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
-    <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
+    <div class="md-headline-label">Market Value${inUsd ? ' (USD)' : ''}${headlineAsOfHtml(isMarketClosed)}</div>
     ${statsHtml}
     ${marketKey === 'us' ? `<div class="md-chart-tools"><label class="usd-check" title="The charts in dollars: your USA holdings' own price moves, without the USD/ILS rate"><input type="checkbox" id="usaUsdCheck"${usaUsd ? ' checked' : ''}> Market values in USD</label><div id="chartRangeBar"></div></div><div id="intradayChart"></div>`
       : marketKey === 'il' ? '<div id="chartRangeBar"></div><div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
-  if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
+  if(marketKey === 'us' && !inUsd && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
     attachHoverTooltip(document.getElementById('mdUsdRate'), () => {
       const fmtUsd = n => "$" + Math.round(n).toLocaleString('en-US');
       return `<b>How market value (USD) is calculated</b>
@@ -4864,7 +4900,7 @@ function renderMarketDetailHeader(marketKey){
             usBadges(), false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'))
     };
     const uc = document.getElementById('usaUsdCheck');
-    if(uc) uc.addEventListener('change', () => { usaUsd = uc.checked; document.getElementById('customTooltip').style.display = 'none'; renderActiveChart(); renderMarketDetailTable(); });
+    if(uc) uc.addEventListener('change', () => { usaUsd = uc.checked; document.getElementById('customTooltip').style.display = 'none'; renderMarketDetailHeader('us'); renderMarketDetailTable(); });
     renderActiveChart();
   }
   return seg;
@@ -10815,6 +10851,8 @@ function render(rows, totals){
     openPortfolioDetail();
   };
   renderPhoneHero(rows, totals);
+  // The strip cells, the cards and the phone's Today card open windows: reachable by keyboard and named as buttons (31 Oct 2026).
+  document.querySelectorAll('#gaugeInfo .mlink, #phoneHero, #cards .card').forEach(e => { e.tabIndex = 0; e.setAttribute('role', 'button'); });
   // Before any market opens today the tiles hold the last session's move (31 Oct 2026: "Down today" on a Saturday).
   const tmLive = taseSessionStartedToday() || usSessionStartedToday();
   document.querySelectorAll('.tm-day').forEach(e => { e.textContent = tmLive ? 'today' : 'in the last session'; });
