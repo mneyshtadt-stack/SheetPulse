@@ -1361,7 +1361,12 @@
   .mstrip .mlink.m-flat #gaugeIlSub, .mstrip .mlink.m-flat #gaugeUsSub{display:block; margin:0; font-size:12px;}   /* ids: beat the strip's hide rule */
   .perf-table td.perf-y, .perf-table thead th:first-child{position:sticky; left:0; z-index:1; background:var(--paper);}
   .md-tabs .md-tab:last-child{margin-right:0;}
-  #diagModal small{font-size:11px;}   /* Value rules' detail lines were the browser's 'smaller' (10.8 px) */
+  #diagModal small{font-size:11px;}
+  .pay-row > .pay-chart-panel{align-self:flex-start;}
+  .md-chart-tools{display:flex; align-items:center; justify-content:space-between; gap:8px 16px; flex-wrap:wrap; margin-top:14px;}
+  .md-chart-tools #chartRangeBar{margin:0 0 0 auto;}
+  .usd-check{display:inline-flex; align-items:center; gap:8px; min-height:44px; font:500 13px var(--sans); color:var(--ink); cursor:pointer;}
+  .usd-check input{width:18px; height:18px; margin:0; accent-color:var(--accent);}   /* no empty box under the chart beside a tall list (31 Oct 2026) */   /* Value rules' detail lines were the browser's 'smaller' (10.8 px) */
   @media (max-width:600px){
     .pay-badge .pb-words{display:none;}
     .pay-view{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:0; overflow:visible;}
@@ -1874,7 +1879,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793453179";
+const BUILD_ID = "1793454111";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4780,7 +4785,8 @@ function renderMarketDetailHeader(marketKey){
     </div>
     <div class="md-headline-label">Market Value${headlineAsOfHtml(isMarketClosed)}</div>
     ${statsHtml}
-    ${(marketKey === 'il' || marketKey === 'us') ? '<div id="chartRangeBar"></div><div id="intradayChart"></div>' : ''}
+    ${marketKey === 'us' ? `<div class="md-chart-tools"><label class="usd-check" title="The charts in dollars: your USA holdings' own price moves, without the USD/ILS rate"><input type="checkbox" id="usaUsdCheck"${usaUsd ? ' checked' : ''}> Market values in USD</label><div id="chartRangeBar"></div></div><div id="intradayChart"></div>`
+      : marketKey === 'il' ? '<div id="chartRangeBar"></div><div id="intradayChart"></div>' : ''}
     <div id="marketDetailTableArea"></div>
   `;
   if(marketKey === 'us' && typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
@@ -4803,12 +4809,21 @@ function renderMarketDetailHeader(marketKey){
     renderActiveChart();
   }
   if(marketKey === 'us'){
+    const usBadges = () => [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}];
     chartCtx = {
-      holdings: seg.tickers, liveValue: seg.value,
-      fetchIntradayRaw: () => fetchIntradayLogRaw('us'), dayRangeForDate: getUsDayRangeForDate,
-      renderDay: () => renderIntradayChart(usCloseIls !== null ? usCloseIls : seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
-        [{id:'chUsStatus', label:'USA', isOpen: getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']), nextOpenMsFn: getNextUsOpenMs, nextCloseMsFn: getUsCloseMs}], false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'))
+      holdings: seg.tickers,
+      get usd(){ return usaUsd; },
+      get liveValue(){ return usaUsd ? todayUsd : seg.value; },
+      get fmtValue(){ return usaUsd ? fmtUsd0 : undefined; },
+      fetchIntradayRaw: () => usaUsd ? fetchUsdIntradayRaw() : fetchIntradayLogRaw('us'), dayRangeForDate: getUsDayRangeForDate,
+      renderDay: () => usaUsd
+        ? renderIntradayChart(typeof window.lastCloseUSD === 'number' ? window.lastCloseUSD : window.usCloseUsd, fetchUsdIntradayRaw, getUsDayRangeMs(), NaN, getUsDayRangeForDate,
+            usBadges(), false, undefined, priorUsdClose, {fmt: fmtUsd0, liveNow: todayUsd})
+        : renderIntradayChart(usCloseIls !== null ? usCloseIls : seg.value - seg.gain, () => fetchIntradayLogRaw('us'), getUsDayRangeMs(), seg.cost, getUsDayRangeForDate,
+            usBadges(), false, 'us-open', (y,m,d) => findPriorClose(y,m,d,'us'))
     };
+    const uc = document.getElementById('usaUsdCheck');
+    if(uc) uc.addEventListener('change', () => { usaUsd = uc.checked; document.getElementById('customTooltip').style.display = 'none'; renderActiveChart(); });
     renderActiveChart();
   }
   return seg;
@@ -4816,6 +4831,7 @@ function renderMarketDetailHeader(marketKey){
 
 function openMarketDetail(marketKey){
   chartRange = '1D';
+  usaUsd = false;
   const seg = renderMarketDetailHeader(marketKey);
 
   const defaultSortKey = marketKey === 'us' ? 'change' : 'value';
@@ -8100,7 +8116,8 @@ function renderShopping(){
   const top = Object.keys(byStore).sort((a, b) => byStore[b] - byStore[a]).slice(0, 5);
   const groupOf = s => top.includes(s) ? s : 'Other';
   const groups = top.concat(inRange.some(o => !top.includes(o.store)) ? ['Other'] : []);
-  const colorOf = g => g === 'Other' ? 'var(--flat)' : PAY_CAT_COLORS[top.indexOf(g) % PAY_CAT_COLORS.length];
+  const colorOf = g => g === 'Other' ? 'var(--muted)' :   // --flat vanished on the dark panel (31 Oct 2026)
+    PAY_CAT_COLORS[top.indexOf(g) % PAY_CAT_COLORS.length];
   const stores = [...new Set(all.map(o => o.brand))];
   const storeRows = Object.keys(byStore).sort((a, b) => byStore[b] - byStore[a]).map(s => {
     const os = inRange.filter(o => o.brand === s);
@@ -8533,6 +8550,7 @@ function recordWindowCheck(){
   const title = document.getElementById('marketDetailTitle')?.textContent || 'Window';
   // A broker view (Meitav, Psagot) uses that broker's own method on purpose; the rules cover the All view only.
   if(title === 'Portfolio' && typeof portfolioBroker === 'string' && portfolioBroker) return;
+  if(usaUsd && title === 'USA') return;   // dollars on purpose; the rules cover the ₪ view
   const asOf = document.getElementById('mdDayChangeAsOf')?.textContent || '';
   const chartPrev = [...document.querySelectorAll('#intradayChart svg text')].map(t => t.textContent).find(t => /^Prev\. close/.test(t));
   if(!asOf || !chartPrev) return;
@@ -9655,7 +9673,7 @@ function niceTicks(lo, hi, count){
   }
   return best.t;
 }
-async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn){
+async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRangeForDate, statusBadges, roundStartLabel, markerKind, historicalPrevCloseFn, usdMode){
   const el = document.getElementById('intradayChart');
   if(!el) return;
   const seq = ++chartRenderSeq;
@@ -9799,6 +9817,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // the last change after the close in the last 7 days was 18:09), and 55 minutes for the USA (16:00 New York ->
   // 16:55 New York, the USA $ value last changed by 23:54 Israel time in the last 6 days); while it is open, the current value.
   // Also before today's session starts (today's log empty), so the previous session's closing reading is found (22 Oct 2026).
+  let liveNow = usdMode ? usdMode.liveNow : window.liveNow;
   if(!sessionLabel && (log.length || raw.length) && (window.liveMarket === 'il' || window.liveMarket === 'us')){
     const isIl = window.liveMarket === 'il';
     const closed = isIl ? !getTaseStatus() : !getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
@@ -9823,15 +9842,15 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // The closing value is the logged reading at the settle time, at the intraday log's live rate (22 Oct 2026).
     // A broker's own header total stays as it is (renderPortfolioHeader), not the whole-market chart reading (22 Oct 2026).
     const brokerOn = typeof activeBroker === 'function' && !!activeBroker(window.lastRows || []);
-    if(settled && !brokerOn) window.liveNow = settled.v;
+    if(settled && !brokerOn){ liveNow = settled.v; if(!usdMode) window.liveNow = settled.v; }
   }
   // After the session (USA / Portfolio), "now" keeps moving with the rate while the log stopped at the close: the line stays
   // as logged and "now" is its own dot at the end, instead of a vertical jump on the last segment (29 Oct 2026 review). The
   // values and labels are unchanged; TASE's settle (liveNow) still replaces its last reading as before.
   let lineLog = null;
-  if(!sessionLabel && typeof window.liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close){
-    if(Date.now() > dayRange.close && window.liveMarket !== 'il' && Math.abs(window.liveNow - log[log.length-1].v) >= 1) lineLog = log;
-    log = [...log.slice(0, -1), {...log[log.length-1], v: window.liveNow}];
+  if(!sessionLabel && typeof liveNow === 'number' && log.length && log[log.length-1].t <= dayRange.close){
+    if(Date.now() > dayRange.close && window.liveMarket !== 'il' && Math.abs(liveNow - log[log.length-1].v) >= 1) lineLog = log;
+    log = [...log.slice(0, -1), {...log[log.length-1], v: liveNow}];
   }
 
   // Size the viewBox to the container's real width rather than a fixed 900 — on narrow (mobile)
@@ -9859,7 +9878,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   const points = (lineLog || log).map(p=>({x: xFor(p.t), y: yFor(p.v)}));
   const linePath = points.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
 
-  const fmt = n => "₪" + Math.round(n).toLocaleString('en-US');
+  const fmt = usdMode ? usdMode.fmt : n => "₪" + Math.round(n).toLocaleString('en-US');
   const yTickVals = niceTicks(yMin, yMax, 4);
   const yGridLines = yTickVals.map(v=>{
     const y = yFor(v);
@@ -9926,7 +9945,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   let closeCalloutSvg = '';
   if(sessionClosed){
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
-    const settledStamp = t => new Date(t).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false});   // to the minute (29 Oct 2026)
+    const settledStamp = t => new Date(t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});   // "Oct 30, 18:34" (h23: en-US hour12:false can print 24:05), the headers' style (31 Oct 2026)
     const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
     const ty = orderedLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [{y: prevCloseLabelY, v: prevClose}], latest);
@@ -10021,7 +10040,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // real current totals (from the Tracker sheet) — hovering old session data must never
     // overwrite them with a stale figure the tiles don't agree with. The floating tooltip below
     // already shows the hovered point's own value, so nothing is lost by leaving the headline be.
-    if(!sessionLabel) updateHeadlineDisplay(p.v, prevClose);
+    if(!sessionLabel && !usdMode) updateHeadlineDisplay(p.v, prevClose);   // the ₪ headline never takes a dollar point
 
     const ttDate = new Date(p.t).toLocaleString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
     const ttDiff = p.v - prevClose;
@@ -10049,7 +10068,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     guideLine.style.display = 'none';
     hoverDot.style.display = 'none';
     defaultDot.style.display = 'block';
-    if(!sessionLabel) updateHeadlineDisplay(latest, prevClose);
+    if(!sessionLabel && !usdMode) updateHeadlineDisplay(latest, prevClose);
     tt.style.display = 'none';
     xAxisLabels.forEach(lbl => { lbl.style.opacity = '1'; });
   });
@@ -10066,6 +10085,19 @@ const CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
 const CHART_RANGE_LABELS = {'1D':'today', '5D':'past 5 days','1M':'past month','6M':'past 6 months','YTD':'year to date','1Y':'past year','5Y':'past 5 years'};
 let chartRange = '1D';
 let chartCtx = null;
+// USA window, "Market values in USD": the charts in dollars, the holdings' own price moves without the exchange rate (31 Oct 2026).
+let usaUsd = false;
+const fmtUsd0 = n => '$' + Math.round(n).toLocaleString('en-US');
+// A replayed USA session's previous close in dollars: the previous Israel day's last dollar reading (as findPriorClose does in ₪).
+function priorUsdClose(y, m, d){
+  const pad = n => String(n).padStart(2, '0'), key = `${y}-${pad(m)}-${pad(d)}`;
+  const ks = Object.keys(window.usdDayLast || {}).filter(k => k < key).sort();
+  return ks.length ? window.usdDayLast[ks[ks.length - 1]] : null;
+}
+// IntradayLog's dollar column (E) as the chart value.
+async function fetchUsdIntradayRaw(){
+  return (await fetchIntradayLogRaw('us')).filter(p => typeof p.usd === 'number' && p.usd > 0).map(p => ({t: p.t, v: p.usd, usd: p.usd, fx: p.fx}));
+}
 let intradayRecheckTimer = null;
 let _priceHistoryCache = null;
 
@@ -10110,7 +10142,7 @@ async function fetchPriceHistory(){
 
 // One value per PriceHistory date for the given holdings, carrying each column's last close
 // forward over gaps (holidays, dates Google has no close for).
-function buildDailyValueSeries(ph, holdings){
+function buildDailyValueSeries(ph, holdings, inUsd){
   const fx = ph.cols['USDILS'] || [];
   const missing = holdings.filter(h => !ph.cols[h.name]).map(h => h.name);
   // A History symbol that resolved to a different listing (another exchange or currency) shows up
@@ -10139,6 +10171,7 @@ function buildDailyValueSeries(ph, holdings){
       if(!isNaN(x.col[i])) x.last = x.col[i];
       if(t < x.buyMs || isNaN(x.last)) return;
       if(x.isIl){ total += x.shares * x.last / 100; any = true; }
+      else if(inUsd){ total += x.shares * x.last; any = true; }   // the USA window in dollars: no rate
       else if(!isNaN(lastFx)){ total += x.shares * x.last * lastFx; any = true; }
     });
     if(any) points.push({t, v: total});
@@ -10191,13 +10224,21 @@ async function renderRangeChart(ctx, range){
       // Today's intraday series (for USD/ILS: IntradayLog's live rate, about every 5 minutes), plus
       // the live value right now as the last point.
       const todayStr = new Date().toDateString();
-      pts = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now() && new Date(p.t).toDateString() === todayStr);
+      const raw = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now());
+      pts = raw.filter(p => new Date(p.t).toDateString() === todayStr);
       if(pts.length && typeof ctx.liveValue === 'number' && ctx.liveValue > 0) pts.push({t: Date.now(), v: ctx.liveValue});
+      let lastDayNote = '';
+      if(pts.length < 2 && raw.length){
+        // Weekend or before the first reading: the last day with readings, as the other windows show their last session (31 Oct 2026).
+        const lastDay = new Date(Math.max(...raw.map(p => p.t))).toDateString();
+        const day = raw.filter(p => new Date(p.t).toDateString() === lastDay);
+        if(day.length >= 2){ pts = day; lastDayNote = 'Showing the last day with readings — ' + new Date(day[0].t).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'long', month: 'short', day: 'numeric'}); }
+      }
       if(pts.length < 2){
         if(currentRange() === range) el.innerHTML = msgHtml('Today\'s intraday chart starts with the logger\'s first reading (about 09:54), then fills in about every 5 minutes.');
         return;
       }
-      note = ctx.intradayNote || '';
+      note = lastDayNote || ctx.intradayNote || '';
     } else if(ctx.priceColumn){
       const ph = await fetchPriceHistory();
       const col = ph.cols[ctx.priceColumn];
@@ -10229,7 +10270,7 @@ async function renderRangeChart(ctx, range){
       if(days.length < 5) note = `IntradayLog currently holds ${days.length} trading day${days.length===1?'':'s'}; 5D fills in as more days are logged.`;
     } else {
       const ph = await fetchPriceHistory();
-      const {points, missing, mismatched} = buildDailyValueSeries(ph, ctx.holdings);
+      const {points, missing, mismatched} = buildDailyValueSeries(ph, ctx.holdings, !!ctx.usd);
       const today = new Date(); today.setHours(12,0,0,0);
       const series = points.filter(p => new Date(p.t).toDateString() !== today.toDateString());
       if(typeof ctx.liveValue === 'number' && !isNaN(ctx.liveValue)) series.push({t: today.getTime(), v: ctx.liveValue});
@@ -10270,7 +10311,7 @@ async function renderRangeChart(ctx, range){
   // Holdings bought after the range's first point step the value up by their own cost -- that's new
   // money, not gain. The change figures subtract it; the percentage is on start value + new money.
   const firstT = pts[0].t;
-  const buys = ctx.holdings.flatMap(hd => hd.lots || [hd]).map(lot => ({ms: lot.buyDate ? new Date(lot.buyDate).getTime() : NaN, cost: lot.cost}))
+  const buys = ctx.holdings.flatMap(hd => hd.lots || [hd]).map(lot => ({ms: lot.buyDate ? new Date(lot.buyDate).getTime() : NaN, cost: ctx.usd ? lot.costNative : lot.cost}))
     .filter(b => !isNaN(b.ms) && b.ms > firstT && !isNaN(b.cost));
   const newMoneyUntil = t => buys.reduce((s,b) => b.ms <= t ? s + b.cost : s, 0);
   const changeVsStart = p => {
@@ -10631,7 +10672,7 @@ function brokerSplitHtml(rows){
   const dg = brokerDayGains(rows);
   return '<div class="bsplit">' + names.map(b => {
     const d = dg[b];
-    return `<span class="${d >= 0 ? 'up' : 'down'}">${b} ${d >= 0 ? '+' : '-'}${fmt(d)}</span>`;
+    return Math.round(d) === 0 ? `<span class="flat">${b} ${fmt(0)}</span>` : `<span class="${d >= 0 ? 'up' : 'down'}">${b} ${d >= 0 ? '+' : '-'}${fmt(d)}</span>`;
   }).join('<span style="color:var(--muted)">·</span>') + '</div>';
 }
 // Phone only (CSS shows it at <=600px): today's change as one big number. Counts up the first time
@@ -10653,6 +10694,9 @@ function usdSplitGains(rows){
   // From the USA close rate (the 23:59 reading, usCloseFx), as the USA day change is (28 Oct 2026).
   const todayRate = window.lastFxRate, prevRate = typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate;
   if(!usRows.length || !usSessionStartedToday() || !(todayRate > 0) || !(prevRate > 0)) return null;
+  // After Israel midnight New York can still be in the same session, but the day change now starts from the 23:59 close, which
+  // already holds that session's move: nothing left to split (31 Oct 2026: "share prices -₪12,103 · dollar +₪12,103" on a ₪0 day).
+  if(window.usCloseTs && window.usCloseTs.getTime() >= getUsDayRangeMs().open) return null;
   const usdNow = usRows.reduce((a, r) => a + r.valueUsd, 0);
   const usdMove = usRows.reduce((a, r) => a + (r.valueUsd - r.valueUsd / (1 + r.change / 100)), 0);
   const price = usdMove * todayRate, usDay = splitByMarket(rows).us.gain;
@@ -10692,7 +10736,7 @@ function render(rows, totals){
   cardsEl.innerHTML = '';
   const cards = [
     {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
-    {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</span> <span id="todayPrevClose" class="has-help" style="cursor:help; color:var(--muted); font-weight:400;">vs ${fmt(totals.totalValue - totals.dayGain)}</span>`, cls: totals.dayGain>=0?"up":"down"},
+    {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</span> <span id="todayPrevClose" class="has-help" style="cursor:help; color:var(--muted); font-weight:400;">vs ${fmt(totals.totalValue - totals.dayGain)}</span>`, cls: dayChange(totals.dayGain, totals.dayGainPct, fmt).cls},   // ₪0 is grey, not green (31 Oct 2026)
     {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
   ];
