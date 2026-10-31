@@ -1372,7 +1372,10 @@
   /* The page behind an open window stays put (31 Oct 2026: it scrolled along, so closing a window could land elsewhere). */
   body:has(#marketDetailModal.open, #universeModal.open, #diagModal.open){overflow:hidden;}
   #marketDetailBody, #universeCard, #diagModal .diagBody{overscroll-behavior:contain;}
-  .shop-note-btn.ct-note-btn{padding-left:8px; padding-right:8px;}   /* "Edit" was 21 px wide */   /* the "no bill due" dot was 1.2:1 */
+  .shop-note-btn.ct-note-btn{padding-left:8px; padding-right:8px;}
+  /* Desktop's 24 px minimum for standalone links and boxes (31 Oct 2026). */
+  #pfSignOutLink, a.pay-sub{display:inline-flex; align-items:center; min-height:24px;}
+  .wlcheck{width:18px; height:18px;}   /* "Edit" was 21 px wide */   /* the "no bill due" dot was 1.2:1 */
   @media (max-width:600px){
     #intradayChart > .chart-msg:only-child{min-height:200px;}
     .segbar .seg{min-width:0; flex-shrink:1;}
@@ -1903,7 +1906,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793457343";
+const BUILD_ID = "1793457852";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
