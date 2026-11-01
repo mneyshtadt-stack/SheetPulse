@@ -1498,8 +1498,31 @@
     location.reload();
   }
 
+  // Silent renewal (1 Nov 2026): Google's sign-in token lasts an hour. Five minutes before it runs out, when the page comes back
+  // to the front close to (or past) that, and when the server turns an expired one away, Google's automatic sign-in fetches a
+  // fresh one -- so the sign-in screen only appears when the browser can't (signed out of Google, the browser blocks it, or you
+  // signed out here, which turns automatic sign-in off until you sign in yourself). Biometric 30-day sessions are left alone.
+  let pfRenewTimer = null;
+  function pfIsGoogleToken(p){ return !!p && /accounts\.google\.com/.test(p.iss || ''); }
+  function pfStoredPayload(){ try{ return pfDecodeJwt(localStorage.getItem('pf_idToken') || ''); } catch(e){ return null; } }
+  function pfSilentRenew(){
+    if(window.google && google.accounts && google.accounts.id) google.accounts.id.prompt();
+  }
+  function pfScheduleRenew(){
+    clearTimeout(pfRenewTimer);
+    const p = pfStoredPayload();
+    if(!pfIsGoogleToken(p)) return;
+    pfRenewTimer = setTimeout(pfSilentRenew, Math.max(0, p.exp * 1000 - Date.now() - 5 * 60000));
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState !== 'visible') return;
+    const p = pfStoredPayload();
+    if(p ? pfIsGoogleToken(p) && p.exp * 1000 - Date.now() < 5 * 60000 : !document.body.classList.contains('pf-unlocked')) pfSilentRenew();
+  });
+
   function pfHandleGoogleCredential(response){
     const idToken = response.credential;
+    const wasUnlocked = document.body.classList.contains('pf-unlocked');
     let payload;
     try{ payload = pfDecodeJwt(idToken); } catch(e){ payload = null; }
     const errEl = document.getElementById('lockError');
@@ -1511,7 +1534,9 @@
     errEl.textContent = '';
     document.body.classList.add('pf-unlocked');
     pfSetAccountLine(payload, {offerWebAuthn: true});
-    if(typeof refresh === 'function') refresh();
+    pfScheduleRenew();
+    // A renewal while the dashboard is open only swaps the token; a real (or after-expiry) sign-in loads the data.
+    if(!wasUnlocked && typeof refresh === 'function') refresh();
   }
 
   // Native WebAuthn helpers -- base64url is what the wire format uses everywhere (challenge,
@@ -1669,8 +1694,13 @@
       google.accounts.id.initialize({
         client_id: GOOGLE_WEB_CLIENT_ID,
         callback: pfHandleGoogleCredential,
+        auto_select: true,              // sign back in without a click when this browser's Google account already agreed
+        use_fedcm_for_prompt: true,     // Chrome's way of doing that without third-party cookies
+        cancel_on_tap_outside: false,
       });
       google.accounts.id.renderButton(document.getElementById('googleSignInBtn'), {theme:'outline', size:'large', text:'signin_with'});
+      pfScheduleRenew();
+      if(!document.body.classList.contains('pf-unlocked')) pfSilentRenew();   // the sign-in screen: try the automatic sign-in first
     }
     if(pfWebAuthnSupported() && localStorage.getItem('pf_webauthn_device') === '1'){
       const btn = document.getElementById('webauthnLoginBtn');
@@ -1908,7 +1938,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793461455";
+const BUILD_ID = "1793550218";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -1974,6 +2004,7 @@ function fetchViaProxy(url){
     if(res.status === 401){
       localStorage.removeItem('pf_idToken');
       document.body.classList.remove('pf-unlocked');
+      if(typeof pfSilentRenew === 'function') pfSilentRenew();   // expired: try to sign straight back in
     }
     return res;
   });
@@ -6660,7 +6691,7 @@ async function fetchPayments(){
     const r = t[i], payee = String(r[cP] || '').trim(), amount = num(r[cA]);
     if(cMsg >= 0 && /^note/i.test(String(r[cMsg] || '').trim())){
       const ms = payDateMs(r[cD]), text = cPer >= 0 ? String(r[cPer] || '').trim() : '';
-      if(payee && text && !isNaN(ms)) notes.push({payee, ms, text});
+      if(payee && !isNaN(ms)) notes.push({payee, ms, text});   // an empty note row removes the note (1 Nov 2026)
       continue;
     }
     // A row typed in by hand ("manual" in Added or Message id) confirms a bill that has no email;
@@ -7903,8 +7934,10 @@ function renderPayments(){
     input.focus(); input.select();
     const done = text => {
       const n = payNotesGet(), key = noteKey(p);
-      if(text) n[key] = text; else delete n[key];
+      // As in Purchases: removing a sheet note keeps '' here and adds an empty note row so every device drops it.
+      if(text) n[key] = text; else if(p.sheetNote) n[key] = ''; else delete n[key];
       payNotesSet(n);
+      if(!text && p.sheetNote) quietSaveSheet('Payments', [ymdOf(p.charge), p.payee, p.category, '', '', '', '', '', '', 'note', 'note ' + today].join('	'));
       const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
       renderPayments();
       if(body) body.scrollTop = top;
@@ -8043,7 +8076,7 @@ function buildShopOrders(input){
   const orders = new Map(), loose = [];
   const add = (key, e) => {
     // A note (Event "note", the text in Items) only labels its order: it isn't a status, an item or a date.
-    if(e.event === 'note'){ const n = orders.get(key); if(n && e.items) n.note = e.items; return; }
+    if(e.event === 'note'){ const n = orders.get(key); if(n) n.note = e.items; return; }   // an empty one removes it (1 Nov 2026)
     // A price you typed (Event "price": Amount + Currency) for an order whose emails have none (AliExpress paid
     // by card): the latest one is the order's price, and it beats an emailed one.
     if(e.event === 'price'){ const n = orders.get(key); if(n && e.amount > 0) n.handPrice = {amount: e.amount, cur: e.cur || 'ILS'}; return; }
@@ -8435,8 +8468,11 @@ function renderShopping(){
     input.focus(); input.select();
     const done = (text) => {
       const n = shopNotesGet();
-      if(text) n[o.key] = text; else delete n[o.key];
+      // Removing a note that came from the sheet: '' on this device at once, and an empty note row in the sheet so every
+      // device drops it (1 Nov 2026: deleting only the device copy let the sheet's note come straight back).
+      if(text) n[o.key] = text; else if(o.sheetNote) n[o.key] = ''; else delete n[o.key];
       shopNotesSet(n);
+      if(!text && o.sheetNote) quietSaveSheet('Shopping', noteRow(''));
       const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0;
       renderShopping();
       if(body) body.scrollTop = top;
