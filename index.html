@@ -1938,7 +1938,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793550218";
+const BUILD_ID = "1793692025";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5011,8 +5011,12 @@ function populateIlFxTile(){
 // USD/ILS window: the live rate; 1D from IntradayLog's live rate (about every 5 minutes), longer
 // ranges from PriceHistory's USDILS daily closes (5D = the last 5 of them).
 const FX_CHART_RANGES = ['1D','5D','1M','6M','YTD','1Y','5Y','MAX'];
+// "Bank of Israel rate only" (3 Nov 2026): the window shows the representative rates alone -- one a day, so no 1D. Off on open.
+let fxBoiOnly = false;
+const BOI_CHART_RANGES = ['5D','1M','6M','YTD','1Y','5Y','MAX'];
 function openFxDetail(){
   chartRange = '1D';
+  fxBoiOnly = false;
   marketDetailState = {marketKey:'fx', tickers:[], sortKey:'value', sortDir:-1, filter:''};
   document.getElementById('marketDetailBody').innerHTML = '';
   document.getElementById('marketDetailModal').classList.add('open');
@@ -5042,6 +5046,7 @@ async function renderFxDetailHeader(){
   } catch(e){ /* fall back below */ }
   if(!(prevClose > 0) && rate) prevClose = rate - getFxDayChange(rate).change;
   if(marketDetailState.marketKey !== 'fx') return;
+  if(fxBoiOnly){ await renderFxBoiOnly(); return; }
   const change = (rate && prevClose > 0) ? rate - prevClose : null;
   const changePct = change !== null ? change / prevClose * 100 : 0;
   const mvH = change !== null ? fxMove(change, changePct) : null;
@@ -5052,15 +5057,59 @@ async function renderFxDetailHeader(){
       ${change !== null ? `<span class="md-headline-change" style="color:${color};">${mvH.arrow} ${mvH.chgText} (${mvH.pctText})</span>` : ''}
     </div>
     <div class="md-headline-label">Live rate${prevClose > 0 ? ' · vs previous close ' + prevClose.toFixed(4) + (prevCloseTs ? ` (${formatPrevCloseLabel(prevCloseTs)})` : '') : ''}${boiRateLatest() ? ` · Bank of Israel ${boiRateLatest().rate.toFixed(4)}${boiChangeHtml()} (${boiDay(boiRateLatest().date)})` : ''}</div>
-    <div id="chartRangeBar"></div>
+    ${fxBoiToolsHtml()}
     <div id="intradayChart"></div>
   `;
+  wireFxBoiCheck();
   const {y, m, d} = todayInZone('Asia/Jerusalem');
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
     fetchIntradayRaw: fetchIntradayFxRaw, prevClose, prevCloseTs,
     dayStart: zonedTimeToMs(y, m, d, 10, 0, 'Asia/Jerusalem'), dayEnd: zonedTimeToMs(y, m, d, 23, 10, 'Asia/Jerusalem'),
     intradayNote: 'Live rate logged about every 5 minutes (IntradayLog), from 10:00 to 23:10; compared with the previous close.',
     note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
+  renderActiveChart();
+}
+
+function fxBoiToolsHtml(){
+  return `<div class="md-chart-tools"><label class="usd-check" title="Only the Bank of Israel representative rate, one a day (published around 15:30)"><input type="checkbox" id="fxBoiCheck"${fxBoiOnly ? ' checked' : ''}> Bank of Israel rate only</label><div id="chartRangeBar"></div></div>`;
+}
+function wireFxBoiCheck(){
+  const cb = document.getElementById('fxBoiCheck');
+  if(cb) cb.addEventListener('change', () => {
+    fxBoiOnly = cb.checked;
+    if(fxBoiOnly && chartRange === '1D') chartRange = '1M';   // one rate a day: no intraday chart
+    document.getElementById('customTooltip').style.display = 'none';
+    renderFxDetailHeader();
+  });
+}
+// The window with the Bank of Israel representative rates alone: the latest one, its change from the one before
+// (as the Bank shows it) and a daily chart of them.
+async function renderFxBoiOnly(){
+  const a = window.boiRates || await fetchBoiRates();
+  if(marketDetailState.marketKey !== 'fx' || !fxBoiOnly) return;
+  const body = document.getElementById('marketDetailBody');
+  if(!a || !a.length){
+    body.innerHTML = `${fxBoiToolsHtml()}<div class="chart-msg">The Bank of Israel rates (BOIRate tab) couldn't be loaded.</div>`;
+    wireFxBoiCheck(); renderChartRangeBar(); return;
+  }
+  const last = a[a.length-1], prev = a.length > 1 ? a[a.length-2] : null;
+  const change = prev ? last.rate - prev.rate : null, pct = prev ? change / prev.rate * 100 : 0;
+  const mv = change !== null ? fxMove(change, pct) : null;
+  const color = mv ? {up: 'var(--up-ink)', down: 'var(--down-ink)', flat: 'var(--muted)'}[mv.cls] : 'var(--muted)';
+  body.innerHTML = `
+    <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+      <div class="md-headline">${last.rate.toFixed(4)}</div>
+      ${mv ? `<span class="md-headline-change" style="color:${color};">${mv.arrow} ${mv.chgText} (${mv.pctText})</span>` : ''}
+    </div>
+    <div class="md-headline-label">Bank of Israel representative rate · ${boiDay(last.date)}${prev ? ` · vs ${prev.rate.toFixed(4)} (${boiDay(prev.date)})` : ''}${window.lastFxRate ? ` · live rate ${window.lastFxRate.toFixed(4)}` : ''}</div>
+    ${fxBoiToolsHtml()}
+    <div id="intradayChart"></div>`;
+  wireFxBoiCheck();
+  if(chartRange === '1D') chartRange = '1M';
+  const dayMs = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m-1, d, 12).getTime(); };
+  chartCtx = {ranges: BOI_CHART_RANGES, holdings: [], priceColumn: 'BOI', fmtValue: n => n.toFixed(4),   // priceColumn: a rate, so no move bars
+    dailySeries: () => a.map(r => ({t: dayMs(r.date), v: r.rate})),
+    note: 'Bank of Israel representative rates (BOIRate tab), one a day, published around 15:30 Israel time.'};
   renderActiveChart();
 }
 
@@ -10402,7 +10451,11 @@ async function renderRangeChart(ctx, range){
   const seq = el.id === 'intradayChart' ? ++chartRenderSeq : null;   // only the latest window chart load may draw
   let pts, note = '', lastDayPrev = null, lastDayName = '';
   try{
-    if(ctx.priceColumn && range === '1D'){
+    if(ctx.dailySeries){
+      const series = ctx.dailySeries();
+      pts = range === '5D' ? series.slice(-5) : series.filter(p => p.t >= chartRangeStartMs(range));
+      note = ctx.note || '';
+    } else if(ctx.priceColumn && range === '1D'){
       // Today's intraday series (for USD/ILS: IntradayLog's live rate, about every 5 minutes), plus
       // the live value right now as the last point.
       const todayStr = new Date().toDateString();
