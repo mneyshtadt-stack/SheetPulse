@@ -1870,7 +1870,7 @@
       <div id="waterfallCost"></div>
     </div>
     <div class="wf-view" data-wf="current" hidden>
-      <p class="chart-note">Each bar is a holding's own total return %, weighted by how large it is in the portfolio today — this reflects today's sizing, not your original cost, so it won't sum to the same total as the chart above.</p>
+      <p class="chart-note">Each bar is a holding's own total return %, weighted by how large it is in the portfolio today — this reflects today's sizing, not your original cost, so it won't sum to the same total as the Cost-weighted chart.</p>
       <div id="waterfallCurrent"></div>
     </div>
   </section>
@@ -1935,11 +1935,22 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>
+// Every chart places #customTooltip itself and flips it left near the right edge, but nothing stopped the left edge
+// (3 Nov 2026: phone tooltips at x = -239). One clamp for all of them, after each move.
+(() => {
+  const tt = document.getElementById('customTooltip');
+  new MutationObserver(() => {
+    if(tt.style.display === 'none') return;
+    const r = tt.getBoundingClientRect(), x = Math.max(4, Math.min(r.left, innerWidth - r.width - 4)), y = Math.max(4, Math.min(r.top, innerHeight - r.height - 4));
+    if(Math.abs(x - r.left) > 0.5) tt.style.left = x + 'px';
+    if(Math.abs(y - r.top) > 0.5) tt.style.top = y + 'px';
+  }).observe(tt, {attributes: true, attributeFilter: ['style'], childList: true});
+})();
 // A build-timestamp check to work around browsers (mobile Chrome especially) sometimes serving a
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793735876";
+const BUILD_ID = "1793740728";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
