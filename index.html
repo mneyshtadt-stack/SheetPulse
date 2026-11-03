@@ -332,7 +332,8 @@
   .pf-card-val{font-family:var(--mono); font-size:15px; font-weight:600; text-align:right; align-self:start;}
   .pf-card-k{display:flex; flex-direction:column; gap:1px; min-width:0;}
   .pf-card-k small{font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted);}
-  .pf-card-k span{font-family:var(--mono); font-size:13px; font-weight:600; white-space:nowrap;}
+  .pf-card-k span{font-family:var(--mono); font-size:13px; font-weight:600;}   /* wraps before the % on phones with large text */
+  .pf-card-k span > i{font-style:normal; white-space:nowrap;}
   .pf-card-r{text-align:right; align-items:flex-end;}
   .pf-card.open .pf-card-head{background:var(--hover); border-radius:8px;}
   .pf-card-more{padding:4px 0 12px;}
@@ -1938,7 +1939,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793692025";
+const BUILD_ID = "1793734709";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4481,8 +4482,8 @@ function pfCardHtml(r, ccy){
   const ils = n => (n < 0 ? '−' : '') + (ccy || '₪') + Math.round(Math.abs(n)).toLocaleString('en-US');
   const signed = n => (n >= 0 ? '+' : '') + ils(n);
   const pct = n => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
-  const day = !isNaN(r.dayGain) ? `<span class="${r.dayGain >= 0 ? 'up' : 'down'}">${signed(r.dayGain)}${!isNaN(r.change) ? ` (${pct(r.change)})` : ''}</span>` : '<span>n/a</span>';
-  const gain = !isNaN(r.totalGain) ? `<span class="${r.totalGain >= 0 ? 'up' : 'down'}">${signed(r.totalGain)}${!isNaN(r.ret) ? ` (${pct(r.ret)})` : ''}</span>` : '<span>—</span>';
+  const day = !isNaN(r.dayGain) ? `<span class="${r.dayGain >= 0 ? 'up' : 'down'}"><i>${signed(r.dayGain)}</i>${!isNaN(r.change) ? ` <i>(${pct(r.change)})</i>` : ''}</span>` : '<span>n/a</span>';
+  const gain = !isNaN(r.totalGain) ? `<span class="${r.totalGain >= 0 ? 'up' : 'down'}"><i>${signed(r.totalGain)}</i>${!isNaN(r.ret) ? ` <i>(${pct(r.ret)})</i>` : ''}</span>` : '<span>—</span>';
   return `<div class="pf-card" data-ticker="${escAttr(r.name)}">
     <button type="button" class="pf-card-head" aria-expanded="false">
       <span class="pf-card-name"><b>${escAttr(r.name)}</b><small>${escAttr(TICKER_NAME_MAP[r.name] || '')}</small></span>
@@ -4588,7 +4589,7 @@ function renderPortfolioTable(enriched){
   sorted.forEach(r=>{ html += pfHoldingRowsHtml(r); });
 
   html += `</tbody></table>`;
-  html += `<div class="pf-cards">${sorted.map(pfCardHtml).join('')}</div>`;
+  html += `<div class="pf-cards">${sorted.map(r => pfCardHtml(r)).join('')}</div>`;
 
   document.getElementById('marketDetailTableArea').innerHTML = html;
   wirePfGainTips(document.getElementById('marketDetailTableArea'));
