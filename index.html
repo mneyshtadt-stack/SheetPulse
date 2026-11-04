@@ -1966,7 +1966,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793766994";
+const BUILD_ID = "1793768536";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5362,12 +5362,15 @@ function renderPortfolioHeader(){
   // TASE's 18:30 settle + USA's last reading of the day (22 Oct 2026).
   let ilPrevTs = window.ilCloseTs;   // the TASE close the day change is measured from, for the Prev. close label (28 Oct 2026)
   let pfIlAdj = 0;   // TASE's move today that this window counts and the home page doesn't (after the 18:30 settle)
+  let pfParts = null;   // the replayed session's two values by market, for the day change explainer (4 Nov 2026)
   if (!broker && window.ilDaySettle && window.usDayLast && taseLastSessionFreeze()) {   // until TASE opens (22 Oct 2026)
     const dk = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pk = Object.keys(window.ilDaySettle).filter(k => k < dk && window.usDayLast[k] !== undefined).sort();
     if (pk.length >= 2) {
       const a = pk[pk.length - 1], b = pk[pk.length - 2];
       const v1 = window.ilDaySettle[a] + window.usDayLast[a], v0 = window.ilDaySettle[b] + window.usDayLast[b];
+      const fx = window.usDayLastFx || {};
+      pfParts = {now: {il: window.ilDaySettle[a], us: window.usDayLast[a], fx: fx[a], day: a}, prev: {il: window.ilDaySettle[b], us: window.usDayLast[b], fx: fx[b], day: b}};
       totals = {...totals, totalValue: v1, dayGain: v1 - v0, dayGainPct: v0 ? (v1 - v0) / v0 * 100 : 0};
       if (window.ilDaySettleT && window.ilDaySettleT[b]) ilPrevTs = new Date(window.ilDaySettleT[b]);
     }
@@ -5509,7 +5512,13 @@ function renderPortfolioHeader(){
     const ilPart = typeof window.lastCloseIL === 'number' ? window.lastCloseIL : null;
     const usPart = typeof window.lastCloseUS === 'number' ? window.lastCloseUS : null;
     const rate = typeof window.lastCloseFxRate === 'number' ? window.lastCloseFxRate : null;
-    const breakdown = (ilPart !== null && usPart !== null) ? `
+    // A replayed session (markets closed) lists its own two values by market (4 Nov 2026: it listed the home page's close
+    // references, ₪547,832 at 3.1730, under a Nov 2 prev. close they weren't part of). Open markets keep the old lines.
+    const dayLbl = k => new Date(k + 'T12:00:00').toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+    const partLine = (lbl, p) => `<div>${lbl}: TASE ${fmt(p.il)} + USA ${fmt(p.us)}${p.fx ? ` (at USD/ILS ${p.fx.toFixed(4)}, ${dayLbl(p.day)} close)` : ''}</div>`;
+    const breakdown = pfParts ? `
+      <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">${partLine("Today's value", pfParts.now)}${partLine('Prev. close', pfParts.prev)}</div>`
+      : (ilPart !== null && usPart !== null) ? `
       <div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">
         <div>Israeli (TASE): ${fmt(ilPart)}</div>
         <div>USA: ${fmt(usPart)}${rate ? ` (at USD/ILS ${rate.toFixed(4)})` : ''}</div>
