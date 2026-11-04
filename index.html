@@ -1966,7 +1966,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793764894";
+const BUILD_ID = "1793765935";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4822,7 +4822,7 @@ function renderMarketDetailHeader(marketKey){
       seg = {...seg, gain: seg.value - prior, pct: prior ? (seg.value - prior) / prior * 100 : 0};
     }
   }
-  let usPrevOverride = null;
+  let usPrevOverride = null, usPrevFx = null;
   if (marketKey === 'us' && window.usDayLast) {
     const dayKeyOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const hms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
@@ -4833,6 +4833,7 @@ function renderMarketDetailHeader(marketKey){
         const val = window.usDayLast[past[past.length - 1]], prior = window.usDayLast[past[past.length - 2]];
         seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
         usPrevOverride = prior;
+        usPrevFx = (window.usDayLastFx || {})[past[past.length - 2]];
       }
     }
   }
@@ -4863,6 +4864,8 @@ function renderMarketDetailHeader(marketKey){
   // the same figure the USA tooltip shows (22 Oct 2026). TASE keeps today's value minus the day change.
   const usCloseIls = marketKey === 'us' && typeof window.usCloseFx === 'number' && (typeof window.usCloseUsd === 'number' || typeof seg.usdValue === 'number') ? (typeof window.usCloseUsd === 'number' ? window.usCloseUsd : seg.usdValue) * window.usCloseFx : null;
   const prevCloseVal = usPrevOverride !== null ? usPrevOverride : (usCloseIls !== null ? usCloseIls : seg.value - seg.gain);
+  // The rate of the close the day change is measured from (4 Nov 2026: before 07:00 it said 3.1724, Nov 3's, next to Nov 2's close).
+  const prevCloseFx = marketKey !== 'us' ? window.lastCloseFxRate : usPrevOverride !== null ? usPrevFx : window.usCloseFx;
   // USA follows the TASE logic (22 Oct 2026): the chart's closing value comes from the settle reading (23:55 Israel),
   // set in renderIntradayChart; until then the live value. No header override.
 
@@ -4892,7 +4895,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Market value (₪)</div>
         <div class="md-stat-tile-val">${fmt(seg.value)}</div>
         <div class="md-stat-tile-sub ${dcI.cls}">${dcI.text} vs previous close</div>
-        <div class="md-stat-tile-sub">Prev. close ${fmt(prevCloseVal)}${typeof window.usCloseFx === 'number' ? ` (at USD/ILS ${window.usCloseFx.toFixed(4)})` : ''}</div>
+        <div class="md-stat-tile-sub">Prev. close ${fmt(prevCloseVal)}${typeof prevCloseFx === 'number' ? ` (at USD/ILS ${prevCloseFx.toFixed(4)})` : ''}</div>
       </div>
     </div>`;
   }
@@ -4922,7 +4925,7 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Day change</div>
         <div class="md-stat-tile-val ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeVal">${dayChange(seg.gain, seg.pct, fmt).sign}${fmt(seg.gain)}</div>
         <div class="md-stat-tile-sub ${dayChange(seg.gain, seg.pct, fmt).cls}" id="mdDayChangeSub">${dayChange(seg.gain, seg.pct, fmt).pctText}</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)}${typeof window.lastCloseFxRate === 'number' ? ` (at USD/ILS ${(marketKey === 'us' && typeof window.usCloseFx === 'number' ? window.usCloseFx : window.lastCloseFxRate).toFixed(4)})` : ''} · ${dayChangeAsOf}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(prevCloseVal)}${typeof prevCloseFx === 'number' ? ` (at USD/ILS ${prevCloseFx.toFixed(4)})` : ''} · ${dayChangeAsOf}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -9601,7 +9604,8 @@ async function fetchIntradayLogRows(){
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
-  sessionRows.forEach(r => { if (typeof r.us === 'number' && r.us > 0) window.usDayLast[new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'})] = r.us; });
+  window.usDayLastFx = {};   // and its rate, for the "(at USD/ILS …)" note of a replayed session's previous close (4 Nov 2026)
+  sessionRows.forEach(r => { if (typeof r.us === 'number' && r.us > 0) { const k = new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'}); window.usDayLast[k] = r.us; window.usDayLastFx[k] = r.fx; } });
   // The same for the dollars (column E): the previous close's dollar value is the last reading of the previous session,
   // or the one before it until 07:00 Israel time (22 Oct 2026).
   window.usdDayLast = {};
