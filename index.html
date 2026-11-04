@@ -1326,6 +1326,21 @@
     .uc-add-btn, .diagAction{min-height:44px;}
     #winloseScaleNote a{display:inline-flex; align-items:center; min-height:44px;}
   }
+  /* Phone landscape (4 Nov 2026): 375 px tall, so a centred card with a two-line header left ~290 px for the content.
+     Full-screen sheets there too, with the title and subtitle on one line, and the whole Universe sheet scrolls. */
+  @media (max-height:500px) and (min-width:601px){
+    #marketDetailModal, #universeModal, #diagModal{padding:0; align-items:stretch;}
+    #marketDetailCard, #universeCard, #diagCard{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0;}
+    #marketDetailHeader, #universeHeader, #diagHeader{padding:4px 12px 4px 16px; align-items:center;}
+    #marketDetailHeader > div:first-child, #universeHeader > div:first-child, #diagHeader > div:first-child{display:flex; align-items:baseline; column-gap:10px; flex-wrap:wrap; min-width:0;}
+    #marketDetailHeader h3, #universeHeader h3, #diagHeader h3{font-size:17px; margin:0;}
+    #nwYearSwitcher.open{margin:2px 0 4px;}
+    #marketDetailBody{padding:8px 16px 14px;}
+    #marketDetailBody .md-tabs{position:sticky; top:-8px; z-index:3; background:var(--paper);}
+    #universeCard{overflow-y:auto; overflow-x:hidden;}
+    #universeTableWrap{overflow:visible; flex:none;}
+    #universeTable{display:block; max-width:100%; overflow-x:auto;}
+  }
   .pf-compact tr.pf-row .pf-gain-pd, .pf-compact tr.pf-row .pf-gain-pd-val, .pf-compact tr.pf-row .pf-usd{display:none;}
   .pf-tools{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
   .pf-detail-toggle{display:inline-flex; align-items:center; gap:8px; min-height:44px; font-size:13px; color:var(--muted); cursor:pointer;}
@@ -1950,7 +1965,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793740728";
+const BUILD_ID = "1793763276";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5117,9 +5132,12 @@ async function renderFxBoiOnly(){
     ${fxBoiToolsHtml()}
     <div id="intradayChart"></div>`;
   wireFxBoiCheck();
-  if(chartRange === '1D') chartRange = '1M';
   const dayMs = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m-1, d, 12).getTime(); };
-  chartCtx = {ranges: BOI_CHART_RANGES, holdings: [], priceColumn: 'BOI', fmtValue: n => n.toFixed(4),   // priceColumn: a rate, so no move bars
+  // A range the rates don't reach back to only repeats MAX (4 Nov 2026: BOIRate starts Jan 2023, so 5Y = MAX).
+  const since = new Date(dayMs(a[0].date)), yearsBack = r => ({'1Y': 1, '5Y': 5})[r];
+  const ranges = BOI_CHART_RANGES.filter(r => !yearsBack(r) || since <= new Date(new Date().setFullYear(new Date().getFullYear() - yearsBack(r))));
+  if(!ranges.includes(chartRange)) chartRange = chartRange === '1D' ? '1M' : 'MAX';
+  chartCtx = {ranges, holdings: [], priceColumn: 'BOI', fmtValue: n => n.toFixed(4),   // priceColumn: a rate, so no move bars
     dailySeries: () => a.map(r => ({t: dayMs(r.date), v: r.rate})),
     note: 'Bank of Israel representative rates (BOIRate tab), one a day, published around 15:30 Israel time.'};
   renderActiveChart();
