@@ -1966,7 +1966,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793765935";
+const BUILD_ID = "1793766133";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4822,7 +4822,9 @@ function renderMarketDetailHeader(marketKey){
       seg = {...seg, gain: seg.value - prior, pct: prior ? (seg.value - prior) / prior * 100 : 0};
     }
   }
-  let usPrevOverride = null, usPrevFx = null;
+  // usValFx: the rate the headline's shekel value is at (4 Nov 2026, the user asked to see it): the replayed session's close
+  // rate before 07:00, else the latest IntradayLog reading's.
+  let usPrevOverride = null, usPrevFx = null, usValFx = marketKey === 'us' && window.lastLogRow ? window.lastLogRow.fx : null;
   if (marketKey === 'us' && window.usDayLast) {
     const dayKeyOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const hms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
@@ -4834,6 +4836,7 @@ function renderMarketDetailHeader(marketKey){
         seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
         usPrevOverride = prior;
         usPrevFx = (window.usDayLastFx || {})[past[past.length - 2]];
+        usValFx = (window.usDayLastFx || {})[past[past.length - 1]];
       }
     }
   }
@@ -4949,7 +4952,7 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-headline" id="mdHeadlineVal">${inUsd ? fmtUsd(todayUsd) : fmt(seg.value)}</div>
       <span id="mdHeadlineChange" class="md-headline-change"></span>
     </div>
-    <div class="md-headline-label">Market Value${inUsd ? ' (USD)' : ''}${headlineAsOfHtml(isMarketClosed)}</div>
+    <div class="md-headline-label">Market Value${inUsd ? ' (USD)' : ''}${headlineAsOfHtml(isMarketClosed)}${usValFx && isMarketClosed && !inUsd ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· at USD/ILS ${usValFx.toFixed(4)}${usPrevOverride !== null ? ' (close)' : ''}</span>` : ''}</div>
     ${statsHtml}
     ${marketKey === 'us' ? `<div class="md-chart-tools"><label class="usd-check" title="The charts in dollars: your USA holdings' own price moves, without the USD/ILS rate"><input type="checkbox" id="usaUsdCheck"${usaUsd ? ' checked' : ''}> Market values in USD</label><div id="chartRangeBar"></div></div><div id="intradayChart"></div>`
       : marketKey === 'il' ? '<div id="chartRangeBar"></div><div id="intradayChart"></div>' : ''}
