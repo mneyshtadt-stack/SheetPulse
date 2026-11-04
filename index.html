@@ -1966,7 +1966,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1793766133";
+const BUILD_ID = "1793766994";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4802,6 +4802,9 @@ function renderMarketDetailHeader(marketKey){
   const rows = window.lastRows || [];
   const split = snapSplit(rows);
   let seg = marketKey === 'il' ? split.il : split.us;
+  // The last session's holdings and Total gain at its closing rate while the USA is closed (usAtSessionClose).
+  const kUs = marketKey === 'us' ? usCloseScale() : 1;
+  if (kUs !== 1) seg = {...seg, tickers: usAtSessionClose(seg.tickers), totalGain: seg.totalGain * kUs};
   // USA's current value is the latest IntradayLog reading (column D) until today's 23:55 settle, so the window keeps updating
   // to the real end of day; its day change is that value minus the previous close (22 Oct 2026).
   if (marketKey === 'us' && window.lastLogRow && typeof window.lastLogRow.us === 'number' && typeof window.usCloseFx === 'number' && !(window.settleAt)) {
@@ -5209,6 +5212,20 @@ function portfolioRows(){
   const all = window.lastRows || [];
   return rowsForBroker(all, activeBroker(all));
 }
+// While the USA is closed the windows show its last session, so their US holdings are valued at that session's closing rate,
+// not the live one (4 Nov 2026, the user's rule: SMH moved with the rate under "last session"). The home page keeps the live
+// rate, and broker views keep their brokers' own rules. Rows priced in ₪ from $ × live rate (value, cost) scale by close / live.
+function usCloseScale(){
+  if(!usLastSessionFreeze() || !(window.lastFxRate > 0) || !window.usDayLastFx) return 1;
+  const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
+  const k = Object.keys(window.usDayLastFx).filter(d => d < today && window.usDayLastFx[d] > 0).sort().pop();
+  return k ? window.usDayLastFx[k] / window.lastFxRate : 1;
+}
+function usAtSessionClose(rows, broker = null){
+  const k = usCloseScale();
+  return k === 1 || broker ? rows : rows.map(r => ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0) ? r
+    : {...r, value: r.value * k, cost: r.cost * k, ...(isFinite(r.dayGain) ? {dayGain: r.dayGain * k} : {}), ...(isFinite(r.totalGain) ? {totalGain: r.totalGain * k} : {})});
+}
 // A broker's totals from its holdings: the day change is each holding's Day Change % applied to its value.
 function brokerTotals(rows){
   const totalValue = rows.reduce((a, r) => a + r.value, 0);
@@ -5313,7 +5330,7 @@ function renderBrokerFilter(allRows, broker){
     // Every broker has the same ranges as All, 1D first; switching keeps the range you're on.
     document.getElementById('customTooltip').style.display = 'none';
     if(!renderPortfolioHeader()) return;
-    marketDetailState.tickers = portfolioRows();
+    marketDetailState.tickers = usAtSessionClose(portfolioRows(), activeBroker(window.lastRows || []));
     renderMarketDetailTable();
   }));
 }
@@ -5335,6 +5352,11 @@ function renderPortfolioHeader(){
   const pdWay = broker && PURCHASE_DATE_RATE_BROKERS.includes(broker) ? meitavWayDay(rows) : null;
   let totals = broker ? (() => { const t = brokerTotals(rows), d = usdDay ? usdDay.dayGain : brokerDayGains(allRows)[broker];
     return typeof d === 'number' && !isNaN(d) ? {...t, dayGain: d, dayGainPct: (t.totalValue - d) ? d / (t.totalValue - d) * 100 : 0} : t; })() : window.lastTotals;
+  // All: the US holdings' part of Total gain at the last session's closing rate while the USA is closed (usAtSessionClose).
+  if (!broker && usCloseScale() !== 1) {
+    const live = brokerTotals(rows), atClose = brokerTotals(usAtSessionClose(rows)), tg = totals.totalGain + atClose.totalGain - live.totalGain;
+    totals = {...totals, totalGain: tg, totalGainPct: atClose.totalCost ? tg / atClose.totalCost * 100 : 0};
+  }
   const split = snapSplit(rows);
   // Until the USA opens (16:30 Israel) the All view shows the last session against the one before, built from the log:
   // TASE's 18:30 settle + USA's last reading of the day (22 Oct 2026).
@@ -5966,7 +5988,7 @@ function openPortfolioDetail(){
 
   document.getElementById('marketDetailCard').classList.add('wide');
 
-  marketDetailState = {marketKey:'all', tickers: portfolioRows(), sortKey:'change', sortDir:-1, filter:''};
+  marketDetailState = {marketKey:'all', tickers: usAtSessionClose(portfolioRows(), activeBroker(window.lastRows || [])), sortKey:'change', sortDir:-1, filter:''};
   renderMarketDetailTable();
 
   document.getElementById('marketDetailModal').classList.add('open');
@@ -5993,7 +6015,7 @@ function refreshOpenMarketDetailIfNeeded(){
     renderMarketDetailTable();
   } else if(key === 'all'){
     if(!renderPortfolioHeader()) return;
-    marketDetailState.tickers = portfolioRows();
+    marketDetailState.tickers = usAtSessionClose(portfolioRows(), activeBroker(window.lastRows || []));
     renderMarketDetailTable();
   } else if(key === 'fx'){
     renderFxDetailHeader();
