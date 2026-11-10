@@ -1971,7 +1971,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794245714";
+const BUILD_ID = "1794300664";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4823,12 +4823,7 @@ function renderMarketDetailHeader(marketKey){
     if (taseLastSessionFreeze() && pastK.length >= 2) {
       const val = window.ilDaySettle[pastK[pastK.length - 1]], prior = window.ilDaySettle[pastK[pastK.length - 2]];
       seg = {...seg, value: val, gain: val - prior, pct: prior ? (val - prior) / prior * 100 : 0};
-    } else if (!taseLastSessionFreeze() && pastK.length) {
-      // Today's session, open or settled: always against the previous session's settle (26 Oct 2026). The strip measures
-      // from the latest settle (₪0 after 18:30); the window keeps showing today's session until TASE next opens.
-      const prior = window.ilDaySettle[pastK[pastK.length - 1]];
-      seg = {...seg, gain: seg.value - prior, pct: prior ? (seg.value - prior) / prior * 100 : 0};
-    }
+    }   // today's session: split.il already measures from the official previous close (ilCloseIls, 10 Nov 2026)
   }
   // usValFx: the rate the headline's shekel value is at (4 Nov 2026, the user asked to see it): the replayed session's close
   // rate before 07:00, else the latest IntradayLog reading's.
@@ -9161,7 +9156,7 @@ function ilTipHtml(){
   const closeLbl = window.ilCloseTs ? formatPrevCloseLabel(window.ilCloseTs) : marketPrevCloseReferenceLabel(getTaseDayRangeForDate, window.lastCloseILTs);
   return `<div><b>Israel</b> = your TASE holdings in shekels (no conversion).</div>`
     + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(actual) ? ils(actual) : '—'}</span></div>`
-    + `<div style="margin-top:4px;">TASE close, ${closeLbl} (18:30 settle): <b>${hasClose ? ils(closeIls) : 'not recorded yet'}</b></div>`
+    + `<div style="margin-top:4px;">TASE close, ${closeLbl} (official close of each holding): <b>${hasClose ? ils(closeIls) : 'not recorded yet'}</b></div>`
     + `<div style="margin-top:4px; color:var(--muted);">The day change is the change since that close.</div>`;
 }
 // A hover popup only over a part of an element (zone selector): the total-value tooltip shows over its value, not the whole card (22 Oct 2026).
@@ -9631,6 +9626,8 @@ async function fetchIntradayLogRows(){
     // the user's rule; from 23 Oct it switched to today's settle at 18:30, so TASE showed ₪0 all evening).
     const settledK = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort();
     if (settledK.length) { const k = settledK[settledK.length - 1]; window.ilCloseIls = window.ilDaySettle[k]; window.ilCloseTs = new Date(window.ilDaySettleT[k]); }
+    const official = taseOfficialClose(window.lastRows);
+    if (official !== null) window.ilCloseIls = official;
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
@@ -10900,6 +10897,16 @@ function usSessionStartedToday(){
   const nyDay = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', weekday: 'short'}).format(new Date());
   return !['Sat', 'Sun'].includes(nyDay) && Date.now() >= getUsDayRangeMs().open;
 }
+// TASE's previous close (10 Nov 2026, the user's rule): each holding's official previous close (the sheet's prevClose, the
+// one the holding cards measure from), not the 18:30 log reading, which can hold a stale price (9 Nov: IBI.F35 at 73.65 at
+// 18:34, official close 74.08, so Israel's day change was ₪337 off). Before today's session starts, prevClose is still the
+// session before the last, so the close is the current value (₪0 until TASE opens). Null when a holding lacks the prices.
+function taseOfficialClose(rows){
+  const il = (rows || []).filter(r => ISRAELI_TICKERS.includes(r.name));
+  if(!il.length || !il.every(r => r.price > 0 && r.prevClose > 0 && r.value > 0)) return null;
+  if(!taseSessionStartedToday()) return window.lastLogRow && window.lastLogRow.il > 0 ? window.lastLogRow.il : il.reduce((a, r) => a + r.value, 0);
+  return il.reduce((a, r) => a + r.value * r.prevClose / r.price, 0);
+}
 function taseSessionStartedToday(){
   const wd = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'short'}).format(new Date());
   return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) && Date.now() >= getTaseDayRangeMs().open;
@@ -11914,6 +11921,7 @@ async function doRefresh(){
     setStatus('Fetching latest from Google Sheet…', false);
     await loadLogFx();
     const rows = await fetchAndParseWithRetry(2, 2000);
+    window.lastRows = rows;   // the TASE close is built from these rows' official previous closes (taseOfficialClose, 10 Nov 2026)
     // The log sets the USA close rate that the closed-market day change needs, so it lands before the first render (23 Oct 2026).
     await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows), fetchBoiRates(), fetchIntradayLogRows().catch(()=>[])]);
     const totals = await applyTotalFallback(computeTotals(rows));
