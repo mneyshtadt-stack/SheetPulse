@@ -1971,7 +1971,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794300664";
+const BUILD_ID = "1794384138";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4865,7 +4865,7 @@ function renderMarketDetailHeader(marketKey){
     : null;
   const usdChange = (todayUsd !== null && typeof window.lastCloseUSD === 'number') ? todayUsd - window.lastCloseUSD : null;
   const usdChangePct = (usdChange !== null && window.lastCloseUSD) ? usdChange / window.lastCloseUSD * 100 : null;
-  const dayChangeAsOf = marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate, marketKey === 'il' ? window.lastCloseILTs : window.lastCloseUSTs);
+  const dayChangeAsOf = marketKey === 'il' && window.ilCloseOfficial && !taseLastSessionFreeze() && window.ilCloseTs ? ilCloseLabel() : marketPrevCloseReferenceLabel(marketKey === 'il' ? getTaseDayRangeForDate : getUsDayRangeForDate, marketKey === 'il' ? window.lastCloseILTs : window.lastCloseUSTs);
   // The USA previous close is the closing reading (the 23:55 rule): the USA $ value × the rate of that reading,
   // the same figure the USA tooltip shows (22 Oct 2026). TASE keeps today's value minus the day change.
   const usCloseIls = marketKey === 'us' && typeof window.usCloseFx === 'number' && (typeof window.usCloseUsd === 'number' || typeof seg.usdValue === 'number') ? (typeof window.usCloseUsd === 'number' ? window.usCloseUsd : seg.usdValue) * window.usCloseFx : null;
@@ -5424,7 +5424,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
-          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
+          : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${ilPrevTs === window.ilCloseTs ? ilCloseLabel() : formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
@@ -8959,7 +8959,8 @@ async function syncGaugeToIntraday(split, totals){
       ilStripEl.textContent = dc.text;
     }
   }
-  const ilRaw = rows.map(r => ({t: r.t, v: r.il}));
+  // Not the opening reading, written from 09:54 but stamped 10:00:00 (IntradayLogging.gs): before then the cell said "as of 10:00" (11 Nov 2026).
+  const ilRaw = rows.map(r => ({t: r.t, v: r.il})).filter(p => p.t <= Date.now());
   const usRaw = rows.map(r => ({t: r.t, v: r.us})).filter(p => typeof p.v === 'number');
   const ilPoint = pickLatestGaugePoint(ilRaw, getTaseDayRangeMs(), getTaseDayRangeForDate);
   const usPoint = pickLatestGaugePoint(usRaw, getUsDayRangeMs(), getUsDayRangeForDate);
@@ -9153,10 +9154,10 @@ function ilTipHtml(){
   const ils = n => '₪' + Math.round(n).toLocaleString('en-US');
   const hasClose = typeof closeIls === 'number' && isFinite(closeIls);
   const col = hasClose ? vsCloseColour(actual, closeIls, 0) : 'inherit';
-  const closeLbl = window.ilCloseTs ? formatPrevCloseLabel(window.ilCloseTs) : marketPrevCloseReferenceLabel(getTaseDayRangeForDate, window.lastCloseILTs);
+  const closeLbl = window.ilCloseTs ? ilCloseLabel() : marketPrevCloseReferenceLabel(getTaseDayRangeForDate, window.lastCloseILTs);
   return `<div><b>Israel</b> = your TASE holdings in shekels (no conversion).</div>`
     + `<div style="margin-top:4px;">Actual: <span style="color:${col}; font-weight:700;">${isFinite(actual) ? ils(actual) : '—'}</span></div>`
-    + `<div style="margin-top:4px;">TASE close, ${closeLbl} (official close of each holding): <b>${hasClose ? ils(closeIls) : 'not recorded yet'}</b></div>`
+    + `<div style="margin-top:4px;">TASE ${window.ilCloseOfficial ? closeLbl.replace('official close', 'official close of each holding') : 'close, ' + closeLbl}: <b>${hasClose ? ils(closeIls) : 'not recorded yet'}</b></div>`
     + `<div style="margin-top:4px; color:var(--muted);">The day change is the change since that close.</div>`;
 }
 // A hover popup only over a part of an element (zone selector): the total-value tooltip shows over its value, not the whole card (22 Oct 2026).
@@ -9508,6 +9509,13 @@ function currentSessionDateLabel(){
 function headlineAsOfHtml(isClosed){
   return isClosed ? ` <span style="text-transform:none; letter-spacing:normal; font-weight:400;">· as of ${currentSessionDateLabel()}</span>` : '';
 }
+// TASE's previous close label: "official close, Nov 9" when the close is the holdings' official closes (10 Nov 2026),
+// else the settle reading's time.
+function ilCloseLabel(withSeconds){
+  const d = window.ilCloseTs;
+  if(!(d instanceof Date)) return '';
+  return window.ilCloseOfficial ? 'official close, ' + d.toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric'}) : formatPrevCloseLabel(d, withSeconds);
+}
 function formatPrevCloseLabel(d, withSeconds){
   // The closing reading's time, e.g. "Oct 20, 23:59" -- to the minute on screen (29 Oct 2026 review); the (i) cards pass
   // withSeconds for the exact reading, "Oct 20, 23:59:16".
@@ -9628,6 +9636,7 @@ async function fetchIntradayLogRows(){
     if (settledK.length) { const k = settledK[settledK.length - 1]; window.ilCloseIls = window.ilDaySettle[k]; window.ilCloseTs = new Date(window.ilDaySettleT[k]); }
     const official = taseOfficialClose(window.lastRows);
     if (official !== null) window.ilCloseIls = official;
+    window.ilCloseOfficial = official !== null;
   }
   // Each Israel day's last USA reading (₪), the day's close for a replayed session's previous close (22 Oct 2026).
   window.usDayLast = {};
@@ -11070,7 +11079,7 @@ function render(rows, totals){
   cardsEl.title = 'View all holdings';
   const prevHelp = document.getElementById('todayPrevClose');
   if(prevHelp) attachHoverTooltip(prevHelp, () => `<b>Previous close ${fmt(totals.totalValue - totals.dayGain)}</b>`
-    + (window.usCloseTs ? (window.ilCloseTs ? `TASE ${formatPrevCloseLabel(window.ilCloseTs, true)}<br>` : '') + `USA ${formatPrevCloseLabel(window.usCloseTs, true)}` : prevCloseReferenceLabel())
+    + (window.usCloseTs ? (window.ilCloseTs ? `TASE ${ilCloseLabel(true)}<br>` : '') + `USA ${formatPrevCloseLabel(window.usCloseTs, true)}` : prevCloseReferenceLabel())
     + (typeof window.usCloseFx === 'number' ? `<br>at USD/ILS ${window.usCloseFx.toFixed(4)}` : ''));
   // The Holdings card opens Market Universe (one click or two), never Portfolio; the other cards open Portfolio (23 Oct 2026).
   cardsEl.onclick = (e) => {
