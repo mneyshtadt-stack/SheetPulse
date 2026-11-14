@@ -2036,7 +2036,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794626768";
+const BUILD_ID = "1794628887";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5678,12 +5678,14 @@ function perfFlows(ph, rows, left){
     if(k < 0) return null;
     let px = NaN, rate = NaN;
     for(let i = k; i >= 0 && (isNaN(px) || isNaN(rate)); i--){ if(isNaN(px) && !isNaN(col[i])) px = col[i]; if(isNaN(rate) && !isNaN(fx[i])) rate = fx[i]; }
-    const atClose = ISRAELI_TICKERS.includes(h.name) ? l.shares * px / 100 : l.shares * px * rate;
-    // A purchase is the money actually paid, commission included (the owner's rule, 14 Nov 2026), so the Gain here matches
-    // the holding's total gain: DBC showed +₪77 against a total return of -₪28, the gap being three ₪35 commissions.
+    const il = ISRAELI_TICKERS.includes(h.name), atClose = il ? l.shares * px / 100 : l.shares * px * rate;
+    // A purchase is the shekels actually paid, commission included (the owner's rule, 14 Nov 2026): a TASE lot's cost, or
+    // a USA lot's dollar cost x that day's USD/ILS. NOT l.cost for a USA lot: that is its dollar cost at TODAY's rate
+    // (the app's total gain leaves the currency out), which moved ₪21,000 of 2026's gain into other years.
     // A sale, and a lot bought before the price history starts, keep that day's close (a sale lot's cost is the cost
     // basis it removed, not its proceeds).
-    const v = l.shares > 0 && l.cost > 0 && ph.dates.length && ms >= ph.dates[0] ? l.cost : atClose;
+    const paid = il ? l.cost : l.costNative * rate;
+    const v = l.shares > 0 && paid > 0 && ph.dates.length && ms >= ph.dates[0] ? paid : atClose;
     return isNaN(v) ? null : {ms: k0 < 0 ? ms : ph.dates[k], v};
   })).filter(Boolean);
 }
@@ -5702,7 +5704,7 @@ function perfMonths(points, flows){
     const span = isFinite(from) ? end.t - from : 0;
     const weighted = inMonth.reduce((a, b) => a + b.cost * (span > 0 ? (end.t - b.ms) / span : 1), 0);
     const base = startV + weighted, gain = end.v - startV - newMoney;
-    out.push({y: Math.floor(k / 100), m: k % 100, startV, endV: end.v, newMoney, gain, ret: base > 0 ? gain / base * 100 : NaN});
+    out.push({y: Math.floor(k / 100), m: k % 100, startV, endV: end.v, newMoney, inflow: inMonth.reduce((a, b) => a + Math.max(0, b.cost), 0), gain, ret: base > 0 ? gain / base * 100 : NaN});
   });
   return out;
 }
@@ -5748,11 +5750,19 @@ async function renderPerformanceTab(opts){
     return `background:var(--${side}-${k}); color:var(--${side}-ink-${k});`;
   };
   const yearOf = y => { const ms = months.filter(m => m.y === y);
-    return {ms, ret: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain: ms.reduce((a, m) => a + m.gain, 0), newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
+    // The year's % is on the money that was in it (the owner's rule, 14 Nov 2026): gain ÷ (value at the start of the year +
+    // money added during it), so it sits with the ₪ Gain beside it. The months chained (`chain`) stays in the tooltip: it
+    // showed +73% for 2025, whose best months came while little money was invested (on the money: +6%).
+    // It is in real shekels, so for a USA holding it differs from the heatmap's total return, which leaves the currency
+    // out (DBC: +₪16 here, -₪28 there).
+    const gain = ms.reduce((a, m) => a + m.gain, 0), startV = ms.length ? ms[0].startV : 0, added = ms.reduce((a, m) => a + m.inflow, 0), base = startV + added;
+    return {ms, ret: base > 0 ? gain / base * 100 : NaN, chain: (ms.reduce((a, m) => a * (1 + m.ret / 100), 1) - 1) * 100, gain, startV, added, base, newMoney: ms.reduce((a, m) => a + m.newMoney, 0)}; };
   const tips = {};
   const body = years.map(y => {
     const yr = yearOf(y);
-    tips['y' + y] = `<b>${y}${y === nowY ? ' so far' : ''}</b>Return ${pc(yr.ret)} (its months chained)<br>Gain ${fmt(yr.gain)}<br>Net new money ${fmt(yr.newMoney)}`;
+    tips['y' + y] = `<b>${y}${y === nowY ? ' so far' : ''}</b>On your money: <span class="${yr.ret >= 0 ? 'up' : 'down'}">${pc(yr.ret)}</span><br>= gain ${fmt(yr.gain)} ÷ ${val(yr.base)} (${val(yr.startV)} at the start of the year + ${val(yr.added)} added)`
+      + `<div style="margin-top:6px;">Months chained: ${pc(yr.chain)}</div><div style="color:var(--muted); font-size:12px;">How the holdings did month by month, whatever amount was invested. It differs when money went in during the year: a good month on little money and a bad month on more money count the same in the chain, but not in shekels.</div>`
+      + (yr.newMoney !== yr.added ? `<div style="margin-top:6px;">Net new money ${fmt(yr.newMoney)} (after sales)</div>` : '');
     return `<tr><td class="perf-y">${y}</td>` + MON.map((_, m) => {
       const x = yr.ms.find(q => q.m === m);
       if(!x) return '<td class="perf-empty"></td>';
@@ -5765,13 +5775,15 @@ async function renderPerformanceTab(opts){
   const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
   const upN = done.filter(m => m.ret > 0).length;
   area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''} <span class="has-help perf-how" style="cursor:help; color:var(--muted);">How it's calculated</span></div>
-    <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th>Year</th><th>Gain</th></tr></thead><tbody>${body}</tbody></table></div>
+    <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th data-tip="yearHead" class="has-help" style="cursor:help;">Year</th><th data-tip="gainHead" class="has-help" style="cursor:help;">Gain</th></tr></thead><tbody>${body}</tbody></table></div>
     <div class="perf-note">* = month so far.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
+  tips.yearHead = `<b>Year %</b>What you made on your money: the year's gain ÷ (the value at the start of the year + the money you added during it).<div style="margin-top:6px; color:var(--muted); font-size:12px;">Money added late in a year still counts in full, so that year's % looks smaller. It is not the months multiplied together; that figure is in each year's tooltip.</div>`;
+  tips.gainHead = `<b>Gain</b>The year's gain in shekels: end value − start value − net new money. A purchase counts at the shekels you paid that day, commission included (a USA purchase: its dollar cost × that day's USD/ILS).<div style="margin-top:6px; color:var(--muted); font-size:12px;">So it includes the dollar's move against the shekel since each purchase. The heatmap's "Total return" leaves the currency out (it prices your dollar cost at today's rate), which is why the two can differ for a USA holding, even in sign.</div>`;
   area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
   const pw = area.querySelector('.perf-wrap'); if(pw) pw.scrollLeft = pw.scrollWidth;   // Year and Gain first in view (31 Oct 2026)
   // The method lives in the (i) card, not a paragraph under the grid (29 Oct 2026 redesign).
   const how = area.querySelector('.perf-how');
-  if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (a purchase adds what you paid, commission included; a sale takes out its value at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A year chains its months, so its % follows the months' % even when its ₪ gain came mostly from a bigger portfolio.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
+  if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (a purchase adds the shekels you paid that day, commission included; a sale takes out its value at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A month's % is on the money that was in it that month.<br>A year's % is on your money too: its gain ÷ (the value at the start of the year + the money added during it). Each year's tooltip also shows its months chained, which ignores how much was invested.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
   wirePicker();
 }
 
