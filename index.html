@@ -2036,7 +2036,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794625999";
+const BUILD_ID = "1794626768";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5663,8 +5663,8 @@ function applyPortfolioTab(){
 // ---- Performance tab (Portfolio window, 29 Oct 2026) ----
 // Each month's return of the holdings shown (All or one broker): the daily value series the MAX chart uses
 // (buildDailyValueSeries: current share counts x each day's close, from each lot's Buy Date) plus today's live
-// value. Money in and out is each purchase or sale (a lot with negative shares) valued the way the series counts it
-// that day (shares x that day's close, in ₪), so it isn't counted as gain or loss:
+// value. Money in is each purchase at what was paid (its lot's cost, commission included: perfFlows); money out is each
+// sale (a lot with negative shares) at shares x that day's close, in ₪:
 // return = (end - start - net new money) / (start + new money weighted by the part of the month it was in). A year is
 // its months chained. Holdings sold
 // before the Transactions tab starts and dividends (paid as cash) are not in it.
@@ -5678,7 +5678,12 @@ function perfFlows(ph, rows, left){
     if(k < 0) return null;
     let px = NaN, rate = NaN;
     for(let i = k; i >= 0 && (isNaN(px) || isNaN(rate)); i--){ if(isNaN(px) && !isNaN(col[i])) px = col[i]; if(isNaN(rate) && !isNaN(fx[i])) rate = fx[i]; }
-    const v = ISRAELI_TICKERS.includes(h.name) ? l.shares * px / 100 : l.shares * px * rate;
+    const atClose = ISRAELI_TICKERS.includes(h.name) ? l.shares * px / 100 : l.shares * px * rate;
+    // A purchase is the money actually paid, commission included (the owner's rule, 14 Nov 2026), so the Gain here matches
+    // the holding's total gain: DBC showed +₪77 against a total return of -₪28, the gap being three ₪35 commissions.
+    // A sale, and a lot bought before the price history starts, keep that day's close (a sale lot's cost is the cost
+    // basis it removed, not its proceeds).
+    const v = l.shares > 0 && l.cost > 0 && ph.dates.length && ms >= ph.dates[0] ? l.cost : atClose;
     return isNaN(v) ? null : {ms: k0 < 0 ? ms : ph.dates[k], v};
   })).filter(Boolean);
 }
@@ -5766,7 +5771,7 @@ async function renderPerformanceTab(opts){
   const pw = area.querySelector('.perf-wrap'); if(pw) pw.scrollLeft = pw.scrollWidth;   // Year and Gain first in view (31 Oct 2026)
   // The method lives in the (i) card, not a paragraph under the grid (29 Oct 2026 redesign).
   const how = area.querySelector('.perf-how');
-  if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (purchases add and sales take out money at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A year chains its months, so its % follows the months' % even when its ₪ gain came mostly from a bigger portfolio.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
+  if(how) attachHoverTooltip(how, () => `<b>How it's calculated</b>Each month: gain = end value − start value − net new money (a purchase adds what you paid, commission included; a sale takes out its value at that day's close).<br>% = gain ÷ (start value + new money for the part of the month it was invested).<br>A year chains its months, so its % follows the months' % even when its ₪ gain came mostly from a bigger portfolio.<div style="margin-top:6px; color:var(--muted); font-size:12px;">Values are your Transactions' share counts × each day's close (the same history as the MAX chart); dividends, paid as cash, aren't included.</div>`);
   wirePicker();
 }
 
