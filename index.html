@@ -2036,7 +2036,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794623858";
+const BUILD_ID = "1794624861";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8997,13 +8997,13 @@ function renderGauge(rows, totals){
 function pickLatestGaugePoint(raw, todayRange, dayRangeForDate){
   const todayLog = raw.filter(p => p.t >= todayRange.open && p.t <= todayRange.close);
   if(todayLog.length) return todayLog[todayLog.length-1];
-  if(!raw.length) return null;
-  let maxT = -Infinity;
-  for(const p of raw) if(p.t > maxT) maxT = p.t;
-  const dt = new Date(maxT);
-  const fbRange = dayRangeForDate(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
-  const fbLog = raw.filter(p => p.t >= fbRange.open && p.t <= fbRange.close);
-  return fbLog.length ? fbLog[fbLog.length-1] : null;
+  // The newest row inside its own day's session (rows are oldest first). Not "the newest row's day": a row logged just
+  // after midnight (00:04) belongs to no session, and the cell then lost its "as of" line until 10:00 (14 Nov 2026).
+  for(let i = raw.length - 1; i >= 0; i--){
+    const dt = new Date(raw[i].t), r = dayRangeForDate(dt.getFullYear(), dt.getMonth()+1, dt.getDate());
+    if(raw[i].t >= r.open && raw[i].t <= r.close) return raw[i];
+  }
+  return null;
 }
 
 // While a market is open, its intraday log updates every minute — snappier than waiting for the
