@@ -766,12 +766,12 @@
   .pay-grid thead th{font-weight:500; color:var(--muted); padding:0 0 2px; text-align:center; white-space:nowrap;}
   .pay-grid thead th.pay-now{color:var(--accent); font-weight:700;}
   .pay-grid thead th:first-child, .pay-grid th.pay-name{position:sticky; left:0; z-index:1; background:var(--panel); text-align:left;}
-  .pay-grid th.pay-name{font-weight:500; padding-right:10px; white-space:nowrap;}
+  .pay-grid th.pay-name{font-weight:500; padding-right:10px; max-width:200px;}
   .pay-name-in{display:flex; align-items:center;}
   .pay-name-in b{display:block; font-weight:500; font-size:13px; color:var(--ink);}
   .pay-name-in small{display:block; font-size:12px; color:var(--muted);}
   .pay-name-in small i{font-style:normal;}
-  .pay-cell{min-width:52px; height:38px; border-radius:6px; text-align:center; vertical-align:middle; font-variant-numeric:tabular-nums; cursor:help; line-height:1.15;}
+  .pay-cell{min-width:46px; height:38px; border-radius:6px; text-align:center; vertical-align:middle; font-variant-numeric:tabular-nums; cursor:help; line-height:1.15;}
   .pay-cell.paid{background:var(--up-1); color:var(--tile-ink-up);}
   .pay-cell.late{background:var(--up-1); color:var(--warn-ink); box-shadow:inset 0 0 0 2px var(--warn);}
   .pay-cell.due{color:var(--ink); box-shadow:inset 0 0 0 2px var(--accent); font-weight:600;}
@@ -2047,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794848705";
+const BUILD_ID = "1794849149";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3368,7 +3368,7 @@ async function applyTotalFallback(totals){
       value = last.il + last.us;
       const d = new Date(last.t);
       const time = d.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
-      source = `the last IntradayLog value (${d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString('en-GB', {timeZone:'Asia/Jerusalem', day:'2-digit', month:'2-digit'}) + ' ' + time})`;
+      source = `the last IntradayLog value (${d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString('en-US', {timeZone:'Asia/Jerusalem', day:'numeric', month:'short'}) + ', ' + time})`;
     }
   }
   const fallback = {missing: missing.map(m => m.ticker), partialValue: totals.totalValue, source, applied: !isNaN(value)};
@@ -6403,7 +6403,7 @@ function buildNwTrendChart(opts){
   return `
     <div class="chart-title">${title}</div>
     <svg id="${svgId}" viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
-      <path d="${areaPath}" fill="${color}" opacity="0.12"/>
+
       <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
       ${dots}
       ${labels}
@@ -7105,7 +7105,7 @@ function renderContracts(area){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const fmt2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short', year: 'numeric'});
   const DAY = 86400000, now = Date.now();
   if(!contractsList){
     area.innerHTML = `<div class="pay-top">${payViewSwitch()}</div><div class="pm-note">Loading contracts…</div>`;
@@ -7405,7 +7405,7 @@ function renderReceipts(area){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const short = n => n >= 99500 ? '₪' + Math.round(n / 1000) + 'K' : n >= 1000 ? '₪' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : '₪' + Math.round(n);
-  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short', year: 'numeric'});
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const money = (n, cur) => (cur === 'USD' ? '$' : cur === 'EUR' ? '€' : '₪') + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -7447,7 +7447,7 @@ function renderReceipts(area){
   if(receiptsYear !== 'all' && !years.includes(receiptsYear)) receiptsYear = years.includes(thisY) ? thisY : (years[0] || 'all');
   const allYears = receiptsYear === 'all';
   const q = receiptsQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const hay = x => [x.product, x.from, x.subject, x.files, x.notes, RECEIPT_KIND_LABEL[x.kind] || '', day(x.ms), x.amount > 0 ? x.amount.toFixed(2) : ''].join(' ').toLowerCase();
+  const hay = x => [x.product, x.from, x.subject, x.files, x.notes, RECEIPT_KIND_LABEL[x.kind] || '', day(x.ms), new Date(x.ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}), x.amount > 0 ? x.amount.toFixed(2) : ''].join(' ').toLowerCase();
   // Only big buys ask what they were for; a service or transport email's subject already says it.
   const isAsk = x => !x.product && x.kind !== 'skip' && rcGroupOf(x) === 'product';
   const ask = all.filter(isAsk), dups = all.filter(x => x.dup), noAmt = all.filter(x => !(x.amount > 0) && x.kind !== 'skip');
@@ -7918,8 +7918,8 @@ function renderPayments(){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const fmt2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
-  const dayShort = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short', year: 'numeric'});
+  const dayShort = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short'});
   const monthKey = ms => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
   const monthLabel = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'short', year: '2-digit'});
   const monthName = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'long'}) + (Math.floor(k / 12) !== new Date().getFullYear() ? ' ' + Math.floor(k / 12) : '');
@@ -7963,8 +7963,9 @@ function renderPayments(){
   const paidPrev = sum(past.filter(p => monthKey(p.charge) === thisM - 1));
   const last12 = sum(past.filter(p => p.charge > yearAgo)), prev12 = sum(past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo));
   // Review 16 Nov 2026: compare with the year before only when the records cover most of it (a partial year gave +1,308%).
-  const fullPrev = arr => arr.some(p => p.charge <= twoYearsAgo + 60 * 86400000);
-  const vs12 = prev12 && fullPrev(past) ? (last12 - prev12) / prev12 * 100 : NaN;
+  // The earlier year must be about as well recorded as this one: 10 of its months for the total, 60% as many bills for a category.
+  const prevArr = past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo);
+  const vs12 = prev12 && new Set(prevArr.map(p => monthKey(p.charge))).size >= 10 ? (last12 - prev12) / prev12 * 100 : NaN;
   const dChg = sum(paidNow) - paidPrev;
   const cards = `
     <div class="pay-cards">
@@ -8016,14 +8017,14 @@ function renderPayments(){
     const amts = y.map(p => p.amount), same = amts.length && amts.every(a => Math.abs(a - amts[0]) < 0.5);
     return {cat, payees: [...new Set(all.map(p => p.payee))].join(', '), n: y.length, total: sum(y),
       per: y.length ? (same ? fmt(amts[0]) + ' each' : fmt(sum(y) / y.length) + ' avg') : '',
-      vs: yPrev.length && fullPrev(all) ? (sum(y) - sum(yPrev)) / sum(yPrev) * 100 : NaN};
+      vs: yPrev.length && yPrev.length >= 0.6 * y.length ? (sum(y) - sum(yPrev)) / sum(yPrev) * 100 : NaN};
   }).sort((a, b) => b.total - a.total);
   const catHtml = catRows.map(r => `<div class="pay-cat-item">${dot(r.cat)}
       <div class="pay-cat-main"><b>${esc(r.cat)}</b><small>${esc(r.payees)} · ${r.n} bill${r.n === 1 ? '' : 's'}${r.per ? ' · ' + r.per : ''}</small></div>
       <div class="pay-cat-num"><b>${fmt(r.total)}</b><small class="${isNaN(r.vs) ? '' : r.vs > 0.5 ? 'down' : r.vs < -0.5 ? 'up' : ''}">${isNaN(r.vs) ? 'no year before' : (r.vs > 0 ? '+' : r.vs < 0 ? '−' : '') + Math.abs(r.vs).toFixed(0) + '% vs year before'}</small></div></div>`).join('');
 
   // All bills: table on wider screens, cards on phones; category chips filter both.
-  const billHay = p => [p.payee, p.category, p.period, p.card, p.note || p.sheetNote || '', day(p.charge), p.amount > 0 ? p.amount.toFixed(2) + ' ' + fmt2(p.amount) : '', p.routine ? 'routine' : '', p.manual ? 'marked paid' : ''].join(' ');
+  const billHay = p => [p.payee, p.category, p.period, p.card, p.note || p.sheetNote || '', day(p.charge), new Date(p.charge).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}), p.amount > 0 ? p.amount.toFixed(2) + ' ' + fmt2(p.amount) : '', p.routine ? 'routine' : '', p.manual ? 'marked paid' : ''].join(' ');
   const shown = (paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list).filter(p => !paymentsQuery.trim() || searchMatch(paymentsQuery, billHay(p)));
   const pill = p => p.manual ? `<span class="pay-pill mark" title="Marked paid: no bill for this month came by email; you marked it paid in Bill check.">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.routine ? `<span class="pay-pill ${p.charge > now ? 'due' : 'paid'}" title="Routine: entered once by you as a routine bill (no email for it), so this charge is assumed from your schedule (amount, day, how often), not confirmed by a bill.">routine${p.charge > now ? ' · to be charged' : ''}${p.local ? ' · this device' : ''}</span>` : p.charge > now ? '<span class="pay-pill due" title="To be charged: its bill arrived by email; the card charge date is still ahead.">to be charged</span>' : '<span class="pay-pill paid" title="Paid: confirmed by its own bill, emailed to you and read from Gmail (actual amount, period and charge date).">paid</span>';
   const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
@@ -8508,8 +8509,8 @@ function renderShopping(){
   const fmt = n => '₪' + Math.round(n).toLocaleString('en-US');
   const sym = {USD: '$', EUR: '€', GBP: '£', ILS: '₪'};
   const money = (n, cur) => (sym[cur] || '') + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + (sym[cur] ? '' : ' ' + cur);
-  const day = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'});
-  const dayShort = ms => new Date(ms).toLocaleDateString('en-GB', {day: '2-digit', month: 'short'});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short', year: 'numeric'});
+  const dayShort = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short'});
   const ymd = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const monthKey = ms => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
   const monthLabel = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-US', {month: 'short', year: '2-digit'});
@@ -8555,7 +8556,7 @@ function renderShopping(){
     .sort((a, b) => (SHOP_STAGE[b.status] - SHOP_STAGE[a.status]) || b.last - a.last);
   const pickup = open.filter(o => o.status === 'pickup'), moving = open.filter(o => o.status !== 'pickup');
   const issues = open.filter(o => o.status === 'issue');
-  shopOrdersBadge = pickup.length ? {t: pickup.length + ' to pick up', c: 'warn'} : moving.length ? {t: moving.length + ' on the way', c: ''} : null;
+  shopOrdersBadge = pickup.length ? {t: pickup.length + ' to pick up', c: 'warn'} : moving.length ? {t: moving.length + ' open', c: ''} : null;
   const spent = arr => arr.reduce((a, o) => a + o.ils, 0);
   const yearAgo = now - 365 * DAY, thisYear = new Date(new Date().getFullYear(), 0, 1).getTime();
   // Review 16 Nov 2026: the same 12 calendar months as the chart and By store (a rolling 365 days gave a total the list didn't add up to).
@@ -8569,8 +8570,8 @@ function renderShopping(){
       <button type="button" class="pay-card shop-card-link${pickup.length ? ' wait' : ''}${shoppingDeliv === 'pickup' ? ' sel' : ''}" data-deliv="pickup" title="Show these orders"><div class="pay-card-label">Waiting for pickup${pickup.length ? ' · ' + pickup.length : ''}</div>
         <div class="pay-card-val">${pickup.length ? [...new Set(pickup.map(o => o.brand || o.store))].slice(0, 3).map(esc).join(', ') + (new Set(pickup.map(o => o.brand || o.store)).size > 3 ? ' …' : '') : 'Nothing to collect'}</div>
         <div class="pay-card-sub">${pickup.length ? pickup.slice(0, 4).map(o => `${esc(label(o))} · since ${dayShort(o.last)}`).join('<br>') + (pickup.length > 4 ? `<br>and ${pickup.length - 4} more` : '') : 'No package is waiting at a pickup point.'}</div></button>
-      <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">On the way${moving.length ? ' · ' + moving.length : ''}</div>
-        <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'Nothing on the way'}</div>
+      <button type="button" class="pay-card shop-card-link${moving.length ? ' due' : ''}${shoppingDeliv === 'moving' ? ' sel' : ''}" data-deliv="moving" title="Show these orders"><div class="pay-card-label">Open orders${moving.length ? ' · ' + moving.length : ''}</div>
+        <div class="pay-card-val">${moving.length ? moving.length + ' order' + (moving.length > 1 ? 's' : '') : 'No open orders'}</div>
         <div class="pay-card-sub">${moving.length ? Object.entries(moving.reduce((m, o) => (m[o.brand || o.store] = (m[o.brand || o.store] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]).map(([st, n]) => `${n} ${esc(st)}`).join(' · ') : 'Every recent order has arrived.'}${issues.length ? `<br><span style="color:var(--down-ink)">${issues.length} with a delivery issue</span>` : ''}</div></button>
     </div>`;
   const moneyCards = `
@@ -8599,7 +8600,7 @@ function renderShopping(){
   const delivShown = shoppingDeliv === 'pickup' ? pickup : shoppingDeliv === 'moving' ? moving : open;
   const deliveries = `
     <section class="pay-panel" id="shopDeliveries">
-      <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'On the way'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders with news in the last 3 months that haven't arrived yet · hover a row for its emails</span>`}</div>
+      <div class="pay-panel-head"><h3>Deliveries</h3>${shoppingDeliv ? `<button type="button" class="pay-chip on shop-deliv-clear">${shoppingDeliv === 'pickup' ? 'Waiting for pickup' : 'Open orders'} only · show all</button>` : `<span class="pay-panel-note pay-hint">Orders with news in the last 3 months that haven't arrived yet · hover a row for its emails</span>`}</div>
       ${delivShown.length ? `<div class="pay-cards-list" style="display:block;">${delivShown.map(o => `<div class="pay-bill shop-row" data-key="${esc(o.key)}">
           <div class="pay-cat-main"><b>${esc(o.store)} · ${esc(label(o))}</b><small>${o.no && !/^PayPal /.test(o.no) ? 'Order ' + esc(o.no) + ' · ' : ''}${o.trk.length ? 'Tracking ' + o.trk.map(esc).join(', ') + ' · ' : ''}${o.events.some(e => e.event === 'ordered' || e.event === 'paid') ? 'ordered' : 'first email'} ${dayShort(o.first)}${new Date(o.first).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.first).getFullYear() : ''} · last update ${dayShort(o.last)}${new Date(o.last).getFullYear() !== new Date(now).getFullYear() ? ' ' + new Date(o.last).getFullYear() : ''}</small>${o.note && o.items ? `<div class="shop-note">${esc(o.note)}</div>` : ''}<button type="button" class="shop-note-btn" data-key="${esc(o.key)}">${o.note ? 'Edit note' : '+ Note'}</button>${priceBtn(o)}</div>
           <div class="pay-cat-num">${o.gross > 0 ? `<b>${price(o)}</b>` : ''}${pillBtn(o)}</div></div>`).join('')}</div>`
@@ -8628,7 +8629,7 @@ function renderShopping(){
   // 2026-10-12), order no., tracking no. or amount (what was paid, or its ≈ ₪). A search looks through
   // all time, not just the chosen range.
   const q = shoppingQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const hay = o => [o.items, o.note, o.store, o.no, o.trk.join(' '), day(o.first), ymd(o.first),
+  const hay = o => [o.items, o.note, o.store, o.no, o.trk.join(' '), day(o.first), new Date(o.first).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}), ymd(o.first),
     o.gross > 0 ? o.gross.toFixed(2) + ' ' + money(o.gross, o.cur) : '', o.amount > 0 ? o.amount.toFixed(2) : '',
     o.ils > 0 ? Math.round(o.ils) + ' ' + fmt(o.ils) : '', SHOP_STATUS[o.status] || ''].join(' ').toLowerCase().replace(/,/g, '');
   // Status filter (All orders): by the label each order shows, a PayPal receipt being "Paid".
@@ -11411,7 +11412,7 @@ function render(rows, totals){
     const logoImgHtml = (n.data.logoUrl && !tileFitsBadge)
       ? `<img src="${n.data.logoUrl}" onerror="this.remove()" style="width:16px; height:16px; object-fit:contain; vertical-align:-3px; margin-right:5px; border-radius:50%; background:#fff;">`
       : '';
-    const lastAtTxt = n.data.lastAt ? new Date(n.data.lastAt).toLocaleString('en-GB', {timeZone:'Asia/Jerusalem', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}) : '';
+    const lastAtTxt = n.data.lastAt ? new Date(n.data.lastAt).toLocaleString('en-US', {timeZone:'Asia/Jerusalem', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}) : '';
     const tooltipHtml = n.data.isOther
       ? `<b>${n.data.otherList.length} smaller holdings</b>${fmt(n.data.value)} together, each under 1.5% of the portfolio<div style="margin-top:6px; max-width:280px; color:var(--muted); font-size:12px;">${n.data.otherList.slice().sort((a, b) => b.value - a.value).map(d => d.name).join(', ')}</div>`
       : n.data.noPrice
@@ -12159,11 +12160,11 @@ async function retryFxIfLoading(attempt){
 
 function formatRefreshTimestamp(d){ return ilStamp(d); }
 // Every time on screen is Israel time on a 24-hour clock (30 Oct 2026), whatever the device's own time zone:
-// "30/10/2026 06:35:47".
+// "Oct 30, 2026 06:35:47".
 function ilStamp(d){
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric',
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false}).formatToParts(d).map(x => [x.type, x.value]));
-  return `${p.day}/${p.month}/${p.year} ${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}`;
+  return `${p.month} ${p.day}, ${p.year} ${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}`;   // "Nov 16, 2026 06:35:47" (review 16 Nov 2026; was 16/11/2026)
 }
 
 // One refresh at a time: a click, the auto-refresh timer and "the app came back to the foreground"
