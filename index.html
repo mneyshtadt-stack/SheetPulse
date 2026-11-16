@@ -610,8 +610,8 @@
   .rc-kind{font-size:11px; font-weight:650; border-radius:999px; padding:1px 8px; margin-left:8px; vertical-align:1px;}
   .rc-kind.product{background:color-mix(in srgb, var(--accent) 14%, var(--panel)); color:var(--accent-hover);}
   .rc-kind.transport{background:color-mix(in srgb, var(--cmp-3) 18%, var(--panel)); color:var(--ink);}
-  .rc-groups{display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; font-size:13px;}
-  .rc-groups label{display:inline-flex; align-items:center; gap:6px; min-height:34px; cursor:pointer;}
+  .rc-groups{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; font-size:13px;}
+  .rc-groups label{display:inline-flex; align-items:center; gap:6px; min-height:34px; cursor:pointer; white-space:nowrap;}
   .rc-groups input{width:16px; height:16px; accent-color:var(--accent); margin:0;}
   .rc-groups .n{color:var(--muted);}
   .rc-kind.service{background:color-mix(in srgb, var(--cmp-5) 18%, var(--panel)); color:var(--ink);}
@@ -669,7 +669,7 @@
   .rc-big.sel{box-shadow:inset 0 0 0 2px var(--accent);}
   .rc-big:hover{background:var(--hover);}
   .rc-big-top{display:flex; justify-content:space-between; gap:8px; font-size:15px;}
-  .rc-big-top b{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:650;}
+  .rc-big-top b{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-weight:650; min-width:0;}
   .rc-big-top .rc-mono{font-weight:700; flex:none;}
   .rc-big small{font-size:12px; color:var(--muted);}
   .rc-cover{margin-top:4px; font-size:12px; font-weight:600; border-radius:7px; padding:4px 8px; align-self:stretch;}
@@ -1351,6 +1351,10 @@
   .pf-tools{display:flex; align-items:center; gap:16px; flex-wrap:wrap;}
   .pf-detail-toggle{display:inline-flex; align-items:center; gap:8px; min-height:44px; font-size:13px; color:var(--muted); cursor:pointer;}
   .md-pf-table:not(.pf-card-table) thead th{position:sticky; top:-14px; z-index:2; background:var(--paper);}
+  /* Review 16 Nov 2026: a sideways-scrolling wrapper stops the header sticking, so on a wide screen (the table fits) it doesn't scroll. */
+  @media (min-width:1100px){ #marketDetailTableArea{overflow-x:visible;} }
+  /* Market Universe's "Your holding" table: its header slid under the sticky price bar. */
+  .md-pf-table.uh-table thead th{position:static;}
   .pay-legs-fold{display:contents;}
   .pay-legs-fold > summary{display:none;}
   @media (max-width:600px){
@@ -2024,8 +2028,9 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<!-- integrity: the browser refuses either file if the CDN ever serves different bytes (review 16 Nov 2026) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" integrity="sha384-su5kReKyYlIFrI62mbQRKXHzFobMa7BHp1cK6julLPbnYcCW9NIZKJiTODjLPeDh" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" integrity="sha384-D/t0ZMqQW31H3az8ktEiNb39wyKnS82iFY52QPACM+IjKW3jDUhyIgh2PApRqJZs" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 // Every chart places #customTooltip itself and flips it left near the right edge, but nothing stopped the left edge
 // (3 Nov 2026: phone tooltips at x = -239). One clamp for all of them, after each move.
@@ -2042,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794846350";
+const BUILD_ID = "1794848705";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2745,6 +2750,26 @@ document.getElementById('lockDiagLink').addEventListener('click', e => { e.preve
 document.getElementById('diagClose').addEventListener('click', closeDiagnostics);
 document.getElementById('diagRerun').addEventListener('click', runDiagnostics);
 document.getElementById('diagModal').addEventListener('click', e => { if(e.target.id === 'diagModal') closeDiagnostics(); });
+function vrIls(n){ return (n < 0 ? '-' : '') + '₪' + Math.abs(Math.round(n)).toLocaleString('en-US'); }
+// Keyboard and screen readers (review 16 Nov 2026): heatmap tiles, Winners & losers rows and sortable column headers can be
+// reached with Tab, and each chart has a name. One debounced pass after the page changes, instead of a line in every renderer.
+(function(){
+  const CHARTS = {intradayChart: 'Value over time', divChart: 'Dividends per month', nwTrendSvg: 'Net worth by month', nwPortfolioTrendSvg: 'Portfolio by month',
+    nwStudyTrendSvg: 'Study funds by month', nwPensionTrendSvg: 'Pension by month', payChart: 'Bills by month charged', shopChartBox: 'Spending by month',
+    universeChart: 'Price over time', universeCompareChart: 'Price change compared', waterfallCost: 'Contribution to total return', waterfallCurrent: 'Contribution to today'};
+  let t = 0;
+  const pass = () => { t = 0;
+    document.querySelectorAll('.wlrow:not([tabindex]), #treemap > div:not([tabindex]), thead th[data-key]:not([tabindex])').forEach(e => { e.tabIndex = 0; if(e.parentElement.id === 'treemap') e.setAttribute('role', 'button'); });
+    document.querySelectorAll('svg:not([role]):not([aria-hidden])').forEach(g => { const host = g.id && CHARTS[g.id] ? g : g.closest('[id]'); const name = host && CHARTS[host.id];
+      if(name){ g.setAttribute('role', 'img'); g.setAttribute('aria-label', name + ' chart'); } });
+  };
+  new MutationObserver(() => { if(!t) t = setTimeout(pass, 400); }).observe(document.body, {childList: true, subtree: true});
+  document.addEventListener('keydown', e => {
+    if(e.key !== 'Enter' || !e.target.matches) return;
+    if(e.target.matches('.wlrow, #treemap > div')) e.target.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
+    else if(e.target.matches('thead th[data-key]')) e.target.click();
+  });
+})();
 // Enter or Space on a strip cell / card / the Today card works like a tap.
 document.addEventListener('keydown', e => {
   if((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('#gaugeInfo .mlink, #phoneHero, #cards .card')){ e.preventDefault(); e.target.click(); }
@@ -3500,6 +3525,7 @@ function computeTotals(rows){
 }
 
 const TICKER_NAME_MAP = {"AIQ":"Global X Artificial Intelligence & Technology ETF","ASGI":"Abrdn Global Infrastructure Income Fund","BAM":"BROOKFIELD ASSET MANAGEMENT LTD","BLK":"BlackRock Inc","BN":"Brookfield Corp","BOTZ":"Global X Robotics and Artificial Intelligence ETF","BRK.B":"Berkshire Hathaway Inc Class B","CEG":"Constellation Energy Corp","CGGO":"Capital Group Global Growth Equity ETF","COIN":"Coinbase Global Inc","COWZ":"Pacer US Cash Cows 100 ETF","CRNT":"Ceragon Networks Ltd","DBC":"Invesco DB Commodity Index Tracking Fund","DBMF":"iMGP DBi Managed Futures Strategy ETF","DYNF":"Ishares US Equity Factor Rotation Active ETF","ENB":"Enbridge Inc.","FIGB":"Fidelity Investment Grade Bond ETF","FRFHF":"Fairfax Financial Holdings Ltd","GDX":"VanEck Gold Miners ETF","GLD":"SPDR Gold Trust","GS":"The Goldman Sachs Group, Inc.","IBI.F35":"IBI SAL (4A) Index Israel Banks IL ETF","IBI.FK4":"IBI SAL (4A) Kosher TA-125 IL ETF","IVV":"iShares Core S&P 500 ETF","IXJ":"iShares Global Healthcare ETF","JEPI":"JPMorgan Equity Premium Income ETF","JPM":"JPMorgan Chase & Co","L":"Loews Corp","MCO":"Moody's Corp","MKL":"Markel Group Inc","MS":"Morgan Stanley","MSCI":"Msci Inc","O":"Realty Income Corp","OWL":"Blue Owl Capital Inc","PFF":"iShares Preferred and Income Securities ETF","POWR":"iShares US Power Infrastructure ETF","QNDX":"State Street SPDR Portfolio Nasdaq 100 ETF","QQQ":"Invesco QQQ Trust, Series 1","QTUM":"Defiance Quantum ETF","RTH":"VanEck Retail ETF","SCHD":"Schwab US Dividend Equity ETF","SCHY":"Schwab International Dividend Equity ETF","SIVR":"abrdn Physical Silver Shares ETF","SMH":"VanEck Semiconductor ETF","SPGI":"S&P Global Inc","SPY":"State Street SPDR S&P 500 ETF Trust","TCAF":"T Rowe Price Capital Appreciation Equity ETF","URA":"Global X Uranium ETF","VB":"Vanguard Morningstar Small-Cap Index Fund ETF","VCSH":"Vanguard Short-Term Corporate Bond Idx Fd ETF","VFVA":"Vanguard US Value Factor ETF","VGHY":"Vanguard High Yield Active ETF","VNQ":"Vanguard Real Estate Index Fund ETF","VO":"Vanguard Morningstar Mid-Cap Index Fund ETF","VOO":"Vanguard S&P 500 ETF","VTV":"Vanguard Morningstar Value Index Fund ETF","VWO":"Vanguard Emerging Markets Stock Index Fund ETF","VXUS":"Vanguard Total International Stock Index Fund ETF","VYMI":"Vanguard Internatl High Div Yield Index Fund ETF","WPC":"W.p. Carey Inc","XAR":"State Street SPDR S&P Aerospace & Defense ETF","XLE":"State Street Energy Select Sector SPDR ETF","XLP":"State Street Consumer Staples Sel Sect SPDR ETF","XLU":"State Street Utilities Select Sector SPDR ETF","XLV":"State Street Health Care Select Sector SPDR ETF"};
+try{ Object.assign(TICKER_NAME_MAP, JSON.parse(localStorage.getItem('sp_tickerNames') || '{}')); } catch(_){}
 const ISRAELI_TICKERS = ['IBI.F35','IBI.FK4'];
 
 // The brokers' own day figure for the last completed session, when both markets are outside their sessions:
@@ -4317,7 +4343,7 @@ function boiChangeHtml(){
   const a = window.boiRates;
   if(!a || a.length < 2) return '';
   const pct = (a[a.length-1].rate / a[a.length-2].rate - 1) * 100;
-  return ` <span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '↑+' : '↓'}${pct.toFixed(3)}%</span>`;
+  return ` <span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '▲ +' : '▼ '}${pct.toFixed(2)}%</span>`;
 }
 function boiRateLatest(){ const a = window.boiRates; return a && a.length ? a[a.length-1] : null; }
 function boiRateBeforeToday(){
@@ -4627,7 +4653,7 @@ function pfHoldingRowsHtml(r){
   const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
   const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
   const priceStr = !isNaN(r.price)
-    ? `<span class="${vsCostCls}" title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+    ? `<span title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
     : '—';
   const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
   const holdingPeriod = formatHoldingPeriod(r.buyDate);
@@ -4832,7 +4858,7 @@ function renderMarketDetailTable(){
     const avgCost = !isNaN(nativeRatio) ? r.price * nativeRatio : NaN;
     const vsCostCls = (!isNaN(r.price) && !isNaN(avgCost)) ? (r.price>=avgCost?'up':'down') : '';
     const priceCell = !isNaN(r.price)
-      ? `<span class="${vsCostCls}" title="${!isNaN(avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost $'+avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">$${r.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>`
+      ? `<span title="${!isNaN(avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost $'+avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">$${r.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>`
       : '—';
 
     html += `
@@ -5018,8 +5044,8 @@ function renderMarketDetailHeader(marketKey){
         <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsd !== null ? "$" + Math.round(todayUsd).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
-          ? `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
-          : (window.lastFxRate ? `${seg.gain>=0?'▲':'▼'} ${seg.gain>=0?'+':'-'}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+          ? `${usdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
+          : (window.lastFxRate ? `${seg.gain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
           ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} · ${dayChangeAsOf}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
@@ -5178,7 +5204,7 @@ async function renderFxDetailHeader(){
   chartCtx = {ranges: FX_CHART_RANGES, holdings: [], liveValue: rate, priceColumn: 'USDILS', fmtValue: n => n.toFixed(4),
     fetchIntradayRaw: fetchIntradayFxRaw, prevClose, prevCloseTs,
     dayStart: zonedTimeToMs(y, m, d, 10, 0, 'Asia/Jerusalem'), dayEnd: zonedTimeToMs(y, m, d, 23, 10, 'Asia/Jerusalem'),
-    intradayNote: 'Live rate logged about every 5 minutes (IntradayLog), from 10:00 to 23:10; compared with the previous close.',
+    intradayNote: 'Live rate logged about every 5 minutes (IntradayLog); compared with the previous close.',
     note: 'Daily closes (Google Finance, CURRENCY:USDILS, from the PriceHistory tab); the last point is the live rate.'};
   renderActiveChart();
 }
@@ -5511,14 +5537,14 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsdTotal !== null ? "$" + Math.round(todayUsdTotal).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
-          ? `${portfolioUsdChange>=0?'▲':'▼'} ${portfolioUsdChange>=0?'+':'-'}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
-          : (window.lastFxRate ? `${totals.dayGain>=0?'▲':'▼'} ${totals.dayGain>=0?'+':'-'}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+          ? `${portfolioUsdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
+          : (window.lastFxRate ? `${totals.dayGain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help;' : ''}">${yesterdayUsdTotal !== null
           ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')} · ${allPrevCloseLabel()}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
       </div>
     </div>
-    <!-- Tabs above the chart (13 Nov 2026 review); the chart shows on Holdings and Performance only (applyPortfolioTab). -->
+    <!-- Tabs above the chart (13 Nov 2026 review); the chart shows on Holdings only (applyPortfolioTab). -->
     <div class="md-tabs" role="tablist">
       <button type="button" class="md-tab" role="tab" data-tab="holdings">Holdings</button>
       <button type="button" class="md-tab" role="tab" data-tab="premarket">Pre-Market</button>
@@ -5646,8 +5672,8 @@ function applyPortfolioTab(){
   pre.style.display = portfolioTab === 'premarket' ? '' : 'none';
   const divArea = document.getElementById('mdDividendsArea');
   if(divArea) divArea.style.display = portfolioTab === 'dividends' ? '' : 'none';
-  // The chart belongs to Holdings and Performance; Pre-Market and Dividends start right under the tabs.
-  const chartOn = portfolioTab === 'holdings' || portfolioTab === 'performance';
+  // The chart belongs to Holdings; Pre-Market, Dividends and Performance start right under the tabs.
+  const chartOn = portfolioTab === 'holdings';   // review 16 Nov 2026: the 1D chart pushed the month grid 520 px down
   document.querySelectorAll('#marketDetailBody #chartRangeBar, #marketDetailBody #intradayChart, #marketDetailBody .md-broker-note').forEach(e => { if(!e.closest('#mdDividendsArea')) e.style.display = chartOn ? '' : 'none'; });
   // Pre-Market's tab shows only while there are pre-market or after-hours prices (checked at most every 5 minutes).
   const pmBtn = document.querySelector('#marketDetailBody .md-tab[data-tab="premarket"]');
@@ -5744,7 +5770,7 @@ async function renderPerformanceTab(opts){
   if(!months.length){ area.innerHTML = picker + `<div class="perf-note">${perfTicker && left.has(perfTicker) ? `No matching price history for ${escAttr(perfTicker)} (check its symbol in the History tab).` : 'Not enough price history yet.'}</div>`; wirePicker(); return; }
   const fmt = n => (n < 0 ? '-' : '+') + '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
   const val = n => '₪' + Math.round(n).toLocaleString('en-US');
-  const pc = r => (r >= 0 ? '+' : '') + r.toFixed(1) + '%';
+  const pc = r => Math.abs(r) < 0.05 ? '0.0%' : (r >= 0 ? '+' : '') + r.toFixed(1) + '%';
   const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const years = [...new Set(months.map(m => m.y))].sort((a, b) => b - a);
   const nowY = today.getFullYear(), nowM = today.getMonth();
@@ -6166,7 +6192,7 @@ let NW_FEES = {};
 // The fee as a small chip beside the account name (29 Oct 2026 redesign), so it's visible without hovering.
 function nwFeeChip(f){
   const pc = n => n.toFixed(2).replace(/\.?0+$/, '') + '%';
-  const t = [typeof f.dep === 'number' ? pc(f.dep) + ' dep.' : '', typeof f.acc === 'number' ? pc(f.acc) + ' bal.' : ''].filter(Boolean).join(' · ');
+  const t = [typeof f.dep === 'number' ? pc(f.dep) + ' of deposits' : '', typeof f.acc === 'number' ? pc(f.acc) + ' of balance' : ''].filter(Boolean).join(' · ');
   return t ? `<span class="nw-fee-chip">fee ${t}</span>` : '';
 }
 function nwFeeTooltip(label, key, value){
@@ -6559,7 +6585,7 @@ function renderNetWorth(nw, crossYearPrev){
     `<div class="seg" data-group="${g}" style="width:${(v/totalForBar*100)}%; background:${NW_GROUP_COLORS[g]||'var(--axis)'}"></div>`
   ).join('');
   const legendHtml = groupEntries.map(([g,v])=>
-    `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'var(--axis)'}"></span>${g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
+    `<span class="nw-legend-row" data-group="${g}" style="cursor:help;"><span class="dot" style="background:${NW_GROUP_COLORS[g]||'var(--axis)'}"></span>${g === 'Portfolio' ? 'Securities' : g} — ${(v/totalForBar*100).toFixed(2)}%</span>`
   ).join('');
 
   const netWorthTrendHtml = nw.months.length>=1
@@ -6574,7 +6600,7 @@ function renderNetWorth(nw, crossYearPrev){
   const pensionMonths = nw.months.filter(m => NW_PENSION_KEYS.some(k => !isNaN(m.assets[k])));
   const portfolioTrendHtml = nw.months.length>=1
     ? buildNwTrendChart({
-        title: 'Portfolio Trend', svgId: 'nwPortfolioTrendSvg', color: NW_GROUP_COLORS['Portfolio'], months: nw.months,
+        title: 'Securities Trend', svgId: 'nwPortfolioTrendSvg', color: NW_GROUP_COLORS['Portfolio'], months: nw.months,
         getValue: m => nwSum(m.assets, NW_PORTFOLIO_KEYS), hasIncompleteHistory: nwHasIncompleteHistory(nw.months, NW_PORTFOLIO_KEYS),
         foot: `The Net Worth sheet's Securities line, entered once a month, so it differs from the live total on the home page.`
       })
@@ -7500,7 +7526,7 @@ function renderReceipts(area){
         <div class="pay-chips" role="group" aria-label="Year">${years.map(y => `<button type="button" class="pay-chip${receiptsYear === y ? ' on' : ''}" data-ry="${y}" aria-pressed="${receiptsYear === y}">${y}</button>`).join('')}<button type="button" class="pay-chip${allYears ? ' on' : ''}" data-ry="all" aria-pressed="${allYears}">All</button></div>
         <div class="rc-sum-total rc-mono">${fmt(yTotal)}</div>
         <div class="pay-sub">${withoutTop || `${counted.length} receipt${counted.length === 1 ? '' : 's'} ${allYears ? 'since ' + (years[years.length - 1] || thisY) : 'in ' + receiptsYear} · kept forever`}</div>
-        <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g).length}</span></label>`).join('')}</div>
+        <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g && (allYears || yearOf(x) === receiptsYear)).length}</span></label>`).join('')}</div>
       </div>
       <div class="rc-sum-r"><div class="rc-sum-h">${allYears ? 'Year by year' : 'Month by month'}</div><div class="rc-tiles" style="grid-template-columns:repeat(${tiles.length}, minmax(0, 1fr));">${tiles.map(tileHtml).join('')}</div><div class="pay-sub" style="font-size:12px;">Darker = more spent · number = receipts · click to jump there</div></div>
     </section>
@@ -7936,7 +7962,9 @@ function renderPayments(){
   const paidNow = past.filter(p => monthKey(p.charge) === thisM).sort((a, b) => a.charge - b.charge);
   const paidPrev = sum(past.filter(p => monthKey(p.charge) === thisM - 1));
   const last12 = sum(past.filter(p => p.charge > yearAgo)), prev12 = sum(past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo));
-  const vs12 = prev12 ? (last12 - prev12) / prev12 * 100 : NaN;
+  // Review 16 Nov 2026: compare with the year before only when the records cover most of it (a partial year gave +1,308%).
+  const fullPrev = arr => arr.some(p => p.charge <= twoYearsAgo + 60 * 86400000);
+  const vs12 = prev12 && fullPrev(past) ? (last12 - prev12) / prev12 * 100 : NaN;
   const dChg = sum(paidNow) - paidPrev;
   const cards = `
     <div class="pay-cards">
@@ -7944,8 +7972,8 @@ function renderPayments(){
         ? `<div class="pay-card miss"><div class="pay-card-label">Missing · ${st.missing.length}</div>
             <div class="pay-card-val">${st.missing.map(x => `${esc(x.payee)}, ${monthName(x.k)}${x.byPeriod ? ' bill' : ''}`).join('<br>')}</div>
             <div class="pay-card-sub">No bill in Gmail for ${st.missing.length > 1 ? 'those months' : 'that month'}. Paid another way? Click the month in Bill check to mark it paid.</div></div>`
-        : `<div class="pay-card"><div class="pay-card-label ok">Nothing missing</div><div class="pay-card-val">All bills found</div>
-            <div class="pay-card-sub">Every bill expected in the last 12 months is in Gmail${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
+        : `<div class="pay-card"><div class="pay-card-label ok">Past months</div><div class="pay-card-val">Nothing missing</div>
+            <div class="pay-card-sub">Every bill expected in the past 12 months is in Gmail${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
       ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
             <div class="pay-card-val">${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}</div>
             <div class="pay-card-sub">Expected in ${monthName(thisM)}; not in Gmail yet.</div></div>` : ''}
@@ -7968,7 +7996,7 @@ function renderPayments(){
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Bill check</h3>
         <details class="pay-legs-fold"${window.matchMedia && window.matchMedia('(max-width:600px)').matches ? '' : ' open'}><summary>Bills shown · ${status.payees.length - checkHidden.size} of ${status.payees.length}</summary>
-        <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></details></div>
+        <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" aria-label="${esc(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></details></div>
       <div class="pay-panel-note pay-hint" style="margin:-4px 0 8px;">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period · click a bill above to hide or show its row</div>
       <div class="pay-grid-wrap"><table class="pay-grid">
         <thead><tr><th></th>${gridMonths.map(k => `<th class="${k === thisM ? 'pay-now' : ''}">${monthLabel(k)}</th>`).join('')}</tr></thead>
@@ -7988,7 +8016,7 @@ function renderPayments(){
     const amts = y.map(p => p.amount), same = amts.length && amts.every(a => Math.abs(a - amts[0]) < 0.5);
     return {cat, payees: [...new Set(all.map(p => p.payee))].join(', '), n: y.length, total: sum(y),
       per: y.length ? (same ? fmt(amts[0]) + ' each' : fmt(sum(y) / y.length) + ' avg') : '',
-      vs: yPrev.length ? (sum(y) - sum(yPrev)) / sum(yPrev) * 100 : NaN};
+      vs: yPrev.length && fullPrev(all) ? (sum(y) - sum(yPrev)) / sum(yPrev) * 100 : NaN};
   }).sort((a, b) => b.total - a.total);
   const catHtml = catRows.map(r => `<div class="pay-cat-item">${dot(r.cat)}
       <div class="pay-cat-main"><b>${esc(r.cat)}</b><small>${esc(r.payees)} · ${r.n} bill${r.n === 1 ? '' : 's'}${r.per ? ' · ' + r.per : ''}</small></div>
@@ -8530,9 +8558,11 @@ function renderShopping(){
   shopOrdersBadge = pickup.length ? {t: pickup.length + ' to pick up', c: 'warn'} : moving.length ? {t: moving.length + ' on the way', c: ''} : null;
   const spent = arr => arr.reduce((a, o) => a + o.ils, 0);
   const yearAgo = now - 365 * DAY, thisYear = new Date(new Date().getFullYear(), 0, 1).getTime();
-  const last12 = all.filter(o => o.first > yearAgo && o.ils > 0), ytd = all.filter(o => o.first >= thisYear && o.ils > 0);
-  const prev12 = all.filter(o => o.first > yearAgo - 365 * DAY && o.first <= yearAgo && o.ils > 0);
-  const vs = spent(prev12) ? (spent(last12) - spent(prev12)) / spent(prev12) * 100 : NaN;
+  // Review 16 Nov 2026: the same 12 calendar months as the chart and By store (a rolling 365 days gave a total the list didn't add up to).
+  const last12 = all.filter(o => monthKey(o.first) > thisM - 12 && o.ils > 0), ytd = all.filter(o => o.first >= thisYear && o.ils > 0);
+  const prev12 = all.filter(o => monthKey(o.first) > thisM - 24 && monthKey(o.first) <= thisM - 12 && o.ils > 0);
+  // No "vs the year before" unless the records reach back through most of that year (a partial year gave +84%).
+  const vs = spent(prev12) && all.some(o => monthKey(o.first) <= thisM - 22) ? (spent(last12) - spent(prev12)) / spent(prev12) * 100 : NaN;
   const label = o => o.items || o.note || (o.trk.length ? 'Package ' + o.trk[0] : o.no ? 'Order ' + o.no : 'Order');
   const cards = `
     <div class="pay-cards">
@@ -9003,10 +9033,10 @@ const mdDay = t => { const m = String(t || '').match(/([A-Z][a-z]{2}) (\d{1,2})/
 function runValueChecks(){
   const out = [];
   const P = stripSigned('gaugePortfolioVal'), I = stripSigned('gaugeIlVal'), U = stripSigned('gaugeUsVal');
-  if([P, I, U].every(isFinite)) out.push({name: 'Strip: Portfolio = Israel + USA', ok: Math.abs(P - (I + U)) <= 1, detail: `₪${P} vs ₪${I} + ₪${U} = ₪${I + U}`});
+  if([P, I, U].every(isFinite)) out.push({name: 'Strip: Portfolio = Israel + USA', ok: Math.abs(P - (I + U)) <= 1, detail: `${vrIls(P)} vs ${vrIls(I)} + ${vrIls(U)} = ${vrIls(I + U)}`});
   const todayEl = document.querySelector('#cards .card-today .value');
   if(todayEl && isFinite(P)){ const t = todayEl.textContent.trim(), n = shownIls(t), v = /^[-−]/.test(t) ? -n : n;
-    out.push({name: 'Today card = strip Portfolio', ok: Math.abs(v - P) <= 1, detail: `₪${v} vs ₪${P}`}); }
+    out.push({name: 'Today card = strip Portfolio', ok: Math.abs(v - P) <= 1, detail: `${vrIls(v)} vs ${vrIls(P)}`}); }
   const dk = ms => new Date(ms).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
   const todayK = dk(Date.now());
   if(window.ilCloseTs && window.ilDaySettle){ const want = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort().pop();
@@ -9418,7 +9448,7 @@ function formatFxLine(rate){
   const asOf = window.lastFxAsOf || 'Today';
   // The latest Bank of Israel representative rate (BOIRate tab) after the live one.
   const boi = boiRateLatest();
-  return `<span class="gval ${cls}">${rate.toFixed(4)} ${mv.arrow} ${mv.pctText} (${mv.chgText})</span> <span class="gval-sub">${asOf}</span>`
+  return `<span class="gval ${cls}">${rate.toFixed(4)} ${mv.arrow} ${mv.chgText} (${mv.pctText})</span> <span class="gval-sub">${asOf}</span>`
     + (boi ? ` <span class="gval-sub" title="Bank of Israel representative rate">· Bank of Israel <b style="color:var(--ink);">${boi.rate.toFixed(4)}</b>${boiChangeHtml()} (${boiDay(boi.date)})</span>` : '');
 }
 
@@ -10450,7 +10480,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   if(sessionClosed){
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
     const settledStamp = t => new Date(t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});   // "Oct 30, 18:34" (h23: en-US hour12:false can print 24:05), the headers' style (31 Oct 2026)
-    const settledLabel = window.settledAt ? 'Close ' + settledStamp(window.settledAt) + ' ' : 'Close ';
+    const settledLabel = window.settledAt ? 'Settled ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
     const ty = orderedLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [{y: prevCloseLabelY, v: prevClose}], latest);
     closeCalloutSvg = `<text x="${(w-padR).toFixed(1)}" y="${ty.toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${chartLabelHalo('var(--paper)')} font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif">${settledLabel}<tspan font-weight="700" fill="${latest < prevClose ? 'var(--down-ink)' : latest > prevClose ? 'var(--up-ink)' : 'var(--ink)'}">${fmt(latest)}</tspan></text>`;   // red below Prev. close, green above (29 Oct 2026)
@@ -11265,6 +11295,8 @@ function snapSplit(rows){
   return window.snap && window.snap.rows === rows ? window.snap.split : splitByMarket(rows);
 }
 function render(rows, totals){
+  // Once per page load: the holdings' names from the Market Universe sheet (see fetchUniverseRows), then one redraw of an open table.
+  if(!window.namesAsked){ window.namesAsked = true; fetchUniverseRows().then(r => { universeRows = r; if(document.getElementById('marketDetailModal').classList.contains('open') && document.querySelector('.md-pf-table')) renderMarketDetailTable(); }).catch(() => { window.namesAsked = false; }); }
   window.lastRows = rows;
   window.lastTotals = totals;
   window.snap = {rows, split: splitByMarket(rows)};
@@ -11274,7 +11306,7 @@ function render(rows, totals){
   // Home in two rows (31 Oct 2026): the markets strip, then Total value | Today | Total gain | Holdings.
   cardsEl.innerHTML = '';
   const cards = [
-    {label:"Total value (NIS)" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
+    {label:"Total value" + (totals.fallback ? `<span class="price-warn" id="totalValueWarn" role="img" aria-label="Some live prices are missing"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5 1.5 21h21z" fill="#e0a800" stroke="#b58500" stroke-width="1" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="var(--ink)"/></svg></span>` : ''), value: fmt(totals.totalValue), sub:""},
     {label:"Today", value:dayChange(totals.dayGain, totals.dayGainPct, fmt).sign+fmt(Math.abs(totals.dayGain)), sub:`<span style="color:${{up:'var(--up-ink)', down:'var(--down-ink)', flat:'var(--muted)'}[dayChange(totals.dayGain, totals.dayGainPct, fmt).cls]};">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</span> <span class="today-total" style="color:var(--ink);">${fmt(totals.totalValue)}</span> <span id="todayPrevClose" class="has-help" style="cursor:help; color:var(--muted); font-weight:400;">vs ${fmt(totals.totalValue - totals.dayGain)}</span>`, cls: dayChange(totals.dayGain, totals.dayGainPct, fmt).cls},   // ₪0 is grey, not green (31 Oct 2026)
     {label:"Total gain", value:(totals.totalGain>=0?"+":"-")+fmt(Math.abs(totals.totalGain)), sub:`<span style="color:${totals.totalGain>=0?'var(--up-ink)':'var(--down-ink)'};">${(totals.totalGainPct>=0?"+":"")+totals.totalGainPct.toFixed(2)}% overall</span>`, cls: totals.totalGain>=0?"up":"down"},
     {label:"Holdings", value:String(rows.length), sub:"positions"}
@@ -11821,7 +11853,7 @@ function bucketizeContributions(items, maxPositive, bucketTooltipFn){
   if(otherPositives.length){
     const sum = otherPositives.reduce((a,i)=>a+i.value,0);
     bars.push({
-      label:`Other gains (${otherPositives.length})`,
+      label:`Other (${otherPositives.length})`,
       value: sum,
       tooltip: bucketTooltipFn ? bucketTooltipFn(otherPositives, sum, 'Other gains') : null
     });
@@ -12278,7 +12310,7 @@ function buildDigest(){
         + `overall gain since purchase stands at <span class="${overallCls}">${totals.totalGain>=0?'+':'-'}${fmtIls(totals.totalGain)} (${pct(totals.totalGainPct)})</span>.</p>`;
 
   if(window.lastFxRate){
-    html += `<p style="display:flex; align-items:center; gap:10px;">USD/NIS: <b>${window.lastFxRate.toFixed(4)}</b> <span id="fxSparkline" style="display:inline-flex; align-items:center;"></span></p>`;
+    html += `<p style="display:flex; align-items:center; gap:10px;">USD/ILS: <b>${window.lastFxRate.toFixed(4)}</b> <span id="fxSparkline" style="display:inline-flex; align-items:center;"></span></p>`;
   }
 
   const heaviest = rows.slice().sort((a,b)=>b.value-a.value).slice(0,5);
@@ -12847,6 +12879,10 @@ async function fetchUniverseRows(){
     });
   }
   if(!rows.length) throw new Error('No ticker rows found in the sheet');
+  // Holding names come from the sheet's Name column (16 Nov 2026: QSR, a new holding, had no name because names were only
+  // a list in this page). The built-in list is the fallback until the sheet answers; the last answer is kept on the device.
+  rows.forEach(u => { if(u.name) TICKER_NAME_MAP[u.ticker] = u.name; });
+  try{ localStorage.setItem('sp_tickerNames', JSON.stringify(Object.fromEntries(rows.filter(u => u.name).map(u => [u.ticker, u.name])))); } catch(_){}
   return rows;
 }
 
