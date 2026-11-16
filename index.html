@@ -1491,6 +1491,8 @@
   .pay-deleted summary{cursor:pointer; min-height:36px; display:flex; align-items:center;}
   .pay-deleted-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 0; border-top:1px solid var(--line); color:var(--ink);}
   .pay-del-btn{color:var(--down-ink);}
+  .pay-list .md-th-symbol .pay-note-btn{margin-left:10px;}
+  .pay-list .md-th-symbol .shop-note + .pay-note-btn{margin-left:0;}
   /* Contribution chart on phones: one row per holding. */
   .wf-rows{display:flex; flex-direction:column;}
   .wf-row{display:grid; grid-template-columns:minmax(64px, 34%) 1fr 64px; align-items:center; gap:10px; min-height:44px; padding:0 2px; background:none; border:0; border-bottom:1px solid var(--line); font:500 13px var(--sans); color:var(--ink); text-align:left; cursor:pointer;}
@@ -2040,7 +2042,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794834849";
+const BUILD_ID = "1794837796";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6876,14 +6878,16 @@ function routineAll(){
   const done = local.filter(l => routineList.some(r => key(r) === key(l) && same(r, l)));
   if(done.length) routineAddedSet(routineAddedGet().filter(a => !done.some(d => key(d) === key(a))));
   const live = local.filter(l => !done.includes(l));
-  return routineList.filter(r => !live.some(l => key(l) === key(r))).concat(live);
+  // A routine bill deleted in the window (16 Nov 2026) keeps its row; its Notes start with "[deleted]", so it makes no
+  // charges and is listed under "Deleted routine bills" to restore.
+  return routineList.filter(r => !live.some(l => key(l) === key(r))).concat(live).map(r => ({...r, deleted: /^\[deleted\]/i.test(r.notes || '')}));
 }
 // One charge per due month from the start month to this month (not after the end month). A month where Gmail
 // already has a bill from the same payee keeps that bill instead.
 function routineBillRows(base, monthKey){
   const now = new Date(), thisM = now.getFullYear() * 12 + now.getMonth(), out = [];
   routineAll().forEach(r => {
-    if(isNaN(r.start)) return;
+    if(isNaN(r.start) || r.deleted) return;
     const have = new Set(base.filter(p => !p.manual && p.payee.toLowerCase() === r.payee.toLowerCase()).map(p => monthKey(p.charge)));
     for(let k = r.start; k <= thisM && (isNaN(r.end) || k <= r.end); k += r.every){
       if(have.has(k)) continue;
@@ -7868,6 +7872,7 @@ function payNotesSet(m){ try{ localStorage.setItem('sp_payNotes', JSON.stringify
 // Deleted bills (16 Nov 2026): {key: {act: 'deleted' | 'restored', at: 'yyyy-mm-dd hh:mm:ss'}} set on this device, merged
 // with the Payments tab's deleted / restored rows (paymentsDeletes); the latest action for a bill wins.
 let paymentsDeletes = [];
+let paymentsShowAllBills = false;
 function payBillKey(p){ const d = new Date(p.charge); return p.payee + '|' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '|' + (p.amount || 0).toFixed(2); }
 function payDeletedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payDeleted') || '{}') || {}; } catch(_){ return {}; } }
 function payDeletedSet(m){ try{ localStorage.setItem('sp_payDeleted', JSON.stringify(m)); } catch(_){} }
@@ -7999,7 +8004,7 @@ function renderPayments(){
   const payNotes = payNotesGet();
   list.forEach(p => { const n = payNotes[noteKey(p)]; p.noteLocal = n !== undefined && n !== (p.sheetNote || ''); p.note = p.noteLocal ? n : (p.sheetNote || ''); });
   const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button> <button type="button" class="shop-note-btn pay-del-btn" data-i="${list.indexOf(p)}">Delete</button>${p.routine ? ` <button type="button" class="shop-note-btn pay-routine-row-edit" data-payee="${esc(p.payee)}">Edit routine</button>` : ''}`;
-  const rows = shown.slice(0, 60);
+  const rows = paymentsShowAllBills ? shown : shown.slice(0, 60);   // "Show all" lists every bill (16 Nov 2026)
   const bills = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>All bills</h3><input type="search" class="shop-search pay-search" placeholder="Search payee, amount, date, period, card, note" aria-label="Search bills" value="${esc(paymentsQuery)}">
@@ -8012,21 +8017,23 @@ function renderPayments(){
       <div class="pay-cards-list">${rows.map(p => `<div class="pay-bill">${dot(p.category)}
         <div class="pay-cat-main"><b>${esc(p.payee)}</b><small>${dayShort(p.charge)}${p.period ? ' · ' + esc(p.period) : ''}${p.card ? ' · •• ' + esc(p.card) : ''}</small>${noteHtml(p)}</div>
         <div class="pay-cat-num"><b>${amt(p)}</b>${pill(p)}</div></div>`).join('')}</div>
-      ${shown.length > 60 ? `<div class="pm-note">Showing the latest 60 of ${shown.length}.</div>` : ''}
+      ${shown.length > 60 ? `<div class="pm-note">${paymentsShowAllBills ? `Showing all ${shown.length}.` : `Showing the latest 60 of ${shown.length}.`} <button type="button" class="shop-note-btn pay-show-all">${paymentsShowAllBills ? 'Show the latest 60' : `Show all ${shown.length}`}</button></div>` : ''}
       ${deletedBills.length ? `<details class="pay-deleted"><summary>Deleted bills (${deletedBills.length})</summary>${deletedBills.map(p => `<div class="pay-deleted-row"><span>${dot(p.category)}<b>${esc(p.payee)}</b> · ${day(p.charge)} · ${amt(p)}</span><button type="button" class="pay-chip pay-restore" data-k="${esc(payBillKey(p))}">Restore</button></div>`).join('')}</details>` : ''}
     </section>`;
 
   const everyTxt = n => n === 1 ? 'every month' : n === 12 ? 'every year' : `every ${n} months`;
   const monthTxt = k => new Date(Math.floor(k / 12), k % 12, 1).toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
   const routines = routineAll();
+  const routinesOn = routines.filter(r => !r.deleted), routinesOff = routines.filter(r => r.deleted);
   const routinePanel = routines.length ? `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Routine bills</h3><span class="pay-panel-note">Entered by you, not from Gmail · a month with a Gmail bill from the same payee keeps that bill</span></div>
-      <div class="ct-list">${routines.map((r, i) => `<div class="ct-item">
+      <div class="ct-list">${routinesOn.map(r => [r, routines.indexOf(r)]).map(([r, i]) => `<div class="ct-item">
         <div class="ct-main"><b>${esc(r.payee)}</b><small>${esc(r.category)} · ${everyTxt(r.every)} on day ${r.day}${r.card ? ' · •• ' + esc(r.card) : ''}${r.local ? ' · on this device' : ''}</small>${r.notes ? `<div class="pay-sub">${esc(r.notes)}</div>` : ''}</div>
         <div class="ct-when">${monthTxt(r.start)} → ${isNaN(r.end) ? 'still running' : monthTxt(r.end)}</div>
-        <div class="ct-cost"><b>${r.amount > 0 ? fmt2(r.amount) : '—'}</b><button type="button" class="pay-btn text pay-routine-edit" data-i="${i}" style="min-height:32px;">Edit</button>${r.local && !routineList.some(x => x.payee.toLowerCase() === r.payee.toLowerCase()) ? `<button type="button" class="pay-btn text pay-routine-del" data-i="${i}" style="min-height:32px;">Remove</button>` : ''}</div>
+        <div class="ct-cost"><b>${r.amount > 0 ? fmt2(r.amount) : '—'}</b><button type="button" class="pay-btn text pay-routine-edit" data-i="${i}" style="min-height:32px;">Edit</button><button type="button" class="pay-btn text pay-routine-del pay-del-btn" data-i="${i}" style="min-height:32px;">Delete</button></div>
       </div>`).join('')}</div>
+      ${routinesOff.length ? `<details class="pay-deleted"><summary>Deleted routine bills (${routinesOff.length})</summary>${routinesOff.map(r => `<div class="pay-deleted-row"><span><b>${esc(r.payee)}</b> · ${esc(r.category)} · ${r.amount > 0 ? fmt2(r.amount) : '—'} ${everyTxt(r.every)}</span><button type="button" class="pay-chip pay-routine-restore" data-i="${routines.indexOf(r)}">Restore</button></div>`).join('')}</details>` : ''}
     </section>` : '';
   area.innerHTML = `
     <div class="pay-top">${payViewSwitch()}<div class="pay-chips seg" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
@@ -8090,10 +8097,41 @@ function renderPayments(){
   }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
   wireSearch(area, '.pay-search', v => { paymentsQuery = v; }, renderPayments);
+  const ymOf = k => isNaN(k) ? '' : Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
+  const everyCell = n => n === 12 ? 'year' : n === 1 ? 'month' : n + ' months';
+  // Saves a routine bill with new Notes on this device and in the Routine bills tab (the same path as Edit).
+  const routineSetNotes = (r, notes, box) => {
+    const a = {payee: r.payee, category: r.category, amount: r.amount > 0 ? r.amount : '', every: r.every, day: r.day, start: ymOf(r.start), end: ymOf(r.end), card: r.card || '', notes};
+    routineAddedSet(routineAddedGet().filter(x => String(x.payee).toLowerCase() !== a.payee.toLowerCase()).concat([a]));
+    const row = [a.payee, a.category, a.amount, everyCell(a.every), a.day, a.start, a.end, a.card, a.notes, ymdOf(Date.now())].join('\t');
+    const upd = {key: {Payee: a.payee}, set: {Category: a.category, Amount: a.amount, Every: everyCell(a.every), Day: a.day, Start: a.start, End: a.end, Card: a.card, Notes: a.notes}};
+    if(box) autoSaveSheet(box, 'Routine bills', row, upd); else quietSaveSheet('Routine bills', row, upd);
+  };
   area.querySelectorAll('.pay-routine-del').forEach(b => b.addEventListener('click', () => {
+    const r = routines[+b.dataset.i]; if(!r || !rBox) return;
+    const onlyHere = r.local && !routineList.some(x => x.payee.toLowerCase() === r.payee.toLowerCase());
+    rBox.innerHTML = `<div>Delete the routine bill <b>${esc(r.payee)}</b>${r.amount > 0 ? ' · ' + fmt2(r.amount) + ' ' + everyTxt(r.every) : ''}?</div>
+      <div class="pay-sub">${onlyHere ? 'It was only added on this device, so it is removed.' : 'All its charges leave Bills, the totals and Bill check on every device. You can restore it from "Deleted routine bills".'} To stop it from a month on instead, use Edit and set an end month.</div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-r="yes">Delete</button><button type="button" class="pay-chip" data-r="no">Cancel</button></div>`;
+    rBox.hidden = false;
+    rBox.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    rBox.querySelector('[data-r="no"]').addEventListener('click', () => { rBox.hidden = true; });
+    rBox.querySelector('[data-r="yes"]').addEventListener('click', () => {
+      if(onlyHere){ routineAddedSet(routineAddedGet().filter(a => String(a.payee).toLowerCase() !== r.payee.toLowerCase())); keepScroll(renderPayments); return; }
+      routineSetNotes(r, ('[deleted] ' + (r.notes || '')).trim(), null);
+      keepScroll(renderPayments);
+      const b2 = document.getElementById('payRoutine'); if(!b2) return;
+      b2.innerHTML = `<div>Deleted the routine bill <b>${esc(r.payee)}</b>.</div>
+        <div class="pay-confirm-row">Saving to the <b>Routine bills</b> tab so every device drops it. If it fails, add "[deleted]" at the start of its Notes cell there.</div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-r="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-r="close"]').addEventListener('click', () => { b2.hidden = true; });
+    });
+  }));
+  area.querySelectorAll('.pay-routine-restore').forEach(b => b.addEventListener('click', () => {
     const r = routines[+b.dataset.i]; if(!r) return;
-    routineAddedSet(routineAddedGet().filter(a => String(a.payee).toLowerCase() !== r.payee.toLowerCase()));
-    renderPayments();
+    routineSetNotes(r, String(r.notes || '').replace(/^\[deleted\]\s*/i, ''), null);
+    keepScroll(renderPayments);
   }));
   // Add a routine bill: saved on this device at once; the panel gives the row to paste into the
   // "Routine bills" tab so every device has it.
@@ -8237,6 +8275,7 @@ function renderPayments(){
     });
     box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
   }));
+  area.querySelectorAll('.pay-show-all').forEach(b => b.addEventListener('click', () => { paymentsShowAllBills = !paymentsShowAllBills; keepScroll(renderPayments); }));
   area.querySelectorAll('.pay-restore').forEach(b => b.addEventListener('click', () => {
     const p = deletedBills.find(x => payBillKey(x) === b.dataset.k); if(!p) return;
     const at = payStamp(), m = payDeletedGet(); m[b.dataset.k] = {act: 'restored', at}; payDeletedSet(m);
