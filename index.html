@@ -1487,6 +1487,10 @@
   .perf-table td{white-space:nowrap;}
   .perf-table td.perf-y{min-width:40px; padding-right:6px; box-shadow:-4px 0 0 var(--paper), 4px 0 0 var(--paper);}
   @media (max-width:600px){ .div-legend-note{flex-basis:100%; margin-left:0;} .div-table th, .div-table td{white-space:nowrap;} }
+  .pay-deleted{margin-top:12px; font:13px var(--sans); color:var(--muted);}
+  .pay-deleted summary{cursor:pointer; min-height:36px; display:flex; align-items:center;}
+  .pay-deleted-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 0; border-top:1px solid var(--line); color:var(--ink);}
+  .pay-del-btn{color:var(--down-ink);}
   /* Contribution chart on phones: one row per holding. */
   .wf-rows{display:flex; flex-direction:column;}
   .wf-row{display:grid; grid-template-columns:minmax(64px, 34%) 1fr 64px; align-items:center; gap:10px; min-height:44px; padding:0 2px; background:none; border:0; border-bottom:1px solid var(--line); font:500 13px var(--sans); color:var(--ink); text-align:left; cursor:pointer;}
@@ -2036,7 +2040,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794638546";
+const BUILD_ID = "1794834849";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6901,8 +6905,17 @@ async function fetchPayments(){
   const cD = c('date'), cP = c('payee'), cC = c('category'), cA = c('amount'), cPer = c('period'), cDue = c('due date'), cCard = c('card'), cAdd = c('added'), cMsg = c('message id');
   if(cP < 0 || cA < 0) throw new Error('The Payments tab has no Payee / Amount header');
   const out = [], notes = [];
+  paymentsDeletes = [];
   for(let i = 1; i < t.length; i++){
     const r = t[i], payee = String(r[cP] || '').trim(), amount = num(r[cA]);
+    // A bill deleted or restored in the window (16 Nov 2026): Message id "deleted" / "restored", the bill's amount in
+    // Period (not Amount, so an older build doesn't read the row as a bill), "deleted <time>" in Added. The latest wins.
+    const mk = cMsg >= 0 ? String(r[cMsg] || '').trim().toLowerCase() : '';
+    if(mk === 'deleted' || mk === 'restored'){
+      const ms = payDateMs(r[cD]), amt = cPer >= 0 ? num(r[cPer]) : NaN;
+      if(payee && !isNaN(ms)) paymentsDeletes.push({key: payBillKey({payee, charge: ms, amount: amt > 0 ? amt : 0}), act: mk, at: String(cAdd >= 0 ? r[cAdd] || '' : '').replace(/^\D+/, '').trim()});
+      continue;
+    }
     if(cMsg >= 0 && /^note/i.test(String(r[cMsg] || '').trim())){
       const ms = payDateMs(r[cD]), text = cPer >= 0 ? String(r[cPer] || '').trim() : '';
       if(payee && !isNaN(ms)) notes.push({payee, ms, text});   // an empty note row removes the note (1 Nov 2026)
@@ -7852,6 +7865,19 @@ function payChartHiddenSet(a, key){ try{ localStorage.setItem(key || 'sp_payChar
 // Notes on bills set on this device: {"payee|yyyy-mm-dd|amount": "text"}.
 function payNotesGet(){ try{ return JSON.parse(localStorage.getItem('sp_payNotes') || '{}') || {}; } catch(_){ return {}; } }
 function payNotesSet(m){ try{ localStorage.setItem('sp_payNotes', JSON.stringify(m)); } catch(_){} }
+// Deleted bills (16 Nov 2026): {key: {act: 'deleted' | 'restored', at: 'yyyy-mm-dd hh:mm:ss'}} set on this device, merged
+// with the Payments tab's deleted / restored rows (paymentsDeletes); the latest action for a bill wins.
+let paymentsDeletes = [];
+function payBillKey(p){ const d = new Date(p.charge); return p.payee + '|' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '|' + (p.amount || 0).toFixed(2); }
+function payDeletedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payDeleted') || '{}') || {}; } catch(_){ return {}; } }
+function payDeletedSet(m){ try{ localStorage.setItem('sp_payDeleted', JSON.stringify(m)); } catch(_){} }
+function payDeletedKeys(){
+  const best = {};
+  paymentsDeletes.concat(Object.entries(payDeletedGet()).map(([key, v]) => ({key, act: v.act, at: v.at}))).forEach(d => {
+    if(!best[d.key] || String(d.at) >= String(best[d.key].at)) best[d.key] = d; });
+  return new Set(Object.keys(best).filter(k => best[k].act === 'deleted'));
+}
+function payStamp(){ const d = new Date(); return localYmd(d) + ' ' + d.toTimeString().slice(0, 8); }
 function payConfirmedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payConfirmed') || '{}') || {}; } catch(_){ return {}; } }
 function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.stringify(m)); } catch(_){} }
 function renderPayments(){
@@ -7872,12 +7898,16 @@ function renderPayments(){
   const sheetManual = new Set(paymentsList.filter(p => p.manual).flatMap(p => [p.payee + '|' + monthKey(p.charge), p.payee + '|' + payPeriodMonth(p.period)]));
   const catOf = payee => (paymentsList.find(p => p.payee === payee) || {}).category || 'Other';
   const routineRows = routineBillRows(paymentsList, monthKey);
-  const list = paymentsList.concat(routineRows, Object.keys(confirmed).filter(key => !sheetManual.has(key)).map(key => {
+  const listAll = paymentsList.concat(routineRows, Object.keys(confirmed).filter(key => !sheetManual.has(key)).map(key => {
     const i = key.lastIndexOf('|'), payee = key.slice(0, i), k = Number(key.slice(i + 1));
     const ms = new Date(Math.floor(k / 12), k % 12, 15, 12).getTime();
     return {payee, category: catOf(payee), amount: 0, date: ms, due: NaN, charge: ms, manual: true, local: true, card: '',
       period: 'bill ' + String(k % 12 + 1).padStart(2, '0') + '.' + Math.floor(k / 12)};
   })).sort((a, b) => b.charge - a.charge);
+  // Deleted bills leave every total, chart and Bill check; they are listed under All bills to restore.
+  const delKeys = payDeletedKeys();
+  const deletedBills = listAll.filter(p => delKeys.has(payBillKey(p)));
+  const list = listAll.filter(p => !delKeys.has(payBillKey(p)));
   if(!list.length){ area.innerHTML = `<div class="pm-note">No payments yet — run updatePayments() in the Payments spreadsheet's Apps Script.</div>`; return; }
   // Range: 6 months by default on phones, 12 elsewhere; the chips switch it (6 / 12 / 24).
   if(!paymentsRange) paymentsRange = window.matchMedia('(max-width:600px)').matches ? 6 : 12;
@@ -7968,7 +7998,7 @@ function renderPayments(){
   const noteKey = p => p.payee + '|' + ymdOf(p.charge) + '|' + (p.amount || 0).toFixed(2);
   const payNotes = payNotesGet();
   list.forEach(p => { const n = payNotes[noteKey(p)]; p.noteLocal = n !== undefined && n !== (p.sheetNote || ''); p.note = p.noteLocal ? n : (p.sheetNote || ''); });
-  const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button>${p.routine ? ` <button type="button" class="shop-note-btn pay-routine-row-edit" data-payee="${esc(p.payee)}">Edit routine</button>` : ''}`;
+  const noteHtml = p => `${p.note ? `<div class="shop-note">${esc(p.note)}</div>` : ''}<button type="button" class="shop-note-btn pay-note-btn" data-i="${list.indexOf(p)}">${p.note ? 'Edit note' : '+ Note'}</button> <button type="button" class="shop-note-btn pay-del-btn" data-i="${list.indexOf(p)}">Delete</button>${p.routine ? ` <button type="button" class="shop-note-btn pay-routine-row-edit" data-payee="${esc(p.payee)}">Edit routine</button>` : ''}`;
   const rows = shown.slice(0, 60);
   const bills = `
     <section class="pay-panel">
@@ -7983,6 +8013,7 @@ function renderPayments(){
         <div class="pay-cat-main"><b>${esc(p.payee)}</b><small>${dayShort(p.charge)}${p.period ? ' · ' + esc(p.period) : ''}${p.card ? ' · •• ' + esc(p.card) : ''}</small>${noteHtml(p)}</div>
         <div class="pay-cat-num"><b>${amt(p)}</b>${pill(p)}</div></div>`).join('')}</div>
       ${shown.length > 60 ? `<div class="pm-note">Showing the latest 60 of ${shown.length}.</div>` : ''}
+      ${deletedBills.length ? `<details class="pay-deleted"><summary>Deleted bills (${deletedBills.length})</summary>${deletedBills.map(p => `<div class="pay-deleted-row"><span>${dot(p.category)}<b>${esc(p.payee)}</b> · ${day(p.charge)} · ${amt(p)}</span><button type="button" class="pay-chip pay-restore" data-k="${esc(payBillKey(p))}">Restore</button></div>`).join('')}</details>` : ''}
     </section>`;
 
   const everyTxt = n => n === 1 ? 'every month' : n === 12 ? 'every year' : `every ${n} months`;
@@ -8178,6 +8209,39 @@ function renderPayments(){
   area.querySelectorAll('.pay-note-btn').forEach(b => b.addEventListener('click', ev => {
     ev.stopPropagation();
     const p = list[Number(b.dataset.i)]; if(p) openPayNote(p);
+  }));
+  // Delete a bill (16 Nov 2026): asks first, then hides it here at once and adds a "deleted" row to the Payments tab
+  // so every device drops it. The bill's own row stays (the daily Gmail run would only add it back).
+  const delRow = (p, act, at) => [ymdOf(p.charge), p.payee, p.category, '', (p.amount || 0).toFixed(2), '', '', '', '', act, act + ' ' + at].join('\t');
+  const keepScroll = fn => { const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; fn(); if(body) body.scrollTop = top; };
+  area.querySelectorAll('.pay-del-btn').forEach(b => b.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const p = list[Number(b.dataset.i)], box = document.getElementById('payNote'); if(!p || !box) return;
+    const what = `<b>${esc(p.payee)}</b> · ${day(p.charge)}${p.amount > 0 ? ' · ' + fmt2(p.amount) : ''}`;
+    box.innerHTML = `<div>Delete ${what}?</div><div class="pay-sub">It leaves the totals, the charts and Bill check on every device. You can restore it from "Deleted bills" at the end of this list.</div>
+      <div class="pay-confirm-btns"><button type="button" class="pay-btn primary" data-d="yes">Delete</button><button type="button" class="pay-chip" data-d="no">Cancel</button></div>`;
+    box.hidden = false;
+    box.querySelector('[data-d="no"]').addEventListener('click', () => { box.hidden = true; });
+    box.querySelector('[data-d="yes"]').addEventListener('click', () => {
+      const at = payStamp(), m = payDeletedGet(); m[payBillKey(p)] = {act: 'deleted', at}; payDeletedSet(m);
+      keepScroll(renderPayments);
+      const b2 = document.getElementById('payNote'); if(!b2) return;
+      const r = delRow(p, 'deleted', at);
+      b2.innerHTML = `<div>Deleted ${what}.</div>
+        <div class="pay-confirm-row">To delete it on every device, insert a row under the header of the Payments tab and paste it there:<code>${esc(r).replace(/\t/g, ' │ ')}</code></div>
+        <div class="pay-confirm-btns"><button type="button" class="pay-chip" data-d="close">Close</button></div>`;
+      b2.hidden = false;
+      b2.querySelector('[data-d="close"]').addEventListener('click', () => { b2.hidden = true; });
+      setTimeout(() => autoSaveSheet(b2, 'Payments', r), 0);
+      b2.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    });
+    box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  }));
+  area.querySelectorAll('.pay-restore').forEach(b => b.addEventListener('click', () => {
+    const p = deletedBills.find(x => payBillKey(x) === b.dataset.k); if(!p) return;
+    const at = payStamp(), m = payDeletedGet(); m[b.dataset.k] = {act: 'restored', at}; payDeletedSet(m);
+    quietSaveSheet('Payments', delRow(p, 'restored', at));
+    keepScroll(renderPayments);
   }));
   const panel = document.getElementById('payConfirm');
   const openConfirm = (s, k) => {
