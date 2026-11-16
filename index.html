@@ -2042,7 +2042,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794838391";
+const BUILD_ID = "1794846350";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -11580,6 +11580,9 @@ function renderWinLoseList(rows){
       scaleWinLoseBars(wlRows);
     });
     row.dataset.ticker = d.name;
+    // Double-click opens Market Universe on this ticker, as the heatmap tiles do (16 Nov 2026).
+    row.title = 'Double-click for Market Universe';
+    row.addEventListener('dblclick', e => { if(e.target.closest('.wlhit')) return; tt.style.display = 'none'; openUniverseForTicker(d); });
     wlRows.push({d, row, bar: row.querySelector('.wlbar')});
     const pct = `<span class="${isUp?'up':'down'}">${isUp?'+':''}${d.ret.toFixed(2)}%</span>`;
     const periodTip = d.wlDay ? `<b>${d.name}</b>Today's change: ${pct}`
@@ -11853,6 +11856,7 @@ function renderWaterfall(containerId, items, totalTooltip){
       d.hidden = !d.hidden;
       r.setAttribute('aria-expanded', String(!d.hidden));
     }));
+    container.querySelectorAll('.wf-row').forEach(r => r.addEventListener('dblclick', () => { const b = all[+r.dataset.i]; if(b.row) openUniverseForTicker(b.row); }));
     return;
   }
   const margin = {top:24, right:20, bottom:76, left:52};
@@ -11863,7 +11867,7 @@ function renderWaterfall(containerId, items, totalTooltip){
   const bars = items.map(it => {
     const start = cum;
     cum += it.value;
-    return {label: it.label, value: it.value, start, end: cum, isTotal:false, tooltip: it.tooltip};
+    return {label: it.label, value: it.value, start, end: cum, isTotal:false, tooltip: it.tooltip, row: it.row};
   });
   const total = cum;
   bars.push({label:'Total', value: total, start:0, end: total, isTotal:true, tooltip: totalTooltip ? totalTooltip(total) : null});
@@ -11910,8 +11914,10 @@ function renderWaterfall(containerId, items, totalTooltip){
     .attr('y', b=> y(Math.max(b.start,b.end)))
     .attr('height', b=> Math.max(Math.abs(y(b.start)-y(b.end)),1.5))
     .style('fill', b=> b.isTotal ? 'var(--accent)' : (b.value>=0 ? 'var(--up-ink)' : 'var(--down-ink)'))
-    .style('cursor', b => b.tooltip ? 'help' : 'default');
+    .style('cursor', b => b.row ? 'pointer' : b.tooltip ? 'help' : 'default');
   attachTooltip(rects);
+  // A holding's bar (not Total or a bucket) opens Market Universe on a double-click, as the heatmap tiles do (16 Nov 2026).
+  rects.on('dblclick', (event, b) => { if(b.row){ tt.style.display = 'none'; openUniverseForTicker(b.row); } });
 
   g.selectAll('.val-label').data(bars).enter().append('text')
     .attr('x', b=>x(b.label)+x.bandwidth()/2)
@@ -11968,7 +11974,7 @@ function renderContributionWaterfalls(rows){
         + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
         + `<b>${r.name}</b> ${gain>=0?'added':'subtracted'} <span class="${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span> to your portfolio's overall return.`
         + `</div>`;
-      return {label: r.name, value: pct, tooltip};
+      return {label: r.name, value: pct, tooltip, row: r};
     });
 
   const costBucketTooltip = (items, sum, label) =>
@@ -11982,7 +11988,7 @@ function renderContributionWaterfalls(rows){
     `<b>Total</b>Sum of every bar above<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span> \u2014 your actual overall total return`
   );
   const costNote = document.getElementById('waterfallCostNote');
-  if(costNote) costNote.textContent = `Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%). ${window.innerWidth <= 600 ? 'Tap' : 'Hover'} a bar to see the exact calculation.`;
+  if(costNote) costNote.textContent = `Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%). ${window.innerWidth <= 600 ? 'Tap' : 'Hover'} a bar to see the exact calculation; double-${window.innerWidth <= 600 ? 'tap' : 'click'} a holding for Market Universe.`;
 
   const currentItems = rows
     .filter(r => !isNaN(r.ret) && totalValue)
@@ -12002,7 +12008,7 @@ function renderContributionWaterfalls(rows){
         + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
         + `${r.name} is ${weight.toFixed(2)}% of your portfolio today and contributes <span class="${contrib>=0?'up':'down'}">${contrib>=0?'+':''}${contrib.toFixed(2)}%</span> to the current-weighted return.`
         + `</div>`;
-      return {label: r.name, value: contrib, tooltip};
+      return {label: r.name, value: contrib, tooltip, row: r};
     });
 
   const currentBucketTooltip = (items, sum, label) =>
