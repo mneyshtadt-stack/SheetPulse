@@ -2047,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1794849149";
+const BUILD_ID = "1794908334";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7978,7 +7978,7 @@ function renderPayments(){
       ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
             <div class="pay-card-val">${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}</div>
             <div class="pay-card-sub">Expected in ${monthName(thisM)}; not in Gmail yet.</div></div>` : ''}
-      ${st.due.length ? `<div class="pay-card due"><div class="pay-card-label">Bill in, not charged yet · ${st.due.length}</div>
+      ${st.due.length ? `<div class="pay-card due"><div class="pay-card-label">Invoice received · card charge ahead · ${st.due.length}</div>
         <div class="pay-card-val">${fmt2(sum(st.due))}</div>
         <div class="pay-card-sub">${st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ')}</div></div>` : ''}
       <div class="pay-card pay-card-paid"><div class="pay-card-label ok">Paid this month</div>
@@ -8007,7 +8007,7 @@ function renderPayments(){
       </table></div>
       ${checkHidden.size >= status.payees.length ? '<div class="pm-note">All bills hidden: click one above to show it.</div>' : ''}
       <div id="payConfirm" class="pay-confirm" hidden></div>
-      <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>bill in, not charged yet</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing (click to mark paid)</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--up-4)"></i>marked paid by you</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
+      <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>invoice received, card charge ahead</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing (click to mark paid)</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--up-4)"></i>marked paid by you</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
     </section>`;
 
   // Categories, last 12 months vs the 12 before.
@@ -8026,7 +8026,7 @@ function renderPayments(){
   // All bills: table on wider screens, cards on phones; category chips filter both.
   const billHay = p => [p.payee, p.category, p.period, p.card, p.note || p.sheetNote || '', day(p.charge), new Date(p.charge).toLocaleDateString('en-GB', {day: '2-digit', month: 'short', year: 'numeric'}), p.amount > 0 ? p.amount.toFixed(2) + ' ' + fmt2(p.amount) : '', p.routine ? 'routine' : '', p.manual ? 'marked paid' : ''].join(' ');
   const shown = (paymentsFilter ? list.filter(p => p.category === paymentsFilter) : list).filter(p => !paymentsQuery.trim() || searchMatch(paymentsQuery, billHay(p)));
-  const pill = p => p.manual ? `<span class="pay-pill mark" title="Marked paid: no bill for this month came by email; you marked it paid in Bill check.">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.routine ? `<span class="pay-pill ${p.charge > now ? 'due' : 'paid'}" title="Routine: entered once by you as a routine bill (no email for it), so this charge is assumed from your schedule (amount, day, how often), not confirmed by a bill.">routine${p.charge > now ? ' · to be charged' : ''}${p.local ? ' · this device' : ''}</span>` : p.charge > now ? '<span class="pay-pill due" title="To be charged: its bill arrived by email; the card charge date is still ahead.">to be charged</span>' : '<span class="pay-pill paid" title="Paid: confirmed by its own bill, emailed to you and read from Gmail (actual amount, period and charge date).">paid</span>';
+  const pill = p => p.manual ? `<span class="pay-pill mark" title="Marked paid: no bill for this month came by email; you marked it paid in Bill check.">${p.local ? 'marked paid · this device' : 'marked paid'}</span>` : p.routine ? `<span class="pay-pill ${p.charge > now ? 'due' : 'paid'}" title="Routine: entered once by you as a routine bill (no email for it), so this charge is assumed from your schedule (amount, day, how often), not confirmed by a bill.">routine${p.charge > now ? ' · to be charged' : ''}${p.local ? ' · this device' : ''}</span>` : p.charge > now ? '<span class="pay-pill due" title="Invoice received by email; the card charge date is still ahead.">card charge ahead</span>' : '<span class="pay-pill paid" title="Paid: confirmed by its own bill, emailed to you and read from Gmail (actual amount, period and charge date).">paid</span>';
   const amt = p => p.amount > 0 ? fmt2(p.amount) : '—';
   const ymdOf = ms => { const d = new Date(ms); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const noteKey = p => p.payee + '|' + ymdOf(p.charge) + '|' + (p.amount || 0).toFixed(2);
@@ -8073,7 +8073,7 @@ function renderPayments(){
         <div class="pay-panel-head"><h3>By month charged</h3>
           <div class="pay-legs" role="group" aria-label="Categories shown">${cats.map(cat => `<button type="button" class="pay-leg${chartHidden.has(cat) ? '' : ' on'}" aria-pressed="${!chartHidden.has(cat)}" data-leg="${esc(cat)}"><i style="--c:${colorOf(cat)}"></i>${esc(cat)}</button>`).join('')}</div></div>
         <div id="payChartBox"></div>
-        <div class="pay-panel-note">Faded = not charged yet · click a category to hide or show it</div>
+        <div class="pay-panel-note">Faded = card charge still ahead · click a category to hide or show it</div>
       </section>
       <section class="pay-panel pay-cat-panel"><div class="pay-panel-head"><h3>Last 12 months</h3></div>${catHtml}</section>
     </div>
@@ -8221,12 +8221,12 @@ function renderPayments(){
     // The first month start that still leaves this month whole; a part-month only ever shows on the right, among the months ahead.
     const need = now ? now.offsetLeft + now.offsetWidth - gw.clientWidth : want, starts = ths.slice(1).map(th => th.offsetLeft - pin).filter(x => x >= need - 1);
     gw.scrollLeft = starts.length ? Math.max(0, Math.min(...starts)) : want; }
-  const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Bill in, not charged yet', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
+  const stWord = {confirmed: 'Marked paid by you (no email)', paid: 'Paid', late: 'No bill this month; it came the month after', due: 'Invoice received · card charge ahead', missing: 'Missing: no bill found for this month', awaiting: 'Expected this month, no bill yet', expected: 'Next bill expected'};
   area.querySelectorAll('.pay-cell:not(.off)').forEach(td => {
     const s = status.payees[Number(td.dataset.p)], k = Number(td.dataset.k), c = s.months[k];
     attachHoverTooltip(td, () => `<b>${esc(s.payee)} · ${monthLabel(k)}</b><div>${stWord[c.st]}</div>` + (c.bills || []).map(p =>
       p.manual ? `<div style="color:var(--muted)">${p.local ? 'saved on this device · click to undo or copy the sheet row' : 'a manual row in the Payments tab'}${p.amount > 0 ? ' · ' + fmt2(p.amount) : ''}</div>` :
-      `<div>${fmt2(p.amount)} ${p.charge > now ? 'to be charged' : 'charged'} ${day(p.charge)}${p.card ? ' · card ' + esc(p.card) : ''}${p.period ? `<br><span style="color:var(--muted)">period ${esc(p.period)}</span>` : ''}</div>`).join('')
+      `<div>${fmt2(p.amount)} ${p.charge > now ? '· card charge on' : 'charged'} ${day(p.charge)}${p.card ? ' · card ' + esc(p.card) : ''}${p.period ? `<br><span style="color:var(--muted)">period ${esc(p.period)}</span>` : ''}</div>`).join('')
       + (c.st === 'late' ? `<div style="color:var(--muted)">billed in ${monthLabel(c.coveredBy)}</div>` : '')
       + (c.st === 'missing' ? '<div style="color:var(--muted)">click to mark it paid</div>' : ''));
   });
@@ -8349,7 +8349,7 @@ function renderPayments(){
   area.querySelectorAll('.pay-hit').forEach(r => {
     const m = byMonth[Number(r.dataset.i)];
     attachHoverTooltip(r, () => `<b>${monthLabel(m.k)} · ${fmt(m.total)}</b>` + (m.ps.length
-      ? m.ps.slice().sort((a, b) => a.charge - b.charge).map(p => `<div>${dot(p.category)}${esc(p.payee)} ${fmt2(p.amount)} <span style="color:var(--muted)">${dayShort(p.charge)}${p.charge > now ? ' · to be charged' : ''}</span></div>`).join('')
+      ? m.ps.slice().sort((a, b) => a.charge - b.charge).map(p => `<div>${dot(p.category)}${esc(p.payee)} ${fmt2(p.amount)} <span style="color:var(--muted)">${dayShort(p.charge)}${p.charge > now ? ' · card charge ahead' : ''}</span></div>`).join('')
       : '<div style="color:var(--muted)">no payments</div>'));
   });
 }
