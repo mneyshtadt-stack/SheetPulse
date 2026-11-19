@@ -2047,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795096578";
+const BUILD_ID = "1795096733";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4632,7 +4632,7 @@ function pfUsdDayHtml(r, part){
 function pfCardHtml(r, ccy){
   const ils = n => (n < 0 ? '−' : '') + (ccy || '₪') + Math.round(Math.abs(n)).toLocaleString('en-US');
   const signed = n => (n >= 0 ? '+' : '') + ils(n);
-  const pct = n => `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`;
+  const pct = n => `${sgnPct(n)}`;
   const day = !isNaN(r.dayGain) ? `<span class="${r.dayGain >= 0 ? 'up' : 'down'}"><i>${signed(r.dayGain)}</i>${!isNaN(r.change) ? ` <i>(${pct(r.change)})</i>` : ''}</span>` : '<span>n/a</span>';
   const gain = !isNaN(r.totalGain) ? `<span class="${r.totalGain >= 0 ? 'up' : 'down'}"><i>${signed(r.totalGain)}</i>${!isNaN(r.ret) ? ` <i>(${pct(r.ret)})</i>` : ''}</span>` : '<span>—</span>';
   return `<div class="pf-card" data-ticker="${escAttr(r.name)}">
@@ -4684,7 +4684,7 @@ function pfHoldingRowsHtml(r){
           <div class="md-th-symbol">${r.name}</div>
           <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
         </td>
-        <td class="num">${priceStr}${!isNaN(r.price) && !isNaN(r.change) ? `<div class="md-th-pct ${dayCls}" title="Today's move">${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%</div>` : ''}</td>
+        <td class="num">${priceStr}${!isNaN(r.price) && !isNaN(r.change) ? `<div class="md-th-pct ${dayCls}" title="Today's move">${sgnPct(r.change)}</div>` : ''}</td>
         <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
         <td class="num">
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
@@ -4884,7 +4884,7 @@ function renderMarketDetailTable(){
           <div class="md-th-symbol">${r.name}</div>
           <div class="md-th-sub" title="${(subtitle||'').replace(/"/g,'&quot;')}">${subtitle}</div>
         </td>
-        <td class="num">${priceCell}${!isNaN(r.price) && !isNaN(r.change) ? `<div class="md-th-pct ${dayCls}" title="Today's move">${r.change >= 0 ? '+' : ''}${r.change.toFixed(2)}%</div>` : ''}</td>
+        <td class="num">${priceCell}${!isNaN(r.price) && !isNaN(r.change) ? `<div class="md-th-pct ${dayCls}" title="Today's move">${sgnPct(r.change)}</div>` : ''}</td>
         <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
         <td class="num">
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+(inUsd ? money(r.dayGain) : fmtIlsSmart(r.dayGain)):'n/a'}</div>
@@ -5014,7 +5014,7 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${gainUsd >= 0 ? 'up' : 'down'}" id="mdTotalGainVal">${isFinite(gainUsd) ? (gainUsd >= 0 ? '+' : '-') + fmtUsd(gainUsd) : '—'}</div>
-        <div class="md-stat-tile-sub ${gainUsd >= 0 ? 'up' : 'down'}" id="mdTotalGainSub">${isFinite(gainPct) ? `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}% on ${fmtUsd(costUsd)} invested` : ''}</div>
+        <div class="md-stat-tile-sub ${gainUsd >= 0 ? 'up' : 'down'}" id="mdTotalGainSub">${isFinite(gainPct) ? `${sgnPct(gainPct)} on ${fmtUsd(costUsd)} invested` : ''}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market value (₪)</div>
@@ -5036,7 +5036,7 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)}</div>
-        <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${sgnPct(seg.totalGainPct)}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">USD/ILS</div>
@@ -5055,14 +5055,14 @@ function renderMarketDetailHeader(marketKey){
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${seg.totalGain>=0?'+':'-'}${fmt(seg.totalGain)}</div>
-        <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${seg.totalGainPct>=0?'+':''}${seg.totalGainPct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub ${seg.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${sgnPct(seg.totalGainPct)}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsd !== null ? "$" + Math.round(todayUsd).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(seg.value / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(usdChange !== null ? usdChange : seg.gain)>=0?'up':'down'}" id="mdUsdSub">${usdChange !== null
-          ? `${usdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%) vs previous close`
-          : (window.lastFxRate ? `${seg.gain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${seg.pct>=0?'+':''}${seg.pct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+          ? `${usdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(usdChange)).toLocaleString('en-US')} (${sgnPct(usdChangePct)}) vs previous close`
+          : (window.lastFxRate ? `${seg.gain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(seg.gain/window.lastFxRate)).toLocaleString('en-US')} (${sgnPct(seg.pct)}) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number') ? 'cursor:help;' : ''}">${(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number')
           ? `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')} · ${dayChangeAsOf}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
@@ -5094,7 +5094,7 @@ function renderMarketDetailHeader(marketKey){
       return `<b>How market value (USD) is calculated</b>
         <div>Today's total: ${fmtUsd(todayUsd)}</div>
         <div>&minus; Prev. close: ${fmtUsd(window.lastCloseUSD)}</div>
-        <div style="margin-top:2px;">= <span class="${usdChange>=0?'up':'down'}">${usdChange>=0?'+':'-'}${fmtUsd(Math.abs(usdChange))} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)</span></div>
+        <div style="margin-top:2px;">= <span class="${usdChange>=0?'up':'down'}">${usdChange>=0?'+':'-'}${fmtUsd(Math.abs(usdChange))} (${sgnPct(usdChangePct)})</span></div>
         <div style="margin-top:6px; color:var(--muted); font-size:12px;">Both sides are real, direct dollar data — the live sum of Current Value ($) today, and the USA dollar value recorded at the previous close — never derived by converting the ILS total through a rate.</div>`;
     });
   }
@@ -5383,14 +5383,14 @@ function applyPurchaseDateGainTile(broker, rows, totals){
   val.className = 'md-stat-tile-val ' + cls(gain);
   val.textContent = (gain >= 0 ? '+' : '-') + fmt(gain);
   sub.className = 'md-stat-tile-sub ' + cls(gain);
-  sub.textContent = `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}% · ${broker}'s way`;
+  sub.textContent = `${sgnPct(pct)} · ${broker}'s way`;
   const other = document.createElement('div');
   other.className = 'md-stat-tile-sub';
-  other.textContent = `At today's rate: ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
+  other.textContent = `At today's rate: ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)} (${sgnPct(totals.totalGainPct)})`;
   sub.after(other);
   attachHoverTooltip(val.parentElement, () => `<b>Total gain, ${broker}'s way</b>`
     + `<div>Value ${fmt(valueB)}${boi ? ` (US holdings at the Bank of Israel rate ${boi.rate.toFixed(4)}, ${boiDay(boi.date)})` : ''} − cost at purchase-date rates ${fmt(cost)}</div>`
-    + `<div>= <span class="${cls(gain)}">${gain >= 0 ? '+' : '-'}${fmt(gain)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)</span></div>`
+    + `<div>= <span class="${cls(gain)}">${gain >= 0 ? '+' : '-'}${fmt(gain)} (${sgnPct(pct)})</span></div>`
     + `<div style="margin-top:6px;">At today's rate (cost ${fmt(totals.totalCost)}): ${totals.totalGain >= 0 ? '+' : '-'}${fmt(totals.totalGain)}</div>`
     + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">Currency effect: <span class="${cls(gain - totals.totalGain)}">${gain - totals.totalGain >= 0 ? '+' : '-'}${fmt(gain - totals.totalGain)}</span></div>`);
 }
@@ -5408,10 +5408,10 @@ function applyBrokerAvgGainTile(broker, rows, totals){
   val.className = 'md-stat-tile-val ' + cls(ils);
   val.textContent = (ils >= 0 ? '+' : '-') + I(ils);
   sub.className = 'md-stat-tile-sub ' + cls(usd);
-  sub.textContent = `${usd >= 0 ? '+' : '-'}${$(usd)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%) · ${broker}'s way`;
+  sub.textContent = `${usd >= 0 ? '+' : '-'}${$(usd)} (${sgnPct(pct)}) · ${broker}'s way`;
   const other = document.createElement('div');
   other.className = 'md-stat-tile-sub';
-  other.textContent = `SheetPulse (with commission): ${totals.totalGain >= 0 ? '+' : '-'}${I(totals.totalGain)} (${totals.totalGainPct >= 0 ? '+' : ''}${totals.totalGainPct.toFixed(2)}%)`;
+  other.textContent = `SheetPulse (with commission): ${totals.totalGain >= 0 ? '+' : '-'}${I(totals.totalGain)} (${sgnPct(totals.totalGainPct)})`;
   sub.after(other);
 }
 // The figure to compare with the broker's own app, as a pill under the big number (design, 12 Oct
@@ -5539,7 +5539,7 @@ function renderPortfolioHeader(){
         ${pdWay ? `<div class="md-stat-tile-val ${dayChange(pdWay.day, pdWay.pct, fmt).cls}" id="mdDayChangeVal">${dayChange(pdWay.day, pdWay.pct, fmt).sign}${fmt(pdWay.day)}</div>
         <div class="md-stat-tile-sub ${dayChange(pdWay.day, pdWay.pct, fmt).cls}" id="mdDayChangeSub">${dayChange(pdWay.day, pdWay.pct, fmt).pctText} · ${broker}'s way</div>
         <div class="md-stat-tile-sub">Price moves at the Bank of Israel rate ${pdWay.boi.rate.toFixed(4)} (${boiDay(pdWay.boi.date)}); no currency effect, as ${broker} does</div>
-        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">With today's USD/ILS move (SheetPulse): ${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</div>` : `<div class="md-stat-tile-val ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeVal">${dayChange(totals.dayGain, totals.dayGainPct, fmt).sign}${fmt(totals.dayGain)}</div>
+        <div class="md-stat-tile-sub" id="mdDayChangeAsOf">With today's USD/ILS move (SheetPulse): ${totals.dayGain>=0?'+':'-'}${fmt(totals.dayGain)} (${sgnPct(totals.dayGainPct)})</div>` : `<div class="md-stat-tile-val ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeVal">${dayChange(totals.dayGain, totals.dayGainPct, fmt).sign}${fmt(totals.dayGain)}</div>
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
@@ -5548,14 +5548,14 @@ function renderPortfolioHeader(){
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Total gain</div>
         <div class="md-stat-tile-val ${totals.totalGain>=0?'up':'down'}" id="mdTotalGainVal">${totals.totalGain>=0?'+':'-'}${fmt(totals.totalGain)}</div>
-        <div class="md-stat-tile-sub ${totals.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${totals.totalGainPct>=0?'+':''}${totals.totalGainPct.toFixed(2)}%</div>
+        <div class="md-stat-tile-sub ${totals.totalGain>=0?'up':'down'}" id="mdTotalGainSub">${sgnPct(totals.totalGainPct)}</div>
       </div>
       <div class="md-stat-tile">
         <div class="md-stat-tile-label">Market value (USD)</div>
         <div class="md-stat-tile-val" id="mdUsdVal">${todayUsdTotal !== null ? "$" + Math.round(todayUsdTotal).toLocaleString('en-US') : (window.lastFxRate ? "$" + Math.round(totals.totalValue / window.lastFxRate).toLocaleString('en-US') : '—')}</div>
         <div class="md-stat-tile-sub ${(portfolioUsdChange !== null ? portfolioUsdChange : totals.dayGain)>=0?'up':'down'}" id="mdUsdSub">${portfolioUsdChange !== null
-          ? `${portfolioUsdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%) vs previous close`
-          : (window.lastFxRate ? `${totals.dayGain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%) vs previous close` : 'rate unavailable')}</div>
+          ? `${portfolioUsdChange>=0?'▲ +':'▼ '}$${Math.round(Math.abs(portfolioUsdChange)).toLocaleString('en-US')} (${sgnPct(portfolioUsdChangePct)}) vs previous close`
+          : (window.lastFxRate ? `${totals.dayGain>=0?'▲ +':'▼ '}$${Math.round(Math.abs(totals.dayGain/window.lastFxRate)).toLocaleString('en-US')} (${sgnPct(totals.dayGainPct)}) vs previous close` : 'rate unavailable')}</div>
         <div class="md-stat-tile-sub has-help" id="mdUsdRate" style="${yesterdayUsdTotal !== null ? 'cursor:help;' : ''}">${yesterdayUsdTotal !== null
           ? `Prev. close $${Math.round(yesterdayUsdTotal).toLocaleString('en-US')} · ${allPrevCloseLabel()}`
           : (window.lastFxRate ? fxRateLine(window.lastFxRate) : '')}</div>
@@ -5633,7 +5633,7 @@ function renderPortfolioHeader(){
     return `<b>How day change is calculated</b>
       <div>Today's value: ${fmt(totals.totalValue)}</div>
       <div>&minus; Prev. close: ${fmt(prevClose)}</div>
-      <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${totals.dayGainPct>=0?'+':''}${totals.dayGainPct.toFixed(2)}%)</span></div>
+      <div style="margin-top:2px;">= <span class="${totals.dayGain>=0?'up':'down'}">${totals.dayGain>=0?'+':'-'}${fmt(Math.abs(totals.dayGain))} (${sgnPct(totals.dayGainPct)})</span></div>
       ${breakdown}
       <div style="margin-top:6px; color:var(--muted); font-size:12px;">Prev. close is each market's closing value from IntradayLog: USA's close row, frozen at that moment (never recalculated with today's live rate), and TASE's final value that day (its prices keep settling for a while after the 17:30 close row).</div>`;
   });
@@ -5649,7 +5649,7 @@ function renderPortfolioHeader(){
     return `<b>How market value (USD) is calculated</b>
       <div>Today's total: ${fmtUsd(todayUsdTotal)}</div>
       <div>&minus; Prev. close: ${fmtUsd(yesterdayUsdTotal)}</div>
-      <div style="margin-top:2px;">= <span class="${portfolioUsdChange>=0?'up':'down'}">${portfolioUsdChange>=0?'+':'-'}${fmtUsd(Math.abs(portfolioUsdChange))} (${portfolioUsdChangePct>=0?'+':''}${portfolioUsdChangePct.toFixed(2)}%)</span></div>
+      <div style="margin-top:2px;">= <span class="${portfolioUsdChange>=0?'up':'down'}">${portfolioUsdChange>=0?'+':'-'}${fmtUsd(Math.abs(portfolioUsdChange))} (${sgnPct(portfolioUsdChangePct)})</span></div>
       ${breakdown}
       <div style="margin-top:6px; color:var(--muted); font-size:12px;">Israeli holdings have no real dollar figure of their own — both sides are converted at their own day's rate. USA's own $ value is real, direct data from Current Value ($) and the recorded close, never converted.</div>`;
   });
@@ -6314,7 +6314,7 @@ function nwChangeLine(value, refValue, refLabel, opts){
   const cls = change>=0 ? 'up' : 'down';
   const arrow = change>=0 ? '▲' : '▼';
   const size = opts.big ? 'font-size:13px; font-weight:700;' : 'font-size:12px;';
-  return `<div style="${size} margin:2px 0 0;" class="${cls}">${arrow} ${nwFmt(change)} (${changePct>=0?'+':''}${changePct.toFixed(2)}%) vs ${refLabel}</div>`;
+  return `<div style="${size} margin:2px 0 0;" class="${cls}">${arrow} ${nwFmt(change)} (${sgnPct(changePct)}) vs ${refLabel}</div>`;
 }
 
 function nwGroupBreakdownLines(nw, m){
@@ -10027,7 +10027,7 @@ function updateHeadlineDisplay(v, prevClose){
     const diff = v - prevClose;
     const diffPct = prevClose ? diff/prevClose*100 : 0;
     const cls = diff>=0 ? 'up' : 'down';
-    changeEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(diff)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
+    changeEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(diff)} (${sgnPct(diffPct)})`;
     changeEl.className = 'md-headline-change ' + cls;
   }
 }
@@ -10061,10 +10061,10 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
       const usdChange = todayUsd - window.lastCloseUSD;
       const usdChangePct = usdChange / window.lastCloseUSD * 100;
       const usdCls = usdChange >= 0 ? 'up' : 'down';
-      usdSubEl.textContent = `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}${fmtUsd(usdChange)} (${usdChangePct>=0?'+':''}${usdChangePct.toFixed(2)}%)`;
+      usdSubEl.textContent = `${usdChange>=0?'▲':'▼'} ${usdChange>=0?'+':'-'}${fmtUsd(usdChange)} (${sgnPct(usdChangePct)})`;
       usdSubEl.className = 'md-stat-tile-sub '+usdCls;
     } else {
-      usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`;
+      usdSubEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmtUsd(diff/fxRate)} (${sgnPct(diffPct)})`;
       usdSubEl.className = 'md-stat-tile-sub '+dcCls;
     }
     // The recorded close's rate/$ figures never change between ticks, so this line only
@@ -10558,7 +10558,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   if(fxTap){
     const fm = log[fxMarkerIdx].fxMarker, pct = (fm.newRate - fm.oldRate) / fm.oldRate * 100;
     const fxHtml = `<b>FX: the dollar's overnight move</b>This opening point already includes the change in USD/ILS since the previous close, `
-      + `${fm.oldRate.toFixed(4)} → ${fm.newRate.toFixed(4)} (<span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span>), `
+      + `${fm.oldRate.toFixed(4)} → ${fm.newRate.toFixed(4)} (<span class="${pct >= 0 ? 'up' : 'down'}">${sgnPct(pct)}</span>), `
       + `so part of the gap from Prev. close is the rate, not share prices.`;
     const open = e => { e.stopPropagation(); e.preventDefault(); showPinnedCard(fxHtml, fxTap); };
     fxTap.addEventListener('click', open);
@@ -10617,7 +10617,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     const ttDiff = p.v - prevClose;
     const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
     const ttCls = ttDiff >= 0 ? 'var(--up-ink)' : 'var(--down-ink)';
-    const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${ttDiffPct>=0?'+':''}${ttDiffPct.toFixed(2)}%)`;
+    const ttChange = `${ttDiff>=0?'▲':'▼'} ${ttDiff>=0?'+':'-'}${fmt(Math.abs(ttDiff))} (${sgnPct(ttDiffPct)})`;
     // At this chart's own opening point only: show the FX rate that's now baked into its number
     // vs. the rate previous close was recorded at (see fetchCombinedIntradayLogRaw / renderIntradayChart's
     // markerKind). Styled distinctly (accent color, bold label) rather than a muted footnote, since
@@ -10963,7 +10963,7 @@ async function renderRangeChart(ctx, range){
 
   el.innerHTML = `
     <div style="font-family:var(--sans); font-size:13px; margin-bottom:4px;">
-      <span style="color:${lineColor}; font-weight:700;">${flatMove ? `– ${fmt(0)} (0.00%)` : `${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${diffPct>=0?'+':''}${diffPct.toFixed(2)}%)`}</span>
+      <span style="color:${lineColor}; font-weight:700;">${flatMove ? `– ${fmt(0)} (0.00%)` : `${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${sgnPct(diffPct)})`}</span>
       <span style="color:var(--muted);"> ${rangeLabel}</span>
       ${boiMarks.length ? `<span style="color:var(--muted);"> · <span style="color:var(--accent);">◆</span> Bank of Israel rate</span>` : ''}
       ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases</span>` : ''}
@@ -11011,7 +11011,7 @@ async function renderRangeChart(ctx, range){
     const c = changeVsStart(p), d = c.gain, dp = c.pct;
     const isToday = !intraday5D && idx === pts.length-1 && typeof ctx.liveValue === 'number';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div>`
-      + `<div style="color:${d>=0?'var(--up-ink)':'var(--down-ink)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${dp>=0?'+':''}${dp.toFixed(2)}%) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
+      + `<div style="color:${d>=0?'var(--up-ink)':'var(--down-ink)'};">${d>=0?'▲':'▼'} ${d>=0?'+':'-'}${fmt(Math.abs(d))} (${sgnPct(dp)}) vs ${vsPrevClose ? 'previous close' : 'start'}</div>`
       + (c.added > 0 ? `<div style="color:var(--muted); font-size:12px;">excl. ${fmt(c.added)} of new purchases</div>` : '')
       + (bandH ? moveTooltipLine(moves[idx], fmt, intraday5D ? 'since the previous reading' : 'since the previous close') : '')
       + `<div>${new Date(p.t).toLocaleString('en-US', dateFmt)}${isToday ? ' (live)' : ''}</div>`
@@ -11627,7 +11627,7 @@ function renderWinLoseList(rows){
     const isUp = d.ret >= 0;
     // One-sided, ranked best to worst (29 Oct 2026 review): the old two-sided chart left half its width empty.
     const barStyle = `left:0; background:${isUp ? 'var(--up-4)' : 'var(--down-4)'};`;
-    row.innerHTML = `<label class="wlhit"><input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"></label><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${isUp?'+':''}${d.ret.toFixed(2)}%</div>`;
+    row.innerHTML = `<label class="wlhit"><input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"></label><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${sgnPct(d.ret)}</div>`;
     const check = row.querySelector('.wlcheck');
     row.querySelector('.wlhit').addEventListener('click', e => e.stopPropagation());   // the tap area toggles the box, not the row
     check.addEventListener('click', e => e.stopPropagation());
@@ -11814,7 +11814,7 @@ function renderWinLoseHeadline(rows, meta){
   let html = !meta || meta[0] === 'buy' ? `<b>${winners.length} of ${withRet.length}</b> holdings are profitable (${winRate.toFixed(1)}%)`
     : `<b>${winners.length} of ${withRet.length}</b> holdings are up ${meta[0] === '1D' ? 'today' : meta[0] === 'YTD' ? 'this year' : 'over the ' + meta[2]} (${winRate.toFixed(1)}%)`;
   if(bigWinner && bigLoser && bigWinner !== bigLoser){
-    html += ` — best: <b class="up">${bigWinner.name} ${bigWinner.ret>=0?'+':''}${bigWinner.ret.toFixed(2)}%</b>, worst: <b class="down">${bigLoser.name} ${bigLoser.ret.toFixed(2)}%</b>`;
+    html += ` — best: <b class="up">${bigWinner.name} ${sgnPct(bigWinner.ret)}</b>, worst: <b class="down">${bigLoser.name} ${sgnPct(bigLoser.ret)}</b>`;
   }
   el.innerHTML = html;
 }
@@ -11906,7 +11906,7 @@ function renderWaterfall(containerId, items, totalTooltip){
     const max = Math.max(...all.map(b => Math.abs(b.value)), 0.01);
     container.innerHTML = '<div class="wf-rows">' + all.map((b, i) => `<button type="button" class="wf-row${b.isTotal ? ' total' : ''}" data-i="${i}" aria-expanded="false">`
       + `<span class="wf-l">${b.label}</span><span class="wf-b"><i style="width:${(Math.abs(b.value) / max * 100).toFixed(1)}%; background:${b.isTotal ? 'var(--accent)' : b.value >= 0 ? 'var(--up-ink)' : 'var(--down-ink)'};"></i></span>`
-      + `<span class="wf-v ${b.value >= 0 ? 'up' : 'down'}">${b.value >= 0 ? '+' : ''}${b.value.toFixed(2)}%</span></button><div class="wf-d" hidden></div>`).join('') + '</div>';
+      + `<span class="wf-v ${b.value >= 0 ? 'up' : 'down'}">${sgnPct(b.value)}</span></button><div class="wf-d" hidden></div>`).join('') + '</div>';
     container.querySelectorAll('.wf-row').forEach(r => r.addEventListener('click', () => {
       const b = all[+r.dataset.i], d = r.nextElementSibling;
       if(!b.tooltip) return;
@@ -12028,9 +12028,9 @@ function renderContributionWaterfalls(rows){
         + `</div>`
         + `Step 1 — Profit: ${fmtIls2(r.value)} \u2212 ${fmtIls2(r.cost)} = ${gain>=0?'+':'\u2212'}${fmtIls2(Math.abs(gain))}<br>`
         + `Step 2 — Share of total cost: ${fmtIls2(Math.abs(gain))} \u00f7 ${fmtIls2(totalCost)} = ${(pct/100).toFixed(4)}<br>`
-        + `Step 3 — As a percent: ${(pct/100).toFixed(4)} \u00d7 100 = <span class="${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span>`
+        + `Step 3 — As a percent: ${(pct/100).toFixed(4)} \u00d7 100 = <span class="${pct>=0?'up':'down'}">${sgnPct(pct)}</span>`
         + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
-        + `<b>${r.name}</b> ${gain>=0?'added':'subtracted'} <span class="${pct>=0?'up':'down'}">${pct>=0?'+':''}${pct.toFixed(2)}%</span> to your portfolio's overall return.`
+        + `<b>${r.name}</b> ${gain>=0?'added':'subtracted'} <span class="${pct>=0?'up':'down'}">${sgnPct(pct)}</span> to your portfolio's overall return.`
         + `</div>`;
       return {label: r.name, value: pct, tooltip, row: r};
     });
@@ -12038,15 +12038,15 @@ function renderContributionWaterfalls(rows){
   const costBucketTooltip = (items, sum, label) =>
     `<b>${label} (${items.length} holdings)</b>`
     + `Combined (value \u2212 cost) \u00f7 total cost for: ${items.map(i=>i.label).slice(0,8).join(', ')}${items.length>8?', \u2026':''}<br>`
-    + `= <span class="${sum>=0?'up':'down'}">${sum>=0?'+':''}${sum.toFixed(2)}%</span> of total return`;
+    + `= <span class="${sum>=0?'up':'down'}">${sgnPct(sum)}</span> of total return`;
 
   const costBars = bucketizeContributions(costItems, window.innerWidth <= 600 ? 6 : 15, costBucketTooltip);
   const costTotal = costItems.reduce((a,i)=>a+i.value,0);
   renderWaterfall('waterfallCost', costBars, (total) =>
-    `<b>Total</b>Sum of every bar above<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span> \u2014 your actual overall total return`
+    `<b>Total</b>Sum of every bar above<br>= <span class="${total>=0?'up':'down'}">${sgnPct(total)}</span> \u2014 your actual overall total return`
   );
   const costNote = document.getElementById('waterfallCostNote');
-  if(costNote) costNote.textContent = `Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%). ${window.innerWidth <= 600 ? 'Tap' : 'Hover'} a bar to see the exact calculation; double-${window.innerWidth <= 600 ? 'tap' : 'click'} a holding for Market Universe.`;
+  if(costNote) costNote.textContent = `Each bar is a holding's gain or loss as a share of your total cost basis — these add up exactly to your overall total return (${sgnPct(costTotal)}). ${window.innerWidth <= 600 ? 'Tap' : 'Hover'} a bar to see the exact calculation; double-${window.innerWidth <= 600 ? 'tap' : 'click'} a holding for Market Universe.`;
 
   const currentItems = rows
     .filter(r => !isNaN(r.ret) && totalValue)
@@ -12058,13 +12058,13 @@ function renderContributionWaterfalls(rows){
         + `<div style="color:var(--muted); font-size:12px; margin-bottom:6px;">`
         + `Current value: ${fmtIls2(r.value)}<br>`
         + `Total portfolio value: ${fmtIls2(totalValue)}<br>`
-        + `${r.name}'s own total return: ${r.ret>=0?'+':''}${r.ret.toFixed(2)}%`
+        + `${r.name}'s own total return: ${sgnPct(r.ret)}`
         + `</div>`
         + `Step 1 — Today's weight: ${fmtIls2(r.value)} \u00f7 ${fmtIls2(totalValue)} = ${(weight/100).toFixed(4)} (${weight.toFixed(2)}%)<br>`
         + `Step 2 — Weight \u00d7 own return: ${(weight/100).toFixed(4)} \u00d7 ${r.ret.toFixed(2)}%<br>`
-        + `Step 3 — Result: <span class="${contrib>=0?'up':'down'}">${contrib>=0?'+':''}${contrib.toFixed(2)}%</span>`
+        + `Step 3 — Result: <span class="${contrib>=0?'up':'down'}">${sgnPct(contrib)}</span>`
         + `<div style="margin-top:6px; padding-top:6px; border-top:1px solid var(--line);">`
-        + `${r.name} is ${weight.toFixed(2)}% of your portfolio today and contributes <span class="${contrib>=0?'up':'down'}">${contrib>=0?'+':''}${contrib.toFixed(2)}%</span> to the current-weighted return.`
+        + `${r.name} is ${weight.toFixed(2)}% of your portfolio today and contributes <span class="${contrib>=0?'up':'down'}">${sgnPct(contrib)}</span> to the current-weighted return.`
         + `</div>`;
       return {label: r.name, value: contrib, tooltip, row: r};
     });
@@ -12072,13 +12072,13 @@ function renderContributionWaterfalls(rows){
   const currentBucketTooltip = (items, sum, label) =>
     `<b>${label} (${items.length} holdings)</b>`
     + `Combined (weight \u00d7 own return) for: ${items.map(i=>i.label).slice(0,8).join(', ')}${items.length>8?', \u2026':''}<br>`
-    + `= <span class="${sum>=0?'up':'down'}">${sum>=0?'+':''}${sum.toFixed(2)}%</span>`;
+    + `= <span class="${sum>=0?'up':'down'}">${sgnPct(sum)}</span>`;
 
   const currentBars = bucketizeContributions(currentItems, window.innerWidth <= 600 ? 6 : 15, currentBucketTooltip);
   const currentTotal = currentItems.reduce((a,i)=>a+i.value,0);
   renderWaterfall('waterfallCurrent', currentBars, (total) =>
-    `<b>Total</b>Sum of every bar above (each = today's weight \u00d7 that holding's own return)<br>= <span class="${total>=0?'up':'down'}">${total>=0?'+':''}${total.toFixed(2)}%</span><br>`
-    + `<span style="color:var(--muted); font-size:12px;">This won't match the cost-weighted total (${costTotal>=0?'+':''}${costTotal.toFixed(2)}%) \u2014 different weighting basis, both are valid.</span>`
+    `<b>Total</b>Sum of every bar above (each = today's weight \u00d7 that holding's own return)<br>= <span class="${total>=0?'up':'down'}">${sgnPct(total)}</span><br>`
+    + `<span style="color:var(--muted); font-size:12px;">This won't match the cost-weighted total (${sgnPct(costTotal)}) \u2014 different weighting basis, both are valid.</span>`
   );
 }
 
