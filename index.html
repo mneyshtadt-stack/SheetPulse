@@ -2052,7 +2052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795108728";
+const BUILD_ID = "1795108948";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -7175,9 +7175,15 @@ function ctNotesSet(m){ try{ localStorage.setItem('sp_contractNotes', JSON.strin
 function ctHiddenGet(){ try{ const a = JSON.parse(localStorage.getItem('sp_contractsHidden') || '[]'); return Array.isArray(a) ? a : []; } catch(_){ return []; } }
 function ctHiddenSet(a){ try{ localStorage.setItem('sp_contractsHidden', JSON.stringify(a)); } catch(_){} }
 const ctKey = k => k.name + '|' + (k.ref || '');
+// The contract that renews this one: a renewal notice of the same type ("חידוש" / "renew" in its name or notes) starting
+// within 60 days of its end (review 19 Nov 2026: Home insurance said "compare offers" next to Harel's Nov 1 renewal email).
+function ctRenewal(k, list){
+  if(isNaN(k.end)) return null;
+  return list.find(o => o !== k && o.type === k.type && /חידוש|renew/i.test((o.name || '') + ' ' + (o.notes || '')) && !isNaN(o.start) && o.start > k.start && o.start >= k.end - 60 * 86400000) || null;
+}
 function contractsSoonCount(list){
   const now = Date.now(), hidden = new Set(ctHiddenGet());
-  return list.filter(k => !hidden.has(ctKey(k)) && !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now)).length;
+  return list.filter(k => !hidden.has(ctKey(k)) && !isNaN(k.end) && k.end >= now && k.end - now <= 90 * 86400000 && !(k.start > now) && !ctRenewal(k, list)).length;
 }
 // On a phone the timeline's track has almost no room beside the contract names, so the list is the default there
 // (29 Oct 2026); a choice you make with the Timeline / List switch is still remembered.
@@ -7229,17 +7235,11 @@ function renderContracts(area){
     k.state = !isNaN(k.start) && k.start > now ? 'upcoming' : !isNaN(k.end) && k.end < now ? 'ended' : !isNaN(k.end) && k.end - now <= 90 * DAY ? 'soon' : 'active';
     k.monthly = !(k.cost > 0) ? 0 : k.per === 'month' ? k.cost : k.per === 'year' ? k.cost / 12 : 0;
   });
-  // Already renewed: a renewal notice of the same type ("חידוש" / "renew" in its name or notes) starting within 60 days of
-  // the end (review 19 Nov 2026: Home insurance said "compare offers" next to Harel's Nov 1 renewal email).
-  everything.forEach(k => {
-    if(k.state !== 'soon') return;
-    const r = everything.find(o => o !== k && o.type === k.type && /חידוש|renew/i.test((o.name || '') + ' ' + (o.notes || '')) && !isNaN(o.start) && o.start > k.start && o.start >= k.end - 60 * DAY);
-    if(r){ k.renewedBy = r; k.state = 'active'; }
-  });
+  everything.forEach(k => { if(k.state !== 'soon') return; const r = ctRenewal(k, everything); if(r){ k.renewedBy = r; k.state = 'active'; } });   // already renewed
   const live = all.filter(k => k.state !== 'ended');
   const soon = all.filter(k => k.state === 'soon').sort((a, b) => a.end - b.end);
   const monthly = live.reduce((a, k) => a + k.monthly, 0);
-  const nextEnd = live.filter(k => !isNaN(k.end)).sort((a, b) => a.end - b.end)[0];
+  const nextEnd = live.filter(k => !isNaN(k.end) && !k.renewedBy).sort((a, b) => a.end - b.end)[0];
   const left = ms => { const d = Math.round((ms - now) / DAY); return d < 0 ? 'ended ' + day(ms) : d < 60 ? d + ' days left' : d < 730 ? Math.round(d / 30.4) + ' months left' : (d / 365.25).toFixed(1).replace(/\.0$/, '') + ' years left'; };
   const types = [...new Set(all.map(k => k.type))].sort();
   const showingHidden = contractsType === '__hidden';
