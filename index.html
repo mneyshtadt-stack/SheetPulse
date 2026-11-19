@@ -1442,6 +1442,11 @@
   #marketDetailModal, #universeModal, #diagModal{padding:14px;}
   #marketDetailCard, #marketDetailCard.wide, #universeCard, #diagCard{width:min(1120px, 96vw); max-height:94vh;}
   #universeCard.maximized{width:100%; height:100%; max-height:100%;}
+  /* A phone on its side keeps the full-screen windows: the size rule above overrode the landscape one (review 19 Nov 2026). */
+  @media (max-height:500px) and (min-width:601px){
+    #marketDetailModal, #universeModal, #diagModal{padding:0;}
+    #marketDetailCard, #marketDetailCard.wide, #universeCard, #diagCard{width:100vw; max-height:100dvh;}
+  }
   .h2-sub{font-size:13px; font-weight:400; color:var(--muted); letter-spacing:0; margin-left:6px; white-space:nowrap;}
   @media (max-width:600px){
     #marketDetailModal, #universeModal, #diagModal{padding:0;}
@@ -1897,9 +1902,9 @@
     </h2>
     <div id="sectorsBar" class="segbar"></div>
     <div class="legend-scroll-wrap">
-      <button class="legend-arrow" data-target="sectors" data-dir="-1">‹</button>
+      <button type="button" class="legend-arrow" data-target="sectors" data-dir="-1" aria-label="Previous sectors">‹</button>
       <div class="legend-strip" id="sectors"></div>
-      <button class="legend-arrow" data-target="sectors" data-dir="1">›</button>
+      <button type="button" class="legend-arrow" data-target="sectors" data-dir="1" aria-label="Next sectors">›</button>
     </div>
     <button type="button" class="legend-more" data-target="sectors">Show all</button>
   </section>
@@ -1910,9 +1915,9 @@
     </h2>
     <div id="rolesBar" class="segbar"></div>
     <div class="legend-scroll-wrap">
-      <button class="legend-arrow" data-target="roles" data-dir="-1">‹</button>
+      <button type="button" class="legend-arrow" data-target="roles" data-dir="-1" aria-label="Previous role groups">‹</button>
       <div class="legend-strip" id="roles"></div>
-      <button class="legend-arrow" data-target="roles" data-dir="1">›</button>
+      <button type="button" class="legend-arrow" data-target="roles" data-dir="1" aria-label="Next role groups">›</button>
     </div>
     <button type="button" class="legend-more" data-target="roles">Show all</button>
   </section>
@@ -2047,7 +2052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795100656";
+const BUILD_ID = "1795108401";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2412,7 +2417,7 @@ const DIAG_CHECKS = [
     // 14 days: a quiet week with no new ex-dates is normal (all 51 tickers had none 15-28 Oct 2026)
     if(!isNaN(age) && age > 14 * 86400000) issues.push(`no new rows for ${diagDuration(age)} — check the updateDividends trigger (Executions page); new dividends may simply not exist yet`);
     if(!av) issues.push('Alpha Vantage hasn\'t confirmed any payment date — run checkAlphaVantageKey() in Apps Script');
-    const detail = `${data.length} dividends for ${tickers} tickers · Alpha Vantage confirmed ${av} payment date${av === 1 ? '' : 's'} (${avTickers} tickers), ${est} still estimated${manual ? `, ${manual} manual` : ''} (25 Alpha Vantage requests a day: the rest follow over the next days)`
+    const detail = `${data.length} rows for ${tickers} tickers in the Dividends tab (it lists upcoming ones too; Portfolio → Dividends counts only payments received while holding) · Alpha Vantage confirmed ${av} payment date${av === 1 ? '' : 's'} (${avTickers} tickers), ${est} still estimated${manual ? `, ${manual} manual` : ''} (25 Alpha Vantage requests a day: the rest follow over the next days)`
       + (hand.length ? ` · ${hand.length} Psagot average${hand.length === 1 ? '' : 's'} still typed by hand (${hand.join(', ')}) — Portfolio → Dividends says when to clear ${hand.length === 1 ? 'it' : 'them'}` : '');
     return {status: issues.length ? 'warn' : 'ok', ms:r.ms, detail: issues.length ? issues.join(' · ') + ' · ' + detail : detail + '.'};
   }},
@@ -3771,6 +3776,9 @@ function showUniverseQuoteCard(row){
     return;
   }
   const ccy = ISRAELI_TICKERS.includes(row.name) ? 'ILA' : 'USD';
+  // Before today's US session the price move is the last session's (row.change is then the dollar's move only).
+  const lastSess = ccy === 'USD' && !usSessionStartedToday();
+  if(lastSess && isFinite(row.sessionChange)) row = {...row, change: row.sessionChange};
   const cls = row.change >= 0 ? 'up' : 'down';
   const arrow = row.change >= 0 ? '↑' : '↓';
   // Prefer the sheet's own Prev day close (exact) over back-deriving the dollar change from the
@@ -3788,7 +3796,7 @@ function showUniverseQuoteCard(row){
     <div class="uq-row">
       <span>${logoImg}<span class="uq-price">${row.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span> <span class="uq-ccy">${ccy}</span></span>
       <span class="uq-pct ${cls}">${arrow} ${Math.abs(row.change).toFixed(2)}%</span>
-      <span class="uq-today ${cls}">${dayChangeAmt>=0?'+':''}${dayChangeAmt.toFixed(2)} today</span>
+      <span class="uq-today ${cls}">${dayChangeAmt>=0?'+':'−'}${Math.abs(dayChangeAmt).toFixed(2)} ${lastSess ? 'last session' : 'today'}</span>
       <span class="uq-ext" id="uqExt" style="display:none;"></span>
     </div>
   `;
@@ -3897,6 +3905,9 @@ function renderUniverseQuoteExt(){
 const UNIVERSE_CHART_RANGES = ['5D','1M','6M','YTD','1Y','5Y','MAX'];
 let universeChartRange = '1M';
 let universeChartRow = null;
+// A ticker's market has traded today: only then is its price a new point. Before that it equals the last close, and a
+// "today" point repeated it under today's date (review 19 Nov 2026: MKL's 5D ended Nov 18's close labelled Nov 19).
+function tradedToday(ticker){ return ISRAELI_TICKERS.includes(ticker) ? !taseLastSessionFreeze() : usSessionStartedToday(); }
 function showUniverseChart(row){
   universeChartRow = row;
   const bar = document.getElementById('universeRangeBar');
@@ -3926,10 +3937,10 @@ function showUniverseChart(row){
   renderUniverseCompareBar(row);
   if(universeCompare.length){ renderUniverseCompareChart(row, universeChartRange, height); return; }
   renderRangeChart({
-    priceColumn: row.name, holdings: [], liveValue: row.price,
+    priceColumn: row.name, holdings: [], liveValue: tradedToday(row.name) ? row.price : NaN,
     fmtValue: isIl ? (n => money(n) + ' ILA') : (n => '$' + money(n)),
     chartElId: 'universeChart', currentRange: () => universeChartRange, height,
-    note: `Daily closes of ${row.name} from the PriceHistory tab; the last point is today's live price.`
+    note: `Daily closes of ${row.name} from the PriceHistory tab${tradedToday(row.name) ? "; the last point is today's live price" : ''}.`
   }, universeChartRange);
 }
 
@@ -4046,14 +4057,15 @@ async function renderUniverseCompareChart(row, range, height){
   // The main ticker's trading days set the x axis, as on its own chart.
   const todayStr = new Date().toDateString();
   let idx = ph.dates.map((t, i) => i).filter(i => !isNaN(mainCol[i]) && new Date(ph.dates[i]).toDateString() !== todayStr);
-  idx = range === '5D' ? idx.slice(-5) : idx.filter(i => ph.dates[i] >= chartRangeStartMs(range));
+  const withToday = row.price > 0 && tradedToday(row.name);
+  // 5 points in all, like the single chart: 4 closes + today, or 5 closes before the market opens.
+  idx = range === '5D' ? idx.slice(withToday ? -4 : -5) : idx.filter(i => ph.dates[i] >= chartRangeStartMs(range));
   const livePrice = t => {
     if(t === row.name) return row.price > 0 ? row.price : NaN;
     const h = (window.lastRows || []).find(r => r.name === t);
     return h && h.price > 0 ? h.price : NaN;
   };
   const dates = idx.map(i => ph.dates[i]);
-  const withToday = row.price > 0;
   if(withToday) dates.push(new Date().setHours(12, 0, 0, 0));
   const series = tickers.map((t, k) => {
     const col = ph.cols[t];
@@ -4068,15 +4080,17 @@ async function renderUniverseCompareChart(row, range, height){
   const w = Math.max(el.clientWidth || 900, 280), h = height || 240, padL = 52, padR = 16, padT = 12, padB = 26;
   const all = series.flatMap(s => s.pct.filter(v => !isNaN(v))).concat(0);
   const minV = Math.min(...all), maxV = Math.max(...all), spread = (maxV - minV) || 1;
-  const yMin = minV - spread * 0.1, yMax = maxV + spread * 0.1;
+  // Round gridline values (review 19 Nov 2026: -5.14% | -3.33% | ...): d3's nice ticks over the padded range.
+  const yTicks = d3.scaleLinear().domain([minV - spread * 0.1, maxV + spread * 0.1]).nice(5).ticks(5);
+  const yMin = yTicks[0], yMax = yTicks[yTicks.length - 1];
   const xFor = i => padL + i / (dates.length - 1) * (w - padL - padR);
   const yFor = v => h - padB - (v - yMin) / (yMax - yMin) * (h - padT - padB);
-  const pctStr = v => isNaN(v) ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  const pctStr = v => isNaN(v) ? '—' : sgnPct(v);
   const font = `font-family="system-ui,-apple-system,'Segoe UI Variable Text','Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"`;
-  const yGrid = Array.from({length: 5}, (_, i) => {
-    const v = yMin + (yMax - yMin) * i / 4, y = yFor(v);
+  const yGrid = yTicks.map(v => {
+    const y = yFor(v), dec = yTicks.every(t => Number.isInteger(Math.round(t * 1e6) / 1e6)) ? 0 : 1;
     return `<line x1="${padL}" x2="${w - padR}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`
-      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${pctStr(v)}</text>`;
+      + `<text x="${padL - 8}" y="${(y + 3).toFixed(1)}" font-size="11" fill="var(--muted)" text-anchor="end" ${font}>${Math.abs(v) < 1e-9 ? '0%' : sgnPct(v, dec)}</text>`;
   }).join('');
   const longRange = ['1Y', '5Y', 'MAX'].includes(range);
   const label = t => new Date(t).toLocaleDateString('en-US', longRange ? {month: 'short', year: 'numeric'} : {month: 'short', day: 'numeric'});
@@ -4088,7 +4102,7 @@ async function renderUniverseCompareChart(row, range, height){
     s.pct.forEach((v, i) => { if(isNaN(v)){ pen = false; return; } d += (pen ? 'L' : 'M') + xFor(i).toFixed(1) + ',' + yFor(v).toFixed(1) + ' '; pen = true; });
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.t === row.name ? 2.4 : 1.8}"/>`;
   }).join('');
-  const rangeLabel = range === 'MAX' ? 'since ' + new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : CHART_RANGE_LABELS[range];
+  const rangeLabel = range === 'MAX' || (['1Y', '5Y'].includes(range) && dates[0] > chartRangeStartMs(range) + 7 * 86400000) ? 'since ' + new Date(dates[0]).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : CHART_RANGE_LABELS[range];
   el.innerHTML = `
     <div class="uc-summary">${series.map(s => `<span><span class="uc-dot" style="background:${s.color}"></span><b>${s.t}</b> <span class="${s.pct[s.pct.length - 1] >= 0 ? 'up' : 'down'}">${pctStr(s.pct[s.pct.length - 1])}</span></span>`).join('')}<span style="color:var(--muted);">${rangeLabel}</span></div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair; touch-action:pan-y;">
@@ -4691,13 +4705,15 @@ function pfHoldingRowsHtml(r){
   const dayCls = !isNaN(r.change) ? (r.change>=0?'up':'down') : '';
   const subtitle = TICKER_NAME_MAP[r.name] || '';
   const priceCcy = ISRAELI_TICKERS.includes(r.name) ? 'ILA' : '$';
+  // A TASE price is in agorot: shown in shekels, "₪37.30" rather than "ILA3,730.00" (review 19 Nov 2026).
+  const px = n => ISRAELI_TICKERS.includes(r.name) ? '₪' + (n / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
   const priceStr = !isNaN(r.price)
-    ? `<span title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+priceCcy+r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">${priceCcy}${r.price.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}</span>`
+    ? `<span title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+px(r.avgCost):''}">${px(r.price)}</span>`
     : '—';
-  const avgCostStr = !isNaN(r.avgCost) ? `${priceCcy}${r.avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}` : '—';
+  const avgCostStr = !isNaN(r.avgCost) ? px(r.avgCost) : '—';
   const holdingPeriod = formatHoldingPeriod(r.buyDate);
-  const money = n => `${priceCcy}${n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+  const money = px;
   const lotRowsHtml = portfolioLotRowsHtml(r, {priceCcy, fmt2, money});
 
   return `
@@ -5359,6 +5375,9 @@ function portfolioRows(){
 // not the live one (4 Nov 2026, the user's rule: SMH moved with the rate under "last session"). The home page keeps the live
 // rate, and broker views keep their brokers' own rules. Rows priced in ₪ from $ × live rate (value, cost) scale by close / live.
 function usCloseScale(){
+  // Off (19 Nov 2026, owner's OK on the review): at the close rate the All table didn't add up to its own header (₪1,957 apart)
+  // and its Total gain differed from Home's. Every view now uses the live rate; delete this line to bring the rule back.
+  return 1;
   if(!usLastSessionFreeze() || !(window.lastFxRate > 0) || !window.usDayLastFx) return 1;
   const today = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
   const k = Object.keys(window.usDayLastFx).filter(d => d < today && window.usDayLastFx[d] > 0).sort().pop();
@@ -5544,11 +5563,23 @@ function renderPortfolioHeader(){
   const todayUsdTotal = (window.lastFxRate && usUsdToday !== null) ? (split.il.value / window.lastFxRate) + usUsdToday : null;
   // A broker has no recorded close of its own (IntradayLog is the whole portfolio), so its USD
   // change is the ₪ day change at today's rate -- the fallback below.
-  const yesterdayUsdTotal = (!broker && typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate && typeof window.lastCloseUSD === 'number')
-    ? (window.lastCloseIL / window.lastCloseFxRate) + window.lastCloseUSD
+  // The USA side is its actual close (usCloseUsd, the reading the ₪ day change starts from); lastCloseUSD could be an older
+  // reading (review 19 Nov 2026: $167,886 vs the close $167,172, so the USD change showed -$1,344 instead of about -$540).
+  const usPrevUsd = typeof window.usCloseUsd === 'number' ? window.usCloseUsd : window.lastCloseUSD;
+  const yesterdayUsdTotal = (!broker && typeof window.lastCloseIL === 'number' && typeof window.lastCloseFxRate === 'number' && window.lastCloseFxRate && typeof usPrevUsd === 'number')
+    ? (window.lastCloseIL / window.lastCloseFxRate) + usPrevUsd
     : null;
-  const portfolioUsdChange = (todayUsdTotal !== null && yesterdayUsdTotal !== null) ? todayUsdTotal - yesterdayUsdTotal : null;
-  const portfolioUsdChangePct = (portfolioUsdChange !== null && yesterdayUsdTotal) ? portfolioUsdChange / yesterdayUsdTotal * 100 : null;
+  // A broker: its US holdings' own dollar moves (none until the USA opens) plus its TASE holdings' ₪ move at today's rate,
+  // not the ₪ day change divided by the rate (Psagot, all US, showed +$136 with the USA closed).
+  const brokerUsdChange = broker && window.lastFxRate ? rows.reduce((a, r) => {
+    if(ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0)) return a + (isFinite(r.change) ? (r.value - r.value / (1 + r.change / 100)) / window.lastFxRate : 0);
+    const c = usSessionStartedToday() ? (isFinite(r.sessionChange) ? r.sessionChange : r.change) : 0;
+    return a + (isFinite(c) ? r.valueUsd - r.valueUsd / (1 + c / 100) : 0);
+  }, 0) : null;
+  const portfolioUsdChange = (todayUsdTotal !== null && yesterdayUsdTotal !== null) ? todayUsdTotal - yesterdayUsdTotal
+    : brokerUsdChange !== null && todayUsdTotal !== null ? brokerUsdChange : null;
+  const portfolioUsdBase = yesterdayUsdTotal !== null ? yesterdayUsdTotal : portfolioUsdChange !== null && todayUsdTotal !== null ? todayUsdTotal - portfolioUsdChange : null;
+  const portfolioUsdChangePct = (portfolioUsdChange !== null && portfolioUsdBase) ? portfolioUsdChange / portfolioUsdBase * 100 : null;
 
   body.innerHTML = `
     <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
@@ -5567,6 +5598,7 @@ function renderPortfolioHeader(){
         <div class="md-stat-tile-sub ${dayChange(totals.dayGain, totals.dayGainPct, fmt).cls}" id="mdDayChangeSub">${dayChange(totals.dayGain, totals.dayGainPct, fmt).pctText}</div>
         ${broker
           ? `<div class="md-stat-tile-sub" id="mdDayChangeAsOf">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${usdDay ? `from the Bank of Israel rate ${usdDay.boi.rate.toFixed(4)} (${boiDay(usdDay.boi.date)}), as ${broker} does${usdDay.businessDay.isToday ? '' : ` · ${broker}'s day is still ${new Date(usdDay.businessDay.key + 'T12:00:00').toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}`}` : "its share of each market's move today"}</div>`
+            + (usdDay && isFinite(brokerDayGains(allRows)[broker]) ? `<div class="md-stat-tile-sub">With today's USD/ILS move (SheetPulse, as on the home page): ${brokerDayGains(allRows)[broker] >= 0 ? '+' : '−'}${fmt(brokerDayGains(allRows)[broker])}</div>` : '')
           : `<div class="md-stat-tile-sub has-help" id="mdDayChangeAsOf" style="cursor:help;">Prev. close ${fmt(totals.totalValue - totals.dayGain)} · ${ilPrevTs ? `TASE ${ilPrevTs === window.ilCloseTs ? ilCloseLabel() : formatPrevCloseLabel(ilPrevTs)} + USA ` : ''}${allPrevCloseLabel()}</div>`}`}
       </div>
       <div class="md-stat-tile">
@@ -5846,10 +5878,10 @@ async function renderPerformanceTab(opts){
   }).join('');
   const done = months.filter(m => !(m.y === nowY && m.m === nowM));
   const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
-  const upN = done.filter(m => m.ret > 0).length;
+  const upN = done.filter(m => m.ret >= 0.05).length;   // as displayed: under 0.05% shows "0.0%" (review 19 Nov 2026)
   area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''} <span class="has-help perf-how" style="cursor:help; color:var(--muted);">How it's calculated</span></div>
     <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th data-tip="yearHead" class="has-help" style="cursor:help;">Year</th><th data-tip="gainHead" class="has-help" style="cursor:help;">Gain</th></tr></thead><tbody>${body}</tbody></table></div>
-    <div class="perf-note">* = month so far.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
+    <div class="perf-note">* = month so far. A purchase counts at the shekels paid that day, so these gains include the dollar's move since each purchase; the chart's ranges count US purchases at today's rate, which is why its year-to-date figure differs.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
   tips.yearHead = `<b>Year %</b>What you made on your money: the year's gain ÷ (the value at the start of the year + the money you added during it).<div style="margin-top:6px; color:var(--muted); font-size:12px;">Money added late in a year still counts in full, so that year's % looks smaller. It is not the months multiplied together; that figure is in each year's tooltip.</div>`;
   tips.gainHead = `<b>Gain</b>The year's gain in shekels: end value − start value − net new money. A purchase counts at the shekels you paid that day, commission included (a USA purchase: its dollar cost × that day's USD/ILS).<div style="margin-top:6px; color:var(--muted); font-size:12px;">So it includes the dollar's move against the shekel since each purchase. The heatmap's "Total return" leaves the currency out (it prices your dollar cost at today's rate), which is why the two can differ for a USA holding, even in sign.</div>`;
   area.querySelectorAll('[data-tip]').forEach(td => attachHoverTooltip(td, () => tips[td.dataset.tip]));
@@ -5916,7 +5948,8 @@ function renderDividendsTab(){
   if(divTicker && !payTickers.includes(divTicker)) divTicker = '';
   if(divTicker) pays = pays.filter(p => p.ticker === divTicker);
   const now = Date.now(), yearAgo = now - 365 * 86400000;
-  const sum = list => list.reduce((a, p) => a + p.net, 0);
+  // Each payment to the cent, as its row shows it, so the totals add up to the rows (review 19 Nov 2026: 3 cents apart).
+  const sum = list => Math.round(list.reduce((a, p) => a + Math.round(p.net * 100), 0)) / 100;
   const last12 = sum(pays.filter(p => p.payMs > yearAgo)), total = sum(pays);
 
   // Psagot averages typed by hand (Transactions column F): what to do with each.
@@ -6687,7 +6720,7 @@ function renderNetWorth(nw, crossYearPrev){
       </tr>`;
     const groupRows = rows.map(r=>`
       <tr class="nw-item-row"${r.isLiability || !NW_FEES[r.key] ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
-        <td><div class="md-th-symbol">${r.label}${!r.isLiability && NW_FEES[r.key] ? nwFeeChip(NW_FEES[r.key]) : ''}</div></td>
+        <td><div class="md-th-symbol">${r.label}${!r.isLiability && NW_FEES[r.key] ? nwFeeChip(NW_FEES[r.key]) : ''}</div>${!r.isLiability && r.key && !NW_CORE_KEYS.includes(r.key) ? '<div class="md-th-sub">not in Net Worth</div>' : ''}</td>
         <td class="num ${r.isLiability?'down':''}">${r.isLiability?'-':''}${fmt(r.value)}</td>
       </tr>`).join('');
     return groupHeader + groupRows;
@@ -7196,6 +7229,13 @@ function renderContracts(area){
     k.state = !isNaN(k.start) && k.start > now ? 'upcoming' : !isNaN(k.end) && k.end < now ? 'ended' : !isNaN(k.end) && k.end - now <= 90 * DAY ? 'soon' : 'active';
     k.monthly = !(k.cost > 0) ? 0 : k.per === 'month' ? k.cost : k.per === 'year' ? k.cost / 12 : 0;
   });
+  // Already renewed: a renewal notice of the same type ("חידוש" / "renew" in its name or notes) starting within 60 days of
+  // the end (review 19 Nov 2026: Home insurance said "compare offers" next to Harel's Nov 1 renewal email).
+  everything.forEach(k => {
+    if(k.state !== 'soon') return;
+    const r = everything.find(o => o !== k && o.type === k.type && /חידוש|renew/i.test((o.name || '') + ' ' + (o.notes || '')) && !isNaN(o.start) && o.start > k.start && o.start >= k.end - 60 * DAY);
+    if(r){ k.renewedBy = r; k.state = 'active'; }
+  });
   const live = all.filter(k => k.state !== 'ended');
   const soon = all.filter(k => k.state === 'soon').sort((a, b) => a.end - b.end);
   const monthly = live.reduce((a, k) => a + k.monthly, 0);
@@ -7206,7 +7246,7 @@ function renderContracts(area){
   const ctHay = k => [k.name, k.provider, k.type, k.ref, k.covers, k.notes, isNaN(k.start) ? '' : day(k.start), isNaN(k.end) ? '' : day(k.end), k.cost > 0 ? k.cost + ' ' + fmt2(k.cost) : '', k.per].join(' ');
   const shown = (showingHidden ? hiddenList : contractsType ? all.filter(k => k.type === contractsType) : all).filter(k => !contractsQuery.trim() || searchMatch(contractsQuery, ctHay(k))).sort((a, b) =>
     (a.state === 'ended') - (b.state === 'ended') || (isNaN(a.end) ? Infinity : a.end) - (isNaN(b.end) ? Infinity : b.end));
-  const pill = k => `<span class="pay-pill ${k.state === 'ended' ? 'muted' : k.state === 'soon' ? 'wait' : k.state === 'upcoming' ? 'due' : 'paid'}">${k.state === 'ended' ? 'Ended' : k.state === 'soon' ? 'Ends soon' : k.state === 'upcoming' ? 'Starts ' + day(k.start) : 'Active'}${k.local ? ' · this device' : ''}</span>`;
+  const pill = k => `<span class="pay-pill ${k.state === 'ended' ? 'muted' : k.state === 'soon' ? 'wait' : k.state === 'upcoming' ? 'due' : 'paid'}">${k.state === 'ended' ? 'Ended' : k.state === 'soon' ? 'Ends soon' : k.state === 'upcoming' ? 'Starts ' + day(k.start) : k.renewedBy ? 'Renewed ' + day(k.renewedBy.start) : 'Active'}${k.local ? ' · this device' : ''}</span>`;
   const costTxt = k => k.cost > 0 ? fmt2(k.cost) + (k.per === 'month' ? ' a month' : k.per === 'year' ? ' a year' : ' once') : '—';
   // How far through the contract: a thin bar from start to end.
   const bar = k => {
@@ -7575,7 +7615,7 @@ function renderReceipts(area){
       <div class="rc-sum-l">
         <div class="pay-chips" role="group" aria-label="Year">${years.map(y => `<button type="button" class="pay-chip${receiptsYear === y ? ' on' : ''}" data-ry="${y}" aria-pressed="${receiptsYear === y}">${y}</button>`).join('')}<button type="button" class="pay-chip${allYears ? ' on' : ''}" data-ry="all" aria-pressed="${allYears}">All</button></div>
         <div class="rc-sum-total rc-mono">${fmt(yTotal)}</div>
-        <div class="pay-sub">${withoutTop || `${counted.length} receipt${counted.length === 1 ? '' : 's'} ${allYears ? 'since ' + (years[years.length - 1] || thisY) : 'in ' + receiptsYear} · kept forever`}</div>
+        <div class="pay-sub">${withoutTop || `${counted.length} receipt${counted.length === 1 ? '' : 's'}${all.length < allKinds.length ? ' in the ticked groups' : ''} ${allYears ? 'since ' + (years[years.length - 1] || thisY) : 'in ' + receiptsYear} · kept forever`}</div>
         <div class="rc-groups" role="group" aria-label="Show">${RC_GROUPS.map(([g, t]) => `<label><input type="checkbox" class="rc-grp" data-g="${g}"${rcGroups[g] ? ' checked' : ''}>${t}<span class="n">${allKinds.filter(x => rcGroupOf(x) === g && (allYears || yearOf(x) === receiptsYear)).length}</span></label>`).join('')}</div>
       </div>
       <div class="rc-sum-r"><div class="rc-sum-h">${allYears ? 'Year by year' : 'Month by month'}</div><div class="rc-tiles" style="grid-template-columns:repeat(${tiles.length}, minmax(0, 1fr));">${tiles.map(tileHtml).join('')}</div><div class="pay-sub" style="font-size:12px;">Darker = more spent · number = receipts · click to jump there</div></div>
@@ -8023,7 +8063,7 @@ function renderPayments(){
             <div class="pay-card-val">${st.missing.map(x => `${esc(x.payee)}, ${monthName(x.k)}${x.byPeriod ? ' bill' : ''}`).join('<br>')}</div>
             <div class="pay-card-sub">No bill in Gmail for ${st.missing.length > 1 ? 'those months' : 'that month'}. Paid another way? Click the month in Bill check to mark it paid.</div></div>`
         : `<div class="pay-card"><div class="pay-card-label ok">Past months</div><div class="pay-card-val">Nothing missing</div>
-            <div class="pay-card-sub">Every bill expected in the past 12 months is in Gmail${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
+            <div class="pay-card-sub">Every bill expected in the past 12 months is accounted for: in Gmail, or marked paid by you${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
       ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
             <div class="pay-card-val">${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}</div>
             <div class="pay-card-sub">Expected in ${monthName(thisM)}; not in Gmail yet.</div></div>` : ''}
@@ -8032,7 +8072,7 @@ function renderPayments(){
         <div class="pay-card-sub">${st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ')}</div></div>` : ''}
       <div class="pay-card pay-card-paid"><div class="pay-card-label ok">Paid this month</div>
         <div class="pay-card-val">${fmt2(sum(paidNow))}</div>
-        <div class="pay-card-sub">${paidNow.length ? paidNow.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3).map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') + (paidNow.length > 3 ? ` · and ${paidNow.length - 3} more` : '') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs ${monthLabel(thisM - 1)}` : ''}</div></div>
+        <div class="pay-card-sub">${paidNow.length ? paidNow.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3).map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') + (paidNow.length > 3 ? ` · and ${paidNow.length - 3} more` : '') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs all of ${monthLabel(thisM - 1).replace(/ (\d\d)$/, ' 20$1')}` : ''}</div></div>
       <div class="pay-card"><div class="pay-card-label">Last 12 months</div>
         <div class="pay-card-val">${fmt(last12)}</div>
         <div class="pay-card-sub">${fmt(last12 / 12)} a month on average${isNaN(vs12) ? '' : ` · ${vs12 >= 0 ? '+' : '−'}${Math.abs(vs12).toFixed(0)}% vs the year before`}</div></div>
@@ -8041,7 +8081,7 @@ function renderPayments(){
   // Bill check grid over the chosen range, plus the months ahead with a bill or an expected one.
   const gridMonths = []; for(let k = thisM - paymentsRange + 1; k <= status.lastK; k++) gridMonths.push(k);
   const cadenceWord = c => c === 1 ? 'monthly' : c === 12 ? 'yearly' : `every ${c} months`;
-  const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ paid', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
+  const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ marked', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
   const check = `
     <section class="pay-panel">
       <div class="pay-panel-head"><h3>Bill check</h3>
@@ -9275,7 +9315,8 @@ async function syncGaugeToIntraday(split, totals){
     applyLive(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), split.us.value, split.us.value - split.us.gain);
   } else if(usPoint){
     // The dollars are that close's, the shekels move with today's USD/ILS (review 19 Nov 2026).
-    appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t, true);
+    // The close reading's own time, as the close popup and the Portfolio window give it (review 19 Nov 2026: 23:00 here, 23:59 there).
+    appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, window.usCloseTs instanceof Date && window.usCloseTs.getTime() >= usPoint.t ? window.usCloseTs.getTime() : usPoint.t, true);
   }
   [['ilDetailTrigger', 'gaugeIlVal', taseOpen], ['usDetailTrigger', 'gaugeUsVal', usOpen]].forEach(([cell, val, open]) => {
     const c = document.getElementById(cell), v = document.getElementById(val);
@@ -10976,7 +11017,7 @@ async function renderRangeChart(ctx, range){
   if(range === '5D'){
     tickIdx = pts.map((p,i) => i).filter(i => !intraday5D || i === 0 || new Date(pts[i].t).toDateString() !== new Date(pts[i-1].t).toDateString());
   } else {
-    const n = Math.max(2, Math.min(6, Math.floor((w - padL - padR) / 110)));
+    const n = Math.max(3, Math.min(6, Math.floor((w - padL - padR) / 90)));   // at least a middle date (review 19 Nov 2026: 1M showed only "Oct 19 | Nov 19")
     tickIdx = [...new Set(Array.from({length:n}, (_,k) => Math.round(k*(pts.length-1)/(n-1))))];
   }
   const xLabels = timeAxis
@@ -10989,7 +11030,7 @@ async function renderRangeChart(ctx, range){
   }).join('');
 
   const diff = total.gain, diffPct = total.pct;
-  const rangeLabel = range === 'MAX'
+  const rangeLabel = range === 'MAX' || (['1Y', '5Y'].includes(range) && pts[0].t > chartRangeStartMs(range) + 7 * 86400000)
     ? 'since ' + new Date(pts[0].t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})
     : range === '1D' && lastDayName ? 'on ' + lastDayName : CHART_RANGE_LABELS[range];
   const startY = yFor(startV);
@@ -11007,7 +11048,7 @@ async function renderRangeChart(ctx, range){
       <span style="color:${lineColor}; font-weight:700;">${flatMove ? `– ${fmt(0)} (0.00%)` : `${isUp?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(Math.abs(diff))} (${sgnPct(diffPct)})`}</span>
       <span style="color:var(--muted);"> ${rangeLabel}</span>
       ${boiMarks.length ? `<span style="color:var(--muted);"> · <span style="color:var(--accent);">◆</span> Bank of Israel rate</span>` : ''}
-      ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases</span>` : ''}
+      ${total.added > 0 ? `<span style="color:var(--muted);" title="Holdings bought during this range add their purchase cost to the value. That's new money, not gain, so it's subtracted here. The percentage is the gain on start value + new money."> · excludes ${fmt(total.added)} of new purchases${ctx.usd ? '' : " (US ones at today's rate)"}</span>` : ''}
     </div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; cursor:crosshair;">
       ${yGrid}
@@ -11323,6 +11364,20 @@ let phoneHeroShown = false;
 // One USA holding's day change in shekels. During a US session: its price change (the provider's change %) at today's
 // rate. Before the session opens that change is last Friday's US move, so only the dollar's move since the last close
 // counts (its dollar value x the change in USD/ILS). 18 Oct 2026: the USA bar showed -₪526 with the dollar up 0.4%.
+// While the USA hasn't traded today (07:00 Israel until its open, weekends, holidays) the sheet's Day Change is the
+// last session's, and Google resets some tickers to 0 and not others (review 19 Nov 2026: XLV -2.20% next to QQQ 0.00%,
+// flipping between refreshes; the rows added up to -₪1,910 against +₪581). Then a US holding's today is the dollar's
+// move only (usaDayIls), so tiles, tables and Today's facts add up to the USA card. sessionChange keeps the sheet's figure.
+function applyUsDayRule(rows){
+  const live = usSessionStartedToday();
+  (rows || []).forEach(r => {
+    if(ISRAELI_TICKERS.includes(r.name) || !(r.valueUsd > 0)) return;
+    if(r.sessionChange === undefined) r.sessionChange = r.change;
+    if(live){ r.change = r.sessionChange; return; }
+    const d = usaDayIls(r);
+    r.change = (r.value - d) ? d / (r.value - d) * 100 : 0;
+  });
+}
 function usaDayIls(r){
   if(usSessionStartedToday() && !isNaN(r.change)) return r.value - r.value / (1 + r.change / 100);
   return window.lastCloseFxRate > 0 && window.lastFxRate > 0 && isFinite(r.valueUsd) ? r.valueUsd * (window.lastFxRate - window.lastCloseFxRate) : 0;
@@ -11364,6 +11419,7 @@ function snapSplit(rows){
   return window.snap && window.snap.rows === rows ? window.snap.split : splitByMarket(rows);
 }
 function render(rows, totals){
+  applyUsDayRule(rows);
   // Once per page load: the holdings' names from the Market Universe sheet (see fetchUniverseRows), then one redraw of an open table.
   if(!window.namesAsked){ window.namesAsked = true; fetchUniverseRows().then(r => { universeRows = r; if(document.getElementById('marketDetailModal').classList.contains('open') && document.querySelector('.md-pf-table')) renderMarketDetailTable(); }).catch(() => { window.namesAsked = false; }); }
   window.lastRows = rows;
@@ -11822,6 +11878,7 @@ document.querySelectorAll('#wfSwitch button').forEach(b => b.addEventListener('c
 function fmtIls3(n){ return "₪" + Math.round(Math.abs(n)).toLocaleString('en-US'); }
 function fmtIlsSmart(n){
   const abs = Math.abs(n);
+  if(abs < 0.005) return "₪0";
   if(abs < 10) return "₪" + abs.toFixed(2);
   return "₪" + Math.round(abs).toLocaleString('en-US');
 }
@@ -12879,7 +12936,7 @@ function pulseMeaningHtml(p){
   if(!v && !h) return '';
   return `<div class="pulse-meaning">`
     + (v ? `<div><span class="pm-k">${pulseEsc(p.verdict)}</span>: ${v}</div>` : '')
-    + (h ? `<div><span class="pm-k">${pulseEsc(p.vsHistory)}</span>: today's multiple (Valuation above) is ${h} Compared only with the company's own past.</div>` : '')
+    + (h ? `<div><span class="pm-k">${pulseEsc(p.vsHistory)}</span>: the multiple at the screen's date (Valuation above, ${pulseAsOfLabel(p)}) is ${h} Compared only with the company's own past.</div>` : '')
     + `</div>`;
 }
 function pulseCardHtml(t, p){
