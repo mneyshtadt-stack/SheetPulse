@@ -2052,7 +2052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795108948";
+const BUILD_ID = "1795115773";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2326,7 +2326,7 @@ const DIAG_CHECKS = [
     const f = re => th.findIndex(x => re.test(x));
     const iT = f(/^ticker$/), iS = f(/^shares$/), iD = f(/^(buy )?date$/), iP = f(/^(price|cost\s*\/\s*share)$/);
     if(iT === -1 || iS === -1) return {status:'warn', ms:rTx.ms, detail:'Transactions has no Ticker / Shares header.'};
-    const lines = tx.slice(1).map((r, i) => ({t: U(r[iT]), shares: num(r[iS]), date: String(r[iD] || '').trim(), price: String(r[iP] || '').trim(), line: i + 2})).filter(l => l.t);
+    const lines = tx.slice(1).map((r, i) => ({t: U(r[iT]), shares: num(r[iS]), date: sheetYmd(r[iD]), price: String(r[iP] || '').trim(), line: i + 2})).filter(l => l.t);
     const issues = [];
     const rowsBy = {}, txBy = {}, dayBy = {};
     trk.forEach(r => (rowsBy[r.t] = rowsBy[r.t] || []).push(r));
@@ -2353,7 +2353,7 @@ const DIAG_CHECKS = [
       const key = [v[0].t, v[0].date, v[0].shares, v[0].price, v.length].join('|');
       if(!exact) return;
       if(confirmed.includes(key)){ confirmedSeen++; return; }
-      issues.push(`${v[0].t} ${v[0].date}: ${v.length} identical lines (${v.map(l => l.line).join(', ')}: ${v[0].shares} @ ${v[0].price}) — likely entered twice`);
+      issues.push(`${v[0].t} ${isNaN(txDateMs(v[0].date)) ? v[0].date : new Date(txDateMs(v[0].date)).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})}: ${v.length} identical lines (${v.map(l => l.line).join(', ')}: ${v[0].shares} @ ${v[0].price}) — likely entered twice`);
       toConfirm.push(key);
     });
     const converted = Object.keys(txBy).filter(t => rowsBy[t]).length;
@@ -2756,7 +2756,8 @@ document.getElementById('lockDiagLink').addEventListener('click', e => { e.preve
 document.getElementById('diagClose').addEventListener('click', closeDiagnostics);
 document.getElementById('diagRerun').addEventListener('click', runDiagnostics);
 document.getElementById('diagModal').addEventListener('click', e => { if(e.target.id === 'diagModal') closeDiagnostics(); });
-function vrIls(n){ return (n < 0 ? '-' : '') + '₪' + Math.abs(Math.round(n)).toLocaleString('en-US'); }
+function vrDay(ymd){ const d = new Date(String(ymd) + 'T12:00:00'); return isNaN(d) ? String(ymd) : d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'}); }   // "Nov 18", month first like the site
+function vrIls(n){ return (n < 0 ? '−' : '') + '₪' + Math.abs(Math.round(n)).toLocaleString('en-US'); }
 // Keyboard and screen readers (review 16 Nov 2026): heatmap tiles, Winners & losers rows and sortable column headers can be
 // reached with Tab, and each chart has a name. One debounced pass after the page changes, instead of a line in every renderer.
 (function(){
@@ -9131,10 +9132,10 @@ function runValueChecks(){
   const dk = ms => new Date(ms).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
   const todayK = dk(Date.now());
   if(window.ilCloseTs && window.ilDaySettle){ const want = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort().pop();
-    out.push({name: 'TASE close = latest 18:30 settle before today', ok: dk(window.ilCloseTs) === want, detail: `close ${dk(window.ilCloseTs)}, latest settle ${want}`}); }
+    out.push({name: 'TASE close = latest 18:30 settle before today', ok: dk(window.ilCloseTs) === want, detail: `close ${vrDay(dk(window.ilCloseTs))}, latest settle ${vrDay(want)}`}); }
   if(window.usCloseTs && window.usdDayLast){ const dayOver = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'}) >= '23:59:00' && !isWeekendIL(Date.now());
     const want = Object.keys(window.usdDayLast).filter(k => dayOver ? k <= todayK : k < todayK).sort().pop();
-    out.push({name: 'USA close = last reading of the latest finished day', ok: dk(window.usCloseTs) === want, detail: `close ${dk(window.usCloseTs)}, latest finished day ${want}`}); }
+    out.push({name: 'USA close = last reading of the latest finished day', ok: dk(window.usCloseTs) === want, detail: `close ${vrDay(dk(window.usCloseTs))}, latest finished day ${vrDay(want)}`}); }
   valueChecks.page = out; valueChecks.at = new Date();
   updateValueCheckDot();
 }
@@ -9149,7 +9150,7 @@ function recordWindowCheck(){
   const chartPrev = [...document.querySelectorAll('#intradayChart svg text')].map(t => t.textContent).find(t => /^Prev\. close/.test(t));
   if(!asOf || !chartPrev || /Loading/.test(asOf)) return;
   const res = [];
-  res.push({name: 'Header Prev. close = chart Prev. close', ok: shownIls(asOf) === shownIls(chartPrev), detail: `header ₪${shownIls(asOf)}, chart ₪${shownIls(chartPrev)}`});
+  res.push({name: 'Header Prev. close = chart Prev. close', ok: shownIls(asOf) === shownIls(chartPrev), detail: `header ${vrIls(shownIls(asOf))}, chart ${vrIls(shownIls(chartPrev))}`});
   const note = document.querySelector('#intradayChart .chart-head-note')?.textContent || '';
   const session = /last session/.test(note) ? mdDay(note) : new Date(new Date().toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem'}));
   const prevDay = mdDay(asOf.split('·').slice(1).join('·'));
