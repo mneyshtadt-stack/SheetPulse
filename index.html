@@ -1008,7 +1008,7 @@
   #gaugeInfo .gval.flat{color:var(--muted);}
   #gaugeInfo .gval-sub{color:var(--muted); font-size:12px; margin-left:8px;}
   .market-icon{display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:50%; margin-right:6px; vertical-align:middle;}
-  .market-icon.open{background:#fde8d3;} .market-icon.closed{background:#e3dff0;}
+  .market-icon.open{background:color-mix(in srgb, #e8934f 22%, var(--paper));} .market-icon.closed{background:color-mix(in srgb, #7d70ad 24%, var(--paper));}
   .market-icon svg{width:14px; height:14px;}
   section{margin-bottom:52px;}
   h2{font-size:15px; font-weight:400; color:var(--muted); margin:0 0 16px; font-family:var(--sans); letter-spacing:0.01em;}
@@ -2047,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795096867";
+const BUILD_ID = "1795097062";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3377,7 +3377,7 @@ async function applyTotalFallback(totals){
     if(last && typeof last.us === 'number'){
       value = last.il + last.us;
       const d = new Date(last.t);
-      const time = d.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+      const time = d.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
       source = `the last IntradayLog value (${d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString('en-US', {timeZone:'Asia/Jerusalem', day:'numeric', month:'short'}) + ', ' + time})`;
     }
   }
@@ -3484,8 +3484,7 @@ function applyFxCell(rateCellRaw, changeCellRaw){
 // today, so "today so far" is zero. Comparing live sheet values with the last close only moves the number
 // by exchange-rate and sheet-timing differences (18 Oct 2026: -₪1,534 with both markets still closed).
 function preOpenToday(){
-  const il = new Date(new Date().toLocaleString('en-US', {timeZone: 'Asia/Jerusalem'}));
-  const wd = il.getDay(), mins = il.getHours() * 60 + il.getMinutes();
+  const {wd, mins} = zonedNow('Asia/Jerusalem');
   return wd >= 1 && wd <= 5 && mins < 10 * 60 && !getTaseStatus();
 }
 function computeTotals(rows){
@@ -3556,20 +3555,17 @@ function brokerSessionDay(rows){
 // Before a market opens for the day (and at weekends), its day change is the last completed session, the same as
 // the brokers show it: previous close to latest close. {end, start} from the recorded closes, or null.
 function lastSessionFor(market){
-  const now = new Date();
-  const il = new Date(now.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem'}));
-  const ny = new Date(now.toLocaleString('en-US', {timeZone: 'America/New_York'}));
-  const d = market === 'il' ? il : ny;
-  const wd = d.getDay(), mins = d.getHours()*60 + d.getMinutes();
-  const [openM, closeM] = market === 'il' ? [10*60, 17*60+30] : [9*60+30, 16*60];
-  const weekday = wd >= 1 && wd <= 5;
+  const il = zonedNow('Asia/Jerusalem'), d = market === 'il' ? il : zonedNow('America/New_York');
+  const wd = d.wd, mins = d.mins;
+  const [openM, closeM] = market === 'il' ? [10*60, wd === 5 ? 14*60 : 17*60+30] : [9*60+30, US_EARLY_CLOSE.includes(d.key) ? 13*60 : 16*60];
+  const weekday = wd >= 1 && wd <= 5 && !isMarketHoliday(market === 'il' ? 'il' : 'us', d.key);   // a holiday counts like a weekend
   // Before today's open (or on a weekend): the last completed session is before today.
   // After today's close: today's session is the last completed one. In between, the market is open: no override.
   let mode = null;
   if(!weekday || mins < openM) mode = 'before';
   else if(mins >= closeM) mode = 'after';
   if(!mode) return null;
-  const todayKey = `${il.getFullYear()}-${String(il.getMonth()+1).padStart(2,'0')}-${String(il.getDate()).padStart(2,'0')}`;
+  const todayKey = il.key;
   const closes = window.lastCloseByDate || {};
   const field = market === 'il' ? 'il' : 'us';
   const ks = Object.keys(closes).filter(k => (mode === 'before' ? k < todayKey : k <= todayKey) && typeof closes[k][field] === 'number').sort().reverse();
@@ -3628,9 +3624,32 @@ function splitByMarket(rows){
   };
 }
 
+// Exchange holidays and US half days (review 19 Nov 2026): on a holiday the market counts as closed all day, like a weekend.
+// shortcut: dates typed in by hand (NYSE: nyse.com/markets/hours-calendars; TASE: its 2026 calendar), add each new year's list;
+// TASE's 2027 calendar was not published yet on 19 Nov 2026.
+const MARKET_HOLIDAYS = {
+  us: ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25',
+       '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18','2027-07-05','2027-09-06','2027-11-25','2027-12-24'],
+  il: ['2026-03-03','2026-04-01','2026-04-02','2026-04-07','2026-04-08','2026-04-21','2026-04-22','2026-05-21','2026-05-22','2026-07-23',
+       '2026-09-11','2026-09-18','2026-09-21','2026-09-25','2026-10-02','2026-10-27']
+};
+const US_EARLY_CLOSE = ['2026-11-27','2026-12-24','2027-11-26'];   // the NYSE closes at 13:00 New York time
+function ymdIn(tz, ms){ return new Date(ms == null ? Date.now() : ms).toLocaleDateString('en-CA', {timeZone: tz}); }
+function isMarketHoliday(market, ymd){ return MARKET_HOLIDAYS[market].includes(ymd || ymdIn(market === 'us' ? 'America/New_York' : 'Asia/Jerusalem')); }
+// Weekday (0 = Sunday), minutes since midnight and Y-M-D in a time zone, read from formatToParts (re-parsing a
+// toLocaleString can give Invalid Date in newer browsers, review 19 Nov 2026).
+function zonedNow(tz){
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
+  return {wd: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday), mins: (+p.hour % 24) * 60 + +p.minute, key: `${p.year}-${p.month}-${p.day}`};
+}
 function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
+  if(timeZone === 'America/New_York'){
+    const k = ymdIn(timeZone);
+    if(isMarketHoliday('us', k)) return false;
+    if(US_EARLY_CLOSE.includes(k)) closeMins = Math.min(closeMins, 13 * 60);
+  }
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+    timeZone, weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'
   }).formatToParts(new Date());
   const get = t => parts.find(p=>p.type===t).value;
   const weekday = get('weekday');
@@ -3645,8 +3664,9 @@ function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
 // TASE moved its trading week from Sunday-Thursday to Monday-Friday effective 2026-01-05,
 // and Friday runs a shortened day (10:00-14:00) rather than the usual 10:00-17:30.
 function getTaseStatus(){
+  if(isMarketHoliday('il')) return false;
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Jerusalem', weekday:'short', hour:'2-digit', minute:'2-digit', hour12:false
+    timeZone: 'Asia/Jerusalem', weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'
   }).formatToParts(new Date());
   const get = t => parts.find(p=>p.type===t).value;
   const weekday = get('weekday');
@@ -3659,12 +3679,13 @@ function getTaseStatus(){
 // used only to tell the viewer when a currently-closed market will next open.
 function getNextTaseOpenMs(){
   const now = Date.now();
-  for(let dayOffset=0; dayOffset<=7; dayOffset++){
+  for(let dayOffset=0; dayOffset<=12; dayOffset++){
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone:'Asia/Jerusalem', year:'numeric', month:'2-digit', day:'2-digit', weekday:'short'
     }).formatToParts(new Date(now + dayOffset*86400000));
     const get = t => parts.find(p=>p.type===t).value;
-    const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10), weekday = get('weekday');
+    const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10), weekday = get('weekday'), ymdK = `${get('year')}-${get('month')}-${get('day')}`;
+    if(isMarketHoliday('il', ymdK)) continue;
     let openMs;
     if(weekday === 'Fri') openMs = zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem');
     else if(['Mon','Tue','Wed','Thu'].includes(weekday)) openMs = zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem');
@@ -3675,13 +3696,13 @@ function getNextTaseOpenMs(){
 }
 function getNextUsOpenMs(){
   const now = Date.now();
-  for(let dayOffset=0; dayOffset<=7; dayOffset++){
+  for(let dayOffset=0; dayOffset<=12; dayOffset++){
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit', weekday:'short'
     }).formatToParts(new Date(now + dayOffset*86400000));
     const get = t => parts.find(p=>p.type===t).value;
-    const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10), weekday = get('weekday');
-    if(!['Mon','Tue','Wed','Thu','Fri'].includes(weekday)) continue;
+    const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10), weekday = get('weekday'), ymdK = `${get('year')}-${get('month')}-${get('day')}`;
+    if(!['Mon','Tue','Wed','Thu','Fri'].includes(weekday) || isMarketHoliday('us', ymdK)) continue;
     const openMs = zonedTimeToMs(y,m,d,9,30,'America/New_York');
     if(openMs > now) return openMs;
   }
@@ -3691,8 +3712,9 @@ function formatNextOpen(ms){
   if(ms === null) return '';
   const d = new Date(ms);
   const weekday = d.toLocaleDateString('en-US', {timeZone:'Asia/Jerusalem', weekday:'long'});
-  const time = d.toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
-  return `Opens ${weekday} at ${time}`;
+  const time = d.toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+  const k = t => ymdIn('Asia/Jerusalem', t), when = k(ms) === k(Date.now()) ? 'today' : k(ms) === k(Date.now() + 86400000) ? 'tomorrow' : weekday;
+  return `Opens ${when} at ${time}`;
 }
 // Today's close, in Israel time — only ever called while the market is currently open, so "today"
 // is guaranteed to already be a trading day and the close is always later today, no need to scan
@@ -3710,11 +3732,11 @@ function getUsCloseMs(){
     timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit'
   }).formatToParts(new Date());
   const get = t => parts.find(p=>p.type===t).value;
-  return zonedTimeToMs(parseInt(get('year'),10), parseInt(get('month'),10), parseInt(get('day'),10), 16, 0, 'America/New_York');
+  return zonedTimeToMs(parseInt(get('year'),10), parseInt(get('month'),10), parseInt(get('day'),10), US_EARLY_CLOSE.includes(`${get('year')}-${get('month')}-${get('day')}`) ? 13 : 16, 0, 'America/New_York');
 }
 function formatNextClose(ms){
   if(ms === null) return '';
-  const time = new Date(ms).toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  const time = new Date(ms).toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
   return `Closes today at ${time}`;
 }
 
@@ -3828,7 +3850,7 @@ function extQuoteFor(u){
   const updated = u && u.extUpdated ? new Date(u.extUpdated) : null;
   if(!(u && u.extPrice > 0 && u.extSession && updated && !isNaN(updated.getTime()))) return null;
   const now = new Date();
-  const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hour12:false}).replace(':', ''));
+  const nyHm = Number(now.toLocaleTimeString('en-GB', {timeZone:'America/New_York', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).replace(':', ''));
   if(u.extSession === 'Pre-market' && (extNyDay(updated) !== extNyDay(now) || nyHm >= 930)) return null;
   return {price: u.extPrice, change: u.extChange, pct: u.extPct, session: u.extSession === 'Pre-market' ? 'Pre-market' : 'After hours', updated,
     source: u.extSource === 'Yahoo' ? 'Yahoo Finance (backup)' : 'Google Finance'};
@@ -3837,7 +3859,7 @@ function extQuoteFor(u){
 // was New York time, 12-hour).
 function extTimeLabel(updated){
   const ilDay = d => d.toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
-  const t = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  const t = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
   return ilDay(updated) !== ilDay(new Date())
     ? updated.toLocaleDateString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric'}) + ', ' + t : t;
 }
@@ -3851,7 +3873,7 @@ function renderUniverseQuoteExt(){
   const updated = q.updated;
 
   const up = !(u.extChange < 0);
-  const ilTime = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  const ilTime = updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
   const chg = isNaN(u.extChange) ? '' : ` (${u.extChange >= 0 ? '+' : '−'}${Math.abs(u.extChange).toFixed(2)})`;
   const pct = isNaN(u.extPct) ? '' : `${u.extPct >= 0 ? '+' : '−'}${Math.abs(u.extPct).toFixed(2)}%`;
   el.className = 'uq-ext ' + (up ? 'up' : 'down');
@@ -4148,11 +4170,11 @@ const MD_COLS = [
   {key:'shares', label:'Quantity'},
   {key:'change', label:'Day change'},
   {key:'totalGain', label:'Total gain/loss'},
-  {key:'value', label:'Value'}
+  {key:'value', label:'Market value'}
 ];
 
 const PF_COLS = [
-  {key:'name', label:'Symbols'},
+  {key:'name', label:'Symbol'},
   {key:'price', label:'Price'},
   {key:'shares', label:'Quantity'},
   {key:'change', label:'Day change'},
@@ -4199,7 +4221,7 @@ function renderIlTickerCards(enriched){
           <div>
             <div class="md-tc-item-label">Day change</div>
             <div class="md-tc-item-val ${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmtIlsSmart(r.dayGain):'n/a'}</div>
-            <div class="md-tc-item-sub ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+            <div class="md-tc-item-sub ${dayCls}">${!isNaN(r.change)?'('+sgnPct(r.change)+')':''}</div>
           </div>
           <div>
             <div class="md-tc-item-label">Total gain/loss</div>
@@ -4360,7 +4382,8 @@ function boiChangeHtml(){
   const a = window.boiRates;
   if(!a || a.length < 2) return '';
   const pct = (a[a.length-1].rate / a[a.length-2].rate - 1) * 100;
-  return ` <span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '▲ +' : '▼ '}${pct.toFixed(2)}%</span>`;
+  if(Math.abs(pct) < 0.005) return ` <span class="flat">– 0.00%</span>`;   // no change: grey, no arrow (review 19 Nov 2026)
+  return ` <span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '▲ +' : '▼ '}${Math.abs(pct).toFixed(2)}%</span>`;
 }
 function boiRateLatest(){ const a = window.boiRates; return a && a.length ? a[a.length-1] : null; }
 function boiRateBeforeToday(){
@@ -4387,7 +4410,7 @@ const MEITAV_ROLLOVER_MIN = 7 * 60;
 const PSAGOT_ROLLOVER_MIN = 7 * 60;
 function meitavBusinessDay(){ return brokerBusinessDay(MEITAV_ROLLOVER_MIN); }
 function brokerBusinessDay(rolloverMin){
-  const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false}).formatToParts(new Date());
+  const parts = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle:'h23'}).formatToParts(new Date());
   const get = t => parseInt(parts.find(p => p.type === t).value, 10);
   const d = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
   // The brokers' week is the Israeli banking week, Sunday to Friday: on Sunday 11 Oct 2026 both had
@@ -4449,7 +4472,7 @@ function pfBrokerGain(r){
 function pfBrokerGainCellHtml(r, top){
   const b = pfBrokerGain(r);
   if(!b) return '';
-  const cls = b.usd >= 0 ? 'up' : 'down', sg = n => n >= 0 ? '+' : '-';
+  const cls = b.usd >= 0 ? 'up' : 'down', sg = n => n >= 0 ? '+' : '−';
   const $ = n => '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const I = n => '₪' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const id = ++pfGainTipSeq;
@@ -4464,8 +4487,8 @@ function pfBrokerGainCellHtml(r, top){
 }
 function pfGainCellHtml(r, {value, costToday, gain, gainPct, lots, holding}, fmt2){
   const cls = n => isNaN(n) ? '' : (n >= 0 ? 'up' : 'down');
-  const pct = n => isNaN(n) ? '' : '(' + (n >= 0 ? '+' : '') + n.toFixed(2) + '%)';
-  const sign = n => (n >= 0 ? '+' : '-') + fmt2(Math.abs(n));
+  const pct = n => isNaN(n) ? '' : '(' + sgnPct(n) + ')';
+  const sign = n => (n >= 0 ? '+' : '−') + fmt2(Math.abs(n));
   const top = `<div class="${cls(gain)}">${isNaN(gain) ? 'n/a' : sign(gain)}</div><div class="md-th-pct ${cls(gain)}">${pct(gainPct)}</div>`;
   // One figure for ₪ funds (no conversion) and for holdings not at a purchase-date broker.
   if(!pfUsesPurchaseDateRate(r) || ISRAELI_TICKERS.includes(r.name)){
@@ -4558,7 +4581,7 @@ function portfolioLotRowsHtml(r, {priceCcy, fmt2, money}){
         <td><div class="pf-lot-date">${fmtDay(o.date)}</div><div class="md-th-sub">${held ? 'held ' + held : ''}</div></td>
         <td class="num">${o.price > 0 ? money(o.price) : '—'}${fee > 0 ? `<div class="md-th-sub">+ ${money(fee)} commission</div>` : ''}</td>
         <td class="num">${qty(o.shares)}${partlySold ? `<div class="md-th-sub">of ${qty(o.origShares)} bought</div>` : ''}</td>
-        <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + (r.change >= 0 ? '+' : '') + r.change.toFixed(2) + '%)'}</div>${pfUsdDayHtml(r, part)}</td>
+        <td class="num"><div class="${dayCls}">${isNaN(day) ? 'n/a' : signed(day, fmt2)}</div><div class="md-th-pct ${dayCls}">${isNaN(r.change) ? '' : '(' + sgnPct(r.change) + ')'}</div>${pfUsdDayHtml(r, part)}</td>
         ${pfGainCellHtml(r, {value: mv, costToday: o.cost, gain, gainPct, lots: [o]}, fmt2)}
         <td class="num">${isNaN(mv) ? '—' : fmt2(mv)}${pfUsdValueHtml(r, r.valueUsd * part)}</td>
         <td class="num" title="${o.fromTracker ? 'Average cost from the Tracker' : 'Cost per share including the commission'}">${isNaN(perShare) ? '—' : money(perShare)}</td>
@@ -4688,7 +4711,7 @@ function pfHoldingRowsHtml(r){
         <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
         <td class="num">
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+fmt2(r.dayGain):'n/a'}</div>
-          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>${pfUsdDayHtml(r, 1)}
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+sgnPct(r.change)+')':''}</div>${pfUsdDayHtml(r, 1)}
         </td>
         ${pfGainCellHtml(r, {value: r.value, costToday: r.cost, gain: r.totalGain, gainPct: r.ret, lots: pfOpenLots(r).open, holding: true}, fmt2)}
         <td class="num">${fmt2(r.value)}${pfUsdValueHtml(r, r.valueUsd)}</td>
@@ -4888,7 +4911,7 @@ function renderMarketDetailTable(){
         <td class="num">${!isNaN(r.shares)?r.shares.toLocaleString('en-US',{maximumFractionDigits:2}):'—'}</td>
         <td class="num">
           <div class="${dayCls}">${!isNaN(r.dayGain)?(r.dayGain>=0?'+':'-')+(inUsd ? money(r.dayGain) : fmtIlsSmart(r.dayGain)):'n/a'}</div>
-          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+(r.change>=0?'+':'')+r.change.toFixed(2)+'%)':''}</div>
+          <div class="md-th-pct ${dayCls}">${!isNaN(r.change)?'('+sgnPct(r.change)+')':''}</div>
         </td>
         <td class="num">
           <div class="${totCls}">${!isNaN(r.totalGain)?(r.totalGain>=0?'+':'-')+(inUsd ? money(r.totalGain) : fmtIlsSmart(r.totalGain)):'n/a'}</div>
@@ -4949,7 +4972,7 @@ function renderMarketDetailHeader(marketKey){
   let usPrevOverride = null, usPrevFx = null, usValFx = marketKey === 'us' && window.lastLogRow ? window.lastLogRow.fx : null;
   if (marketKey === 'us' && window.usDayLast) {
     const dayKeyOf = t => new Date(t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
-    const hms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const hms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'});
     if (usLastSessionFreeze()) {
       const today = dayKeyOf(Date.now());
       const past = Object.keys(window.usDayLast).filter(k => k < today).sort();
@@ -5277,18 +5300,19 @@ async function renderFxBoiOnly(){
 function tileColorFor(c){
   const g = ["var(--up-1)","var(--up-2)","var(--up-3)","var(--up-4)","var(--up-5)"];
   const r = ["var(--down-1)","var(--down-2)","var(--down-3)","var(--down-4)","var(--down-5)"];
-  if(isNaN(c)) return "var(--flat)";
+  if(isNaN(c) || Math.abs(c) < 0.005) return "var(--flat)";
   const a = Math.min(Math.abs(c)/2.5,1);
   const idx = Math.min(Math.floor(a*4),4);
   return c >= 0 ? g[idx] : r[idx];
 }
 function tileTextColorFor(c){
-  if(isNaN(c)) return "var(--tile-ink-flat)";
+  if(isNaN(c) || Math.abs(c) < 0.005) return "var(--tile-ink-flat)";
   const a = Math.min(Math.abs(c)/2.5,1);
   return `var(--${c >= 0 ? 'up' : 'down'}-ink-${Math.min(Math.floor(a*4),4) + 1})`;   // the step's own text colour, per theme
 }
 
 function closeMarketDetail(){
+  nwLoadSeq++;   // a Net Worth load still on its way must not reopen the window
   document.getElementById('marketDetailModal').classList.remove('open');
   hideBrokerFilter();
   document.getElementById('marketDetailCard').classList.remove('wide');
@@ -5572,7 +5596,7 @@ function renderPortfolioHeader(){
     <div id="intradayChart"></div>
     ${broker ? `<p class="md-broker-note">1D and 5D: the intraday log records the whole portfolio, so ${broker}'s line is its share of each market (TASE, USA) applied to it, counted SheetPulse's way (live USD/ILS).</p>` : ''}
     ${PURCHASE_DATE_RATE_BROKERS.includes(broker) ? `<p class="md-broker-note">Total gain is shown ${broker}'s way: US holdings valued at the Bank of Israel representative rate published before today${meitavBoiRate() ? ` (${meitavBoiRate().rate.toFixed(4)}, ${boiDay(meitavBoiRate().date)})` : ''}, cost converted to ₪ at the rate on each purchase date, so it includes the currency gain or loss since then. ${broker} uses its own bank rate, so expect a few tenths of a percent of difference from its app.</p>` : ''}
-    ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and appears subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
+    ${USD_COST_BROKERS.includes(broker) ? `<p class="md-broker-note">${broker}'s app shows a lower average cost than SheetPulse: it leaves the commission out and subtracts each dividend received (after 25% Israeli tax). SheetPulse keeps what you actually paid, with ₪ at today's rate.</p>` : ''}
     <div id="marketDetailTableArea"></div>
     <div id="mdPremarketArea" style="display:none;"></div>
     <div id="mdDividendsArea" style="display:none; padding-top:12px;"></div>
@@ -5684,7 +5708,7 @@ function applyPortfolioTab(){
   const table = document.getElementById('marketDetailTableArea');
   const pre = document.getElementById('mdPremarketArea');
   if(!table || !pre) return;
-  document.querySelectorAll('#marketDetailBody .md-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === portfolioTab));
+  document.querySelectorAll('#marketDetailBody .md-tab').forEach(b => { b.classList.toggle('active', b.dataset.tab === portfolioTab); b.setAttribute('aria-selected', String(b.dataset.tab === portfolioTab)); });
   table.style.display = portfolioTab === 'holdings' ? '' : 'none';
   pre.style.display = portfolioTab === 'premarket' ? '' : 'none';
   const divArea = document.getElementById('mdDividendsArea');
@@ -6066,7 +6090,7 @@ function drawPremarketTreemap(area){
   if(!items.length){
     // Lead with when the next session starts (29 Oct 2026 review): pre-market opens 5.5 hours before the US open (04:00 New York).
     const pmNext = new Date(getNextUsOpenMs() - 5.5 * 3600000);
-    const pmWhen = pmNext.toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false});
+    const pmWhen = pmNext.toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle:'h23'});
     area.innerHTML = `<div class="pm-note"><b style="color:var(--ink);">Next pre-market: ${pmWhen} (Israel time).</b> No pre-market or after-hours trades right now.
       <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance (Yahoo Finance as backup) via ExtendedHours.gs every 5 minutes.</div></div>`;
     return;
@@ -6078,7 +6102,7 @@ function drawPremarketTreemap(area){
   const moveIls = items.reduce((s, it) => s + it.ilsChange, 0);
   const movePct = shownValue ? moveIls / shownValue * 100 : 0;
   const cls = movePct >= 0 ? 'up' : 'down';
-  const ilTime = latest.q.updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  const ilTime = latest.q.updated.toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
   area.innerHTML = `
     <div class="pm-summary">
       <span class="pm-session" title="Israel time — from Google Finance${items.some(it => it.q.source.startsWith('Yahoo')) ? `, ${items.filter(it => it.q.source.startsWith('Yahoo')).length} via Yahoo Finance as backup` : ''}">${latest.q.session} · ${extTimeLabel(latest.q.updated)}</span>
@@ -6116,7 +6140,7 @@ function drawPremarketTreemap(area){
     const tipHtml = `<b>${d.name}</b>${tName ? `<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>` : ''}`
       + `${d.q.session}: $${d.q.price.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})} <span class="${up?'up':'down'}">${up?'+':'−'}${Math.abs(pct).toFixed(2)}%${chg}</span>`
       + `<br>≈ <span class="${d.ilsChange>=0?'up':'down'}">${d.ilsChange>=0?'+':'-'}${fmtIlsSmart(d.ilsChange)}</span> on ${fmt(d.value)}`
-      + (totals && totals.totalValue ? ` (${(d.value / totals.totalValue * 100).toFixed(2)}% of portfolio)` : '')
+      + (totals && totals.totalValue ? ` (${(d.value / bookValue(window.lastRows) * 100).toFixed(2)}% of portfolio)` : '')
       + `<br><span style="color:var(--muted); font-size:12px;">${extTimeLabel(d.q.updated)} New York · ${d.q.source} · double-click for Market Universe</span>`;
     tile.addEventListener('mouseenter', () => { tt.innerHTML = tipHtml; tt.style.display = 'block'; });
     tile.addEventListener('mousemove', e => {
@@ -6786,8 +6810,14 @@ async function fetchNetWorthTable(url){
   return parseNetWorthTable(table);
 }
 
+let nwLoadSeq = 0;
 async function loadNetWorthYear(year){
+  // Review 19 Nov 2026: a slow answer must not land in a window opened since (TASE showed Net Worth's tables) or after a newer year.
+  const seq = ++nwLoadSeq;
+  marketDetailState = {marketKey:'networth', tickers:[], sortKey:'', sortDir:1, filter:''};
+  const stale = () => seq !== nwLoadSeq || marketDetailState.marketKey !== 'networth';
   const allYears = await getNetWorthYears();
+  if(stale()) return;
   const years = sortedNetWorthYears(allYears);
   const url = year ? netWorthUrlForYear(year) : null;
 
@@ -6817,6 +6847,7 @@ async function loadNetWorthYear(year){
 
   try{
     const nw = await fetchNetWorthTable(url);
+    if(stale()) return;
     NW_FEES = nw.fees;
     if(!nw.months.length) throw new Error(`No monthly rows with data found in the${year?' '+year:''} sheet`);
 
@@ -6841,8 +6872,10 @@ async function loadNetWorthYear(year){
       }
     }
 
+    if(stale()) return;
     renderNetWorthBody(nw, crossYearPrev, crossYearAgo);
   } catch(err){
+    if(stale()) return;
     body.innerHTML = `
       <div style="font-family:var(--sans); color:var(--down-ink); font-size:13px; line-height:1.8; padding:12px 0 24px;">
         Could not load the${year?' '+year:''} Net Worth sheet (${err.message}).
@@ -7794,7 +7827,6 @@ function renderReceipts(area){
 }
 
 async function openPaymentsDetail(){
-  document.getElementById('marketDetailTitle').textContent = 'Payments';
   document.getElementById('marketDetailTitle').textContent = 'Bills & Contracts';
   document.getElementById('marketDetailSubtitle').textContent = 'Recurring bills and the contracts behind them';
   hideBrokerFilter();
@@ -9047,7 +9079,8 @@ const valueChecks = {page: [], windows: {}, at: null};
 const shownIls = t => { const m = String(t || '').match(/₪([\d,]+)/); return m ? Number(m[1].replace(/,/g, '')) : NaN; };
 const stripSigned = id => { const e = document.getElementById(id); if(!e) return NaN; const n = shownIls(e.textContent);
   return e.classList.contains('flat') ? 0 : e.classList.contains('down') ? -n : n; };
-const mdDay = t => { const m = String(t || '').match(/([A-Z][a-z]{2}) (\d{1,2})/); return m ? new Date(`${m[1]} ${m[2]}, ${new Date().getFullYear()}`) : null; };
+const mdDay = t => { const m = String(t || '').match(/([A-Z][a-z]{2}) (\d{1,2})/); if(!m) return null; const y = new Date().getFullYear();
+  const d = new Date(`${m[1]} ${m[2]}, ${y}`); return d.getTime() > Date.now() + 86400000 ? new Date(`${m[1]} ${m[2]}, ${y - 1}`) : d; };   // "Dec 31" read in January
 function runValueChecks(){
   const out = [];
   const P = stripSigned('gaugePortfolioVal'), I = stripSigned('gaugeIlVal'), U = stripSigned('gaugeUsVal');
@@ -9059,7 +9092,7 @@ function runValueChecks(){
   const todayK = dk(Date.now());
   if(window.ilCloseTs && window.ilDaySettle){ const want = Object.keys(window.ilDaySettle).filter(k => k < todayK).sort().pop();
     out.push({name: 'TASE close = latest 18:30 settle before today', ok: dk(window.ilCloseTs) === want, detail: `close ${dk(window.ilCloseTs)}, latest settle ${want}`}); }
-  if(window.usCloseTs && window.usdDayLast){ const dayOver = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) >= '23:59:00' && !isWeekendIL(Date.now());
+  if(window.usCloseTs && window.usdDayLast){ const dayOver = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'}) >= '23:59:00' && !isWeekendIL(Date.now());
     const want = Object.keys(window.usdDayLast).filter(k => dayOver ? k <= todayK : k < todayK).sort().pop();
     out.push({name: 'USA close = last reading of the latest finished day', ok: dk(window.usCloseTs) === want, detail: `close ${dk(window.usCloseTs)}, latest finished day ${want}`}); }
   valueChecks.page = out; valueChecks.at = new Date();
@@ -9095,7 +9128,7 @@ function updateValueCheckDot(){
 function renderValueChecks(){
   const box = document.getElementById('diagRules'); if(!box) return;
   const row = c => `<div class="vr ${c.ok ? 'ok' : 'bad'}"><b>${c.ok ? '✓' : '✗'}</b><div>${c.name}<small>${c.detail}</small></div></div>`;
-  const hm = d => d ? d.toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hour12: false}) : '—';
+  const hm = d => d ? d.toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle:'h23'}) : '—';
   const wins = Object.entries(valueChecks.windows);
   box.innerHTML = `<p style="font-size:13px; color:var(--muted); margin:0 0 6px;">The rules in VALUE_SOURCES.md, checked against what the page shows. Page checks run after every refresh (last ${hm(valueChecks.at)}); window checks each time you open a window.</p>`
     + (valueChecks.page.length ? valueChecks.page.map(row).join('') : '<p style="font-size:13px;">Not checked yet: refresh the page.</p>')
@@ -9105,7 +9138,8 @@ function renderValueChecks(){
 // A day change for display: up (green ▲ +), down (red ▼ −), or flat when it rounds to ₪0 and 0.00% (grey –, no sign,
 // 27 Oct 2026). fmtAbs formats the size without a sign.
 // "+1.23%" / "−1.23%" with a true minus sign, as Market Universe shows it (review 19 Nov 2026).
-function sgnPct(p, d = 2){ return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(d) + '%'; }
+function sgnPct(p, d = 2){ return +Math.abs(p).toFixed(d) === 0 ? (0).toFixed(d) + '%' : (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(d) + '%'; }   // no "-0.00%"
+function signCls(v){ return Math.abs(v) < 0.005 ? 'flat' : v >= 0 ? 'up' : 'down'; }
 function dayChange(diff, pct, fmtAbs){
   if(Math.round(Math.abs(diff)) === 0 && Math.abs(pct) < 0.005) return {cls: 'flat', text: `– ${fmtAbs(0)} (0.00%)`, sign: '', pctText: '0.00%'};
   const up = diff >= 0;
@@ -9614,7 +9648,7 @@ function todayInZone(timeZone){
 function zonedTimeToMs(y, m, d, hh, mm, timeZone){
   const naiveUtc = Date.UTC(y, m-1, d, hh, mm, 0);
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+    timeZone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'
   }).formatToParts(new Date(naiveUtc));
   const get = t => parts.find(p=>p.type===t).value;
   const hourVal = parseInt(get('hour'),10);
@@ -9630,7 +9664,7 @@ function zonedTimeToMs(y, m, d, hh, mm, timeZone){
 // slicing the session into N segments.
 function roundTicksInZone(t0, t1, timeZone, stepMinutes){
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false
+    timeZone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23'
   }).formatToParts(new Date(t0));
   const get = t => parts.find(p=>p.type===t).value;
   const y = parseInt(get('year'),10), m = parseInt(get('month'),10), d = parseInt(get('day'),10);
@@ -9672,7 +9706,7 @@ function removeIntradaySpikes(points, thresholdPct, snapTo){
 }
 function roundTimeLabelToHour(t, timeZone){
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, hour:'2-digit', minute:'2-digit', hour12:false
+    timeZone, hour:'2-digit', minute:'2-digit', hourCycle:'h23'
   }).formatToParts(new Date(t));
   const get = k => parts.find(p=>p.type===k).value;
   let hh = parseInt(get('hour'),10);
@@ -9721,7 +9755,8 @@ function getTaseDayRangeForDate(y, m, d){
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
 function getUsDayRangeForDate(y, m, d){
-  return {open: zonedTimeToMs(y,m,d,9,30,'America/New_York'), close: zonedTimeToMs(y,m,d,16,0,'America/New_York')};
+  const half = US_EARLY_CLOSE.includes(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  return {open: zonedTimeToMs(y,m,d,9,30,'America/New_York'), close: zonedTimeToMs(y,m,d,half ? 13 : 16,0,'America/New_York')};
 }
 function getCombinedDayRangeForDate(y, m, d){
   const tase = getTaseDayRangeForDate(y,m,d), us = getUsDayRangeForDate(y,m,d);
@@ -9757,11 +9792,11 @@ function usLastSessionFreeze(){
   // Today's USA open, worked out from New York's 09:30 (24 Oct 2026): 16:30 Israel most of the year, but 15:30 in the weeks
   // when Israel and the US change clocks on different dates (26-30 Oct 2026), so it is not a fixed Israel time.
   // All of Saturday and Sunday too: no session opens then (26 Oct 2026: on Sunday evening the window left Friday's session).
-  return isWeekendIL(Date.now()) || Date.now() < getUsDayRangeMs().open;
+  return isWeekendIL(Date.now()) || isMarketHoliday('us', ymdIn('Asia/Jerusalem')) || Date.now() < getUsDayRangeMs().open;
 }
 // The same for TASE: the last session stays until 10:00 on a weekday, and all weekend.
 function taseLastSessionFreeze(){
-  return isWeekendIL(Date.now()) || new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false}) < '10:00:00';
+  return isWeekendIL(Date.now()) || isMarketHoliday('il') || new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle: 'h23'}) < '10:00:00';
 }
 function currentSessionDateLabel(){
   // Until 07:00 Israel time the business day is still the previous one (22 Oct 2026): show the last session's date.
@@ -9783,7 +9818,7 @@ function ilCloseLabel(withSeconds){
 function formatPrevCloseLabel(d, withSeconds){
   // The closing reading's time, e.g. "Oct 20, 23:59" -- to the minute on screen (29 Oct 2026 review); the (i) cards pass
   // withSeconds for the exact reading, "Oct 20, 23:59:16".
-  return d.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', ...(withSeconds ? {second:'2-digit'} : {}), hour12:false});
+  return d.toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', ...(withSeconds ? {second:'2-digit'} : {}), hourCycle:'h23'});
 }
 // loggedTs (window.lastCloseILTs/USTs, IntradayLog's close rows) is the real timestamp the Apps
 // Script trigger actually stamped when it captured that close — used whenever it's available,
@@ -9815,6 +9850,7 @@ function prevCloseReferenceLabel(){
 // reliably understands m/d/yyyy for slash-separated strings — feeding it "21/09/2026" silently
 // yields an Invalid Date rather than throwing, which would just make the row vanish from the
 // chart. Parsing the components explicitly keeps this correct regardless of the reader's locale.
+const DEVICE_IN_IL = (() => { try{ return Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Jerusalem'; } catch(e){ return true; } })();
 function parseSheetTimestamp(tsStr){
   const m = tsStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2}):(\d{2})$/);
   if(!m) return new Date(tsStr);
@@ -9825,7 +9861,8 @@ function parseSheetTimestamp(tsStr){
   // but by then the sheet's own dd/mm/yyyy formatting is what's actually being written anyway.
   let dd = a, mm = b;
   if(mm > 12 && dd <= 12){ dd = b; mm = a; }
-  return new Date(yyyy, mm-1, dd, hh, mi, ss);
+  // The sheet writes Israel time (review 19 Nov 2026): on a device in another zone, place it in Israel's zone.
+  return DEVICE_IN_IL ? new Date(yyyy, mm-1, dd, hh, mi, ss) : new Date(zonedTimeToMs(yyyy, mm, dd, hh, mi, 'Asia/Jerusalem') + ss * 1000);
 }
 // One row per tick of the single IntradayLog sheet, carrying both segments' values together (see
 // logIntradayValue in IntradayLogging.gs) — replaces two independently-timed IL/US logs that used
@@ -9883,7 +9920,7 @@ async function fetchIntradayLogRows(){
   sessionRows.forEach(r => {
     if (typeof r.il !== 'number' || !(r.il > 0)) return;
     const k = new Date(r.t).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
-    const hm = new Date(r.t).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const hm = new Date(r.t).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'});
     if (hm >= '18:30:00' && !(k in window.ilDaySettle)) { window.ilDaySettle[k] = r.il; window.ilDaySettleT[k] = r.t; }
   });
   {
@@ -9914,7 +9951,7 @@ async function fetchIntradayLogRows(){
   {
     const todayK = new Date().toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'});
     const pastK = Object.keys(window.usdDayLast).filter(k => k < todayK).sort();
-    const hmsNow = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const hmsNow = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'});
     const idx = usLastSessionFreeze() && pastK.length >= 2 ? pastK.length - 2 : pastK.length - 1;
     if (idx >= 0) { window.lastCloseUSD = window.usdDayLast[pastK[idx]]; window.lastCloseUSTs = new Date(window.usdDayLastT[pastK[idx]]); }
   }
@@ -9925,7 +9962,7 @@ async function fetchIntradayLogRows(){
     // Until that day is over, the previous session's last reading is the close.
     const ilDayKey = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
     const lastOfDay = key => sessionRows.filter(r => ilDayKey(r.t) === key && typeof r.fx === 'number').pop();
-    const nowIlHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour12: false});
+    const nowIlHms = new Date().toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hourCycle:'h23'});
     const dayOver = nowIlHms >= '23:59:00';
     // Before that: the last reading of the latest earlier day with readings (the last completed session). Not the trading
     // day before today: on a weekend that stepped back past Friday to Thursday (24 Oct 2026).
@@ -10026,9 +10063,9 @@ function updateHeadlineDisplay(v, prevClose){
   if(changeEl){
     const diff = v - prevClose;
     const diffPct = prevClose ? diff/prevClose*100 : 0;
-    const cls = diff>=0 ? 'up' : 'down';
-    changeEl.textContent = `${diff>=0?'▲':'▼'} ${diff>=0?'+':'-'}${fmt(diff)} (${sgnPct(diffPct)})`;
-    changeEl.className = 'md-headline-change ' + cls;
+    const dc = dayChange(diff, diffPct, fmt);   // "▼ ₪3,145 (−0.50%)", grey "–" when flat (review 19 Nov 2026)
+    changeEl.textContent = dc.text;
+    changeEl.className = 'md-headline-change ' + dc.cls;
   }
 }
 function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
@@ -10076,7 +10113,7 @@ function syncHeaderToIntraday(latest, prevClose, cost, isUsSegment){
       const usdRateEl = document.getElementById('mdUsdRate');
       if(usdRateEl){
         if(typeof window.lastCloseUSD === 'number' && typeof window.lastCloseFxRate === 'number'){
-          const asOf = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}) : '';
+          const asOf = window.lastCloseUSTs ? window.lastCloseUSTs.toLocaleString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}) : '';
           usdRateEl.innerHTML = `Prev. close $${Math.round(window.lastCloseUSD).toLocaleString('en-US')}${asOf ? ` &middot; ${asOf}` : ''}`;
         } else {
           usdRateEl.textContent = fxRateLine(fxRate);
@@ -10213,12 +10250,14 @@ function chartLoading(el, msgHtml){
     // Then the drawn chart plus room for the line above and the foot line below, which wrap to two lines on phones.
     const room = innerWidth <= 600 ? 84 : 48;
     // The tallest chart drawn so far (3 Nov 2026: the phone 1D chart is 20 px taller than 5D-MAX, so the tabs moved).
-    new MutationObserver((m, o) => { const svg = el.querySelector(':scope > svg'); if(svg){ el.dataset.svgMax = Math.max(+el.dataset.svgMax || 0, svg.getBoundingClientRect().height); el.style.minHeight = Math.ceil(+el.dataset.svgMax + room) + 'px'; o.disconnect(); } })
+    if(el._minObs) el._minObs.disconnect();   // review 19 Nov 2026: loads that end in a message no longer pile up observers
+    (el._minObs = new MutationObserver((m, o) => { const svg = el.querySelector(':scope > svg'); if(svg){ el.dataset.svgMax = Math.max(+el.dataset.svgMax || 0, svg.getBoundingClientRect().height); el.style.minHeight = Math.ceil(+el.dataset.svgMax + room) + 'px'; o.disconnect(); } }))
       .observe(el, {childList: true});
   }
   if(!el.querySelector('svg')){ el.innerHTML = msgHtml; return; }
   el.classList.add('chart-loading');
-  new MutationObserver((m, o) => { el.classList.remove('chart-loading'); o.disconnect(); }).observe(el, {childList: true});
+  if(el._ldObs) el._ldObs.disconnect();
+  (el._ldObs = new MutationObserver((m, o) => { el.classList.remove('chart-loading'); o.disconnect(); })).observe(el, {childList: true});
 }
 // Round axis values (29 Oct 2026 review): about `count` ticks on a 1-2-5 step inside [lo, hi], e.g. 662,000 / 664,000 / 666,000.
 function niceTicks(lo, hi, count){
@@ -10479,7 +10518,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // TASE's Friday open is already 10:00, same as every other trading day).
     const timeLabel = (isFirst && roundStartLabel)
       ? roundTimeLabelToHour(t, 'Asia/Jerusalem')
-      : d.toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+      : d.toLocaleTimeString('en-US', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
     const dateStr = d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
     const label = (isFirst || isLast) ? `${timeLabel} ${dateStr}` : timeLabel;
     const anchor = isFirst ? 'start' : (isLast ? 'end' : 'middle');
@@ -10504,7 +10543,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   let closeCalloutSvg = '';
   if(sessionClosed){
     // "Close 17:30 · value at 18:30": the close time, and the time the value settles at (22 Oct 2026).
-    const settledStamp = t => new Date(t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});   // "Oct 30, 18:34" (h23: en-US hour12:false can print 24:05), the headers' style (31 Oct 2026)
+    const settledStamp = t => new Date(t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});   // "Oct 30, 18:34" (h23: en-US hourCycle:'h23' can print 24:05), the headers' style (31 Oct 2026)
     const settledLabel = window.settledAt ? 'Settled ' + settledStamp(window.settledAt) + ' ' : 'Close ';
     const closeW = (settledLabel.length + fmt(latest).length) * 6.6 + 8;
     const ty = orderedLabelY(points, w - padR, closeW, labelTop, labelBottom, lastPoint.y + 22, [{y: prevCloseLabelY, v: prevClose}], latest);
@@ -10613,7 +10652,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // already shows the hovered point's own value, so nothing is lost by leaving the headline be.
     if(!sessionLabel && !usdMode) updateHeadlineDisplay(p.v, prevClose);   // the ₪ headline never takes a dollar point
 
-    const ttDate = new Date(p.t).toLocaleString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false});
+    const ttDate = new Date(p.t).toLocaleString('en-US', {timeZone:'Asia/Jerusalem', month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'});
     const ttDiff = p.v - prevClose;
     const ttDiffPct = prevClose ? ttDiff/prevClose*100 : 0;
     const ttCls = ttDiff >= 0 ? 'var(--up-ink)' : 'var(--down-ink)';
@@ -10623,9 +10662,9 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     // markerKind). Styled distinctly (accent color, bold label) rather than a muted footnote, since
     // this is the whole reason that point is marked in the first place.
     const fxNote = p.fxMarker
-      ? `<div style="color:${p.fxMarker.newRate < p.fxMarker.oldRate ? 'var(--down-ink)' : 'var(--up-ink)'}; font-size:12px; font-weight:700; margin-top:5px; padding-top:5px; border-top:1px solid rgba(138,109,59,0.3); max-width:230px;">FX rate change: ${p.fxMarker.oldRate.toFixed(4)} &rarr; ${p.fxMarker.newRate.toFixed(4)} (${(() => { const pct = (p.fxMarker.newRate - p.fxMarker.oldRate) / p.fxMarker.oldRate * 100; return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; })()})</div>`
+      ? `<div style="color:${p.fxMarker.newRate < p.fxMarker.oldRate ? 'var(--down-ink)' : 'var(--up-ink)'}; font-size:12px; font-weight:700; margin-top:5px; padding-top:5px; border-top:1px solid var(--line); max-width:230px;">FX rate change: ${p.fxMarker.oldRate.toFixed(4)} &rarr; ${p.fxMarker.newRate.toFixed(4)} (${(() => { const pct = (p.fxMarker.newRate - p.fxMarker.oldRate) / p.fxMarker.oldRate * 100; return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'; })()})</div>`
       : '';
-    const prevT = idx > 0 ? new Date(log[idx-1].t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false}) : '';
+    const prevT = idx > 0 ? new Date(log[idx-1].t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}) : '';
     tt.innerHTML = `<div style="font-weight:700;">${fmt(p.v)}</div><div style="color:${ttCls};">${ttChange}</div>${moveTooltipLine(moves[idx], fmt, 'since ' + prevT)}<div>${ttDate}</div>${fxNote}`;
     tt.style.display = 'block';
     let x = e.clientX + 14, y = e.clientY + 14;
@@ -10750,11 +10789,13 @@ function buildDailyValueSeries(ph, holdings, inUsd){
   return {points, missing, mismatched};
 }
 
+// n months back, keeping the day inside the target month (31 Mar - 1 month = 28/29 Feb, not 3 Mar; review 19 Nov 2026).
+function monthsBack(d, n){ const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() - n); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); }
 function chartRangeStartMs(range){
   const d = new Date();
   d.setHours(0,0,0,0);
-  if(range === '1M') d.setMonth(d.getMonth()-1);
-  else if(range === '6M') d.setMonth(d.getMonth()-6);
+  if(range === '1M') monthsBack(d, 1);
+  else if(range === '6M') monthsBack(d, 6);
   else if(range === 'YTD') d.setMonth(0, 1);
   else if(range === '1Y') d.setFullYear(d.getFullYear()-1);
   else if(range === '5Y') d.setFullYear(d.getFullYear()-5);
@@ -10929,7 +10970,7 @@ async function renderRangeChart(ctx, range){
 
   const longRange = ['1Y','5Y','MAX'].includes(range);
   const tickLabel = t => range === '1D'
-    ? new Date(t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false})
+    ? new Date(t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'})
     : new Date(t).toLocaleDateString('en-US', longRange ? {month:'short', year:'numeric'} : {month:'short', day:'numeric'});
   let tickIdx;
   if(range === '5D'){
@@ -10996,7 +11037,7 @@ async function renderRangeChart(ctx, range){
   const defaultDot = el.querySelector('#rangeDefaultDot');
   const tt = document.getElementById('customTooltip');
   const dateFmt = (intraday5D || range === '1D')
-    ? {timeZone:'Asia/Jerusalem', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false}
+    ? {timeZone:'Asia/Jerusalem', weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}
     : {weekday:'short', month:'short', day:'numeric', year:'numeric'};
   overlay.addEventListener('mousemove', (e)=>{
     const rect = svgEl.getBoundingClientRect();
@@ -11059,9 +11100,11 @@ function showTapCard(html, e){
 // reading of the day (or on a weekend) it shows the last completed session, as the Portfolio
 // window's 1D chart does. The log is fetched at most every 2 minutes. A click opens the Portfolio window.
 let homeDayCache = {t: 0, raw: null};
+let homeDaySeq = 0;
 async function renderHomeDay(rows, totals){
   const el = document.getElementById('homeDay'), nowEl = document.getElementById('homeDayNow');
   if(!el) return;
+  const seq = ++homeDaySeq;
   document.getElementById('homeDayPanel').onclick = () => openPortfolioDetail();
   const split = snapSplit(rows);
   let raw;
@@ -11072,6 +11115,7 @@ async function renderHomeDay(rows, totals){
       // next render asks again instead of showing "No readings" for 2 minutes.
       const fresh = await fetchCombinedIntradayLogRaw(split.us.value - split.us.gain);
       homeDayCache = fresh.length ? {t: Date.now(), raw: fresh} : {t: 0, raw: null};
+      if(seq !== homeDaySeq) return;   // a newer draw started meanwhile (review 19 Nov 2026)
       raw = fresh;
     } else raw = homeDayCache.raw;
     raw = raw.filter(p => p.t <= Date.now());
@@ -11114,7 +11158,7 @@ async function renderHomeDay(rows, totals){
   if(!label && open && log.length) log = log.concat([{t: Date.now(), v: totals.totalValue}]);
   const last = log[log.length-1], chg = last.v - prevClose, pct = prevClose ? chg / prevClose * 100 : 0;
   const fmt = n => '₪' + Math.round(Math.abs(n)).toLocaleString('en-US'), dcNow = dayChange(chg, pct, fmt);
-  const hm = t => new Date(t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false});
+  const hm = t => new Date(t).toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
   // After today's session the line ends at the USA close while the headline keeps following the live rate, so the two can
   // differ: say which is which, and give the headline's figure too (29 Oct 2026 review).
   const dcLive = dayChange(totals.dayGain, totals.dayGainPct, fmt);
@@ -11172,7 +11216,7 @@ function renderHomeAlloc(rows){
 // session's, and Psagot shows $0). ₪ funds use their own day change. Null without the BoI rate.
 function usSessionStartedToday(){
   const nyDay = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', weekday: 'short'}).format(new Date());
-  return !['Sat', 'Sun'].includes(nyDay) && Date.now() >= getUsDayRangeMs().open;
+  return !['Sat', 'Sun'].includes(nyDay) && !isMarketHoliday('us', ymdIn('Asia/Jerusalem')) && Date.now() >= getUsDayRangeMs().open;
 }
 // TASE's previous close (10 Nov 2026, the user's rule): each holding's official previous close (the sheet's prevClose, the
 // one the holding cards measure from), not the 18:30 log reading, which can hold a stale price (9 Nov: IBI.F35 at 73.65 at
@@ -11186,7 +11230,7 @@ function taseOfficialClose(rows){
 }
 function taseSessionStartedToday(){
   const wd = new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'short'}).format(new Date());
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) && Date.now() >= getTaseDayRangeMs().open;
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(wd) && !isMarketHoliday('il') && Date.now() >= getTaseDayRangeMs().open;
 }
 // A purchase-date-rate broker's (Meitav's) own value and day change: US holdings at the Bank of Israel
 // rate published before today (meitavBoiRate), and the day's change as price moves only at that same
@@ -11443,7 +11487,7 @@ function render(rows, totals){
       ? `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}`
         + `<div style="max-width:280px;">No live price from Google Finance right now. Shown in grey at ${n.data.basis === 'last' ? `its last value with a price, ${fmt(n.data.value)} (${lastAtTxt})` : n.data.basis === 'snapshot' ? `the built-in snapshot's value, ${fmt(n.data.value)}` : `its cost, ${fmt(n.data.value)}`}.</div>`
         + `<div style="margin-top:6px; color:var(--muted); font-size:12px; max-width:280px;">Back in color on the first refresh with a price.</div>`
-      : `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/totals.totalValue*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+      : `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/bookValue(rows)*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
     div.addEventListener('mouseenter', ()=>{
       tt.innerHTML = tooltipHtml;
       tt.style.display = 'block';
@@ -11526,7 +11570,7 @@ function render(rows, totals){
     if(barEl){
       barEl.innerHTML = '';
       data.forEach(d=>{
-        const pct = d.value/totals.totalValue*100;
+        const pct = d.value/bookValue(rows)*100;
         const seg = document.createElement('div');
         seg.className = 'seg';
         seg.style.width = pct + '%';
@@ -11541,7 +11585,7 @@ function render(rows, totals){
     el.innerHTML = '';
     data.forEach(d=>{
       const row = document.createElement('div'); row.className='legend-row';
-      const pct = (d.value/totals.totalValue*100).toFixed(2);
+      const pct = (d.value/bookValue(rows)*100).toFixed(1);
       row.innerHTML = `<span class="legend-swatch" style="background:${d.color}"></span>`
         + `<span class="legend-name">${d.label}</span>`
         + `<span class="legend-val">${fmt(d.value)} (${pct}%)</span>`;
@@ -11568,8 +11612,8 @@ let wlSrc = null, wlPeriod = (() => { try{ return localStorage.getItem('pf_wlPer
 function wlPeriodStart(p){
   const d = new Date(); d.setHours(12, 0, 0, 0);
   if(p === '1W') d.setDate(d.getDate() - 7);
-  else if(p === '1M') d.setMonth(d.getMonth() - 1);
-  else if(p === '3M') d.setMonth(d.getMonth() - 3);
+  else if(p === '1M') monthsBack(d, 1);
+  else if(p === '3M') monthsBack(d, 3);
   else if(p === 'YTD') d.setMonth(0, 0);   // 31 Dec last year: the year's last close
   else if(p === '1Y') d.setFullYear(d.getFullYear() - 1);
   return d.getTime();
@@ -11627,7 +11671,7 @@ function renderWinLoseList(rows){
     const isUp = d.ret >= 0;
     // One-sided, ranked best to worst (29 Oct 2026 review): the old two-sided chart left half its width empty.
     const barStyle = `left:0; background:${isUp ? 'var(--up-4)' : 'var(--down-4)'};`;
-    row.innerHTML = `<label class="wlhit"><input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"></label><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${isUp?'var(--up-ink)':'var(--down-ink)'}">${sgnPct(d.ret)}</div>`;
+    row.innerHTML = `<label class="wlhit"><input type="checkbox" class="wlcheck" title="Include ${d.name} in the bar scale" aria-label="Include ${d.name} in the bar scale"></label><div class="wlname">${d.name}</div><div class="wltrack"><div class="wlbar" style="${barStyle}"></div></div><div class="wlval" style="color:${Math.abs(d.ret) < 0.005 ? 'var(--muted)' : isUp ? 'var(--up-ink)' : 'var(--down-ink)'}">${sgnPct(d.ret)}</div>`;
     const check = row.querySelector('.wlcheck');
     row.querySelector('.wlhit').addEventListener('click', e => e.stopPropagation());   // the tap area toggles the box, not the row
     check.addEventListener('click', e => e.stopPropagation());
@@ -11642,7 +11686,7 @@ function renderWinLoseList(rows){
     row.title = 'Double-click for Market Universe';
     row.addEventListener('dblclick', e => { if(e.target.closest('.wlhit')) return; tt.style.display = 'none'; openUniverseForTicker(d); });
     wlRows.push({d, row, bar: row.querySelector('.wlbar')});
-    const pct = `<span class="${isUp?'up':'down'}">${isUp?'+':''}${d.ret.toFixed(2)}%</span>`;
+    const pct = `<span class="${isUp?'up':'down'}">${sgnPct(d.ret)}</span>`;
     const periodTip = d.wlDay ? `<b>${d.name}</b>Today's change: ${pct}`
       : d.wlFrom ? `<b>${d.name}</b>${d.wlFrom.bought ? 'Bought' : 'Close'} ${new Date(d.wlFrom.t).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}: ${d.wlFrom.close.toLocaleString('en-US', {maximumFractionDigits:2})}<br>Now: ${d.price.toLocaleString('en-US', {maximumFractionDigits:2})}<br>= ${pct}<div style="margin-top:6px; color:var(--muted); font-size:12px;">Price change in the ticker's own currency${d.wlFrom.bought ? ', from your purchase date' : ''}.</div>`
       : null;
@@ -11657,7 +11701,7 @@ function renderWinLoseList(rows){
         + `<div style="color:var(--muted); font-size:12px; margin-bottom:6px;">`
         + `Current value: ${fmtIls3(d.value)}<br>`
         + `Cost basis: ${fmtIls3(d.cost)}`
-        + (holdingPeriod ? `<br>Bought: ${d.buyDate} (held ${holdingPeriod})` : '')
+        + (holdingPeriod ? `<br>Bought: ${new Date(d.buyDate).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'})} (held ${holdingPeriod})` : '')
         + `</div>`
         + `Return = (${fmtIls3(d.value)} \u2212 ${fmtIls3(d.cost)}) \u00f7 ${fmtIls3(d.cost)}<br>`
         + `= ${gain>=0?'+':'\u2212'}${fmtIls3(Math.abs(gain))} \u00f7 ${fmtIls3(d.cost)}<br>`
@@ -11792,8 +11836,9 @@ function formatHoldingPeriod(buyDateStr){
   const months = days / 30.44;
   if(months < 24) return `~${Math.round(months)} month${Math.round(months)!==1?'s':''}`;
   const years = days / 365.25;
-  const wholeYears = Math.floor(years);
-  const remMonths = Math.round((years - wholeYears) * 12);
+  let wholeYears = Math.floor(years);
+  let remMonths = Math.round((years - wholeYears) * 12);
+  if(remMonths === 12){ wholeYears++; remMonths = 0; }   // not "~2y 12m"
   return remMonths > 0 ? `~${wholeYears}y ${remMonths}m` : `~${wholeYears} year${wholeYears!==1?'s':''}`;
 }
 
@@ -11814,11 +11859,13 @@ function renderWinLoseHeadline(rows, meta){
   let html = !meta || meta[0] === 'buy' ? `<b>${winners.length} of ${withRet.length}</b> holdings are profitable (${winRate.toFixed(1)}%)`
     : `<b>${winners.length} of ${withRet.length}</b> holdings are up ${meta[0] === '1D' ? 'today' : meta[0] === 'YTD' ? 'this year' : 'over the ' + meta[2]} (${winRate.toFixed(1)}%)`;
   if(bigWinner && bigLoser && bigWinner !== bigLoser){
-    html += ` — best: <b class="up">${bigWinner.name} ${sgnPct(bigWinner.ret)}</b>, worst: <b class="down">${bigLoser.name} ${sgnPct(bigLoser.ret)}</b>`;
+    html += ` — best: <b class="${signCls(bigWinner.ret)}">${bigWinner.name} ${sgnPct(bigWinner.ret)}</b>, worst: <b class="${signCls(bigLoser.ret)}">${bigLoser.name} ${sgnPct(bigLoser.ret)}</b>`;
   }
   el.innerHTML = html;
 }
 
+// The holdings' own live total, so a panel's shares add up to 100% (review 19 Nov 2026; the headline keeps the IntradayLog value).
+function bookValue(rows){ return (rows || []).reduce((a, r) => a + (r.value > 0 ? r.value : 0), 0) || (window.lastTotals || {}).totalValue || 1; }
 function renderWinLoseInsights(rows, totals){
   const el = document.getElementById('winloseInsights');
   if(!el) return;
@@ -11836,7 +11883,7 @@ function renderWinLoseInsights(rows, totals){
   // Concentration risk from big winners appreciating into oversized positions
   const outsizedWinners = winners
     .filter(r => r.ret > 30)
-    .map(r => ({...r, weight: r.value/totals.totalValue*100}))
+    .map(r => ({...r, weight: r.value/bookValue(rows)*100}))
     .filter(r => r.weight > 3)
     .sort((a,b)=>b.weight-a.weight);
   if(outsizedWinners.length){
@@ -11859,7 +11906,7 @@ function renderWinLoseInsights(rows, totals){
   // Overall tilt
   if(winners.length && losers.length){
     const winRate = winners.length/withRet.length*100;
-    notes.push(`Overall, ${winners.length} of ${withRet.length} positions (${winRate.toFixed(2)}%) are profitable — ${winRate>=60?'a healthy hit rate suggesting your selection process is working more often than not':'a reminder that a meaningful share of individual picks are underwater even while the total portfolio is up, since a few big winners are carrying the average'}.`);
+    notes.push(`Overall, ${winners.length} of ${withRet.length} positions (${winRate.toFixed(1)}%) are profitable — ${winRate>=60?'a healthy hit rate suggesting your selection process is working more often than not':'a reminder that a meaningful share of individual picks are underwater' + (totals.totalGain >= 0 ? ' even while the total portfolio is up, since a few big winners are carrying the average' : '')}.`);
   }
 
   if(!notes.length){ el.innerHTML = ''; return; }
@@ -12188,7 +12235,7 @@ function formatRefreshTimestamp(d){ return ilStamp(d); }
 // "Oct 30, 2026 06:35:47".
 function ilStamp(d){
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false}).formatToParts(d).map(x => [x.type, x.value]));
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle:'h23'}).formatToParts(d).map(x => [x.type, x.value]));
   return `${p.month} ${p.day}, ${p.year} ${p.hour === '24' ? '00' : p.hour}:${p.minute}:${p.second}`;   // "Nov 16, 2026 06:35:47" (review 16 Nov 2026; was 16/11/2026)
 }
 
@@ -12209,7 +12256,7 @@ async function loadLogFx(){
   try{
     const rows = await fetchIntradayLogRows();
     const last = rows.filter(r => r.fx > 0 && r.t <= Date.now()).pop();
-    if(last) window.logFxCandidate = {rate: last.fx, t: last.t, label: new Date(last.t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false})};
+    if(last) window.logFxCandidate = {rate: last.fx, t: last.t, label: new Date(last.t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle:'h23'})};
   } catch(e){ /* Q1 stays the live rate */ }
 }
 // Q2's quote time ("Oct 6, 18:00"), this year (or last, around New Year). NaN if it can't be read.
@@ -12217,9 +12264,13 @@ function q2QuoteMs(text){
   const m = /^([A-Z][a-z]{2})\s+(\d{1,2}),\s*(\d{1,2}):(\d{2})/.exec(String(text || '').trim());
   if(!m) return NaN;
   const now = new Date();
-  let d = new Date(`${m[1]} ${m[2]}, ${now.getFullYear()} ${m[3]}:${m[4]}`);
-  if(d.getTime() > now.getTime() + 86400000) d = new Date(`${m[1]} ${m[2]}, ${now.getFullYear() - 1} ${m[3]}:${m[4]}`);
-  return d.getTime();
+  // Q2's time is Israel time (review 19 Nov 2026: read it in Israel's zone whatever the device's zone).
+  const mo = 'JanFebMarAprMayJunJulAugSepOctNovDec'.indexOf(m[1]) / 3 + 1;
+  if(!(mo >= 1)) return NaN;
+  const at = y => zonedTimeToMs(y, mo, +m[2], +m[3], +m[4], 'Asia/Jerusalem');
+  let t = at(now.getFullYear());
+  if(t > now.getTime() + 86400000) t = at(now.getFullYear() - 1);
+  return t;
 }
 async function doRefresh(){
   const btn = document.getElementById('refreshBtn');
@@ -12266,8 +12317,11 @@ async function doRefresh(){
 // portrait<->landscape), leaving old tiles sized for the previous width sitting in a container
 // that's now a completely different shape. Re-render everything size-dependent, debounced so a
 // continuous drag-resize (or a browser that fires this repeatedly mid-rotation) doesn't thrash.
-let resizeRenderTimer = null;
+let resizeRenderTimer = null, lastResizeW = innerWidth, lastResizeH = innerHeight;
 window.addEventListener('resize', () => {
+  // Review 19 Nov 2026: a phone's address bar showing or hiding while scrolling changes only the height a little.
+  if(innerWidth === lastResizeW && Math.abs(innerHeight - lastResizeH) < 150) return;
+  lastResizeW = innerWidth; lastResizeH = innerHeight;
   clearTimeout(resizeRenderTimer);
   resizeRenderTimer = setTimeout(() => {
     if(window.lastRows && window.lastTotals) render(window.lastRows, window.lastTotals);
@@ -12312,7 +12366,7 @@ function pct(n){ return (n>=0?'+':'') + n.toFixed(2) + '%'; }
 
 function buildDigest(){
   const rows = window.lastRows, totals = window.lastTotals;
-  if(!rows || !totals) return '<p>No data loaded yet.</p>';
+  if(!rows || !rows.length || !totals) return '<p>No data loaded yet.</p>';
 
   const withChange = rows.filter(d => !isNaN(d.change));
   const gainers = withChange.slice().sort((a,b)=>b.change-a.change);
@@ -12341,7 +12395,7 @@ function buildDigest(){
 
   const heaviest = rows.slice().sort((a,b)=>b.value-a.value).slice(0,5);
   html += `<p><b>Heaviest holdings:</b> ` + heaviest.map(d=>{
-    const w = (d.value/totals.totalValue*100).toFixed(2);
+    const w = (d.value/bookValue(rows)*100).toFixed(2);
     const chg = isNaN(d.change) ? 'n/a' : `<span class="${d.change>=0?'up':'down'}">${pct(d.change)}</span>`;
     return `${d.name} (${w}%, ${fmtIls(d.value)}, ${chg} today)`;
   }).join(', ') + `.</p>`;
@@ -12390,8 +12444,8 @@ function buildInsights(rows, totals, withChange){
 
   // Concentration
   const sorted = rows.slice().sort((a,b)=>b.value-a.value);
-  const top1Pct = sorted[0] ? sorted[0].value/totals.totalValue*100 : 0;
-  const top5Pct = sorted.slice(0,5).reduce((a,d)=>a+d.value,0)/totals.totalValue*100;
+  const top1Pct = sorted[0] ? sorted[0].value/bookValue(rows)*100 : 0;
+  const top5Pct = sorted.slice(0,5).reduce((a,d)=>a+d.value,0)/bookValue(rows)*100;
   if(top5Pct > 55){
     notes.push(`Your top 5 holdings (${sorted.slice(0,5).map(d=>d.name).join(', ')}) make up ${top5Pct.toFixed(2)}% of the portfolio — this book is fairly concentrated at the top, so those few names will dominate how your total value moves day to day.`);
   } else {
@@ -12407,8 +12461,8 @@ function buildInsights(rows, totals, withChange){
   const topSector = Object.entries(sectorMap).sort((a,b)=>b[1]-a[1])[0];
   const topRole = Object.entries(roleMap).sort((a,b)=>b[1]-a[1])[0];
   if(topSector){
-    const sp = (topSector[1]/totals.totalValue*100).toFixed(2);
-    notes.push(`${topSector[0]} is your biggest sector tilt at ${sp}% of the book, and by role, "${topRole[0]}" is the largest single purpose at ${(topRole[1]/totals.totalValue*100).toFixed(2)}% — worth asking whether that matches how much growth-vs-stability exposure you actually want right now.`);
+    const sp = (topSector[1]/bookValue(rows)*100).toFixed(2);
+    notes.push(`${topSector[0]} is your biggest sector tilt at ${sp}% of the book, and by role, "${topRole[0]}" is the largest single purpose at ${(topRole[1]/bookValue(rows)*100).toFixed(2)}% — worth asking whether that matches how much growth-vs-stability exposure you actually want right now.`);
   }
 
   // Dispersion between best and worst total-return position
@@ -12574,7 +12628,7 @@ function buildAiPayload(){
   return {
     holdings,
     summary: {
-      asOf: new Date().toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false}),
+      asOf: new Date().toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle:'h23'}),
       dayPct: pct(totals.dayGainPct), totalReturnPct: pct(totals.totalGainPct),
       usaWeightPct: pct(usValue / total * 100), taseWeightPct: pct((total - usValue) / total * 100),
       usdIls: typeof fx === 'number' ? Math.round(fx * 10000) / 10000 : null,
@@ -12634,7 +12688,7 @@ async function askAi(question, out, waitText){
     // "gemini-3.8-flash" -> "Gemini 3.8 Flash"
     const modelName = String(data.model || 'gemini').replace(/-/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase());
     out.innerHTML = renderAiMarkdown(data.text)
-      + `<div class="ai-foot">${modelName} · ${data.usedToday} of ${data.limit} today · ${new Date().toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hour12:false})}. AI can get things wrong — check the numbers. Not financial advice.</div>`;
+      + `<div class="ai-foot">${modelName} · ${data.usedToday} of ${data.limit} today · ${new Date().toLocaleTimeString('en-GB', {timeZone:'Asia/Jerusalem', hour:'2-digit', minute:'2-digit', hourCycle:'h23'})}. AI can get things wrong — check the numbers. Not financial advice.</div>`;
   } catch(e){
     out.innerHTML = `<p class="ai-err">${e.name === 'AbortError' ? 'No answer after 100 seconds — try again.' : String(e.message).replace(/[<>&]/g, '')}</p>`;
   } finally {
@@ -12661,7 +12715,7 @@ function runAiDailyLegacy(){
 const aiAuthHeaders = () => ({Authorization: 'Bearer ' + (localStorage.getItem('pf_idToken') || '')});
 function renderAiBrief(brief, dates){
   const out = document.getElementById('aiDailyResult');
-  const written = new Date(brief.generatedAt).toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+  const written = new Date(brief.generatedAt).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle:'h23'});
   const modelName = String(brief.model || 'gemini').replace(/-/g, ' ').replace(/\b[a-z]/g, c => c.toUpperCase());
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const picker = (dates || []).length > 1
