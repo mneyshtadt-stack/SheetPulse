@@ -2047,7 +2047,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795095399";
+const BUILD_ID = "1795096578";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -2370,7 +2370,8 @@ const DIAG_CHECKS = [
     // then means the Apps Script trigger has stopped.
     const marketOpen = getTaseStatus() || getMarketStatus('America/New_York', 9*60+30, 16*60, ['Mon','Tue','Wed','Thu','Fri']);
     const stale = marketOpen && age > 20 * 60000;
-    const when = `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')} ${m[4].padStart(2, '0')}:${m[5]}`;
+    // Month first like the rest of the site ("Nov 19, 15:45"; the sheet itself is dd/mm, review 19 Nov 2026).
+    const when = `${ts.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}, ${m[4].padStart(2, '0')}:${m[5]}`;
     return {status: stale ? 'warn' : 'ok', ms:r.ms,
       detail:`${rows.length - 1} row${rows.length === 2 ? '' : 's'}; newest ${when} (${age < 0 ? 'in ' + diagDuration(age) : diagDuration(age) + ' ago'})`
         + (stale ? ' — a market is open but nothing was logged for 20+ min: check the Apps Script trigger (Executions page).' : '.')};
@@ -9103,10 +9104,12 @@ function renderValueChecks(){
 }
 // A day change for display: up (green ▲ +), down (red ▼ −), or flat when it rounds to ₪0 and 0.00% (grey –, no sign,
 // 27 Oct 2026). fmtAbs formats the size without a sign.
+// "+1.23%" / "−1.23%" with a true minus sign, as Market Universe shows it (review 19 Nov 2026).
+function sgnPct(p, d = 2){ return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(d) + '%'; }
 function dayChange(diff, pct, fmtAbs){
   if(Math.round(Math.abs(diff)) === 0 && Math.abs(pct) < 0.005) return {cls: 'flat', text: `– ${fmtAbs(0)} (0.00%)`, sign: '', pctText: '0.00%'};
   const up = diff >= 0;
-  return {cls: up ? 'up' : 'down', text: `${up ? '▲' : '▼'} ${fmtAbs(Math.abs(diff))} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`, sign: up ? '+' : '-', pctText: `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`};
+  return {cls: up ? 'up' : 'down', text: `${up ? '▲' : '▼'} ${fmtAbs(Math.abs(diff))} (${sgnPct(pct)})`, sign: up ? '+' : '-', pctText: sgnPct(pct)};
 }
 // Open = sun, closed = moon (the market-status icons, 22 Oct 2026).
 const SUN_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" fill="#e8934f"/><g stroke="#e8934f" stroke-width="2" stroke-linecap="round"><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g></svg>';
@@ -9196,10 +9199,10 @@ async function syncGaugeToIntraday(split, totals){
     valEl.textContent = dc.text;
     subEl.textContent = `Market Value: ${fmt(latest)}`;
   };
-  const appendAsOfToCurrentValue = (subEl, currentValue, ts) => {
+  const appendAsOfToCurrentValue = (subEl, currentValue, ts, fxNote) => {
     // "Market Value · ₪115,194 as of Monday, Nov 9 18:34" while the market is closed (9 Nov 2026, the user's wording).
     const d = ts && new Date(ts), z = {timeZone: 'Asia/Jerusalem'};
-    if(subEl) subEl.textContent = `Market Value · ${fmt(currentValue)}` + (d ? ` as of ${d.toLocaleDateString('en-US', {...z, weekday: 'long'})}, ${d.toLocaleDateString('en-US', {...z, month: 'short', day: 'numeric'})} ${d.toLocaleTimeString('en-GB', {...z, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})}` : '');
+    if(subEl) subEl.textContent = `Market Value · ${fmt(currentValue)}` + (d ? ` as of ${d.toLocaleDateString('en-US', {...z, weekday: 'long'})}, ${d.toLocaleDateString('en-US', {...z, month: 'short', day: 'numeric'})} ${d.toLocaleTimeString('en-GB', {...z, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})}` + (fxNote ? ", at today's rate" : '') : '');
   };
 
   const taseOpen = getTaseStatus();
@@ -9237,7 +9240,8 @@ async function syncGaugeToIntraday(split, totals){
   if(usOpen && usPoint){
     applyLive(document.getElementById('gaugeUsVal'), document.getElementById('gaugeUsSub'), split.us.value, split.us.value - split.us.gain);
   } else if(usPoint){
-    appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t);
+    // The dollars are that close's, the shekels move with today's USD/ILS (review 19 Nov 2026).
+    appendAsOfToCurrentValue(document.getElementById('gaugeUsSub'), split.us.value, usPoint.t, true);
   }
   [['ilDetailTrigger', 'gaugeIlVal', taseOpen], ['usDetailTrigger', 'gaugeUsVal', usOpen]].forEach(([cell, val, open]) => {
     const c = document.getElementById(cell), v = document.getElementById(val);
@@ -11146,7 +11150,7 @@ function renderHomeAlloc(rows){
   const block = (title, parts) => `<div class="al-block"><div class="hp-label">${title}</div>`
     + `<div class="al-bar">${parts.map(p => `<span style="width:${p.value / total * 100}%; background:${p.color}"></span>`).join('')}</div>`
     + parts.map(p => `<div class="al-row"><span class="dot" style="background:${p.color}"></span><span>${p.name}</span>`
-      + `<span class="al-v"><b>${(p.value / total * 100).toFixed(1)}%</b> ${fmt(p.value)} <span class="${p.pct >= 0 ? 'up' : 'down'}">${p.pct >= 0 ? '+' : ''}${p.pct.toFixed(2)}%</span></span></div>`).join('')
+      + `<span class="al-v"><b>${(p.value / total * 100).toFixed(1)}%</b> ${fmt(p.value)} <span class="${p.pct >= 0 ? 'up' : 'down'}">${sgnPct(p.pct)}</span></span></div>`).join('')
     + `</div>`;
   const split = snapSplit(rows);
   let html = block('By market', [
@@ -11418,10 +11422,10 @@ function render(rows, totals){
     const tt = document.getElementById('customTooltip');
     const changeHtml = isNaN(n.data.change)
       ? 'n/a'
-      : `<span class="${n.data.change>=0?'up':'down'}">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${n.data.change>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.change/100))})</span>`;
+      : `<span class="${n.data.change>=0?'up':'down'}">${sgnPct(n.data.change)} (${n.data.change>=0?'+':'−'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.change/100))})</span>`;
     const retHtml = isNaN(n.data.ret)
       ? 'n/a'
-      : `<span class="${n.data.ret>=0?'up':'down'}">${n.data.ret>=0?'+':''}${n.data.ret.toFixed(2)}% (${n.data.ret>=0?'+':'-'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.ret/100))})</span>`;
+      : `<span class="${n.data.ret>=0?'up':'down'}">${sgnPct(n.data.ret)} (${n.data.ret>=0?'+':'−'}${fmtIlsSmart(n.data.value - n.data.value/(1+n.data.ret/100))})</span>`;
     const tName = TICKER_NAME_MAP[n.data.name];
     // The logo sits just left of the ticker, centered with it as one line (like a broker's list), so
     // it never covers the name. Only when that line fits the tile -- otherwise the tooltip shows it.
@@ -11471,7 +11475,7 @@ function render(rows, totals){
       inner += `<div class="t-name" style="color:${tc}; font-size:${nameFont}px">${logo}<span>${n.data.name}</span></div>`;
       if(w>84 && h>40 && !isNaN(n.data.change)){
         const dayGainAmt = n.data.value - n.data.value/(1+n.data.change/100);
-        inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">${n.data.change>=0?'+':''}${n.data.change.toFixed(2)}% (${dayGainAmt>=0?'+':'-'}${fmtIlsSmart(dayGainAmt)})</div>`;
+        inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">${sgnPct(n.data.change)} (${dayGainAmt>=0?'+':'−'}${fmtIlsSmart(dayGainAmt)})</div>`;
       }
       if(n.data.noPrice && w>84 && h>40){
         inner += `<div style="color:${tc}; font-size:11px; white-space:nowrap;">no live price</div>`;
@@ -11481,6 +11485,7 @@ function render(rows, totals){
       }
     }
     div.innerHTML = inner;
+    div.setAttribute('aria-label', (n.data.isOther ? n.data.otherList.length + ' smaller holdings' : n.data.name) + (isNaN(n.data.change) ? '' : ', today ' + sgnPct(n.data.change)));
     tmEl.appendChild(div);
   });
 
