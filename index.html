@@ -2052,7 +2052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795117301";
+const BUILD_ID = "1795150740";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -11494,7 +11494,10 @@ function render(rows, totals){
   // Phones (29 Oct 2026 review): about one screen instead of 1,660 px, with the holdings under 1.5% of the portfolio folded
   // into one "Other" tile (its card lists them). Desktop keeps every holding as its own tile.
   const narrowTm = tmW < 600;
-  let tmData = rows.concat(noPriceTiles(rows));
+  // Before the US opens, applyUsDayRule sets every US row's change to the dollar's move, the same % for all (20 Nov 2026: every
+  // tile +0.18%). The map shows each ticker's own last-session move instead; the tooltip says so.
+  const usLast = !usSessionStartedToday();
+  let tmData = rows.map(r => usLast && isFinite(r.sessionChange) ? {...r, change: r.sessionChange, lastSession: true} : r).concat(noPriceTiles(rows));
   {
     // Desktop (web) shows EVERY ticker as its own tile: the owner's rule (14 Nov 2026). Do not fold small holdings into
     // "Other" there, whatever a design review says; only phones fold (under 1.5%).
@@ -11544,7 +11547,7 @@ function render(rows, totals){
       ? `<b>${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}`
         + `<div style="max-width:280px;">No live price from Google Finance right now. Shown in grey at ${n.data.basis === 'last' ? `its last value with a price, ${fmt(n.data.value)} (${lastAtTxt})` : n.data.basis === 'snapshot' ? `the built-in snapshot's value, ${fmt(n.data.value)}` : `its cost, ${fmt(n.data.value)}`}.</div>`
         + `<div style="margin-top:6px; color:var(--muted); font-size:12px; max-width:280px;">Back in color on the first refresh with a price.</div>`
-      : `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/bookValue(rows)*100).toFixed(2)}% of portfolio)<br>Today: ${changeHtml}<br>Total return: ${retHtml}`;
+      : `<b>${logoImgHtml}${n.data.name}</b>${tName?`<div style="color:var(--muted); font-size:12px; margin:-2px 0 6px;">${tName}</div>`:''}${fmt(n.data.value)} (${(n.data.value/bookValue(rows)*100).toFixed(2)}% of portfolio)<br>${n.data.lastSession ? 'Last US session' : 'Today'}: ${changeHtml}<br>Total return: ${retHtml}`;
     div.addEventListener('mouseenter', ()=>{
       tt.innerHTML = tooltipHtml;
       tt.style.display = 'block';
