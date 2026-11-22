@@ -2052,7 +2052,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795338137";
+const BUILD_ID = "1795344259";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3436,7 +3436,8 @@ function applyFxCell(rateCellRaw, changeCellRaw){
   const c = window.logFxCandidate, q2Ms = q2QuoteMs(changeCellRaw);
   // A fresh log reading is used even when Q1 holds the same rate (the logger writes its rate into Q1 since 23 Oct 2026),
   // so the rate keeps the log reading's time instead of losing it to Q2's (Google's) different rate.
-  window.logFx = c && (isNaN(q2Ms) ? Date.now() - c.t < 12 * 3600000 : c.t > q2Ms + 60000) ? c : null;
+  // On a weekend the log's last reading (the final Friday quote) is the rate however old (owner's rule 22 Nov 2026).
+  window.logFx = c && (isWeekendIL(Date.now()) || (isNaN(q2Ms) ? Date.now() - c.t < 12 * 3600000 : c.t > q2Ms + 60000)) ? c : null;
   if(window.logFx) window.lastFxRate = window.logFx.rate;
   else if(!isNaN(rateVal)) window.lastFxRate = rateVal;
 
@@ -9277,7 +9278,8 @@ async function syncGaugeToIntraday(split, totals){
   const appendAsOfToCurrentValue = (subEl, currentValue, ts, fxNote) => {
     // "Market Value · ₪115,194 as of Monday, Nov 9 18:34" while the market is closed (9 Nov 2026, the user's wording).
     const d = ts && new Date(ts), z = {timeZone: 'Asia/Jerusalem'};
-    if(subEl) subEl.textContent = `Market Value · ${fmt(currentValue)}` + (d ? ` as of ${d.toLocaleDateString('en-US', {...z, weekday: 'long'})}, ${d.toLocaleDateString('en-US', {...z, month: 'short', day: 'numeric'})} ${d.toLocaleTimeString('en-GB', {...z, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})}` + (fxNote ? ", at today's rate" : '') : '');
+    if(subEl) subEl.textContent = `Market Value · ${fmt(currentValue)}` + (d ? ` as of ${d.toLocaleDateString('en-US', {...z, weekday: 'long'})}, ${d.toLocaleDateString('en-US', {...z, month: 'short', day: 'numeric'})} ${d.toLocaleTimeString('en-GB', {...z, hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})}` + (fxNote ? (window.usWeekendFx ? `, at Friday's final rate ${window.usWeekendFx.fx.toFixed(4)}` : ", at today's rate") : '') : '');
+    if(subEl) subEl.title = fxNote && window.usWeekendFx ? `The currency market is closed for the weekend. US holdings are valued at the dollar's final Friday quote, ${window.usWeekendFx.fx.toFixed(4)} (logged ${new Date(window.usWeekendFx.t).toLocaleString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})}), which is also the close, so the USA shows no change until Monday.` : '';
   };
 
   const taseOpen = getTaseStatus();
@@ -9636,6 +9638,8 @@ async function fetchLastClose(){
     const e = window.lastCloseByDate[usKey];
     window.lastCloseUS = e.us;
     window.lastCloseFxRate = e.rate;   // the dollar close comes from IntradayLog (fetchIntradayLogRows), not the recorded closes
+    const f = e.usTs && weekendFinalFx(rows, e.usTs.getTime());
+    if(f && e.rate > 0){ window.lastCloseUS = e.us * f.fx / e.rate; window.lastCloseFxRate = f.fx; }
   }
 }
 
@@ -9785,6 +9789,19 @@ function getCombinedDayRangeMs(){
 function isWeekendIL(ms){
   const wd = new Date(ms).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'short'});
   return wd === 'Sat' || wd === 'Sun';
+}
+// Weekends only (owner's rule 22 Nov 2026): the dollar's final Friday quote, which Yahoo prints after the 23:55 USA close
+// row (often 00:00-00:30 Saturday), is the USA close rate, so USA, Today and USD/ILS show no change on Saturday and Sunday.
+// The last weekend log row after the given close row; null on weekdays (the existing close-row rule stays).
+function weekendFinalFx(rows, closeT){
+  if(!isWeekendIL(Date.now())) return null;
+  let f = null;
+  for(const r of rows){
+    if(r.t <= closeT) continue;
+    if(!isWeekendIL(r.t) || r.t > Date.now()) break;
+    if(r.fx > 0) f = r;
+  }
+  return f;
 }
 function taseSettleMs(ms){
   const [y, m, d] = new Date(ms).toLocaleDateString('en-CA', {timeZone: 'Asia/Jerusalem'}).split('-').map(Number);
@@ -10011,6 +10028,8 @@ async function fetchIntradayLogRows(){
     const todayKey = ilDayKey(Date.now());
     const closeRd = dayOver && !isWeekendIL(Date.now()) ? lastOfDay(todayKey) : sessionRows.filter(r => ilDayKey(r.t) !== todayKey && typeof r.fx === 'number').pop();
     if(closeRd) { window.usCloseFx = closeRd.fx; window.usCloseTs = new Date(closeRd.t); if(typeof closeRd.usd === 'number') window.usCloseUsd = closeRd.usd; }
+    window.usWeekendFx = closeRd ? weekendFinalFx(rows, closeRd.t) : null;
+    if(window.usWeekendFx) window.usCloseFx = window.usWeekendFx.fx;
   }
 
   // Each market's opening USD/ILS rate per date ("yyyy-mm-dd"), for each chart's FX marker
