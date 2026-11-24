@@ -2058,7 +2058,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795354778";
+const BUILD_ID = "1795524960";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -3570,7 +3570,7 @@ function brokerSessionDay(rows){
 function lastSessionFor(market){
   const il = zonedNow('Asia/Jerusalem'), d = market === 'il' ? il : zonedNow('America/New_York');
   const wd = d.wd, mins = d.mins;
-  const [openM, closeM] = market === 'il' ? [10*60, wd === 5 ? 14*60 : 17*60+30] : [9*60+30, US_EARLY_CLOSE.includes(d.key) ? 13*60 : 16*60];
+  const [openM, closeM] = market === 'il' ? [10*60, wd === 5 ? 14*60 : 17*60+30] : [9*60+30, isUsEarlyClose(d.key) ? 13*60 : 16*60];
   const weekday = wd >= 1 && wd <= 5 && !isMarketHoliday(market === 'il' ? 'il' : 'us', d.key);   // a holiday counts like a weekend
   // Before today's open (or on a weekend): the last completed session is before today.
   // After today's close: today's session is the last completed one. In between, the market is open: no override.
@@ -3637,18 +3637,79 @@ function splitByMarket(rows){
   };
 }
 
-// Exchange holidays and US half days (review 19 Nov 2026): on a holiday the market counts as closed all day, like a weekend.
-// shortcut: dates typed in by hand (NYSE: nyse.com/markets/hours-calendars; TASE: its 2026 calendar), add each new year's list;
-// TASE's 2027 calendar was not published yet on 19 Nov 2026.
-const MARKET_HOLIDAYS = {
-  us: ['2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25','2026-06-19','2026-07-03','2026-09-07','2026-11-26','2026-12-25',
-       '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31','2027-06-18','2027-07-05','2027-09-06','2027-11-25','2027-12-24'],
-  il: ['2026-03-03','2026-04-01','2026-04-02','2026-04-07','2026-04-08','2026-04-21','2026-04-22','2026-05-21','2026-05-22','2026-07-23',
-       '2026-09-11','2026-09-18','2026-09-21','2026-09-25','2026-10-02','2026-10-27']
-};
-const US_EARLY_CLOSE = ['2026-11-27','2026-12-24','2027-11-26'];   // the NYSE closes at 13:00 New York time
 function ymdIn(tz, ms){ return new Date(ms == null ? Date.now() : ms).toLocaleDateString('en-CA', {timeZone: tz}); }
-function isMarketHoliday(market, ymd){ return MARKET_HOLIDAYS[market].includes(ymd || ymdIn(market === 'us' ? 'America/New_York' : 'Asia/Jerusalem')); }
+// ---- Exchange holidays, worked out by rule for any year (24 Nov 2026: no yearly list to type in, no deploy) ----
+// NYSE: its fixed rules (weekend holidays move to Friday/Monday; a Saturday New Year's Day is not made up) and Good Friday.
+// TASE: the Jewish holidays it closes for, read from the browser's Hebrew calendar (Intl, calendar "hebrew"); trading is Mon-Fri.
+// One-off closures (an election day, an emergency) come from the optional MarketHolidays sheet tab, fetchExtraHolidays().
+const holidayCache = {};
+const hYmd = d => d.toISOString().slice(0, 10);   // d: a UTC-noon Date
+const utcDay = (y, m, d) => new Date(Date.UTC(y, m - 1, d, 12));
+function nthWeekday(y, m, wd, n){   // n-th weekday (0 = Sunday) of month m; n = -1: the last
+  if(n > 0){ const first = utcDay(y, m, 1); return utcDay(y, m, 1 + (wd - first.getUTCDay() + 7) % 7 + 7 * (n - 1)); }
+  const last = utcDay(y, m + 1, 0); return utcDay(y, m, last.getUTCDate() - (last.getUTCDay() - wd + 7) % 7);
+}
+function easterSunday(y){   // Anonymous Gregorian algorithm
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  return utcDay(y, Math.floor((h + l - 7 * m + 114) / 31), (h + l - 7 * m + 114) % 31 + 1);
+}
+function usHolidaysOf(y){
+  const observed = d => { const wd = d.getUTCDay(); return wd === 6 ? new Date(d - 86400000) : wd === 0 ? new Date(+d + 86400000) : d; };
+  const out = [utcDay(y, 1, 1).getUTCDay() === 6 ? null : observed(utcDay(y, 1, 1)),   // a Saturday New Year's Day is not made up
+    nthWeekday(y, 1, 1, 3), nthWeekday(y, 2, 1, 3), new Date(easterSunday(y) - 2 * 86400000), nthWeekday(y, 5, 1, -1),
+    observed(utcDay(y, 6, 19)), observed(utcDay(y, 7, 4)), nthWeekday(y, 9, 1, 1), nthWeekday(y, 11, 4, 4), observed(utcDay(y, 12, 25))];
+  // The next year's 1 Jan on a Saturday would be observed on 31 Dec; the NYSE stays open then, so nothing to add.
+  return out.filter(Boolean).map(hYmd);
+}
+function usEarlyClosesOf(y){   // 13:00 New York: 3 July and 24 Dec when Mon-Thu, the day after Thanksgiving
+  const out = [new Date(+nthWeekday(y, 11, 4, 4) + 86400000)];
+  [utcDay(y, 7, 3), utcDay(y, 12, 24)].forEach(d => { if(d.getUTCDay() >= 1 && d.getUTCDay() <= 4) out.push(d); });
+  return out.map(hYmd);
+}
+function ilHolidaysOf(y){
+  const fmt = new Intl.DateTimeFormat('en-u-ca-hebrew', {timeZone: 'UTC', day: 'numeric', month: 'long'});
+  const heb = {};   // "Nisan 15" -> Date
+  for(let d = utcDay(y, 1, 1); d.getUTCFullYear() === y; d = new Date(+d + 86400000)){
+    const p = Object.fromEntries(fmt.formatToParts(d).map(x => [x.type, x.value]));
+    heb[(p.month === 'Adar II' ? 'Adar' : p.month) + ' ' + p.day] = d;   // Purim is in Adar II in a leap year
+  }
+  const at = (m, ...days) => days.map(n => heb[m + ' ' + n]).filter(Boolean);
+  const out = [...at('Adar', 14), ...at('Nisan', 14, 15, 20, 21), ...at('Sivan', 5, 6),
+    ...at('Elul', 29), ...at('Tishri', 1, 2, 9, 10, 14, 15, 21, 22)];
+  const av9 = heb['Av 9']; if(av9) out.push(av9.getUTCDay() === 6 ? new Date(+av9 + 86400000) : av9);
+  const iyar5 = heb['Iyar 5'];   // Independence Day moves off Friday/Saturday (to Thursday) and Monday (to Tuesday)
+  if(iyar5){
+    const shift = {5: -1, 6: -2, 1: 1}[iyar5.getUTCDay()] || 0, ind = new Date(+iyar5 + shift * 86400000);
+    out.push(new Date(ind - 86400000), ind);   // Memorial Day, the day before, closes too
+  }
+  return out.filter(d => d.getUTCDay() >= 1 && d.getUTCDay() <= 5).map(hYmd).sort();
+}
+// One-off closures entered by hand before the rules (19 Nov 2026 list): 27 Oct 2026 = Knesset election; 18 Sep 2026 as listed then.
+const KNOWN_ONE_OFF_HOLIDAYS = [{market: 'il', ymd: '2026-09-18'}, {market: 'il', ymd: '2026-10-27'}];
+// The optional "MarketHolidays" tab (Tracker spreadsheet): Date | Market (TASE or USA) | Note -- one row per extra closed day,
+// read on every refresh, so a one-off closure needs no deploy. No tab: nothing extra.
+const MARKET_HOLIDAYS_CSV_URL = proxyUrl(SHEET_ID, 'MarketHolidays');
+async function fetchExtraHolidays(){
+  try{
+    const res = await fetchViaProxy(MARKET_HOLIDAYS_CSV_URL);
+    if(!res.ok) return;
+    window.extraHolidays = Papa.parse(await res.text(), {skipEmptyLines: true}).data
+      .map(r => ({ymd: sheetYmd(r[0]), market: /tase|il|israel/i.test(r[1] || '') ? 'il' : /us|nyse|nasdaq/i.test(r[1] || '') ? 'us' : ''}))
+      .filter(h => h.market && /^\d{4}-\d{2}-\d{2}$/.test(h.ymd));
+  } catch(e){ /* no tab or offline: the rules alone */ }
+}
+function isMarketHoliday(market, ymd){
+  ymd = ymd || ymdIn(market === 'us' ? 'America/New_York' : 'Asia/Jerusalem');
+  const y = +ymd.slice(0, 4), k = market + y;
+  if(!holidayCache[k]){
+    try{ holidayCache[k] = market === 'us' ? usHolidaysOf(y) : ilHolidaysOf(y); }
+    catch(e){ holidayCache[k] = []; }   // no Hebrew calendar in this browser: weekdays only, as before 19 Nov 2026
+  }
+  return holidayCache[k].includes(ymd) || KNOWN_ONE_OFF_HOLIDAYS.concat(window.extraHolidays || []).some(h => h.market === market && h.ymd === ymd);
+}
+function isUsEarlyClose(ymd){ const k = 'usEarly' + ymd.slice(0, 4); return (holidayCache[k] || (holidayCache[k] = usEarlyClosesOf(+ymd.slice(0, 4)))).includes(ymd); }
 // Weekday (0 = Sunday), minutes since midnight and Y-M-D in a time zone, read from formatToParts (re-parsing a
 // toLocaleString can give Invalid Date in newer browsers, review 19 Nov 2026).
 function zonedNow(tz){
@@ -3659,7 +3720,7 @@ function getMarketStatus(timeZone, openMins, closeMins, openWeekdays){
   if(timeZone === 'America/New_York'){
     const k = ymdIn(timeZone);
     if(isMarketHoliday('us', k)) return false;
-    if(US_EARLY_CLOSE.includes(k)) closeMins = Math.min(closeMins, 13 * 60);
+    if(isUsEarlyClose(k)) closeMins = Math.min(closeMins, 13 * 60);
   }
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone, weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'
@@ -3745,7 +3806,7 @@ function getUsCloseMs(){
     timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit'
   }).formatToParts(new Date());
   const get = t => parts.find(p=>p.type===t).value;
-  return zonedTimeToMs(parseInt(get('year'),10), parseInt(get('month'),10), parseInt(get('day'),10), US_EARLY_CLOSE.includes(`${get('year')}-${get('month')}-${get('day')}`) ? 13 : 16, 0, 'America/New_York');
+  return zonedTimeToMs(parseInt(get('year'),10), parseInt(get('month'),10), parseInt(get('day'),10), isUsEarlyClose(`${get('year')}-${get('month')}-${get('day')}`) ? 13 : 16, 0, 'America/New_York');
 }
 function formatNextClose(ms){
   if(ms === null) return '';
@@ -9820,7 +9881,7 @@ function getTaseDayRangeForDate(y, m, d){
     : {open: zonedTimeToMs(y,m,d,10,0,'Asia/Jerusalem'), close: zonedTimeToMs(y,m,d,17,30,'Asia/Jerusalem')};
 }
 function getUsDayRangeForDate(y, m, d){
-  const half = US_EARLY_CLOSE.includes(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  const half = isUsEarlyClose(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
   return {open: zonedTimeToMs(y,m,d,9,30,'America/New_York'), close: zonedTimeToMs(y,m,d,half ? 13 : 16,0,'America/New_York')};
 }
 function getCombinedDayRangeForDate(y, m, d){
@@ -12369,7 +12430,7 @@ async function doRefresh(){
     const rows = await fetchAndParseWithRetry(2, 2000);
     window.lastRows = rows;   // the TASE close is built from these rows' official previous closes (taseOfficialClose, 10 Nov 2026)
     // The log sets the USA close rate that the closed-market day change needs, so it lands before the first render (23 Oct 2026).
-    await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows), fetchBoiRates(), fetchIntradayLogRows().catch(()=>[])]);
+    await Promise.all([applyTickerLogos(rows), fetchLastClose(), applyTransactionLots(rows), fetchBoiRates(), fetchExtraHolidays(), fetchIntradayLogRows().catch(()=>[])]);
     const totals = await applyTotalFallback(computeTotals(rows));
     render(rows, totals);
     const asOfText = 'Last refreshed ' + formatRefreshTimestamp(new Date());
