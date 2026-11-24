@@ -559,6 +559,17 @@
   .pay-view-btn svg{width:16px; height:16px; flex:none;}
   .pay-view-btn.on{color:var(--ink); font-weight:650; box-shadow:inset 0 -2.5px 0 var(--accent);}
   .pay-view-btn:not(.on):hover{color:var(--ink);}
+  .pay-sum-grid{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px 20px;}
+  .pay-sum-line{display:flex; justify-content:space-between; gap:8px; font-size:13px; margin-top:6px;}
+  .pay-sum-line span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pay-ask-form{display:flex; gap:8px;} .pay-ask-form .pay-ask-in{flex:1; min-width:0;}
+  .pay-ask-eg{margin-top:8px;}
+  .pay-ask-out:not(:empty){margin-top:12px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--paper);}
+  .pay-ask-what{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .pay-ask-head{font-size:15px; margin:4px 0 6px;}
+  .pay-ask-rows > div{display:flex; justify-content:space-between; gap:8px; font-size:13px; padding:3px 0; border-top:1px solid var(--line);}
+  .pay-ask-rows > div.pay-ask-sum{font-weight:600; border-top:2px solid var(--line);}
+  @media (max-width:600px){ .pay-sum-grid{grid-template-columns:1fr;} }
   .pay-badge{font-size:12px; font-weight:600; border-radius:999px; padding:1px 7px; background:var(--paper); color:var(--muted); font-variant-numeric:tabular-nums;}
   .pay-badge.warn{background:color-mix(in srgb, var(--warn) 22%, var(--panel)); color:var(--tile-ink-flat);}
   .pay-badge.bad{background:var(--down-1); color:var(--tile-ink-down);}
@@ -2063,7 +2074,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795532896";
+const BUILD_ID = "1795534661";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8076,6 +8087,80 @@ function payDeletedKeys(){
 function payStamp(){ const d = new Date(); return localYmd(d) + ' ' + d.toTimeString().slice(0, 8); }
 function payConfirmedGet(){ try{ return JSON.parse(localStorage.getItem('sp_payConfirmed') || '{}') || {}; } catch(_){ return {}; } }
 function payConfirmedSet(m){ try{ localStorage.setItem('sp_payConfirmed', JSON.stringify(m)); } catch(_){} }
+// "Ask SheetPulse" (24 Nov 2026, owner's choice: in-app only, no AI): a plain question about bills is read for a bill
+// (payee / category, or all), a period and what to work out; the answer is computed from the bills themselves and
+// lists the bills it used, so every figure can be checked. Nothing leaves the browser.
+const BILL_WORDS = {   // everyday words -> words in category or payee names
+  electricity: ['electric', 'electricity', 'power', 'חשמל', 'электричество', 'свет'], water: ['water', 'מים', 'вода'],
+  arnona: ['arnona', 'property tax', 'municipal', 'city tax', 'ארנונה', 'арнона'], 'tv & internet': ['tv', 'internet', 'television', 'טלוויזיה', 'אינטרנט', 'интернет', 'тв']
+};
+const MONTHS_EN = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+function billsAsk(question, list, nowMs){
+  const q = ' ' + String(question || '').toLowerCase().replace(/[?!.,]/g, ' ') + ' ';
+  const now = new Date(nowMs), Y = now.getFullYear(), M = now.getMonth();
+  const has = w => q.includes(' ' + w + ' ') || (w.length > 3 && q.includes(w));
+  // Which bills: a payee or category named in the question, or one of its everyday words.
+  const names = [...new Set(list.flatMap(p => [p.category, p.payee]))];
+  let picked = names.filter(n => has(n.toLowerCase()) || n.toLowerCase().split(/\s+/).some(w => w.length > 3 && has(w)));
+  Object.entries(BILL_WORDS).forEach(([key, words]) => {
+    if(words.some(has)) names.filter(n => n.toLowerCase().includes(key) || words.some(w => n.toLowerCase().includes(w))).forEach(n => picked.push(n));
+  });
+  picked = [...new Set(picked)];
+  const what = picked.length ? picked.join(' + ') : 'all bills';
+  // When: a year, a month name (with or without a year), this/last month or year, the last N months; else the last 12 months.
+  let from, to, when;
+  const ym = (y, m) => new Date(y, m, 1).getTime();
+  const yr = (q.match(/\b(20\d\d)\b/) || [])[1];
+  const mi = MONTHS_EN.findIndex(m => has(m) || has(m.slice(0, 3)));
+  const lastN = q.match(/last (\d+) months?/);
+  if(mi >= 0){ const y = yr ? +yr : (mi <= M ? Y : Y - 1); from = ym(y, mi); to = ym(y, mi + 1); when = `${MONTHS_EN[mi][0].toUpperCase() + MONTHS_EN[mi].slice(1)} ${y}`; }
+  else if(yr){ from = ym(+yr, 0); to = ym(+yr + 1, 0); when = yr; }
+  else if(/this month/.test(q)){ from = ym(Y, M); to = ym(Y, M + 1); when = 'this month'; }
+  else if(/last month|previous month/.test(q)){ from = ym(Y, M - 1); to = ym(Y, M); when = 'last month'; }
+  else if(/this year|so far/.test(q)){ from = ym(Y, 0); to = ym(Y + 1, 0); when = `this year (${Y})`; }
+  else if(/last year|previous year/.test(q)){ from = ym(Y - 1, 0); to = ym(Y, 0); when = `last year (${Y - 1})`; }
+  else if(lastN){ from = ym(Y, M - +lastN[1] + 1); to = ym(Y, M + 1); when = `the last ${lastN[1]} months`; }
+  else if(/\bever\b|all time|in total|since/.test(q)){ from = -Infinity; to = Infinity; when = 'all the records'; }
+  else { from = ym(Y, M - 11); to = ym(Y, M + 1); when = 'the last 12 months'; }
+  const rows = list.filter(p => p.amount > 0 && p.charge <= nowMs && p.charge >= from && p.charge < to && (!picked.length || picked.includes(p.payee) || picked.includes(p.category)))
+    .sort((a, b) => b.charge - a.charge);
+  const total = rows.reduce((a, p) => a + p.amount, 0);
+  const months = new Set(rows.map(p => new Date(p.charge).getFullYear() * 12 + new Date(p.charge).getMonth())).size;
+  // What: the biggest / the latest / how many / a monthly average; else the total.
+  let kind = 'total';
+  const top = rows.slice().sort((a, b) => b.amount - a.amount)[0];
+  if(!rows.length) kind = 'none';
+  else if(/highest|biggest|most expensive|largest|\bmax\b/.test(q)){ kind = 'max'; }
+  else if(/lowest|smallest|cheapest|\bmin\b/.test(q)){ kind = 'min'; }
+  else if(/last bill|latest|most recent|when did i last/.test(q)){ kind = 'latest'; }
+  else if(/how many|number of|count/.test(q)){ kind = 'count'; }
+  else if(/average|per month|\ba month\b|monthly/.test(q)){ kind = 'avg'; }
+  const pick = kind === 'max' ? [top] : kind === 'min' ? [rows.slice().sort((a, b) => a.amount - b.amount)[0]] : kind === 'latest' ? [rows[0]] : rows;
+  return {what, when, kind, rows: pick, all: rows, total, months, avg: months ? total / months : 0, matched: picked.length > 0};
+}
+let paymentsAskQ = '', paymentsSumPrev = false;
+// The answer, with every bill it used listed under it (the figures are their sum, max or count).
+function billsAskHtml(question, list, nowMs){
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const f2 = n => '₪' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const day = ms => new Date(ms).toLocaleDateString('en-US', {day: 'numeric', month: 'short', year: 'numeric'});
+  const r = billsAsk(question, list, nowMs), n = r.all.length, b = n === 1 ? 'bill' : 'bills';
+  const what = r.matched ? r.what : 'All bills';
+  const inWhen = /^(this|last) /.test(r.when) ? esc(r.when) : 'in ' + esc(r.when);   // 'last month', not 'in last month'
+  const head = r.kind === 'none' ? `No ${r.matched ? esc(r.what) + ' ' : ''}bills ${inWhen}.`
+    : r.kind === 'max' || r.kind === 'min' ? `${r.kind === 'max' ? 'Highest' : 'Lowest'} bill, ${esc(r.when)}: <b>${f2(r.rows[0].amount)}</b> on ${day(r.rows[0].charge)} (${esc(r.rows[0].payee)}), of ${n} ${b}.`
+    : r.kind === 'latest' ? `Latest bill: <b>${f2(r.rows[0].amount)}</b> on ${day(r.rows[0].charge)} (${esc(r.rows[0].payee)}).`
+    : r.kind === 'count' ? `<b>${n} ${b}</b> ${inWhen}, ${f2(r.total)} in total.`
+    : r.kind === 'avg' ? `<b>${f2(r.avg)} a month</b> on average ${inWhen}: ${f2(r.total)} over ${r.months} month${r.months === 1 ? '' : 's'} with a bill.`
+    : `<b>${f2(r.total)}</b> ${inWhen}, ${n} ${b}.`;
+  const names = [...new Set(list.map(p => p.category))].sort().join(', ');
+  const note = r.matched ? '' : `<div class="pay-sub">No bill named in the question, so this covers all bills (${esc(names)}).</div>`;
+  const shown = r.rows.slice(0, 24);
+  const rows = r.kind === 'none' ? '' : `<div class="pay-ask-rows">${shown.map(p => `<div><span>${day(p.charge)} · ${esc(p.payee)}</span><b>${f2(p.amount)}</b></div>`).join('')}`
+    + (r.rows.length > shown.length ? `<div class="pay-sub">and ${r.rows.length - shown.length} more</div>` : '')
+    + (r.rows.length > 1 ? `<div class="pay-ask-sum"><span>Sum of the ${r.rows.length} bills</span><b>${f2(r.total)}</b></div>` : '') + '</div>';
+  return `<div class="pay-ask-what">${esc(what)} · ${esc(r.when)}</div><div class="pay-ask-head">${head}</div>${note}${rows}`;
+}
 function renderPayments(){
   const area = document.getElementById('payArea');
   if(!area || !paymentsList) return;
@@ -8229,9 +8314,34 @@ function renderPayments(){
       </div>`).join('')}</div>
       ${routinesOff.length ? `<details class="pay-deleted"><summary>Deleted routine bills (${routinesOff.length})</summary>${routinesOff.map(r => `<div class="pay-deleted-row"><span><b>${esc(r.payee)}</b> · ${esc(r.category)} · ${r.amount > 0 ? fmt2(r.amount) : '—'} ${everyTxt(r.every)}</span><button type="button" class="pay-chip pay-routine-restore" data-i="${routines.indexOf(r)}">Restore</button></div>`).join('')}</details>` : ''}
     </section>` : '';
+  // Monthly summary (24 Nov 2026): this or last month's total vs the month before, the bills that went up vs the same
+  // payee's previous bill, and what's due in the next 30 days. All from the bills above, nothing estimated.
+  const sumK = paymentsSumPrev ? thisM - 1 : thisM;
+  const inK = past.filter(p => monthKey(p.charge) === sumK), spentK = sum(inK), spentPrev = sum(past.filter(p => monthKey(p.charge) === sumK - 1));
+  const ups = inK.map(p => { const prev = past.filter(x => x.payee === p.payee && x.charge < p.charge).sort((a, b) => b.charge - a.charge)[0];
+    return prev ? {p, prev, d: p.amount - prev.amount} : null; }).filter(x => x && x.d > 0 && x.d / x.prev.amount >= 0.03).sort((a, b) => b.d - a.d);
+  const soon = list.filter(p => p.charge > now && p.charge <= now + 30 * 86400000).sort((a, b) => a.charge - b.charge);
+  const vsPrev = spentPrev ? (spentK - spentPrev) / spentPrev * 100 : NaN;
+  const summary = `
+    <section class="pay-panel pay-summary">
+      <div class="pay-panel-head"><h3>Monthly summary</h3><div class="pay-chips seg" role="group" aria-label="Month">${[[false, 'This month'], [true, 'Last month']].map(([v, t]) => `<button type="button" class="pay-chip pay-sum-m${paymentsSumPrev === v ? ' on' : ''}" data-prev="${v ? 1 : 0}">${t}</button>`).join('')}</div></div>
+      <div class="pay-sum-grid">
+        <div><div class="pay-card-label">Spent in ${monthName(sumK)}</div><div class="pay-card-val">${fmt2(spentK)}</div>
+          <div class="pay-sub">${inK.length} bill${inK.length === 1 ? '' : 's'}${spentPrev ? ` · ${monthName(sumK - 1)} ${fmt2(spentPrev)} (${vsPrev >= 0 ? '+' : '−'}${Math.abs(vsPrev).toFixed(0)}%)` : ''}</div></div>
+        <div><div class="pay-card-label">Went up</div>${ups.length ? ups.slice(0, 4).map(x => `<div class="pay-sum-line"><span>${dot(x.p.category)}${esc(x.p.payee)}</span><b class="down">+${fmt2(x.d)}</b></div><div class="pay-sub">${fmt2(x.p.amount)} vs ${fmt2(x.prev.amount)} on ${dayShort(x.prev.charge)} (+${(x.d / x.prev.amount * 100).toFixed(0)}%)</div>`).join('') : `<div class="pay-sub">No bill went up vs its previous one.</div>`}</div>
+        <div><div class="pay-card-label">Due in the next 30 days</div>${soon.length ? soon.slice(0, 5).map(p => `<div class="pay-sum-line"><span>${dot(p.category)}${esc(p.payee)} · ${dayShort(p.charge)}</span><b>${p.amount > 0 ? fmt2(p.amount) : '—'}</b></div>`).join('') : ''}${st.awaiting.length ? `<div class="pay-sub">No bill yet this month: ${st.awaiting.map(x => esc(x.payee)).join(', ')}</div>` : ''}${!soon.length && !st.awaiting.length ? '<div class="pay-sub">Nothing due.</div>' : ''}</div>
+      </div>
+    </section>
+    <section class="pay-panel pay-ask">
+      <div class="pay-panel-head"><h3>Ask SheetPulse</h3><span class="pay-panel-note">Worked out from your bills on this device · nothing is sent anywhere</span></div>
+      <form class="pay-ask-form"><input type="search" class="shop-search pay-ask-in" placeholder="e.g. how much did I pay for electricity this year?" aria-label="Ask about your bills" value="${esc(paymentsAskQ)}"><button type="submit" class="pay-btn">Ask</button></form>
+      <div class="pay-chips pay-ask-eg">${['Electricity this year', 'Water last year', 'Highest arnona bill', 'Average TV & internet a month', 'Last month'].map(t => `<button type="button" class="pay-chip" data-q="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <div class="pay-ask-out" aria-live="polite">${paymentsAskQ ? billsAskHtml(paymentsAskQ, list, now) : ''}</div>
+    </section>`;
   area.innerHTML = `
     <div class="pay-top">${payViewSwitch()}<div class="pay-chips seg" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
     ${cards}
+    ${summary}
     ${check}
     <div class="pay-row">
       <section class="pay-panel pay-chart-panel">
@@ -8290,6 +8400,11 @@ function renderPayments(){
     if(body) body.scrollTop = top;
   }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
+  area.querySelectorAll('.pay-sum-m').forEach(b => b.addEventListener('click', () => { paymentsSumPrev = b.dataset.prev === '1'; const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; renderPayments(); if(body) body.scrollTop = top; }));
+  const askOut = area.querySelector('.pay-ask-out'), askIn = area.querySelector('.pay-ask-in');
+  const ask = q => { paymentsAskQ = q.trim(); askIn.value = paymentsAskQ; askOut.innerHTML = paymentsAskQ ? billsAskHtml(paymentsAskQ, list, now) : ''; };
+  area.querySelector('.pay-ask-form').addEventListener('submit', e => { e.preventDefault(); ask(askIn.value); });
+  area.querySelectorAll('.pay-ask-eg .pay-chip').forEach(b => b.addEventListener('click', () => ask(b.dataset.q)));
   wireSearch(area, '.pay-search', v => { paymentsQuery = v; }, renderPayments);
   const ymOf = k => isNaN(k) ? '' : Math.floor(k / 12) + '-' + String(k % 12 + 1).padStart(2, '0');
   const everyCell = n => n === 12 ? 'year' : n === 1 ? 'month' : n + ' months';
