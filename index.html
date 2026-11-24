@@ -2063,7 +2063,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795531195";
+const BUILD_ID = "1795532896";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -4783,7 +4783,9 @@ function pfHoldingRowsHtml(r){
   const px = n => ISRAELI_TICKERS.includes(r.name) ? '₪' + (n / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '$' + n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const vsCostCls = (!isNaN(r.price) && !isNaN(r.avgCost)) ? (r.price>=r.avgCost?'up':'down') : '';
   const priceStr = !isNaN(r.price)
-    ? `<span title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+px(r.avgCost):''}">${px(r.price)}</span>`
+    // OWNER'S RULE (9 Nov 2026): the price is green above your average cost, red below it. Removed by the 16 Nov review by
+    // mistake, restored 24 Nov 2026; tests/ui-deep.js checks it. Don't make it neutral without asking.
+    ? `<span class="${vsCostCls} px-vs-cost" title="${!isNaN(r.avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost '+px(r.avgCost):''}">${px(r.price)}</span>`
     : '—';
   const avgCostStr = !isNaN(r.avgCost) ? px(r.avgCost) : '—';
   const holdingPeriod = formatHoldingPeriod(r.buyDate);
@@ -4988,7 +4990,7 @@ function renderMarketDetailTable(){
     const avgCost = !isNaN(nativeRatio) ? r.price * nativeRatio : NaN;
     const vsCostCls = (!isNaN(r.price) && !isNaN(avgCost)) ? (r.price>=avgCost?'up':'down') : '';
     const priceCell = !isNaN(r.price)
-      ? `<span title="${!isNaN(avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost $'+avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">$${r.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>`
+      ? `<span class="${vsCostCls} px-vs-cost" title="${!isNaN(avgCost)?(vsCostCls==='up'?'Above':'Below')+' your average cost $'+avgCost.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}):''}">$${r.price.toLocaleString('en-US',{maximumFractionDigits:2})}</span>`
       : '—';
 
     html += `
