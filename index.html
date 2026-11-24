@@ -758,6 +758,26 @@
   .pay-card-label.ok{color:var(--up-ink);}
   .pay-card-val{font-size:20px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
   .pay-card-sub{font-size:13px; color:var(--muted); line-height:1.5;}
+  /* Bills top row (redesign 24 Nov 2026): the month so far as one inverse card, in both themes. */
+  .pay-card.pay-hero{background:var(--ink); color:var(--paper);}
+  .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--paper) 78%, var(--ink));}
+  .pay-card.pay-hero .pay-card-val{color:var(--paper); font-size:30px; font-weight:700; letter-spacing:-.01em;}
+  .pay-hero-up{display:flex; justify-content:space-between; gap:8px; font-size:13px; margin-top:6px; padding-top:6px; border-top:1px solid color-mix(in srgb, var(--paper) 22%, var(--ink));}
+  /* Dark mode: an inverse card would be a bright white block; a deep accent tint instead. */
+  @media (prefers-color-scheme: dark){
+    .pay-card.pay-hero{background:color-mix(in srgb, var(--accent) 24%, var(--panel)); color:var(--ink);}
+    .pay-card.pay-hero .pay-card-val{color:var(--ink);}
+    .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--ink) 78%, var(--panel));}
+    .pay-hero-up{border-top-color:color-mix(in srgb, var(--ink) 22%, var(--panel));}
+  }
+  .pay-ok-val{display:flex; align-items:center; gap:8px;}
+  .pay-card .pay-ok-val svg{color:var(--up-ink); flex:none;}
+  .pay-check-fold > summary{list-style:none; cursor:pointer; display:flex; align-items:baseline; gap:10px; min-height:44px;}
+  .pay-check-fold > summary::-webkit-details-marker{display:none;}
+  .pay-check-fold > summary h3{margin:0;}
+  .pay-check-fold > summary::after{content:'▾'; color:var(--muted); margin-left:auto;}
+  .pay-check-fold[open] > summary::after{content:'▴';}
+  .pay-check-fold > summary span{font-size:13px; font-weight:600;}
   .pay-panel{background:var(--panel); border-radius:12px; padding:20px; margin:16px 0 0; font-family:var(--sans); min-width:0;}
   .pay-panel-head{display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 20px; margin-bottom:12px;}
   .pay-panel h3{margin:0; font-size:15px; font-weight:600; color:var(--ink);}
@@ -849,7 +869,7 @@
     .pay-cards{grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;}
     .pay-card{padding:13px 14px;}
     .pay-card.miss, .pay-card.wait{grid-column:1 / -1;}
-    .pay-card.pay-card-paid{display:none;}
+    .pay-card.pay-hero, .pay-top-cards > .pay-card:last-child{grid-column:1 / -1;}
     .pay-card.shop-card-link{grid-column:1 / -1;}   /* Waiting for pickup / On the way: full width, not squeezed */
     .pay-view{flex-wrap:nowrap; overflow-x:auto; gap:18px; scrollbar-width:none;}
     .pay-view-btn{flex:none; white-space:nowrap; font-size:13px;}
@@ -2074,7 +2094,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795534661";
+const BUILD_ID = "1795536642";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8138,7 +8158,7 @@ function billsAsk(question, list, nowMs){
   const pick = kind === 'max' ? [top] : kind === 'min' ? [rows.slice().sort((a, b) => a.amount - b.amount)[0]] : kind === 'latest' ? [rows[0]] : rows;
   return {what, when, kind, rows: pick, all: rows, total, months, avg: months ? total / months : 0, matched: picked.length > 0};
 }
-let paymentsAskQ = '', paymentsSumPrev = false;
+let paymentsAskQ = '';
 // The answer, with every bill it used listed under it (the figures are their sum, max or count).
 function billsAskHtml(question, list, nowMs){
   const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
@@ -8217,23 +8237,28 @@ function renderPayments(){
   const prevArr = past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo);
   const vs12 = prev12 && new Set(prevArr.map(p => monthKey(p.charge))).size >= 10 ? (last12 - prev12) / prev12 * 100 : NaN;
   const dChg = sum(paidNow) - paidPrev;
+  // Top row (redesign 24 Nov 2026, canvas "Bills & Contracts redesign"): what you spent this month, what you pay next,
+  // whether anything is missing, and the last 12 months. Each figure comes from the same lists as the panels below.
+  const ups = paidNow.map(p => { const prev = past.filter(x => x.payee === p.payee && x.charge < p.charge).sort((a, b) => b.charge - a.charge)[0];
+    return prev ? {p, prev, d: p.amount - prev.amount} : null; }).filter(x => x && x.d > 0 && x.d / x.prev.amount >= 0.03).sort((a, b) => b.d - a.d);
+  const ahead = list.filter(p => p.charge > now).sort((a, b) => a.charge - b.charge), nextUp = ahead[0];
+  const daysTo = ms => { const d = Math.ceil((ms - now) / 86400000); return d <= 1 ? 'tomorrow' : `in ${d} days`; };
   const cards = `
-    <div class="pay-cards">
+    <div class="pay-cards pay-top-cards">
+      <div class="pay-card pay-hero" data-sum="${sum(paidNow).toFixed(2)}"><div class="pay-card-label">${monthName(thisM)} so far</div>
+        <div class="pay-card-val">${fmt2(sum(paidNow))}</div>
+        <div class="pay-card-sub">${paidNow.length ? `${paidNow.length} bill${paidNow.length === 1 ? '' : 's'}` : 'Nothing charged yet'}${paidPrev ? ` · ${monthName(thisM - 1)} was ${fmt2(paidPrev)}` : ''}</div>
+        ${ups.slice(0, 2).map(x => `<div class="pay-hero-up"><span>${esc(x.p.payee)} went up</span><b>+${fmt2(x.d)}</b></div><div class="pay-card-sub">${fmt2(x.p.amount)} vs ${fmt2(x.prev.amount)} on ${dayShort(x.prev.charge)} (+${(x.d / x.prev.amount * 100).toFixed(0)}%)</div>`).join('')}</div>
+      ${nextUp ? `<div class="pay-card due pay-next" data-sum="${(nextUp.amount || 0).toFixed(2)}"><div class="pay-card-label">Next up · ${daysTo(nextUp.charge)}</div>
+        <div class="pay-card-val">${nextUp.amount > 0 ? fmt2(nextUp.amount) : '—'}</div>
+        <div class="pay-card-sub">${esc(nextUp.category)} · ${esc(nextUp.payee)}<br>${nextUp.routine ? 'Routine bill' : 'Invoice in'}, card charge on ${dayShort(nextUp.charge)}${ahead.length > 1 ? `<br>and ${ahead.length - 1} more ahead: ${fmt2(sum(ahead.slice(1)))}` : ''}</div></div>`
+      : `<div class="pay-card pay-next"><div class="pay-card-label">Next up</div><div class="pay-card-val">Nothing ahead</div><div class="pay-card-sub">No invoice is waiting for its card charge.</div></div>`}
       ${st.missing.length
         ? `<div class="pay-card miss"><div class="pay-card-label">Missing · ${st.missing.length}</div>
             <div class="pay-card-val">${st.missing.map(x => `${esc(x.payee)}, ${monthName(x.k)}${x.byPeriod ? ' bill' : ''}`).join('<br>')}</div>
             <div class="pay-card-sub">No bill in Gmail for ${st.missing.length > 1 ? 'those months' : 'that month'}. Paid another way? Click the month in Bill check to mark it paid.</div></div>`
-        : `<div class="pay-card"><div class="pay-card-label ok">Past months</div><div class="pay-card-val">Nothing missing</div>
-            <div class="pay-card-sub">Every bill expected in the past 12 months is accounted for: in Gmail, or marked paid by you${st.late.length ? `; ${st.late.length} came a month late` : ''}.</div></div>`}
-      ${st.awaiting.length ? `<div class="pay-card wait"><div class="pay-card-label">No bill yet this month · ${st.awaiting.length}</div>
-            <div class="pay-card-val">${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}</div>
-            <div class="pay-card-sub">Expected in ${monthName(thisM)}; not in Gmail yet.</div></div>` : ''}
-      ${st.due.length ? `<div class="pay-card due"><div class="pay-card-label">Invoice received · card charge ahead · ${st.due.length}</div>
-        <div class="pay-card-val">${fmt2(sum(st.due))}</div>
-        <div class="pay-card-sub">${st.due.map(p => `${esc(p.category)} ${fmt2(p.amount)} on ${dayShort(p.charge)}`).join(' · ')}</div></div>` : ''}
-      <div class="pay-card pay-card-paid"><div class="pay-card-label ok">Paid this month</div>
-        <div class="pay-card-val">${fmt2(sum(paidNow))}</div>
-        <div class="pay-card-sub">${paidNow.length ? paidNow.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).slice(0, 3).map(p => `${esc(p.payee)} on ${dayShort(p.charge)}`).join(' · ') + (paidNow.length > 3 ? ` · and ${paidNow.length - 3} more` : '') : 'Nothing charged yet'}${paidPrev ? ` · ${dChg >= 0 ? '+' : '−'}${fmt(Math.abs(dChg))} vs all of ${monthLabel(thisM - 1).replace(/ (\d\d)$/, ' 20$1')}` : ''}</div></div>
+        : `<div class="pay-card${st.awaiting.length ? ' wait' : ''}"><div class="pay-card-label${st.awaiting.length ? '' : ' ok'}">Bill check</div><div class="pay-card-val pay-ok-val"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>Nothing missing</div>
+            <div class="pay-card-sub">${st.awaiting.length ? `No bill yet this month: ${st.awaiting.map(x => esc(x.payee) + (x.byPeriod ? ` (${monthName(x.k)} bill)` : '')).join(', ')}.` : `Every bill expected in the past 12 months is in Gmail or marked paid${st.late.length ? `; ${st.late.length} came a month late` : ''}.`}</div></div>`}
       <div class="pay-card"><div class="pay-card-label">Last 12 months</div>
         <div class="pay-card-val">${fmt(last12)}</div>
         <div class="pay-card-sub">${fmt(last12 / 12)} a month on average${isNaN(vs12) ? '' : ` · ${vs12 >= 0 ? '+' : '−'}${Math.abs(vs12).toFixed(0)}% vs the year before`}</div></div>
@@ -8243,9 +8268,10 @@ function renderPayments(){
   const gridMonths = []; for(let k = thisM - paymentsRange + 1; k <= status.lastK; k++) gridMonths.push(k);
   const cadenceWord = c => c === 1 ? 'monthly' : c === 12 ? 'yearly' : `every ${c} months`;
   const cellText = {confirmed: c => c.amount > 0 ? fmt(c.amount) : '✓ marked', paid: c => fmt(c.amount), late: () => 'late', due: c => fmt(c.amount), missing: () => 'missing', awaiting: () => 'not yet', expected: () => 'next', off: () => '·'};
+  const phoneW = window.matchMedia && window.matchMedia('(max-width:600px)').matches;
   const check = `
-    <section class="pay-panel">
-      <div class="pay-panel-head"><h3>Bill check</h3>
+    <details class="pay-panel pay-check-fold"${phoneW ? '' : ' open'}><summary class="pay-check-sum"><h3>Bill check</h3><span class="${st.missing.length ? 'down' : 'up'}">${st.missing.length ? st.missing.length + ' missing' : 'nothing missing'}</span></summary>
+      <div class="pay-panel-head">
         <details class="pay-legs-fold"${window.matchMedia && window.matchMedia('(max-width:600px)').matches ? '' : ' open'}><summary>Bills shown · ${status.payees.length - checkHidden.size} of ${status.payees.length}</summary>
         <div class="pay-legs" role="group" aria-label="Bills shown">${status.payees.map(s => `<button type="button" class="pay-leg pay-leg-bill${checkHidden.has(s.payee) ? '' : ' on'}" aria-pressed="${!checkHidden.has(s.payee)}" aria-label="${esc(s.payee)}" data-bill="${esc(s.payee)}"><i style="--c:${colorOf(s.category)}"></i>${esc(s.payee)}</button>`).join('')}</div></details></div>
       <div class="pay-panel-note pay-hint" style="margin:-4px 0 8px;">Bills that state their month are checked month by month; the others by their usual rhythm · hover a month for the charge, card and period · click a bill above to hide or show its row</div>
@@ -8258,7 +8284,7 @@ function renderPayments(){
       ${checkHidden.size >= status.payees.length ? '<div class="pm-note">All bills hidden: click one above to show it.</div>' : ''}
       <div id="payConfirm" class="pay-confirm" hidden></div>
       <div class="pay-key"><span><i style="background:var(--up-1)"></i>paid</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--accent)"></i>invoice received, card charge ahead</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--warn)"></i>late: billed the month after</span><span><i style="box-shadow:inset 0 0 0 1.5px var(--warn)"></i>expected this month, no bill yet</span><span><i style="background:var(--down-1)"></i>missing (click to mark paid)</span><span><i style="background:var(--up-1); box-shadow:inset 0 0 0 1.5px var(--up-4)"></i>marked paid by you</span><span><i style="box-shadow:inset 0 0 0 1px var(--line)"></i>next bill expected</span><span>· no bill due that month</span></div>
-    </section>`;
+    </details>`;
 
   // Categories, last 12 months vs the 12 before.
   const catRows = cats.map(cat => {
@@ -8314,24 +8340,7 @@ function renderPayments(){
       </div>`).join('')}</div>
       ${routinesOff.length ? `<details class="pay-deleted"><summary>Deleted routine bills (${routinesOff.length})</summary>${routinesOff.map(r => `<div class="pay-deleted-row"><span><b>${esc(r.payee)}</b> · ${esc(r.category)} · ${r.amount > 0 ? fmt2(r.amount) : '—'} ${everyTxt(r.every)}</span><button type="button" class="pay-chip pay-routine-restore" data-i="${routines.indexOf(r)}">Restore</button></div>`).join('')}</details>` : ''}
     </section>` : '';
-  // Monthly summary (24 Nov 2026): this or last month's total vs the month before, the bills that went up vs the same
-  // payee's previous bill, and what's due in the next 30 days. All from the bills above, nothing estimated.
-  const sumK = paymentsSumPrev ? thisM - 1 : thisM;
-  const inK = past.filter(p => monthKey(p.charge) === sumK), spentK = sum(inK), spentPrev = sum(past.filter(p => monthKey(p.charge) === sumK - 1));
-  const ups = inK.map(p => { const prev = past.filter(x => x.payee === p.payee && x.charge < p.charge).sort((a, b) => b.charge - a.charge)[0];
-    return prev ? {p, prev, d: p.amount - prev.amount} : null; }).filter(x => x && x.d > 0 && x.d / x.prev.amount >= 0.03).sort((a, b) => b.d - a.d);
-  const soon = list.filter(p => p.charge > now && p.charge <= now + 30 * 86400000).sort((a, b) => a.charge - b.charge);
-  const vsPrev = spentPrev ? (spentK - spentPrev) / spentPrev * 100 : NaN;
-  const summary = `
-    <section class="pay-panel pay-summary">
-      <div class="pay-panel-head"><h3>Monthly summary</h3><div class="pay-chips seg" role="group" aria-label="Month">${[[false, 'This month'], [true, 'Last month']].map(([v, t]) => `<button type="button" class="pay-chip pay-sum-m${paymentsSumPrev === v ? ' on' : ''}" data-prev="${v ? 1 : 0}">${t}</button>`).join('')}</div></div>
-      <div class="pay-sum-grid">
-        <div><div class="pay-card-label">Spent in ${monthName(sumK)}</div><div class="pay-card-val">${fmt2(spentK)}</div>
-          <div class="pay-sub">${inK.length} bill${inK.length === 1 ? '' : 's'}${spentPrev ? ` · ${monthName(sumK - 1)} ${fmt2(spentPrev)} (${vsPrev >= 0 ? '+' : '−'}${Math.abs(vsPrev).toFixed(0)}%)` : ''}</div></div>
-        <div><div class="pay-card-label">Went up</div>${ups.length ? ups.slice(0, 4).map(x => `<div class="pay-sum-line"><span>${dot(x.p.category)}${esc(x.p.payee)}</span><b class="down">+${fmt2(x.d)}</b></div><div class="pay-sub">${fmt2(x.p.amount)} vs ${fmt2(x.prev.amount)} on ${dayShort(x.prev.charge)} (+${(x.d / x.prev.amount * 100).toFixed(0)}%)</div>`).join('') : `<div class="pay-sub">No bill went up vs its previous one.</div>`}</div>
-        <div><div class="pay-card-label">Due in the next 30 days</div>${soon.length ? soon.slice(0, 5).map(p => `<div class="pay-sum-line"><span>${dot(p.category)}${esc(p.payee)} · ${dayShort(p.charge)}</span><b>${p.amount > 0 ? fmt2(p.amount) : '—'}</b></div>`).join('') : ''}${st.awaiting.length ? `<div class="pay-sub">No bill yet this month: ${st.awaiting.map(x => esc(x.payee)).join(', ')}</div>` : ''}${!soon.length && !st.awaiting.length ? '<div class="pay-sub">Nothing due.</div>' : ''}</div>
-      </div>
-    </section>
+  const askPanel = `
     <section class="pay-panel pay-ask">
       <div class="pay-panel-head"><h3>Ask SheetPulse</h3><span class="pay-panel-note">Worked out from your bills on this device · nothing is sent anywhere</span></div>
       <form class="pay-ask-form"><input type="search" class="shop-search pay-ask-in" placeholder="e.g. how much did I pay for electricity this year?" aria-label="Ask about your bills" value="${esc(paymentsAskQ)}"><button type="submit" class="pay-btn">Ask</button></form>
@@ -8341,8 +8350,7 @@ function renderPayments(){
   area.innerHTML = `
     <div class="pay-top">${payViewSwitch()}<div class="pay-chips seg" role="group" aria-label="Range">${[6, 12, 24].map(n => `<button type="button" class="pay-chip pay-range${paymentsRange === n ? ' on' : ''}" data-n="${n}">${n} months</button>`).join('')}</div><button type="button" class="pay-btn primary pay-add-routine">${PAY_ICONS.plus}Add a routine bill</button></div>
     ${cards}
-    ${summary}
-    ${check}
+    ${askPanel}
     <div class="pay-row">
       <section class="pay-panel pay-chart-panel">
         <div class="pay-panel-head"><h3>By month charged</h3>
@@ -8350,8 +8358,9 @@ function renderPayments(){
         <div id="payChartBox"></div>
         <div class="pay-panel-note">Faded = card charge still ahead · click a category to hide or show it</div>
       </section>
-      <section class="pay-panel pay-cat-panel"><div class="pay-panel-head"><h3>Last 12 months</h3></div>${catHtml}</section>
+      <section class="pay-panel pay-cat-panel"><div class="pay-panel-head"><h3>Where it goes · last 12 months</h3></div>${catHtml}</section>
     </div>
+    ${check}
     <div id="payRoutine" class="pay-confirm" hidden></div>
     ${bills}
     ${routinePanel}`;
@@ -8400,7 +8409,6 @@ function renderPayments(){
     if(body) body.scrollTop = top;
   }));
   area.querySelectorAll('.pay-range').forEach(b => b.addEventListener('click', () => { paymentsRange = Number(b.dataset.n); renderPayments(); }));
-  area.querySelectorAll('.pay-sum-m').forEach(b => b.addEventListener('click', () => { paymentsSumPrev = b.dataset.prev === '1'; const body = document.getElementById('marketDetailBody'), top = body ? body.scrollTop : 0; renderPayments(); if(body) body.scrollTop = top; }));
   const askOut = area.querySelector('.pay-ask-out'), askIn = area.querySelector('.pay-ask-in');
   const ask = q => { paymentsAskQ = q.trim(); askIn.value = paymentsAskQ; askOut.innerHTML = paymentsAskQ ? billsAskHtml(paymentsAskQ, list, now) : ''; };
   area.querySelector('.pay-ask-form').addEventListener('submit', e => { e.preventDefault(); ask(askIn.value); });
