@@ -758,16 +758,14 @@
   .pay-card-label.ok{color:var(--up-ink);}
   .pay-card-val{font-size:20px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
   .pay-card-sub{font-size:13px; color:var(--muted); line-height:1.5;}
-  /* Bills top row (redesign 24 Nov 2026): the month so far as one inverse card, in both themes. */
-  .pay-card.pay-hero{background:var(--ink); color:var(--paper);}
-  .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--paper) 78%, var(--ink));}
-  .pay-card.pay-hero .pay-card-val{color:var(--paper); font-size:30px; font-weight:700; letter-spacing:-.01em;}
-  .pay-hero-up{display:flex; justify-content:space-between; gap:8px; font-size:13px; margin-top:6px; padding-top:6px; border-top:1px solid color-mix(in srgb, var(--paper) 22%, var(--ink));}
-  /* Dark mode: an inverse card would be a bright white block; a deep accent tint instead. */
+  /* Bills top row (redesign 24 Nov 2026): the month so far as a light blue tinted card (owner, 24 Nov: not black). */
+  .pay-card.pay-hero{background:color-mix(in srgb, var(--accent) 12%, var(--panel)); color:var(--ink); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, var(--panel));}
+  .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--ink) 75%, var(--panel));}
+  .pay-card.pay-hero .pay-card-val{color:var(--ink); font-size:30px; font-weight:700; letter-spacing:-.01em;}
+  .pay-hero-up{display:flex; justify-content:space-between; gap:8px; font-size:13px; margin-top:6px; padding-top:6px; border-top:1px solid color-mix(in srgb, var(--ink) 15%, var(--panel));}
+  /* Dark mode: a deeper accent tint. */
   @media (prefers-color-scheme: dark){
-    .pay-card.pay-hero{background:color-mix(in srgb, var(--accent) 24%, var(--panel)); color:var(--ink);}
-    .pay-card.pay-hero .pay-card-val{color:var(--ink);}
-    .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--ink) 78%, var(--panel));}
+    .pay-card.pay-hero{background:color-mix(in srgb, var(--accent) 24%, var(--panel));}
     .pay-hero-up{border-top-color:color-mix(in srgb, var(--ink) 22%, var(--panel));}
   }
   .pay-ok-val{display:flex; align-items:center; gap:8px;}
@@ -2094,7 +2092,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795536642";
+const BUILD_ID = "1795536962";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
