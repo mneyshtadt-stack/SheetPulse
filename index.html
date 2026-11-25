@@ -758,6 +758,7 @@
   .pay-card-label.ok{color:var(--up-ink);}
   .pay-card-val{font-size:20px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;}
   .pay-card-sub{font-size:13px; color:var(--muted); line-height:1.5;}
+  .perf-table td.perf-small{opacity:.45;}   /* months with under a tenth of today's value (review 24 Nov 2026) */
   /* Bills top row (redesign 24 Nov 2026): the month so far as a light blue tinted card (owner, 24 Nov: not black). */
   .pay-card.pay-hero{background:color-mix(in srgb, var(--accent) 12%, var(--panel)); color:var(--ink); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, var(--panel));}
   .pay-card.pay-hero .pay-card-label, .pay-card.pay-hero .pay-card-sub{color:color-mix(in srgb, var(--ink) 75%, var(--panel));}
@@ -2092,7 +2093,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795536962";
+const BUILD_ID = "1795598186";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -5945,6 +5946,12 @@ async function renderPerformanceTab(opts){
   const live = rows.filter(r => !left.has(r.name)).reduce((a, r) => a + r.value, 0);
   if(live > 0) pts.push({t: today.getTime(), v: live});
   const months = perfMonths(pts, perfFlows(ph, rows, left)).filter(m => !isNaN(m.ret));
+  // Months that ended with under a tenth of today's value (review 24 Nov 2026): with ₪90-₪27,000 in it, one holding or one
+  // commission swung a month by 15-23% (All: GDX alone until 2025; Psagot: a ₪106 first buy), and those months led the
+  // best / worst line. They stay in the grid, faded, and out of that line.
+  const nowV = months.length ? months[months.length - 1].endV : 0;
+  const small = m => nowV > 0 && m.endV < nowV / 10;
+  const smallMs = months.filter(small), lastSmall = smallMs[smallMs.length - 1];
   if(!months.length){ area.innerHTML = picker + `<div class="perf-note">${perfTicker && left.has(perfTicker) ? `No matching price history for ${escAttr(perfTicker)} (check its symbol in the History tab).` : 'Not enough price history yet.'}</div>`; wirePicker(); return; }
   const fmt = n => (n < 0 ? '−' : '+') + '₪' + Math.round(Math.abs(n)).toLocaleString('en-US');
   const val = n => '₪' + Math.round(n).toLocaleString('en-US');
@@ -5978,14 +5985,15 @@ async function renderPerformanceTab(opts){
       if(!x) return '<td class="perf-empty"></td>';
       const id = y + '-' + m, partial = y === nowY && m === nowM;
       tips[id] = `<b>${MON[m]} ${y}${partial ? ' so far' : ''}</b>Start ${val(x.startV)}<br>${x.newMoney ? `${x.newMoney > 0 ? 'New money' : 'Sold'} ${val(Math.abs(x.newMoney))}<br>` : ''}End ${val(x.endV)}<br>Gain ${fmt(x.gain)} = <span class="${x.ret >= 0 ? 'up' : 'down'}">${pc(x.ret)}</span>`;
-      return `<td data-tip="${id}" style="${cell(x.ret)}">${pc(x.ret)}${partial ? '*' : ''}</td>`;
+      return `<td data-tip="${id}" style="${cell(x.ret)}"${small(x) ? ' class="perf-small"' : ''}>${pc(x.ret)}${partial ? '*' : ''}</td>`;
     }).join('') + `<td class="perf-tot ${yr.ret >= 0 ? 'up' : 'down'}" data-tip="y${y}">${pc(yr.ret)}<span class="perf-bar"><i style="width:${Math.min(100, Math.abs(yr.ret)).toFixed(0)}%; background:var(--${yr.ret >= 0 ? 'up' : 'down'}-4);"></i></span></td><td data-tip="y${y}" class="${yr.gain >= 0 ? 'up' : 'down'}" style="background:none; font-weight:600;">${fmt(yr.gain)}</td></tr>`;
   }).join('');
-  const done = months.filter(m => !(m.y === nowY && m.m === nowM));
+  const done = months.filter(m => !(m.y === nowY && m.m === nowM) && !small(m));
   const best = done.reduce((a, m) => !a || m.ret > a.ret ? m : a, null), worst = done.reduce((a, m) => !a || m.ret < a.ret ? m : a, null);
   const upN = done.filter(m => m.ret >= 0.05).length;   // as displayed: under 0.05% shows "0.0%" (review 19 Nov 2026)
   area.innerHTML = picker + `<div class="perf-sum">${done.length ? `<b>${upN} of ${done.length}</b> full months were up (${(upN / done.length * 100).toFixed(0)}%) · best: <b class="up">${MON[best.m]} ${best.y} ${pc(best.ret)}</b> · worst: <b class="down">${MON[worst.m]} ${worst.y} ${pc(worst.ret)}</b>` : ''} <span class="has-help perf-how" style="cursor:help; color:var(--muted);">How it's calculated</span></div>
     <div class="perf-wrap"><table class="perf-table"><thead><tr><th></th>${MON.map(m => `<th>${m}</th>`).join('')}<th data-tip="yearHead" class="has-help" style="cursor:help;">Year</th><th data-tip="gainHead" class="has-help" style="cursor:help;">Gain</th></tr></thead><tbody>${body}</tbody></table></div>
+    ${lastSmall ? `<div class="perf-note">Faded months (${smallMs.length}, the last in ${MON[lastSmall.m]} ${lastSmall.y}): the portfolio held under a tenth of today's value (${val(Math.max(...smallMs.map(m => m.endV)))} or less), so one holding or one commission moved them a lot. They are left out of the line above.</div>` : ''}
     <div class="perf-note">* = month so far. A purchase counts at the shekels paid that day, so these gains include the dollar's move since each purchase; the chart's ranges count US purchases at today's rate, which is why its year-to-date figure differs.${left.size ? ` Left out (no matching price history): ${[...left].join(', ')}.` : ''}</div>`;
   tips.yearHead = `<b>Year %</b>What you made on your money: the year's gain ÷ (the value at the start of the year + the money you added during it).<div style="margin-top:6px; color:var(--muted); font-size:12px;">Money added late in a year still counts in full, so that year's % looks smaller. It is not the months multiplied together; that figure is in each year's tooltip.</div>`;
   tips.gainHead = `<b>Gain</b>The year's gain in shekels: end value − start value − net new money. A purchase counts at the shekels you paid that day, commission included (a USA purchase: its dollar cost × that day's USD/ILS).<div style="margin-top:6px; color:var(--muted); font-size:12px;">So it includes the dollar's move against the shekel since each purchase. The heatmap's "Total return" leaves the currency out (it prices your dollar cost at today's rate), which is why the two can differ for a USA holding, even in sign.</div>`;
@@ -6194,6 +6202,12 @@ function renderDividendsTab(){
 // holding's weight in the portfolio, color = its extended-hours % change. Holdings without such a
 // trade -- the TASE funds, quiet ETFs -- get no box; the summary line says how many are shown.
 // Prices come from the Ext columns ExtendedHours.gs keeps in the Investment Universe tab.
+// New York's extended-hours window shown in Israel time for today (review 24 Nov 2026: was typed as 11:00-16:30 / 23:00-03:00).
+function extHoursIl(h1, m1, h2, m2){
+  const {y, m, d} = todayInZone('America/New_York');
+  const t = (h, mi) => new Date(zonedTimeToMs(y, m, d, h, mi, 'America/New_York')).toLocaleTimeString('en-GB', {timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
+  return t(h1, m1) + '–' + t(h2, m2);
+}
 async function renderPremarketTab(){
   const area = document.getElementById('mdPremarketArea');
   if(!area) return;
@@ -6230,7 +6244,7 @@ function drawPremarketTreemap(area){
     const pmNext = new Date(getNextUsOpenMs() - 5.5 * 3600000);
     const pmWhen = pmNext.toLocaleString('en-GB', {timeZone: 'Asia/Jerusalem', weekday: 'long', hour: '2-digit', minute: '2-digit', hourCycle:'h23'});
     area.innerHTML = `<div class="pm-note"><b style="color:var(--ink);">Next pre-market: ${pmWhen} (Israel time).</b> No pre-market or after-hours trades right now.
-      <div style="margin-top:6px;">Pre-market runs 11:00–16:30 and after-hours 23:00–03:00 Israel time (Mon–Fri); prices come from Google Finance (Yahoo Finance as backup) via ExtendedHours.gs every 5 minutes.</div></div>`;
+      <div style="margin-top:6px;">Pre-market runs ${extHoursIl(4, 0, 9, 30)} and after-hours ${extHoursIl(16, 0, 20, 0)} Israel time (Mon–Fri); prices come from Google Finance (Yahoo Finance as backup) via ExtendedHours.gs every 5 minutes.</div></div>`;
     return;
   }
 
@@ -7345,6 +7359,7 @@ function renderContracts(area){
   const soon = all.filter(k => k.state === 'soon').sort((a, b) => a.end - b.end);
   const monthly = live.reduce((a, k) => a + k.monthly, 0);
   const nextEnd = live.filter(k => !isNaN(k.end) && !k.renewedBy).sort((a, b) => a.end - b.end)[0];
+  const renewedTxt = k => `renewed: ${esc(k.renewedBy.name)} from ${day(k.renewedBy.start)}`;   // review 24 Nov 2026
   const left = ms => { const d = Math.round((ms - now) / DAY); return d < 0 ? 'ended ' + day(ms) : d < 60 ? d + ' days left' : d < 730 ? Math.round(d / 30.4) + ' months left' : (d / 365.25).toFixed(1).replace(/\.0$/, '') + ' years left'; };
   const types = [...new Set(all.map(k => k.type))].sort();
   const showingHidden = contractsType === '__hidden';
@@ -7377,7 +7392,7 @@ function renderContracts(area){
       if(isNaN(k.start) && isNaN(k.end)) return `<span class="ct-tl-none">start date not entered</span>`;
       const a = isNaN(k.start) ? 0 : at(k.start), b = isNaN(k.end) ? 100 : at(k.end);
       const cls = isNaN(k.end) ? 'open' : k.state === 'ended' ? 'ended' : k.state === 'soon' ? 'soon' : 'fixed';
-      const txt = isNaN(k.end) ? (isNaN(k.start) ? 'no dates' : 'since ' + day(k.start)) : k.state === 'ended' ? 'ended ' + day(k.end) : 'until ' + day(k.end) + ' · ' + left(k.end);
+      const txt = isNaN(k.end) ? (isNaN(k.start) ? 'no dates' : 'since ' + day(k.start)) : k.state === 'ended' ? 'ended ' + day(k.end) : 'until ' + day(k.end) + ' · ' + (k.renewedBy ? renewedTxt(k) : left(k.end));
       return `<span class="ct-tl-bar ${cls}" style="left:${a.toFixed(2)}%; width:${Math.max(1.5, b - a).toFixed(2)}%" title="${esc(k.name)}: ${isNaN(k.start) ? '?' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}">${txt}</span>`;
     };
     return `<div class="ct-tl"><div class="ct-tl-in">
@@ -7386,7 +7401,7 @@ function renderContracts(area){
     </div></div>
     <div class="ct-tl-legend"><span><i style="width:2px; height:14px; background:var(--accent);"></i>Today, ${day(now)}</span><span><i style="background:color-mix(in srgb, var(--accent) 24%, var(--panel));"></i>Fixed term</span><span><i style="background:color-mix(in srgb, var(--warn) 38%, var(--panel));"></i>Ends within 3 months</span><span><i style="border:1.5px dashed var(--axis);"></i>No end date</span></div>`;
   };
-  const period = k => `${isNaN(k.start) ? '—' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}${!isNaN(k.end) ? `<div class="pay-sub">${left(k.end)}</div>` : ''}${bar(k)}`;
+  const period = k => `${isNaN(k.start) ? '—' : day(k.start)} → ${isNaN(k.end) ? 'no end date' : day(k.end)}${!isNaN(k.end) ? `<div class="pay-sub">${k.renewedBy ? renewedTxt(k) : left(k.end)}</div>` : ''}${bar(k)}`;
   area.innerHTML = `
     <div class="pay-top">${payViewSwitch()}<div class="pay-seg" role="group" aria-label="Layout">${[['timeline', 'Timeline'], ['list', 'List']].map(([v, t]) => `<button type="button" class="${contractsLayout === v ? 'on' : ''}" data-ctlayout="${v}" aria-pressed="${contractsLayout === v}">${t}</button>`).join('')}</div><button type="button" class="pay-btn primary ct-add">${PAY_ICONS.plus}Add a contract</button></div>
     ${contractsList.error ? `<div class="pm-note">The Contracts tab isn't there yet (${contractsList.error}): run <b>setupContractsTab()</b> in the Payments spreadsheet's Apps Script. It creates the tab and fills it from the Gmail label payments-contracts.</div>` : ''}
