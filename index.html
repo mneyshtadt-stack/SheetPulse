@@ -2093,7 +2093,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795598186";
+const BUILD_ID = "1795619933";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -6839,7 +6839,7 @@ function renderNetWorth(nw, crossYearPrev){
       </tr>`;
     const groupRows = rows.map(r=>`
       <tr class="nw-item-row"${r.isLiability || !NW_FEES[r.key] ? '' : ` data-key="${r.key}" style="cursor:help;"`}>
-        <td><div class="md-th-symbol">${r.label}${!r.isLiability && NW_FEES[r.key] ? nwFeeChip(NW_FEES[r.key]) : ''}</div>${!r.isLiability && r.key && !NW_CORE_KEYS.includes(r.key) ? '<div class="md-th-sub">not in Net Worth</div>' : ''}</td>
+        <td><div class="md-th-symbol">${r.label}${!r.isLiability && NW_FEES[r.key] ? nwFeeChip(NW_FEES[r.key]) : ''}</div>${!r.isLiability && r.key && !NW_CORE_KEYS.includes(r.key) ? '<div class="md-th-sub" title="Left out of the Assets tile, the Net Worth total and the trend chart">not counted in Assets</div>' : ''}</td>
         <td class="num ${r.isLiability?'down':''}">${r.isLiability?'−':''}${fmt(r.value)}</td>
       </tr>`).join('');
     return groupHeader + groupRows;
