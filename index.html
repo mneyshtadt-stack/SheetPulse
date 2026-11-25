@@ -2094,7 +2094,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795626717";
+const BUILD_ID = "1795628695";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -8244,7 +8244,9 @@ function renderPayments(){
   const checkHidden = new Set(payChartHiddenGet('sp_payCheckHidden').filter(b => paymentsList.some(p => p.payee === b)));
   const now = Date.now(), thisM = monthKey(now);
   const past = list.filter(p => p.charge <= now && p.amount > 0);   // money figures: real charges only
-  const yearAgo = now - 365 * 86400000, twoYearsAgo = now - 730 * 86400000;
+  // Review 25 Nov 2026: the last 12 calendar months (this one included), as Ask SheetPulse and Purchases > Spending count
+  // them; a rolling 365 days gave the card ₪16,900 while Ask's "last 12 months" gave ₪16,779 (a 26-30 Nov 2025 bill).
+  const in12 = p => monthKey(p.charge) > thisM - 12, inPrev12 = p => monthKey(p.charge) > thisM - 24 && monthKey(p.charge) <= thisM - 12;
 
   // Bill status: per payee, which months are paid, scheduled (bill in, card not charged yet),
   // late (the month's bill came a month later), missing, or still awaited.
@@ -8255,10 +8257,10 @@ function renderPayments(){
   // Status cards: missing, to be charged, paid this month, last 12 months.
   const paidNow = past.filter(p => monthKey(p.charge) === thisM).sort((a, b) => a.charge - b.charge);
   const paidPrev = sum(past.filter(p => monthKey(p.charge) === thisM - 1));
-  const last12 = sum(past.filter(p => p.charge > yearAgo)), prev12 = sum(past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo));
+  const last12 = sum(past.filter(in12)), prev12 = sum(past.filter(inPrev12));
   // Review 16 Nov 2026: compare with the year before only when the records cover most of it (a partial year gave +1,308%).
   // The earlier year must be about as well recorded as this one: 10 of its months for the total, 60% as many bills for a category.
-  const prevArr = past.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo);
+  const prevArr = past.filter(inPrev12);
   const vs12 = prev12 && new Set(prevArr.map(p => monthKey(p.charge))).size >= 10 ? (last12 - prev12) / prev12 * 100 : NaN;
   const dChg = sum(paidNow) - paidPrev;
   // Top row (redesign 24 Nov 2026, canvas "Bills & Contracts redesign"): what you spent this month, what you pay next,
@@ -8313,7 +8315,7 @@ function renderPayments(){
   // Categories, last 12 months vs the 12 before.
   const catRows = cats.map(cat => {
     const all = past.filter(p => p.category === cat);
-    const y = all.filter(p => p.charge > yearAgo), yPrev = all.filter(p => p.charge > twoYearsAgo && p.charge <= yearAgo);
+    const y = all.filter(in12), yPrev = all.filter(inPrev12);
     const amts = y.map(p => p.amount), same = amts.length && amts.every(a => Math.abs(a - amts[0]) < 0.5);
     return {cat, payees: [...new Set(all.map(p => p.payee))].join(', '), n: y.length, total: sum(y),
       per: y.length ? (same ? fmt(amts[0]) + ' each' : fmt(sum(y) / y.length) + ' avg') : '',
