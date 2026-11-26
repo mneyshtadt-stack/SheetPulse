@@ -2094,7 +2094,7 @@
 // stale cached/back-forward-cached copy of this page. Replaced with a real timestamp by the deploy
 // script on every push, so it changes on every deploy. Silently checks the live server copy on load
 // (bypassing cache) and force-reloads via a fresh URL if what's actually deployed is newer.
-const BUILD_ID = "1795628695";
+const BUILD_ID = "1795715415";
 
 // Shows which build is currently loaded AND a content fingerprint that's independent of the
 // build timestamp -- the timestamp alone only proves *when* something was deployed, not that the
@@ -10013,6 +10013,11 @@ function isWeekendIL(ms){
   const wd = new Date(ms).toLocaleDateString('en-US', {timeZone: 'Asia/Jerusalem', weekday: 'short'});
   return wd === 'Sat' || wd === 'Sun';
 }
+// No session at that time for one market's chart: the weekend, or that market's holiday (26 Nov 2026, Thanksgiving: the USA
+// window's header showed Wednesday while its chart drew Thursday's rate-only rows against a "Prev. close" equal to Wednesday's).
+function noSessionAt(ms, market){
+  return isWeekendIL(ms) || ((market === 'us' || market === 'il') && isMarketHoliday(market, ymdIn(market === 'us' ? 'America/New_York' : 'Asia/Jerusalem', ms)));
+}
 // Weekends only (owner's rule 22 Nov 2026): the dollar's final Friday quote, which Yahoo prints after the 23:55 USA close
 // row (often 00:00-00:30 Saturday), is the USA close rate, so USA, Today and USD/ILS show no change on Saturday and Sunday.
 // The last weekend log row after the given close row; null on weekdays (the existing close-row rule stays).
@@ -10578,7 +10583,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
   // Drop anything outside real trading hours (e.g. a stray point from manual testing) — it
   // would otherwise still stretch the Y-axis range even though it renders off-window on the X-axis.
   // Saturday and Sunday have log rows (the rate) but no session: today's chart is then empty and falls back to Friday's.
-  let log = isWeekendIL(dayRange.open) ? [] : raw.filter(p => p.t >= dayRange.open && p.t <= dayRange.close);
+  let log = noSessionAt(dayRange.open, window.liveMarket) ? [] : raw.filter(p => p.t >= dayRange.open && p.t <= dayRange.close);
   let sessionLabel = '';
   let historicalFxMarker = null;
 
@@ -10616,7 +10621,7 @@ async function renderIntradayChart(prevClose, fetchRawFn, dayRange, cost, dayRan
     for(const {y,m,d} of candidateDates){
       const fbRange = dayRangeForDate(y,m,d);
       if(fbRange.open >= dayRange.open) continue; // today's own range (or later) -- only look backward
-      if(isWeekendIL(fbRange.open)) continue;      // weekend rows are the rate only, never a session
+      if(noSessionAt(fbRange.open, window.liveMarket)) continue;      // weekend / holiday rows are the rate only, never a session
       // USA's replayed session runs to its last logged reading of the Israel day (23:59), not only to the 23:00 close (22 Oct 2026).
       const ilDayOfFb = t => new Date(t).toLocaleDateString('en-GB', {timeZone: 'Asia/Jerusalem'});
       const fbSettle = window.liveMarket === 'il' ? raw.find(p => p.t >= taseSettleMs(fbRange.close) && ilDayOfFb(p.t) === ilDayOfFb(fbRange.open)) : null;
@@ -11160,7 +11165,8 @@ async function renderRangeChart(ctx, range){
       note = ctx.note || '';
     } else if(range === '5D'){
       const dayKey = t => { const d = new Date(t); return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate(); };
-      const all5 = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now() && !isWeekendIL(p.t));   // 5 sessions, not weekend days
+      const mk5 = ctx.dayRangeForDate === getUsDayRangeForDate ? 'us' : ctx.dayRangeForDate === getTaseDayRangeForDate ? 'il' : null;
+      const all5 = (await ctx.fetchIntradayRaw()).filter(p => p.t <= Date.now() && !noSessionAt(p.t, mk5));   // 5 sessions, not weekend or holiday days
       // Each day's previous close = the last reading of the day before it in the log.
       const lastOf = {}; all5.forEach(p => { const k = dayKey(p.t); if(!lastOf[k] || p.t > lastOf[k].t) lastOf[k] = p; });
       const days5 = Object.keys(lastOf).map(Number).sort((a, b) => a - b);
